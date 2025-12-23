@@ -1,0 +1,386 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// USER & AUTH
+// ============================================================================
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  avatarUrl String?
+  role      UserRole @default(USER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sessions       UserSession[]
+  subscription   Subscription?
+  projects       Project[]
+  prompts        Prompt[]
+  exports        ExportHistory[]
+  streamSessions StreamSession[]
+  payments       PaymentHistory[]
+
+  @@map("users")
+}
+
+model UserSession {
+  id               String   @id @default(cuid())
+  userId           String
+  token            String   @unique
+  refreshToken     String   @unique
+  userAgent        String?
+  ipAddress        String?
+  expiresAt        DateTime
+  refreshExpiresAt DateTime
+  createdAt        DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@index([refreshToken])
+  @@map("user_sessions")
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+// ============================================================================
+// SUBSCRIPTION
+// ============================================================================
+
+model Subscription {
+  id                   String             @id @default(cuid())
+  userId               String             @unique
+  tier                 SubscriptionTier   @default(FREE)
+  status               SubscriptionStatus @default(ACTIVE)
+  exportsUsed          Int                @default(0)
+  exportsLimit         Int                @default(0)
+  validUntil           DateTime?
+  xenditSubscriptionId String?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("subscriptions")
+}
+
+enum SubscriptionTier {
+  FREE
+  CREATOR
+  PRO
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
+
+model PaymentHistory {
+  id              String        @id @default(cuid())
+  userId          String
+  amount          Int           // Amount in IDR
+  tier            SubscriptionTier
+  status          PaymentStatus @default(PENDING)
+  xenditInvoiceId String?       @unique
+  xenditPaymentId String?
+  paymentMethod   String?       // QRIS, E-Wallet, Bank Transfer
+  paidAt          DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@map("payment_history")
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  EXPIRED
+  FAILED
+}
+
+// ============================================================================
+// PROJECT & TIMELINE
+// ============================================================================
+
+model Project {
+  id          String        @id @default(cuid())
+  userId      String
+  title       String
+  description String?
+  status      ProjectStatus @default(DRAFT)
+  settings    Json          @default("{}")
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  user     User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assets   ProjectAsset[]
+  timeline Timeline?
+  exports  ExportHistory[]
+
+  @@index([userId])
+  @@map("projects")
+}
+
+model ProjectAsset {
+  id        String    @id @default(cuid())
+  projectId String
+  type      AssetType
+  name      String
+  sourceUrl String?
+  r2Key     String
+  metadata  Json      @default("{}")
+  createdAt DateTime  @default(now())
+
+  project Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  clips   TimelineClip[]
+
+  @@index([projectId])
+  @@map("project_assets")
+}
+
+model Timeline {
+  id         String   @id @default(cuid())
+  projectId  String   @unique
+  width      Int      @default(1920)
+  height     Int      @default(1080)
+  fps        Int      @default(30)
+  durationMs Int      @default(0)
+  settings   Json     @default("{}")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  project Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tracks  TimelineTrack[]
+
+  @@map("timelines")
+}
+
+model TimelineTrack {
+  id         String    @id @default(cuid())
+  timelineId String
+  type       TrackType
+  order      Int       @default(0)
+  muted      Boolean   @default(false)
+  volume     Float     @default(1.0)
+  locked     Boolean   @default(false)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  timeline Timeline       @relation(fields: [timelineId], references: [id], onDelete: Cascade)
+  clips    TimelineClip[]
+
+  @@index([timelineId])
+  @@map("timeline_tracks")
+}
+
+model TimelineClip {
+  id          String   @id @default(cuid())
+  trackId     String
+  assetId     String?
+  startMs     Int      @default(0)
+  endMs       Int      @default(0)
+  trimStartMs Int      @default(0)
+  trimEndMs   Int      @default(0)
+  transforms  Json     @default("{}")
+  effects     Json     @default("{}")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  track TimelineTrack @relation(fields: [trackId], references: [id], onDelete: Cascade)
+  asset ProjectAsset? @relation(fields: [assetId], references: [id], onDelete: SetNull)
+
+  @@index([trackId])
+  @@map("timeline_clips")
+}
+
+enum ProjectStatus {
+  DRAFT
+  PROCESSING
+  COMPLETED
+}
+
+enum AssetType {
+  VIDEO
+  AUDIO
+  IMAGE
+  VOICE
+}
+
+enum TrackType {
+  VIDEO
+  AUDIO
+  TEXT
+  OVERLAY
+}
+
+// ============================================================================
+// PROMPT BUILDER
+// ============================================================================
+
+model Prompt {
+  id               String     @id @default(cuid())
+  userId           String
+  type             PromptType
+  title            String
+  currentVersionId String?
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  user     User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  versions PromptVersion[]
+
+  @@index([userId])
+  @@index([type])
+  @@map("prompts")
+}
+
+model PromptVersion {
+  id              String   @id @default(cuid())
+  promptId        String
+  version         Int
+  inputData       Json
+  generatedPrompt String   @db.Text
+  userNotes       String?  @db.Text
+  createdAt       DateTime @default(now())
+
+  prompt Prompt @relation(fields: [promptId], references: [id], onDelete: Cascade)
+
+  @@unique([promptId, version])
+  @@index([promptId])
+  @@map("prompt_versions")
+}
+
+enum PromptType {
+  SCRIPT
+  VOICE
+  VIDEO_GEN
+  IMAGE
+  RELAXING
+  CREATIVE_SCAN
+}
+
+// ============================================================================
+// EXPORT
+// ============================================================================
+
+model ExportHistory {
+  id            String           @id @default(cuid())
+  userId        String
+  projectId     String
+  format        ExportFormat
+  resolution    ExportResolution
+  status        ExportStatus     @default(QUEUED)
+  progress      Int              @default(0)
+  attempts      Int              @default(0)
+  timelineData  Json?            // Timeline snapshot for processing
+  localPath     String?          // Local file path (dev)
+  r2Key         String?          // R2 key (prod)
+  fileSizeBytes BigInt?
+  errorMessage  String?
+  startedAt     DateTime?
+  expiresAt     DateTime?
+  createdAt     DateTime         @default(now())
+  completedAt   DateTime?
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([projectId])
+  @@index([status])
+  @@map("export_history")
+}
+
+enum ExportFormat {
+  MP4
+  WEBM
+  MOV
+}
+
+enum ExportResolution {
+  SD      @map("720P")
+  HD      @map("1080P")
+  UHD     @map("4K")
+}
+
+enum ExportStatus {
+  QUEUED
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+// ============================================================================
+// URL DOWNLOAD
+// ============================================================================
+
+model DownloadJob {
+  id           String         @id @default(cuid())
+  userId       String
+  sourceUrl    String
+  platform     String
+  title        String?
+  status       DownloadStatus @default(PENDING)
+  localPath    String?        // Local file path (dev)
+  r2Key        String?        // R2 key (prod)
+  metadata     Json           @default("{}")
+  errorMessage String?
+  createdAt    DateTime       @default(now())
+  completedAt  DateTime?
+
+  @@index([userId])
+  @@index([status])
+  @@map("download_jobs")
+}
+
+enum DownloadStatus {
+  PENDING
+  DOWNLOADING
+  COMPLETED
+  FAILED
+}
+
+// ================================
+// STREAMING MODELS
+// ================================
+
+model StreamSession {
+  id           String       @id @default(cuid())
+  userId       String
+  platform     String       // youtube, tiktok, twitch, etc.
+  status       StreamStatus @default(STARTING)
+  startedAt    DateTime     @default(now())
+  endedAt      DateTime?
+  errorMessage String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@map("stream_sessions")
+}
+
+enum StreamStatus {
+  STARTING
+  LIVE
+  ENDED
+  FAILED
+}

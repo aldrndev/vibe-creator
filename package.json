@@ -1,0 +1,32 @@
+{
+  "name": "vibe-creator",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Platform all-in-one untuk daily content creation",
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "typecheck": "turbo typecheck",
+    "test": "turbo test",
+    "server": "pnpm --filter @vibe-creator/server dev",
+    "web": "pnpm --filter @vibe-creator/web dev",
+    "db:migrate": "pnpm --filter @vibe-creator/server db:migrate",
+    "db:generate": "pnpm --filter @vibe-creator/server db:generate",
+    "db:studio": "pnpm --filter @vibe-creator/server db:studio"
+  },
+  "keywords": [
+    "content-creator",
+    "video-editor",
+    "prompt-builder"
+  ],
+  "author": "",
+  "license": "UNLICENSED",
+  "packageManager": "pnpm@10.26.1",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "devDependencies": {
+    "turbo": "^2.7.1"
+  }
+}
