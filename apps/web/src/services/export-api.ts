@@ -1,4 +1,4 @@
-import { useAuthStore } from '@/stores/auth-store';
+import { authFetch } from '@/services/api';
 
 interface UploadResponse {
   filename: string;
@@ -44,13 +44,9 @@ interface CreateExportInput {
 
 const API_BASE = '/api/v1';
 
-function getAuthHeader(): string {
-  const token = useAuthStore.getState().accessToken;
-  return token ? `Bearer ${token}` : '';
-}
-
 /**
  * Export API service for server-side video export
+ * Uses authFetch for automatic token refresh
  */
 export const exportApi = {
   /**
@@ -60,13 +56,9 @@ export const exportApi = {
     const formData = new FormData();
     formData.append('file', file);
 
-    const response = await fetch(`${API_BASE}/upload/video`, {
+    const response = await authFetch(`${API_BASE}/upload/video`, {
       method: 'POST',
-      headers: {
-        Authorization: getAuthHeader(),
-      },
       body: formData,
-      credentials: 'include',
     });
 
     const data = await response.json();
@@ -80,14 +72,12 @@ export const exportApi = {
    * Create export job
    */
   async createExportJob(input: CreateExportInput): Promise<ExportJobResponse> {
-    const response = await fetch(`${API_BASE}/export/request`, {
+    const response = await authFetch(`${API_BASE}/export/request`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: getAuthHeader(),
       },
       body: JSON.stringify(input),
-      credentials: 'include',
     });
 
     const data = await response.json();
@@ -101,12 +91,8 @@ export const exportApi = {
    * Get export job status
    */
   async getExportStatus(jobId: string): Promise<ExportStatusResponse> {
-    const response = await fetch(`${API_BASE}/export/${jobId}/status`, {
+    const response = await authFetch(`${API_BASE}/export/${jobId}/status`, {
       method: 'GET',
-      headers: {
-        Authorization: getAuthHeader(),
-      },
-      credentials: 'include',
     });
 
     const data = await response.json();

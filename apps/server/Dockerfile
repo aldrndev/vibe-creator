@@ -16,8 +16,14 @@ COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 COPY packages ./packages
 COPY apps/server ./apps/server
 
-# Install dependencies
+# Install all dependencies (including dev for prisma)
 RUN pnpm install --frozen-lockfile
+
+# Build shared package first
+WORKDIR /app/packages/shared
+RUN pnpm build
+# Patch shared package.json to use dist/ for production runtime
+RUN sed -i 's|./src/index.ts|./dist/index.js|g' package.json
 
 # Generate Prisma client
 WORKDIR /app/apps/server
@@ -36,20 +42,28 @@ RUN apk add --no-cache \
     ffmpeg \
     python3 \
     py3-pip \
-    && pip3 install --no-cache-dir yt-dlp
+    && pip3 install --no-cache-dir --break-system-packages yt-dlp
 
 # Install pnpm
 RUN npm install -g pnpm
 
-# Copy built app
-COPY --from=builder /app/apps/server/dist ./dist
-COPY --from=builder /app/apps/server/package.json ./
-COPY --from=builder /app/apps/server/prisma ./prisma
-COPY --from=builder /app/node_modules/.pnpm/@prisma+client* /app/node_modules/.pnpm/
-COPY --from=builder /app/node_modules/@prisma /app/node_modules/@prisma
+# Copy package files for pnpm install
+COPY --from=builder /app/package.json /app/pnpm-lock.yaml /app/pnpm-workspace.yaml ./
+COPY --from=builder /app/packages ./packages
+COPY --from=builder /app/apps/server/package.json ./apps/server/
 
 # Install production dependencies only
+WORKDIR /app
 RUN pnpm install --prod --frozen-lockfile
+
+# Copy built app
+WORKDIR /app/apps/server
+COPY --from=builder /app/apps/server/dist ./dist
+COPY --from=builder /app/apps/server/prisma ./prisma
+
+# Copy pre-generated Prisma client from builder (pnpm hoisted structure)
+COPY --from=builder /app/node_modules/.pnpm/@prisma+client*/node_modules/.prisma /app/node_modules/.prisma
+COPY --from=builder /app/node_modules/.pnpm/@prisma+client*/node_modules/@prisma /app/node_modules/@prisma
 
 # Create upload directories
 RUN mkdir -p uploads/temp uploads/exports uploads/downloads

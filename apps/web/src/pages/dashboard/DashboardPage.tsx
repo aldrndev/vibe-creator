@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Card, CardBody, Button, Progress, Chip } from '@heroui/react';
+import { Card, CardBody, Button, Progress, Chip, Skeleton } from '@heroui/react';
 import { Link, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, useSpring, useTransform } from 'framer-motion';
 import { 
   FolderOpen, 
   Sparkles, 
@@ -15,12 +15,28 @@ import {
   Zap
 } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth-store';
-
-interface UserStats {
-  projects: number;
-  prompts: number;
-  exports: number;
-  downloads: number;
+import { useDashboardStats } from '@/hooks/use-dashboard-stats';
+// Animated number component
+function AnimatedNumber({ value, isLoading }: { value: number; isLoading: boolean }) {
+  const spring = useSpring(0, { stiffness: 100, damping: 30 });
+  const display = useTransform(spring, (v) => Math.round(v));
+  const [displayValue, setDisplayValue] = useState(0);
+  
+  useEffect(() => {
+    if (!isLoading) {
+      spring.set(value);
+    }
+  }, [value, isLoading, spring]);
+  
+  useEffect(() => {
+    return display.on('change', (v) => setDisplayValue(v));
+  }, [display]);
+  
+  if (isLoading) {
+    return <Skeleton className="w-8 h-8 rounded" />;
+  }
+  
+  return <span>{displayValue}</span>;
 }
 
 const quickActions = [
@@ -64,48 +80,13 @@ const quickActions = [
 export function DashboardPage() {
   const navigate = useNavigate();
   const { user, subscription } = useAuthStore();
-  const [stats, setStats] = useState<UserStats>({ projects: 0, prompts: 0, exports: 0, downloads: 0 });
-  const [isLoading, setIsLoading] = useState(true);
-
-  // Fetch user stats
-  useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        // Fetch projects count
-        const projectsRes = await fetch('/api/v1/projects?limit=1', { credentials: 'include' });
-        const projectsData = projectsRes.ok ? await projectsRes.json() : { meta: { total: 0 } };
-        
-        // Fetch prompts count  
-        const promptsRes = await fetch('/api/v1/prompts?limit=1', { credentials: 'include' });
-        const promptsData = promptsRes.ok ? await promptsRes.json() : { meta: { total: 0 } };
-        
-        // Fetch exports count
-        const exportsRes = await fetch('/api/v1/export/history', { credentials: 'include' });
-        const exportsData = exportsRes.ok ? await exportsRes.json() : { data: [] };
-        
-        // Fetch downloads count
-        const downloadsRes = await fetch('/api/v1/download/history', { credentials: 'include' });
-        const downloadsData = downloadsRes.ok ? await downloadsRes.json() : { data: [] };
-
-        setStats({
-          projects: projectsData.meta?.total ?? projectsData.data?.length ?? 0,
-          prompts: promptsData.meta?.total ?? promptsData.data?.length ?? 0,
-          exports: exportsData.data?.length ?? 0,
-          downloads: downloadsData.data?.length ?? 0,
-        });
-      } catch (err) {
-        console.error('Failed to fetch stats:', err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchStats();
-  }, []);
+  const { data: stats, isLoading } = useDashboardStats();
+  
+  const safeStats = stats ?? { projects: 0, prompts: 0, exports: 0, downloads: 0 };
 
   const handleAction = (action: { action?: string; href?: string }) => {
     if (action.action === 'new-project') {
-      const newId = `project-${Date.now()}`;
-      navigate(`/editor/${newId}`);
+      navigate('/tools/editor');
     } else if (action.href) {
       navigate(action.href);
     }
@@ -191,6 +172,7 @@ export function DashboardPage() {
                 color={isNearLimit ? 'warning' : 'primary'}
                 size="sm"
                 className="mt-2"
+                aria-label="Export usage"
               />
             )}
             {isNearLimit && !isUnlimited && (
@@ -247,7 +229,7 @@ export function DashboardPage() {
                   <FolderOpen className="text-primary" size={20} />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">{isLoading ? '-' : stats.projects}</p>
+                  <div className="text-2xl font-bold"><AnimatedNumber value={safeStats.projects} isLoading={isLoading} /></div>
                   <p className="text-sm text-foreground/60">Proyek</p>
                 </div>
               </div>
@@ -261,7 +243,7 @@ export function DashboardPage() {
                   <Sparkles className="text-secondary" size={20} />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">{isLoading ? '-' : stats.prompts}</p>
+                  <div className="text-2xl font-bold"><AnimatedNumber value={safeStats.prompts} isLoading={isLoading} /></div>
                   <p className="text-sm text-foreground/60">Prompts</p>
                 </div>
               </div>
@@ -275,7 +257,7 @@ export function DashboardPage() {
                   <Video className="text-success" size={20} />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">{isLoading ? '-' : stats.exports}</p>
+                  <div className="text-2xl font-bold"><AnimatedNumber value={safeStats.exports} isLoading={isLoading} /></div>
                   <p className="text-sm text-foreground/60">Exports</p>
                 </div>
               </div>
@@ -289,7 +271,7 @@ export function DashboardPage() {
                   <Download className="text-warning" size={20} />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">{isLoading ? '-' : stats.downloads}</p>
+                  <div className="text-2xl font-bold"><AnimatedNumber value={safeStats.downloads} isLoading={isLoading} /></div>
                   <p className="text-sm text-foreground/60">Downloads</p>
                 </div>
               </div>

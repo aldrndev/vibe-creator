@@ -1,9 +1,35 @@
 import { useState, useRef } from 'react';
-import { Button, Card, CardBody, CardHeader, Slider, RadioGroup, Radio, Divider, Progress } from '@heroui/react';
-import { Upload, RefreshCw, Repeat, Film, Download, ArrowLeft } from 'lucide-react';
+import { Button, Card, CardBody, CardHeader, Slider, Divider, Progress, Chip } from '@heroui/react';
+import { Upload, RefreshCw, Repeat, Film, Download, ArrowLeft, Sparkles, Check } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { PageTransition, HoverCard } from '@/components/ui/PageTransition';
+import { authFetch } from '@/services/api';
 
 type LoopMode = 'loop' | 'boomerang' | 'gif';
+
+const loopModes = [
+  { 
+    id: 'loop' as const, 
+    name: 'Loop', 
+    description: 'Ulangi video beberapa kali',
+    icon: Repeat,
+    color: 'primary'
+  },
+  { 
+    id: 'boomerang' as const, 
+    name: 'Boomerang', 
+    description: 'Maju-mundur seamless',
+    icon: RefreshCw,
+    color: 'secondary'
+  },
+  { 
+    id: 'gif' as const, 
+    name: 'GIF', 
+    description: 'Export ke format GIF',
+    icon: Film,
+    color: 'warning'
+  },
+];
 
 export function LoopCreatorPage() {
   const [videoFile, setVideoFile] = useState<File | null>(null);
@@ -31,7 +57,7 @@ export function LoopCreatorPage() {
   const handleVideoLoaded = () => {
     if (videoRef.current) {
       const duration = videoRef.current.duration * 1000;
-      setEndMs(Math.min(duration, 10000)); // Max 10 seconds for loop
+      setEndMs(Math.min(duration, 10000));
     }
   };
 
@@ -42,14 +68,12 @@ export function LoopCreatorPage() {
       setIsProcessing(true);
       setProcessingStatus('Mengupload video...');
       
-      // First upload the video
       const formData = new FormData();
       formData.append('video', videoFile);
       
-      const uploadRes = await fetch('/api/v1/upload/video', {
+      const uploadRes = await authFetch('/api/v1/upload/video', {
         method: 'POST',
         body: formData,
-        credentials: 'include',
       });
       
       if (!uploadRes.ok) throw new Error('Upload failed');
@@ -58,7 +82,6 @@ export function LoopCreatorPage() {
       
       setProcessingStatus(`Membuat ${loopMode === 'gif' ? 'GIF' : loopMode === 'boomerang' ? 'boomerang' : 'loop'}...`);
       
-      // Create loop/boomerang/gif
       const endpoint = loopMode === 'gif' 
         ? '/api/v1/loop/gif'
         : loopMode === 'boomerang'
@@ -79,17 +102,15 @@ export function LoopCreatorPage() {
         body.width = 480;
       }
       
-      const processRes = await fetch(endpoint, {
+      const processRes = await authFetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
-        credentials: 'include',
       });
       
       if (!processRes.ok) throw new Error('Processing failed');
       const processData = await processRes.json();
       
-      // Get filename from path
       const filename = processData.data.outputPath.split('/').pop();
       setResultUrl(`/api/v1/loop/download/${filename}`);
       setProcessingStatus('Selesai!');
@@ -102,8 +123,10 @@ export function LoopCreatorPage() {
     }
   };
 
+  const currentModeConfig = loopModes.find(m => m.id === loopMode)!;
+
   return (
-    <div className="min-h-screen bg-background p-6">
+    <PageTransition className="min-h-screen bg-background p-6">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="flex items-center gap-4 mb-6">
@@ -112,204 +135,238 @@ export function LoopCreatorPage() {
               <ArrowLeft size={20} />
             </Button>
           </Link>
-          <h1 className="text-2xl font-bold">Loop Creator</h1>
+          <div>
+            <h1 className="text-2xl font-bold flex items-center gap-2">
+              <Repeat size={24} className="text-primary" />
+              Loop Creator
+            </h1>
+            <p className="text-foreground/60 text-sm">Buat video loop, boomerang, atau GIF</p>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Left: Video Preview */}
-          <Card>
-            <CardHeader>
-              <h2 className="text-lg font-semibold">Video</h2>
-            </CardHeader>
-            <CardBody className="space-y-4">
-              {!videoUrl ? (
-                <div 
-                  className="aspect-video bg-default-100 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:bg-default-200 transition-colors"
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  <Upload size={48} className="text-default-400 mb-3" />
-                  <p className="text-default-500">Klik untuk upload video</p>
+          <div>
+            <Card className="h-full">
+              <CardHeader className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <Upload size={16} className="text-primary" />
                 </div>
-              ) : (
-                <video
-                  ref={videoRef}
-                  src={videoUrl}
-                  controls
-                  loop
-                  className="w-full aspect-video rounded-xl bg-black"
-                  onLoadedMetadata={handleVideoLoaded}
+                <h2 className="text-lg font-semibold">Video</h2>
+              </CardHeader>
+              <CardBody className="space-y-4">
+                {!videoUrl ? (
+                  <div 
+                    className="aspect-video bg-content2 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:bg-content3 transition-colors border-2 border-dashed border-divider hover:border-primary/50"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                      <Upload size={32} className="text-primary" />
+                    </div>
+                    <p className="text-foreground/60 font-medium">Klik untuk upload video</p>
+                    <p className="text-foreground/40 text-sm mt-1">MP4, MOV, WebM</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <video
+                      ref={videoRef}
+                      src={videoUrl}
+                      controls
+                      loop
+                      className="w-full aspect-video rounded-xl bg-black"
+                      onLoadedMetadata={handleVideoLoaded}
+                    />
+                    <Button 
+                      variant="flat" 
+                      size="sm"
+                      onPress={() => fileInputRef.current?.click()}
+                      startContent={<Upload size={14} />}
+                    >
+                      Ganti Video
+                    </Button>
+                  </div>
+                )}
+                
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="video/*"
+                  onChange={handleFileSelect}
+                  className="hidden"
                 />
-              )}
-              
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="video/*"
-                onChange={handleFileSelect}
-                className="hidden"
-              />
-              
-              {videoUrl && (
-                <Button 
-                  variant="flat" 
-                  onPress={() => fileInputRef.current?.click()}
-                  startContent={<Upload size={16} />}
-                >
-                  Ganti Video
-                </Button>
-              )}
-            </CardBody>
-          </Card>
+              </CardBody>
+            </Card>
+          </div>
 
           {/* Right: Controls */}
-          <Card>
-            <CardHeader>
-              <h2 className="text-lg font-semibold">Pengaturan</h2>
-            </CardHeader>
-            <CardBody className="space-y-6">
-              {/* Loop Mode */}
-              <div>
-                <label className="text-sm font-medium mb-2 block">Mode</label>
-                <RadioGroup 
-                  orientation="horizontal"
-                  value={loopMode}
-                  onValueChange={(v) => setLoopMode(v as LoopMode)}
-                >
-                  <Radio value="loop">
-                    <div className="flex items-center gap-2">
-                      <Repeat size={16} />
-                      <span>Loop</span>
-                    </div>
-                  </Radio>
-                  <Radio value="boomerang">
-                    <div className="flex items-center gap-2">
-                      <RefreshCw size={16} />
-                      <span>Boomerang</span>
-                    </div>
-                  </Radio>
-                  <Radio value="gif">
-                    <div className="flex items-center gap-2">
-                      <Film size={16} />
-                      <span>GIF</span>
-                    </div>
-                  </Radio>
-                </RadioGroup>
-              </div>
-
-              <Divider />
-
-              {/* Trim Controls */}
-              <div>
-                <label className="text-sm font-medium mb-2 block">
-                  Rentang ({(startMs / 1000).toFixed(1)}s - {(endMs / 1000).toFixed(1)}s)
-                </label>
-                <div className="flex gap-4">
-                  <Slider
-                    label="Mulai"
-                    step={100}
-                    minValue={0}
-                    maxValue={endMs - 500}
-                    value={startMs}
-                    onChange={(v) => setStartMs(v as number)}
-                    className="flex-1"
-                  />
-                  <Slider
-                    label="Akhir"
-                    step={100}
-                    minValue={startMs + 500}
-                    maxValue={30000}
-                    value={endMs}
-                    onChange={(v) => setEndMs(v as number)}
-                    className="flex-1"
-                  />
+          <div>
+            <Card>
+              <CardHeader className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-secondary/10 flex items-center justify-center">
+                  <Sparkles size={16} className="text-secondary" />
                 </div>
-              </div>
+                <h2 className="text-lg font-semibold">Pengaturan</h2>
+              </CardHeader>
+              <CardBody className="space-y-6">
+                {/* Loop Mode Cards */}
+                <div>
+                  <label className="text-sm font-medium mb-3 block">Mode</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {loopModes.map((mode) => (
+                      <HoverCard key={mode.id}>
+                        <Card 
+                          isPressable
+                          onPress={() => setLoopMode(mode.id)}
+                          className={`border-2 transition-colors ${
+                            loopMode === mode.id 
+                              ? `border-${mode.color} bg-${mode.color}/10` 
+                              : 'border-transparent hover:border-divider'
+                          }`}
+                        >
+                          <CardBody className="p-3 text-center">
+                            <div className={`w-10 h-10 rounded-lg bg-${mode.color}/20 flex items-center justify-center mx-auto mb-2`}>
+                              <mode.icon size={20} className={`text-${mode.color}`} />
+                            </div>
+                            <p className="font-medium text-sm">{mode.name}</p>
+                            <p className="text-xs text-foreground/50 mt-0.5">{mode.description}</p>
+                            {loopMode === mode.id && (
+                              <Chip size="sm" color={mode.color as 'primary' | 'secondary' | 'warning'} className="mt-2">
+                                <Check size={12} />
+                              </Chip>
+                            )}
+                          </CardBody>
+                        </Card>
+                      </HoverCard>
+                    ))}
+                  </div>
+                </div>
 
-              {/* Loop Count (only for loop mode) */}
-              {loopMode === 'loop' && (
-                <>
-                  <Divider />
-                  <div>
-                    <label className="text-sm font-medium mb-2 block">
-                      Jumlah Loop: {loopCount}x
-                    </label>
+                <Divider />
+
+                {/* Trim Controls */}
+                <div>
+                  <label className="text-sm font-medium mb-2 block">
+                    Rentang: {(startMs / 1000).toFixed(1)}s - {(endMs / 1000).toFixed(1)}s
+                  </label>
+                  <div className="flex gap-4">
                     <Slider
-                      step={1}
-                      minValue={2}
-                      maxValue={10}
-                      value={loopCount}
-                      onChange={(v) => setLoopCount(v as number)}
+                      label="Mulai"
+                      step={100}
+                      minValue={0}
+                      maxValue={endMs - 500}
+                      value={startMs}
+                      onChange={(v) => setStartMs(v as number)}
+                      className="flex-1"
+                      color="primary"
+                    />
+                    <Slider
+                      label="Akhir"
+                      step={100}
+                      minValue={startMs + 500}
+                      maxValue={30000}
+                      value={endMs}
+                      onChange={(v) => setEndMs(v as number)}
+                      className="flex-1"
+                      color="primary"
                     />
                   </div>
-                </>
-              )}
-
-              <Divider />
-
-              {/* Processing Status */}
-              {isProcessing && (
-                <div className="space-y-2">
-                  <Progress isIndeterminate size="sm" color="primary" />
-                  <p className="text-sm text-center text-foreground/60">{processingStatus}</p>
                 </div>
-              )}
 
-              {/* Action Buttons */}
-              <div className="flex gap-3">
-                <Button
-                  color="primary"
-                  className="flex-1"
-                  isDisabled={!videoFile || isProcessing}
-                  isLoading={isProcessing}
-                  onPress={handleProcess}
-                  startContent={!isProcessing && (loopMode === 'gif' ? <Film size={18} /> : <Repeat size={18} />)}
-                >
-                  {loopMode === 'gif' ? 'Buat GIF' : loopMode === 'boomerang' ? 'Buat Boomerang' : 'Buat Loop'}
-                </Button>
-                
-                {resultUrl && (
-                  <Button
-                    as="a"
-                    href={resultUrl}
-                    download
-                    color="success"
-                    startContent={<Download size={18} />}
-                  >
-                    Download
-                  </Button>
+                {/* Loop Count */}
+                {loopMode === 'loop' && (
+                  <>
+                    <Divider />
+                    <div>
+                      <label className="text-sm font-medium mb-2 block">
+                        Jumlah Loop: {loopCount}x
+                      </label>
+                      <Slider
+                        step={1}
+                        minValue={2}
+                        maxValue={10}
+                        value={loopCount}
+                        onChange={(v) => setLoopCount(v as number)}
+                        color="primary"
+                      />
+                    </div>
+                  </>
                 )}
-              </div>
-            </CardBody>
-          </Card>
+
+                <Divider />
+
+                {/* Processing Status */}
+                {isProcessing && (
+                  <div className="space-y-2 p-3 rounded-lg bg-primary/5">
+                    <Progress isIndeterminate size="sm" color="primary" aria-label="Sedang memproses" />
+                    <p className="text-sm text-center text-foreground/60">{processingStatus}</p>
+                  </div>
+                )}
+
+                {/* Action Buttons */}
+                <div className="flex gap-3">
+                  <Button
+                    color={currentModeConfig.color as 'primary' | 'secondary' | 'warning'}
+                    className="flex-1"
+                    isDisabled={!videoFile || isProcessing}
+                    isLoading={isProcessing}
+                    onPress={handleProcess}
+                    startContent={!isProcessing && <currentModeConfig.icon size={18} />}
+                    size="lg"
+                  >
+                    {loopMode === 'gif' ? 'Buat GIF' : loopMode === 'boomerang' ? 'Buat Boomerang' : 'Buat Loop'}
+                  </Button>
+                  
+                  {resultUrl && (
+                    <Button
+                      as="a"
+                      href={resultUrl}
+                      download
+                      color="success"
+                      size="lg"
+                      startContent={<Download size={18} />}
+                    >
+                      Download
+                    </Button>
+                  )}
+                </div>
+              </CardBody>
+            </Card>
+          </div>
         </div>
 
         {/* Result Preview */}
         {resultUrl && (
-          <Card className="mt-6">
-            <CardHeader>
-              <h2 className="text-lg font-semibold">Hasil</h2>
-            </CardHeader>
-            <CardBody>
-              {loopMode === 'gif' ? (
-                <img 
-                  src={resultUrl} 
-                  alt="Result GIF" 
-                  className="max-w-md mx-auto rounded-xl"
-                />
-              ) : (
-                <video
-                  src={resultUrl}
-                  controls
-                  loop
-                  autoPlay
-                  muted
-                  className="max-w-md mx-auto rounded-xl"
-                />
-              )}
-            </CardBody>
-          </Card>
+          <div className="mt-6">
+            <Card className="border-2 border-success/30 bg-success/5">
+              <CardHeader className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-success/20 flex items-center justify-center">
+                  <Check size={16} className="text-success" />
+                </div>
+                <h2 className="text-lg font-semibold">Hasil</h2>
+                <Chip color="success" size="sm" variant="flat">Selesai</Chip>
+              </CardHeader>
+              <CardBody>
+                {loopMode === 'gif' ? (
+                  <img 
+                    src={resultUrl} 
+                    alt="Result GIF" 
+                    className="max-w-md mx-auto rounded-xl"
+                  />
+                ) : (
+                  <video
+                    src={resultUrl}
+                    controls
+                    loop
+                    autoPlay
+                    muted
+                    className="max-w-md mx-auto rounded-xl"
+                  />
+                )}
+              </CardBody>
+            </Card>
+          </div>
         )}
       </div>
-    </div>
+    </PageTransition>
   );
 }

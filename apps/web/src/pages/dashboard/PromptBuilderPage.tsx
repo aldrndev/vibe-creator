@@ -14,6 +14,7 @@ import { motion } from 'framer-motion';
 import { ArrowLeft, Sparkles, Copy, Check, Mic, Video, Image, Music, Scan } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useCreatePrompt } from '@/hooks/use-prompts';
+import { SelectionGrid } from '@/components/ui/SelectionGrid';
 import type { PromptType } from '@vibe-creator/shared';
 
 // ============================================================================
@@ -96,6 +97,70 @@ const promptTypes = [
   { key: 'CREATIVE_SCAN', label: 'Creative Scan', description: 'Analisis video kompetitor', icon: Scan },
 ];
 
+// === SCRIPT OPTIONS ===
+const niches = [
+  { key: 'gaming', label: 'Gaming' },
+  { key: 'travel', label: 'Travel' },
+  { key: 'tech', label: 'Technology' },
+  { key: 'lifestyle', label: 'Lifestyle' },
+  { key: 'food', label: 'Food & Cooking' },
+  { key: 'finance', label: 'Finance' },
+  { key: 'education', label: 'Education' },
+  { key: 'health', label: 'Health & Fitness' },
+  { key: 'beauty', label: 'Beauty' },
+  { key: 'entertainment', label: 'Entertainment' },
+  { key: 'business', label: 'Business' },
+  { key: 'music', label: 'Music' },
+  { key: 'sports', label: 'Sports' },
+  { key: 'automotive', label: 'Automotive' },
+  { key: 'fashion', label: 'Fashion' },
+  { key: 'parenting', label: 'Parenting' },
+  { key: 'diy', label: 'DIY & Crafts' },
+  { key: 'photography', label: 'Photography' },
+  { key: 'pets', label: 'Pets & Animals' },
+  { key: 'news', label: 'News & Current' },
+];
+
+const targetAudiences = [
+  { key: 'gen-z', label: 'Gen Z (13-25)' },
+  { key: 'millennials', label: 'Millennials (26-41)' },
+  { key: 'gen-x', label: 'Gen X (42-57)' },
+  { key: 'professionals', label: 'Professionals' },
+  { key: 'parents', label: 'Parents' },
+  { key: 'students', label: 'Students' },
+  { key: 'entrepreneurs', label: 'Entrepreneurs' },
+  { key: 'gamers', label: 'Gamers' },
+  { key: 'creators', label: 'Creators' },
+  { key: 'beginners', label: 'Beginners' },
+  { key: 'experts', label: 'Experts' },
+];
+
+const callToActions = [
+  { key: 'subscribe', label: 'Subscribe' },
+  { key: 'like-share', label: 'Like & Share' },
+  { key: 'comment', label: 'Comment' },
+  { key: 'visit-link', label: 'Visit Link' },
+  { key: 'buy-now', label: 'Buy Now' },
+  { key: 'download', label: 'Download' },
+  { key: 'sign-up', label: 'Sign Up' },
+  { key: 'watch-more', label: 'Watch More' },
+  { key: 'follow', label: 'Follow' },
+  { key: 'try-free', label: 'Try Free' },
+];
+
+const keyMessages = [
+  { key: 'save-money', label: 'Save Money' },
+  { key: 'save-time', label: 'Save Time' },
+  { key: 'learn-skill', label: 'Learn New Skill' },
+  { key: 'entertainment', label: 'Entertainment' },
+  { key: 'inspiration', label: 'Inspiration' },
+  { key: 'problem-solving', label: 'Problem Solving' },
+  { key: 'life-hack', label: 'Life Hack' },
+  { key: 'review', label: 'Review' },
+  { key: 'tutorial', label: 'Tutorial' },
+  { key: 'behind-scenes', label: 'Behind the Scenes' },
+];
+
 const platforms = [
   { key: 'youtube', label: 'YouTube' },
   { key: 'tiktok', label: 'TikTok' },
@@ -137,7 +202,7 @@ const narrativeStyles = [
   { key: 'listicle', label: 'Listicle (Daftar poin)' },
 ];
 
-// Voice options
+// === VOICE OPTIONS ===
 const voiceStyles = [
   { key: 'narrator', label: 'Narrator' },
   { key: 'conversational', label: 'Conversational' },
@@ -145,6 +210,41 @@ const voiceStyles = [
   { key: 'calm', label: 'Calm' },
   { key: 'authoritative', label: 'Authoritative' },
   { key: 'friendly', label: 'Friendly' },
+  { key: 'dramatic', label: 'Dramatic' },
+  { key: 'whisper', label: 'Whisper' },
+  { key: 'excited', label: 'Excited' },
+  { key: 'professional', label: 'Professional' },
+];
+
+const emotions = [
+  { key: 'happy', label: 'Happy' },
+  { key: 'sad', label: 'Sad' },
+  { key: 'excited', label: 'Excited' },
+  { key: 'calm', label: 'Calm' },
+  { key: 'urgent', label: 'Urgent' },
+  { key: 'curious', label: 'Curious' },
+  { key: 'confident', label: 'Confident' },
+  { key: 'mysterious', label: 'Mysterious' },
+  { key: 'playful', label: 'Playful' },
+  { key: 'serious', label: 'Serious' },
+];
+
+const emphasisOptions = [
+  { key: 'keywords', label: 'Keywords' },
+  { key: 'statistics', label: 'Statistics' },
+  { key: 'cta', label: 'CTA' },
+  { key: 'questions', label: 'Questions' },
+  { key: 'brand-names', label: 'Brand Names' },
+  { key: 'benefits', label: 'Benefits' },
+  { key: 'problems', label: 'Problems' },
+];
+
+const pauseOptions = [
+  { key: 'minimal', label: 'Minimal' },
+  { key: 'natural', label: 'Natural' },
+  { key: 'dramatic', label: 'Dramatic' },
+  { key: 'emphasis', label: 'For Emphasis' },
+  { key: 'none', label: 'None' },
 ];
 
 const languages = [
@@ -164,7 +264,20 @@ const paces = [
   { key: 'fast', label: 'Cepat' },
 ];
 
-// Video Gen options
+// === VIDEO GEN OPTIONS ===
+const videoConcepts = [
+  { key: 'product-showcase', label: 'Product Showcase' },
+  { key: 'landscape', label: 'Landscape Scene' },
+  { key: 'character', label: 'Character Animation' },
+  { key: 'abstract', label: 'Abstract Art' },
+  { key: 'tutorial', label: 'Tutorial Demo' },
+  { key: 'lifestyle', label: 'Lifestyle Scene' },
+  { key: 'action', label: 'Action Sequence' },
+  { key: 'talking-head', label: 'Talking Head' },
+  { key: 'text-animation', label: 'Text Animation' },
+  { key: 'transition', label: 'Transition Effect' },
+];
+
 const videoStyles = [
   { key: 'realistic', label: 'Realistic' },
   { key: 'cinematic', label: 'Cinematic' },
@@ -172,6 +285,51 @@ const videoStyles = [
   { key: '3d', label: '3D Render' },
   { key: 'cartoon', label: 'Cartoon' },
   { key: 'vintage', label: 'Vintage' },
+  { key: 'neon', label: 'Neon' },
+  { key: 'minimalist', label: 'Minimalist' },
+  { key: 'dreamy', label: 'Dreamy' },
+  { key: 'cyberpunk', label: 'Cyberpunk' },
+  { key: 'nature-doc', label: 'Nature Doc' },
+  { key: 'vlog', label: 'Vlog Style' },
+];
+
+const cameraMovements = [
+  { key: 'static', label: 'Static' },
+  { key: 'pan-left', label: 'Pan Left' },
+  { key: 'pan-right', label: 'Pan Right' },
+  { key: 'zoom-in', label: 'Zoom In' },
+  { key: 'zoom-out', label: 'Zoom Out' },
+  { key: 'dolly', label: 'Dolly' },
+  { key: 'tracking', label: 'Tracking' },
+  { key: 'aerial', label: 'Aerial' },
+  { key: 'pov', label: 'POV' },
+  { key: 'slow-motion', label: 'Slow Motion' },
+];
+
+const lightingOptions = [
+  { key: 'natural', label: 'Natural' },
+  { key: 'golden-hour', label: 'Golden Hour' },
+  { key: 'studio', label: 'Studio' },
+  { key: 'dramatic', label: 'Dramatic' },
+  { key: 'neon', label: 'Neon' },
+  { key: 'soft', label: 'Soft' },
+  { key: 'hard-shadow', label: 'Hard Shadow' },
+  { key: 'backlit', label: 'Backlit' },
+  { key: 'moody', label: 'Moody' },
+  { key: 'bright', label: 'Bright' },
+];
+
+const moodOptions = [
+  { key: 'energetic', label: 'Energetic' },
+  { key: 'calm', label: 'Calm' },
+  { key: 'mysterious', label: 'Mysterious' },
+  { key: 'happy', label: 'Happy' },
+  { key: 'sad', label: 'Sad' },
+  { key: 'intense', label: 'Intense' },
+  { key: 'romantic', label: 'Romantic' },
+  { key: 'futuristic', label: 'Futuristic' },
+  { key: 'nostalgic', label: 'Nostalgic' },
+  { key: 'epic', label: 'Epic' },
 ];
 
 const aspectRatios = [
@@ -187,7 +345,20 @@ const videoDurations = [
   { key: '15s', label: '15 detik' },
 ];
 
-// Image options
+// === IMAGE OPTIONS ===
+const imageSubjects = [
+  { key: 'person', label: 'Person' },
+  { key: 'product', label: 'Product' },
+  { key: 'landscape', label: 'Landscape' },
+  { key: 'food', label: 'Food' },
+  { key: 'animal', label: 'Animal' },
+  { key: 'abstract', label: 'Abstract' },
+  { key: 'text-quote', label: 'Text/Quote' },
+  { key: 'infographic', label: 'Infographic' },
+  { key: 'before-after', label: 'Before/After' },
+  { key: 'collage', label: 'Collage' },
+];
+
 const imageStyles = [
   { key: 'photorealistic', label: 'Photorealistic' },
   { key: 'digital-art', label: 'Digital Art' },
@@ -195,9 +366,37 @@ const imageStyles = [
   { key: 'minimalist', label: 'Minimalist' },
   { key: 'pop-art', label: 'Pop Art' },
   { key: 'watercolor', label: 'Watercolor' },
+  { key: '3d-render', label: '3D Render' },
+  { key: 'flat-design', label: 'Flat Design' },
+  { key: 'vintage', label: 'Vintage' },
+  { key: 'neon', label: 'Neon' },
+  { key: 'gradient', label: 'Gradient' },
 ];
 
-// Relaxing options
+const colorOptions = [
+  { key: 'vibrant', label: 'Vibrant' },
+  { key: 'pastel', label: 'Pastel' },
+  { key: 'monochrome', label: 'Monochrome' },
+  { key: 'earth-tones', label: 'Earth Tones' },
+  { key: 'neon', label: 'Neon' },
+  { key: 'black-white', label: 'Black & White' },
+  { key: 'brand-colors', label: 'Brand Colors' },
+  { key: 'complementary', label: 'Complementary' },
+  { key: 'gradient', label: 'Gradient' },
+  { key: 'dark-mode', label: 'Dark Mode' },
+];
+
+const textOverlayOptions = [
+  { key: 'title-only', label: 'Title Only' },
+  { key: 'title-subtitle', label: 'Title + Subtitle' },
+  { key: 'quote', label: 'Quote' },
+  { key: 'statistics', label: 'Statistics' },
+  { key: 'cta-button', label: 'CTA Button' },
+  { key: 'no-text', label: 'No Text' },
+  { key: 'logo-only', label: 'Logo Only' },
+];
+
+// === RELAXING OPTIONS ===
 const environments = [
   { key: 'rain', label: 'Hujan' },
   { key: 'forest', label: 'Hutan' },
@@ -205,8 +404,60 @@ const environments = [
   { key: 'fireplace', label: 'Perapian' },
   { key: 'cafe', label: 'Cafe' },
   { key: 'thunderstorm', label: 'Badai' },
-  { key: 'city', label: 'Kota' },
-  { key: 'custom', label: 'Custom' },
+  { key: 'city-night', label: 'Kota Malam' },
+  { key: 'mountain', label: 'Pegunungan' },
+  { key: 'river', label: 'Sungai' },
+  { key: 'library', label: 'Perpustakaan' },
+  { key: 'spa', label: 'Spa' },
+  { key: 'garden', label: 'Taman' },
+  { key: 'campfire', label: 'Api Unggun' },
+  { key: 'snow', label: 'Salju' },
+  { key: 'desert', label: 'Gurun' },
+];
+
+const primarySounds = [
+  { key: 'rain-drops', label: 'Rain Drops' },
+  { key: 'waves', label: 'Waves' },
+  { key: 'fire-crackling', label: 'Fire Crackling' },
+  { key: 'birds', label: 'Birds' },
+  { key: 'wind', label: 'Wind' },
+  { key: 'thunder', label: 'Thunder' },
+  { key: 'water-stream', label: 'Water Stream' },
+  { key: 'white-noise', label: 'White Noise' },
+  { key: 'brown-noise', label: 'Brown Noise' },
+  { key: 'piano', label: 'Piano' },
+  { key: 'lofi', label: 'Lo-fi' },
+];
+
+const secondarySounds = [
+  { key: 'birds', label: 'Birds' },
+  { key: 'wind', label: 'Wind' },
+  { key: 'distant-thunder', label: 'Distant Thunder' },
+  { key: 'leaves', label: 'Leaves' },
+  { key: 'clock-ticking', label: 'Clock Ticking' },
+  { key: 'keyboard', label: 'Keyboard' },
+  { key: 'coffee-shop', label: 'Coffee Shop Murmur' },
+  { key: 'none', label: 'None' },
+];
+
+const relaxingMoods = [
+  { key: 'peaceful', label: 'Peaceful' },
+  { key: 'focus', label: 'Focus' },
+  { key: 'sleep', label: 'Sleep' },
+  { key: 'meditation', label: 'Meditation' },
+  { key: 'study', label: 'Study' },
+  { key: 'work', label: 'Work' },
+  { key: 'relaxation', label: 'Relaxation' },
+  { key: 'energy', label: 'Energy' },
+];
+
+const visualStyles = [
+  { key: 'static-image', label: 'Static Image' },
+  { key: 'slow-motion', label: 'Slow Motion Video' },
+  { key: 'animated-loop', label: 'Animated Loop' },
+  { key: 'abstract-particles', label: 'Abstract Particles' },
+  { key: 'nature-footage', label: 'Nature Footage' },
+  { key: 'cozy-interior', label: 'Cozy Interior' },
 ];
 
 const relaxingDurations = [
@@ -216,19 +467,26 @@ const relaxingDurations = [
   { key: '10hours', label: '10 jam' },
 ];
 
-const relaxingMoods = [
-  { key: 'peaceful', label: 'Damai' },
-  { key: 'focus', label: 'Fokus' },
-  { key: 'sleep', label: 'Tidur' },
-  { key: 'meditation', label: 'Meditasi' },
-];
-
-// Creative Scan options
+// === CREATIVE SCAN OPTIONS ===
 const analysisTypes = [
   { key: 'hook', label: 'Hook Analysis' },
   { key: 'structure', label: 'Content Structure' },
   { key: 'engagement', label: 'Engagement Patterns' },
   { key: 'full', label: 'Full Analysis' },
+  { key: 'viral', label: 'Viral Elements' },
+  { key: 'storytelling', label: 'Storytelling Technique' },
+];
+
+const focusAreas = [
+  { key: 'opening-hook', label: 'Opening Hook' },
+  { key: 'pacing', label: 'Pacing' },
+  { key: 'cta-placement', label: 'CTA Placement' },
+  { key: 'visual-style', label: 'Visual Style' },
+  { key: 'audio-music', label: 'Audio/Music' },
+  { key: 'transitions', label: 'Transitions' },
+  { key: 'text-overlays', label: 'Text Overlays' },
+  { key: 'thumbnail', label: 'Thumbnail' },
+  { key: 'retention-points', label: 'Retention Points' },
 ];
 
 // ============================================================================
@@ -326,9 +584,13 @@ export function PromptBuilderPage() {
     }
 
     let inputData: Record<string, unknown> = {};
+    let validationError = '';
 
     switch (selectedType) {
       case 'SCRIPT':
+        if (!scriptForm.niche) validationError = 'Niche harus dipilih';
+        else if (!scriptForm.targetAudience) validationError = 'Target Audiens harus dipilih';
+        
         inputData = {
           type: 'SCRIPT',
           niche: scriptForm.niche,
@@ -336,63 +598,71 @@ export function PromptBuilderPage() {
           duration: scriptForm.duration,
           tone: scriptForm.tone,
           targetAudience: scriptForm.targetAudience,
-          keywords: scriptForm.keywords.split(',').map((k) => k.trim()).filter(Boolean),
+          keywords: scriptForm.keywords ? scriptForm.keywords.split(',').map((k) => k.trim()).filter(Boolean) : [],
           contentGoal: scriptForm.contentGoal,
           callToAction: scriptForm.callToAction || undefined,
           narrativeStyle: scriptForm.narrativeStyle,
-          emotionalJourney: scriptForm.emotionalJourney.split(',').map((e) => e.trim()).filter(Boolean),
-          keyMessage: scriptForm.keyMessage,
+          emotionalJourney: [],
+          keyMessage: scriptForm.keyMessage || undefined,
           additionalContext: scriptForm.additionalContext || undefined,
         };
         break;
 
       case 'VOICE':
+        if (!voiceForm.script) validationError = 'Script harus diisi';
+        
         inputData = {
           type: 'VOICE',
           script: voiceForm.script,
           voiceStyle: voiceForm.voiceStyle,
           language: voiceForm.language,
           gender: voiceForm.gender,
-          emotion: voiceForm.emotion,
+          emotion: voiceForm.emotion || undefined,
           pace: voiceForm.pace,
-          emphasis: voiceForm.emphasis.split(',').map((e) => e.trim()).filter(Boolean),
-          pauses: voiceForm.pauses,
+          emphasis: voiceForm.emphasis ? [voiceForm.emphasis] : [],
+          pauses: voiceForm.pauses || undefined,
         };
         break;
 
       case 'VIDEO_GEN':
+        if (!videoGenForm.concept) validationError = 'Konsep Video harus dipilih';
+        
         inputData = {
           type: 'VIDEO_GEN',
           concept: videoGenForm.concept,
           style: videoGenForm.style,
           aspectRatio: videoGenForm.aspectRatio,
           duration: videoGenForm.duration,
-          camera: videoGenForm.camera,
-          lighting: videoGenForm.lighting,
-          mood: videoGenForm.mood,
+          camera: videoGenForm.camera || undefined,
+          lighting: videoGenForm.lighting || undefined,
+          mood: videoGenForm.mood || undefined,
           additionalDetails: videoGenForm.additionalDetails || undefined,
         };
         break;
 
       case 'IMAGE':
+        if (!imageForm.subject) validationError = 'Subject harus dipilih';
+        
         inputData = {
           type: 'IMAGE',
           subject: imageForm.subject,
           style: imageForm.style,
           aspectRatio: imageForm.aspectRatio,
-          mood: imageForm.mood,
-          colors: imageForm.colors.split(',').map((c) => c.trim()).filter(Boolean),
+          mood: imageForm.mood || undefined,
+          colors: imageForm.colors ? [imageForm.colors] : [],
           textOverlay: imageForm.textOverlay || undefined,
           additionalDetails: imageForm.additionalDetails || undefined,
         };
         break;
 
       case 'RELAXING':
+        if (!relaxingForm.primarySound) validationError = 'Suara Utama harus dipilih';
+        
         inputData = {
           type: 'RELAXING',
           environment: relaxingForm.environment,
           primarySound: relaxingForm.primarySound,
-          secondarySounds: relaxingForm.secondarySounds.split(',').map((s) => s.trim()).filter(Boolean),
+          secondarySounds: relaxingForm.secondarySounds ? [relaxingForm.secondarySounds] : [],
           duration: relaxingForm.duration,
           mood: relaxingForm.mood,
           visualStyle: relaxingForm.visualStyle || undefined,
@@ -400,14 +670,21 @@ export function PromptBuilderPage() {
         break;
 
       case 'CREATIVE_SCAN':
+        if (!creativeScanForm.sourceUrl) validationError = 'URL Video harus diisi';
+        
         inputData = {
           type: 'CREATIVE_SCAN',
           sourceUrl: creativeScanForm.sourceUrl,
           analysisType: creativeScanForm.analysisType,
-          niche: creativeScanForm.niche,
-          focusAreas: creativeScanForm.focusAreas.split(',').map((f) => f.trim()).filter(Boolean),
+          niche: creativeScanForm.niche || undefined,
+          focusAreas: creativeScanForm.focusAreas ? [creativeScanForm.focusAreas] : [],
         };
         break;
+    }
+
+    if (validationError) {
+      toast.error(validationError);
+      return;
     }
 
     try {
@@ -439,14 +716,23 @@ export function PromptBuilderPage() {
 
   const renderScriptForm = () => (
     <Card>
-      <CardBody className="p-4 space-y-4">
+      <CardBody className="p-4 space-y-6">
         <h3 className="font-medium">Detail Script</h3>
         
-        <Input
+        <SelectionGrid
           label="Niche / Topik"
-          placeholder="Contoh: Tech Review, Kuliner, Travel"
+          options={niches}
           value={scriptForm.niche}
-          onValueChange={(v) => setScriptForm((p) => ({ ...p, niche: v }))}
+          onChange={(v) => setScriptForm((p) => ({ ...p, niche: v }))}
+          columns={5}
+        />
+
+        <SelectionGrid
+          label="Target Audiens"
+          options={targetAudiences}
+          value={scriptForm.targetAudience}
+          onChange={(v) => setScriptForm((p) => ({ ...p, targetAudience: v }))}
+          columns={4}
         />
 
         <div className="grid sm:grid-cols-2 gap-4">
@@ -485,20 +771,6 @@ export function PromptBuilderPage() {
           </Select>
         </div>
 
-        <Input
-          label="Target Audiens"
-          placeholder="Contoh: Anak muda 18-25 tahun, pecinta teknologi"
-          value={scriptForm.targetAudience}
-          onValueChange={(v) => setScriptForm((p) => ({ ...p, targetAudience: v }))}
-        />
-
-        <Input
-          label="Keywords (pisahkan dengan koma)"
-          placeholder="Contoh: iPhone, Apple, smartphone, review"
-          value={scriptForm.keywords}
-          onValueChange={(v) => setScriptForm((p) => ({ ...p, keywords: v }))}
-        />
-
         <Select
           label="Gaya Narasi"
           selectedKeys={[scriptForm.narrativeStyle]}
@@ -507,25 +779,27 @@ export function PromptBuilderPage() {
           {narrativeStyles.map((n) => <SelectItem key={n.key}>{n.label}</SelectItem>)}
         </Select>
 
-        <Textarea
+        <SelectionGrid
           label="Pesan Utama"
-          placeholder="Apa pesan utama yang ingin disampaikan?"
+          options={keyMessages}
           value={scriptForm.keyMessage}
-          onValueChange={(v) => setScriptForm((p) => ({ ...p, keyMessage: v }))}
+          onChange={(v) => setScriptForm((p) => ({ ...p, keyMessage: v }))}
+          columns={5}
         />
 
-        <Input
-          label="Perjalanan Emosi (pisahkan dengan koma)"
-          placeholder="Contoh: penasaran, terkejut, puas, termotivasi"
-          value={scriptForm.emotionalJourney}
-          onValueChange={(v) => setScriptForm((p) => ({ ...p, emotionalJourney: v }))}
-        />
-
-        <Input
-          label="Call to Action (opsional)"
-          placeholder="Contoh: Subscribe dan nyalakan notifikasi"
+        <SelectionGrid
+          label="Call to Action"
+          options={callToActions}
           value={scriptForm.callToAction}
-          onValueChange={(v) => setScriptForm((p) => ({ ...p, callToAction: v }))}
+          onChange={(v) => setScriptForm((p) => ({ ...p, callToAction: v }))}
+          columns={5}
+        />
+
+        <Input
+          label="Keywords (pisahkan dengan koma)"
+          placeholder="Contoh: iPhone, Apple, smartphone, review"
+          value={scriptForm.keywords}
+          onValueChange={(v) => setScriptForm((p) => ({ ...p, keywords: v }))}
         />
 
         <Textarea
@@ -540,7 +814,7 @@ export function PromptBuilderPage() {
 
   const renderVoiceForm = () => (
     <Card>
-      <CardBody className="p-4 space-y-4">
+      <CardBody className="p-4 space-y-6">
         <h3 className="font-medium">Detail Voice/TTS</h3>
         
         <Textarea
@@ -587,25 +861,28 @@ export function PromptBuilderPage() {
           </Select>
         </div>
 
-        <Input
+        <SelectionGrid
           label="Emosi"
-          placeholder="Contoh: excited, calm, serious"
+          options={emotions}
           value={voiceForm.emotion}
-          onValueChange={(v) => setVoiceForm((p) => ({ ...p, emotion: v }))}
+          onChange={(v) => setVoiceForm((p) => ({ ...p, emotion: v }))}
+          columns={5}
         />
 
-        <Input
-          label="Penekanan (pisahkan dengan koma)"
-          placeholder="Kata-kata yang perlu ditekankan"
+        <SelectionGrid
+          label="Penekanan"
+          options={emphasisOptions}
           value={voiceForm.emphasis}
-          onValueChange={(v) => setVoiceForm((p) => ({ ...p, emphasis: v }))}
+          onChange={(v) => setVoiceForm((p) => ({ ...p, emphasis: v }))}
+          columns={4}
         />
 
-        <Input
+        <SelectionGrid
           label="Jeda/Pause"
-          placeholder="Contoh: pause setelah pertanyaan, jeda dramatis"
+          options={pauseOptions}
           value={voiceForm.pauses}
-          onValueChange={(v) => setVoiceForm((p) => ({ ...p, pauses: v }))}
+          onChange={(v) => setVoiceForm((p) => ({ ...p, pauses: v }))}
+          columns={5}
         />
       </CardBody>
     </Card>
@@ -613,15 +890,15 @@ export function PromptBuilderPage() {
 
   const renderVideoGenForm = () => (
     <Card>
-      <CardBody className="p-4 space-y-4">
+      <CardBody className="p-4 space-y-6">
         <h3 className="font-medium">Detail Video Generation</h3>
-        
-        <Textarea
+
+        <SelectionGrid
           label="Konsep Video"
-          placeholder="Deskripsikan konsep video yang ingin dihasilkan..."
-          minRows={3}
+          options={videoConcepts}
           value={videoGenForm.concept}
-          onValueChange={(v) => setVideoGenForm((p) => ({ ...p, concept: v }))}
+          onChange={(v) => setVideoGenForm((p) => ({ ...p, concept: v }))}
+          columns={5}
         />
 
         <div className="grid sm:grid-cols-2 gap-4">
@@ -650,25 +927,28 @@ export function PromptBuilderPage() {
           {videoDurations.map((d) => <SelectItem key={d.key}>{d.label}</SelectItem>)}
         </Select>
 
-        <Input
+        <SelectionGrid
           label="Camera Movement"
-          placeholder="Contoh: slow zoom in, pan left to right, static"
+          options={cameraMovements}
           value={videoGenForm.camera}
-          onValueChange={(v) => setVideoGenForm((p) => ({ ...p, camera: v }))}
+          onChange={(v) => setVideoGenForm((p) => ({ ...p, camera: v }))}
+          columns={5}
         />
 
-        <Input
+        <SelectionGrid
           label="Lighting"
-          placeholder="Contoh: soft natural light, dramatic shadows, neon"
+          options={lightingOptions}
           value={videoGenForm.lighting}
-          onValueChange={(v) => setVideoGenForm((p) => ({ ...p, lighting: v }))}
+          onChange={(v) => setVideoGenForm((p) => ({ ...p, lighting: v }))}
+          columns={5}
         />
 
-        <Input
+        <SelectionGrid
           label="Mood"
-          placeholder="Contoh: epic, peaceful, mysterious"
+          options={moodOptions}
           value={videoGenForm.mood}
-          onValueChange={(v) => setVideoGenForm((p) => ({ ...p, mood: v }))}
+          onChange={(v) => setVideoGenForm((p) => ({ ...p, mood: v }))}
+          columns={5}
         />
 
         <Textarea
@@ -683,15 +963,15 @@ export function PromptBuilderPage() {
 
   const renderImageForm = () => (
     <Card>
-      <CardBody className="p-4 space-y-4">
+      <CardBody className="p-4 space-y-6">
         <h3 className="font-medium">Detail Image/Thumbnail</h3>
-        
-        <Textarea
+
+        <SelectionGrid
           label="Subject/Objek"
-          placeholder="Deskripsikan subjek utama gambar..."
-          minRows={2}
+          options={imageSubjects}
           value={imageForm.subject}
-          onValueChange={(v) => setImageForm((p) => ({ ...p, subject: v }))}
+          onChange={(v) => setImageForm((p) => ({ ...p, subject: v }))}
+          columns={5}
         />
 
         <div className="grid sm:grid-cols-2 gap-4">
@@ -712,25 +992,28 @@ export function PromptBuilderPage() {
           </Select>
         </div>
 
-        <Input
+        <SelectionGrid
           label="Mood/Suasana"
-          placeholder="Contoh: vibrant, moody, minimal, bold"
+          options={moodOptions}
           value={imageForm.mood}
-          onValueChange={(v) => setImageForm((p) => ({ ...p, mood: v }))}
+          onChange={(v) => setImageForm((p) => ({ ...p, mood: v }))}
+          columns={5}
         />
 
-        <Input
-          label="Warna (pisahkan dengan koma)"
-          placeholder="Contoh: blue, orange, warm tones"
+        <SelectionGrid
+          label="Warna"
+          options={colorOptions}
           value={imageForm.colors}
-          onValueChange={(v) => setImageForm((p) => ({ ...p, colors: v }))}
+          onChange={(v) => setImageForm((p) => ({ ...p, colors: v }))}
+          columns={5}
         />
 
-        <Input
-          label="Text Overlay (untuk thumbnail)"
-          placeholder="Contoh: WOW!, 5 TIPS"
+        <SelectionGrid
+          label="Text Overlay"
+          options={textOverlayOptions}
           value={imageForm.textOverlay}
-          onValueChange={(v) => setImageForm((p) => ({ ...p, textOverlay: v }))}
+          onChange={(v) => setImageForm((p) => ({ ...p, textOverlay: v }))}
+          columns={4}
         />
 
         <Textarea
@@ -745,7 +1028,7 @@ export function PromptBuilderPage() {
 
   const renderRelaxingForm = () => (
     <Card>
-      <CardBody className="p-4 space-y-4">
+      <CardBody className="p-4 space-y-6">
         <h3 className="font-medium">Detail Relaxing/Ambient</h3>
         
         <Select
@@ -756,18 +1039,20 @@ export function PromptBuilderPage() {
           {environments.map((e) => <SelectItem key={e.key}>{e.label}</SelectItem>)}
         </Select>
 
-        <Input
+        <SelectionGrid
           label="Suara Utama"
-          placeholder="Contoh: rain drops, crackling fire"
+          options={primarySounds}
           value={relaxingForm.primarySound}
-          onValueChange={(v) => setRelaxingForm((p) => ({ ...p, primarySound: v }))}
+          onChange={(v) => setRelaxingForm((p) => ({ ...p, primarySound: v }))}
+          columns={4}
         />
 
-        <Input
-          label="Suara Sekunder (pisahkan dengan koma)"
-          placeholder="Contoh: distant thunder, birds chirping"
+        <SelectionGrid
+          label="Suara Sekunder"
+          options={secondarySounds}
           value={relaxingForm.secondarySounds}
-          onValueChange={(v) => setRelaxingForm((p) => ({ ...p, secondarySounds: v }))}
+          onChange={(v) => setRelaxingForm((p) => ({ ...p, secondarySounds: v }))}
+          columns={4}
         />
 
         <div className="grid sm:grid-cols-2 gap-4">
@@ -788,11 +1073,12 @@ export function PromptBuilderPage() {
           </Select>
         </div>
 
-        <Input
-          label="Visual Style (opsional, untuk video)"
-          placeholder="Contoh: cozy cabin window, animated rain"
+        <SelectionGrid
+          label="Visual Style (untuk video)"
+          options={visualStyles}
           value={relaxingForm.visualStyle}
-          onValueChange={(v) => setRelaxingForm((p) => ({ ...p, visualStyle: v }))}
+          onChange={(v) => setRelaxingForm((p) => ({ ...p, visualStyle: v }))}
+          columns={3}
         />
       </CardBody>
     </Card>
@@ -800,7 +1086,7 @@ export function PromptBuilderPage() {
 
   const renderCreativeScanForm = () => (
     <Card>
-      <CardBody className="p-4 space-y-4">
+      <CardBody className="p-4 space-y-6">
         <h3 className="font-medium">Detail Creative Scan</h3>
         <Chip color="secondary" variant="flat" size="sm">Analisis video kompetitor</Chip>
         
@@ -819,18 +1105,20 @@ export function PromptBuilderPage() {
           {analysisTypes.map((a) => <SelectItem key={a.key}>{a.label}</SelectItem>)}
         </Select>
 
-        <Input
+        <SelectionGrid
           label="Niche"
-          placeholder="Contoh: Gaming, Beauty, Finance"
+          options={niches}
           value={creativeScanForm.niche}
-          onValueChange={(v) => setCreativeScanForm((p) => ({ ...p, niche: v }))}
+          onChange={(v) => setCreativeScanForm((p) => ({ ...p, niche: v }))}
+          columns={5}
         />
 
-        <Input
-          label="Fokus Analisis (pisahkan dengan koma)"
-          placeholder="Contoh: hook, pacing, call to action"
+        <SelectionGrid
+          label="Fokus Analisis"
+          options={focusAreas}
           value={creativeScanForm.focusAreas}
-          onValueChange={(v) => setCreativeScanForm((p) => ({ ...p, focusAreas: v }))}
+          onChange={(v) => setCreativeScanForm((p) => ({ ...p, focusAreas: v }))}
+          columns={3}
         />
       </CardBody>
     </Card>

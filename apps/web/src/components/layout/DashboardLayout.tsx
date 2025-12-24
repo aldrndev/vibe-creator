@@ -1,4 +1,4 @@
-import { Outlet, NavLink, useNavigate } from 'react-router-dom';
+import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { Button, Avatar, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, Chip } from '@heroui/react';
 import { 
   LayoutDashboard, 
@@ -11,18 +11,38 @@ import {
   Sun,
   Menu,
   X,
-  Shield
+  Shield,
+  Users,
+  ChevronDown,
+  ChevronRight,
+  Video,
+  Repeat,
+  MessageSquareReply,
+  Radio
 } from 'lucide-react';
 import { useState } from 'react';
 import { useAuthStore } from '@/stores/auth-store';
 import { useThemeStore } from '@/stores/theme-store';
 import { clsx } from 'clsx';
+import { MobileBottomNav } from './MobileBottomNav';
 
+// Main navigation items
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'Projects', href: '/dashboard/projects', icon: FolderOpen },
+  { name: 'My Exports', href: '/dashboard/exports', icon: FolderOpen },
+  { 
+    name: 'Tools', 
+    icon: Video,
+    children: [
+      { name: 'Edit Video', href: '/tools/editor', icon: Video },
+      { name: 'Loop Creator', href: '/tools/loop-creator', icon: Repeat },
+      { name: 'Reaction Video', href: '/tools/reaction-creator', icon: MessageSquareReply },
+      { name: 'Live Streaming', href: '/tools/live-stream', icon: Radio },
+    ]
+  },
   { name: 'Prompt Builder', href: '/dashboard/prompts', icon: Sparkles },
   { name: 'Downloads', href: '/dashboard/downloads', icon: Download },
+  { name: 'Community', href: '/dashboard/community', icon: Users },
   { name: 'Settings', href: '/dashboard/settings', icon: Settings },
 ];
 
@@ -30,13 +50,15 @@ const adminNav = { name: 'Admin', href: '/dashboard/admin', icon: Shield };
 
 export function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [toolsExpanded, setToolsExpanded] = useState(true);
   const { user, logout } = useAuthStore();
   const { theme, toggleTheme } = useThemeStore();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const handleLogout = async () => {
     await logout();
-    navigate('/');
+    navigate('/login');
   };
 
   return (
@@ -72,25 +94,79 @@ export function DashboardLayout() {
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 space-y-1 p-4">
-            {navigation.map((item) => (
-              <NavLink
-                key={item.name}
-                to={item.href}
-                end={item.href === '/dashboard'}
-                className={({ isActive }) =>
-                  clsx(
-                    'flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors',
-                    isActive
-                      ? 'bg-primary text-primary-foreground'
-                      : 'text-foreground/70 hover:bg-default-100 hover:text-foreground'
-                  )
-                }
-              >
-                <item.icon size={20} />
-                {item.name}
-              </NavLink>
-            ))}
+          <nav className="flex-1 space-y-1 p-4 overflow-y-auto scrollbar-hide">
+            {navigation.map((item) => {
+              // Check if this is a parent menu with children
+              if ('children' in item && item.children) {
+                const isChildActive = item.children.some(child => location.pathname === child.href);
+                
+                return (
+                  <div key={item.name}>
+                    {/* Parent menu button */}
+                    <button
+                      onClick={() => setToolsExpanded(!toolsExpanded)}
+                      className={clsx(
+                        'w-full flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors touch-target',
+                        isChildActive
+                          ? 'bg-primary/20 text-primary'
+                          : 'text-foreground/70 hover:bg-default-100 hover:text-foreground'
+                      )}
+                    >
+                      <item.icon size={20} />
+                      {item.name}
+                      <span className="ml-auto">
+                        {toolsExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                      </span>
+                    </button>
+                    
+                    {/* Child menu items */}
+                    {toolsExpanded && (
+                      <div className="ml-4 mt-1 space-y-1 border-l-2 border-divider pl-2">
+                        {item.children.map((child) => (
+                          <NavLink
+                            key={child.name}
+                            to={child.href}
+                            onClick={() => setSidebarOpen(false)}
+                            className={({ isActive }) =>
+                              clsx(
+                                'flex items-center gap-3 rounded-lg px-4 py-2 text-sm font-medium transition-colors',
+                                isActive
+                                  ? 'bg-primary text-primary-foreground'
+                                  : 'text-foreground/60 hover:bg-default-100 hover:text-foreground'
+                              )
+                            }
+                          >
+                            <child.icon size={16} />
+                            {child.name}
+                          </NavLink>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+              
+              // Regular menu item
+              return (
+                <NavLink
+                  key={item.name}
+                  to={item.href!}
+                  end={item.href === '/dashboard'}
+                  onClick={() => setSidebarOpen(false)}
+                  className={({ isActive }) =>
+                    clsx(
+                      'flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors touch-target',
+                      isActive
+                        ? 'bg-primary text-primary-foreground'
+                        : 'text-foreground/70 hover:bg-default-100 hover:text-foreground'
+                    )
+                  }
+                >
+                  <item.icon size={20} />
+                  {item.name}
+                </NavLink>
+              );
+            })}
             
             {/* Admin Menu - only visible for ADMIN role */}
             {user?.role === 'ADMIN' && (
@@ -194,9 +270,12 @@ export function DashboardLayout() {
         </header>
 
         {/* Page content */}
-        <main className="flex-1 overflow-auto p-6">
+        <main className="flex-1 overflow-auto p-4 md:p-6 pb-20 md:pb-6">
           <Outlet />
         </main>
+
+        {/* Mobile bottom navigation */}
+        <MobileBottomNav />
       </div>
     </div>
   );

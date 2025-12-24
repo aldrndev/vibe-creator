@@ -13,10 +13,12 @@
     }
   },
   "scripts": {
+    "build": "tsc && tsc-alias",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src/"
   },
   "devDependencies": {
+    "tsc-alias": "^1.8.10",
     "typescript": "5.7.2"
   }
 }

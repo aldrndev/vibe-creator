@@ -18,8 +18,18 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedIndexedAccess": true,
     "resolveJsonModule": true,
+    "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"]
+    }
+  },
+  "tsc-alias": {
+    "resolveFullPaths": true,
+    "replacers": {
+      "tsc-alias-replace": {
+        "enabled": true,
+        "fileExtensions": [{ "origin": "", "target": ".js" }]
+      }
     }
   },
   "include": ["src/**/*"],

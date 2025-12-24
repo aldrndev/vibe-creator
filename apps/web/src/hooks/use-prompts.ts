@@ -52,7 +52,7 @@ interface CreateVersionInput {
 
 // Queries
 export function usePrompts(params?: ListPromptsParams) {
-  const { isAuthenticated, isLoading } = useAuthStore();
+  const { isAuthenticated } = useAuthStore();
   
   return useQuery({
     queryKey: ['prompts', params],
@@ -66,8 +66,8 @@ export function usePrompts(params?: ListPromptsParams) {
       if (!response.success) throw new Error(response.error.message);
       return response;
     },
-    // Only fetch when authenticated and not loading
-    enabled: isAuthenticated && !isLoading,
+    // Only fetch when authenticated
+    enabled: isAuthenticated,
   });
 }
 

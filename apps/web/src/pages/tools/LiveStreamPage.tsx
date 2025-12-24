@@ -5,36 +5,34 @@ import {
   CardBody, 
   CardHeader, 
   Input,
-  Select,
-  SelectItem,
   Divider,
   Chip
 } from '@heroui/react';
-import { Upload, Play, Square, ArrowLeft, Radio, Youtube, Twitch } from 'lucide-react';
+import { Upload, Play, Square, ArrowLeft, Radio, Youtube, Twitch, Wifi, WifiOff, Settings, Video } from 'lucide-react';
 import { Link } from 'react-router-dom';
+
+import { PageTransition, HoverCard } from '@/components/ui/PageTransition';
+import { authFetch } from '@/services/api';
 
 type StreamPlatform = 'youtube' | 'tiktok' | 'twitch' | 'facebook' | 'instagram' | 'custom';
 
-const platformConfigs: Record<StreamPlatform, { name: string; icon: React.ReactNode; color: string }> = {
+const platformConfigs: Record<StreamPlatform, { name: string; icon: React.ReactNode; color: 'danger' | 'default' | 'secondary' | 'primary' | 'warning' }> = {
   youtube: { name: 'YouTube', icon: <Youtube size={20} />, color: 'danger' },
   tiktok: { name: 'TikTok', icon: <Radio size={20} />, color: 'default' },
   twitch: { name: 'Twitch', icon: <Twitch size={20} />, color: 'secondary' },
   facebook: { name: 'Facebook', icon: <Radio size={20} />, color: 'primary' },
   instagram: { name: 'Instagram', icon: <Radio size={20} />, color: 'warning' },
-  custom: { name: 'Custom RTMP', icon: <Radio size={20} />, color: 'default' },
+  custom: { name: 'Custom RTMP', icon: <Settings size={20} />, color: 'default' },
 };
 
 export function LiveStreamPage() {
-  // Video source
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [videoUrl, setVideoUrl] = useState<string>('');
   
-  // Stream settings
   const [platform, setPlatform] = useState<StreamPlatform>('youtube');
   const [streamKey, setStreamKey] = useState('');
   const [customRtmpUrl, setCustomRtmpUrl] = useState('');
   
-  // Stream state
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamId, setStreamId] = useState<string>('');
   const [streamStatus, setStreamStatus] = useState<string>('');
@@ -56,14 +54,12 @@ export function LiveStreamPage() {
     try {
       setStreamStatus('Mengupload video...');
       
-      // Upload video first
       const formData = new FormData();
       formData.append('video', videoFile);
       
-      const uploadRes = await fetch('/api/v1/upload/video', {
+      const uploadRes = await authFetch('/api/v1/upload/video', {
         method: 'POST',
         body: formData,
-        credentials: 'include',
       });
       
       if (!uploadRes.ok) throw new Error('Upload failed');
@@ -72,8 +68,7 @@ export function LiveStreamPage() {
       
       setStreamStatus('Memulai streaming...');
       
-      // Start stream
-      const streamRes = await fetch('/api/v1/stream/start', {
+      const streamRes = await authFetch('/api/v1/stream/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -84,7 +79,6 @@ export function LiveStreamPage() {
             rtmpUrl: platform === 'custom' ? customRtmpUrl : undefined,
           },
         }),
-        credentials: 'include',
       });
       
       if (!streamRes.ok) throw new Error('Start stream failed');
@@ -94,12 +88,9 @@ export function LiveStreamPage() {
       setIsStreaming(true);
       setStreamStatus('LIVE');
       
-      // Poll status
       statusIntervalRef.current = setInterval(async () => {
         try {
-          const statusRes = await fetch(`/api/v1/stream/${streamData.data.streamId}/status`, {
-            credentials: 'include',
-          });
+          const statusRes = await authFetch(`/api/v1/stream/${streamData.data.streamId}/status`);
           const statusData = await statusRes.json();
           
           if (statusData.data.status === 'ENDED' || statusData.data.status === 'FAILED') {
@@ -127,11 +118,10 @@ export function LiveStreamPage() {
     try {
       setStreamStatus('Menghentikan stream...');
       
-      await fetch('/api/v1/stream/stop', {
+      await authFetch('/api/v1/stream/stop', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ streamId }),
-        credentials: 'include',
       });
       
       setIsStreaming(false);
@@ -147,159 +137,233 @@ export function LiveStreamPage() {
     }
   };
 
+  const currentPlatformConfig = platformConfigs[platform];
+
   return (
-    <div className="min-h-screen bg-background p-6">
+    <PageTransition className="min-h-screen bg-background p-6">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
-        <div className="flex items-center gap-4 mb-6">
+        <div 
+          className="flex items-center gap-4 mb-6"
+        >
           <Link to="/dashboard">
             <Button isIconOnly variant="light" size="sm">
               <ArrowLeft size={20} />
             </Button>
           </Link>
-          <h1 className="text-2xl font-bold">Live Streaming</h1>
+          <div className="flex-1">
+            <h1 className="text-2xl font-bold flex items-center gap-2">
+              <Radio size={24} className="text-danger" />
+              Live Streaming
+            </h1>
+            <p className="text-foreground/60 text-sm">Stream video ke platform favorit</p>
+          </div>
           {isStreaming && (
-            <Chip color="danger" variant="flat" className="animate-pulse">
-              <span className="flex items-center gap-2">
-                <span className="w-2 h-2 bg-danger rounded-full" />
+            <div
+            >
+              <Chip 
+                color="danger" 
+                variant="solid" 
+                className="animate-pulse"
+                startContent={<Wifi size={14} />}
+              >
                 LIVE
-              </span>
-            </Chip>
+              </Chip>
+            </div>
           )}
+        </div>
+
+        {/* Platform Selection */}
+        <div
+          className="mb-6"
+        >
+          <label className="text-sm font-medium mb-3 block">Pilih Platform</label>
+          <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+            {Object.entries(platformConfigs).map(([key, config]) => (
+              <HoverCard key={key}>
+                <Card 
+                  isPressable
+                  isDisabled={isStreaming}
+                  onPress={() => setPlatform(key as StreamPlatform)}
+                  className={`border-2 transition-colors ${
+                    platform === key 
+                      ? `border-${config.color} bg-${config.color}/10` 
+                      : 'border-transparent hover:border-divider'
+                  }`}
+                >
+                  <CardBody className="p-3 text-center">
+                    <div className={`w-10 h-10 rounded-lg bg-${config.color}/20 flex items-center justify-center mx-auto mb-1`}>
+                      {config.icon}
+                    </div>
+                    <p className="text-xs font-medium truncate">{config.name}</p>
+                  </CardBody>
+                </Card>
+              </HoverCard>
+            ))}
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Left: Video Preview */}
-          <Card>
-            <CardHeader>
-              <h2 className="text-lg font-semibold">Video Source</h2>
-            </CardHeader>
-            <CardBody className="space-y-4">
-              {!videoUrl ? (
-                <div 
-                  className="aspect-video bg-default-100 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:bg-default-200 transition-colors"
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  <Upload size={48} className="text-default-400 mb-3" />
-                  <p className="text-default-500">Upload video untuk stream</p>
-                  <p className="text-xs text-default-400 mt-1">Video akan di-loop terus menerus</p>
+          <div
+          >
+            <Card className="h-full">
+              <CardHeader className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <Video size={16} className="text-primary" />
                 </div>
-              ) : (
-                <video
-                  src={videoUrl}
-                  controls
-                  loop
-                  className="w-full aspect-video rounded-xl bg-black"
+                <h2 className="text-lg font-semibold">Video Source</h2>
+              </CardHeader>
+              <CardBody className="space-y-4">
+                {!videoUrl ? (
+                  <div 
+                    className="aspect-video bg-content2 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:bg-content3 transition-colors border-2 border-dashed border-divider hover:border-primary/50"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                      <Upload size={32} className="text-primary" />
+                    </div>
+                    <p className="text-foreground/60 font-medium">Upload video untuk stream</p>
+                    <p className="text-foreground/40 text-xs mt-1">Video akan di-loop terus menerus</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="relative">
+                      <video
+                        src={videoUrl}
+                        controls
+                        loop
+                        className="w-full aspect-video rounded-xl bg-black"
+                      />
+                      {isStreaming && (
+                        <div className="absolute top-3 left-3">
+                          <Chip color="danger" size="sm" className="animate-pulse">
+                            <span className="flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 bg-white rounded-full" />
+                              Streaming
+                            </span>
+                          </Chip>
+                        </div>
+                      )}
+                    </div>
+                    {!isStreaming && (
+                      <Button 
+                        variant="flat" 
+                        size="sm"
+                        onPress={() => fileInputRef.current?.click()}
+                        startContent={<Upload size={14} />}
+                      >
+                        Ganti Video
+                      </Button>
+                    )}
+                  </div>
+                )}
+                
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="video/*"
+                  onChange={handleFileSelect}
+                  className="hidden"
                 />
-              )}
-              
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="video/*"
-                onChange={handleFileSelect}
-                className="hidden"
-              />
-              
-              {videoUrl && !isStreaming && (
-                <Button 
-                  variant="flat" 
-                  onPress={() => fileInputRef.current?.click()}
-                  startContent={<Upload size={16} />}
-                >
-                  Ganti Video
-                </Button>
-              )}
-            </CardBody>
-          </Card>
+              </CardBody>
+            </Card>
+          </div>
 
           {/* Right: Stream Settings */}
-          <Card>
-            <CardHeader>
-              <h2 className="text-lg font-semibold">Pengaturan Stream</h2>
-            </CardHeader>
-            <CardBody className="space-y-6">
-              {/* Platform Select */}
-              <div>
-                <label className="text-sm font-medium mb-2 block">Platform</label>
-                <Select
-                  selectedKeys={[platform]}
-                  onSelectionChange={(keys) => setPlatform(Array.from(keys)[0] as StreamPlatform)}
-                  isDisabled={isStreaming}
-                >
-                  {Object.entries(platformConfigs).map(([key, config]) => (
-                    <SelectItem key={key} startContent={config.icon}>
-                      {config.name}
-                    </SelectItem>
-                  ))}
-                </Select>
-              </div>
+          <div
+          >
+            <Card>
+              <CardHeader className="flex items-center gap-2">
+                <div className={`w-8 h-8 rounded-lg bg-${currentPlatformConfig.color}/10 flex items-center justify-center`}>
+                  {currentPlatformConfig.icon}
+                </div>
+                <h2 className="text-lg font-semibold">{currentPlatformConfig.name} Settings</h2>
+              </CardHeader>
+              <CardBody className="space-y-6">
+                {/* Custom RTMP URL */}
+                {platform === 'custom' && (
+                  <Input
+                    label="RTMP URL"
+                    placeholder="rtmp://your-server.com/live"
+                    value={customRtmpUrl}
+                    onChange={(e) => setCustomRtmpUrl(e.target.value)}
+                    isDisabled={isStreaming}
+                  />
+                )}
 
-              {/* Custom RTMP URL (only for custom) */}
-              {platform === 'custom' && (
+                {/* Stream Key */}
                 <Input
-                  label="RTMP URL"
-                  placeholder="rtmp://your-server.com/live"
-                  value={customRtmpUrl}
-                  onChange={(e) => setCustomRtmpUrl(e.target.value)}
+                  label="Stream Key"
+                  type="password"
+                  placeholder="Masukkan stream key dari platform"
+                  value={streamKey}
+                  onChange={(e) => setStreamKey(e.target.value)}
+                  description="Dapatkan stream key dari dashboard platform streaming kamu"
                   isDisabled={isStreaming}
                 />
-              )}
 
-              {/* Stream Key */}
-              <Input
-                label="Stream Key"
-                type="password"
-                placeholder="Masukkan stream key dari platform"
-                value={streamKey}
-                onChange={(e) => setStreamKey(e.target.value)}
-                description="Dapatkan stream key dari dashboard platform streaming kamu"
-                isDisabled={isStreaming}
-              />
+                <Divider />
 
-              <Divider />
-
-              {/* Status */}
-              {streamStatus && (
-                <div className="p-3 rounded-lg bg-default-100 text-center">
-                  <span className="text-sm">{streamStatus}</span>
-                </div>
-              )}
-
-              {/* Action Buttons */}
-              <div className="flex gap-3">
-                {!isStreaming ? (
-                  <Button
-                    color="danger"
-                    className="flex-1"
-                    isDisabled={!videoFile || !streamKey}
-                    onPress={handleStartStream}
-                    startContent={<Play size={18} />}
-                  >
-                    Mulai Streaming
-                  </Button>
-                ) : (
-                  <Button
-                    color="default"
-                    className="flex-1"
-                    onPress={handleStopStream}
-                    startContent={<Square size={18} />}
-                  >
-                    Stop Streaming
-                  </Button>
+                {/* Status */}
+                {streamStatus && (
+                  <div className={`p-4 rounded-lg text-center ${
+                    isStreaming 
+                      ? 'bg-danger/10 border border-danger/30' 
+                      : 'bg-content2'
+                  }`}>
+                    {isStreaming ? (
+                      <div className="flex items-center justify-center gap-2">
+                        <Wifi size={18} className="text-danger animate-pulse" />
+                        <span className="font-semibold text-danger">{streamStatus}</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-center gap-2">
+                        <WifiOff size={18} className="text-foreground/60" />
+                        <span className="text-foreground/60">{streamStatus}</span>
+                      </div>
+                    )}
+                  </div>
                 )}
-              </div>
 
-              {/* Platform Instructions */}
-              <div className="text-xs text-foreground/50 space-y-1">
-                <p><strong>YouTube:</strong> Studio → Go Live → Stream Key</p>
-                <p><strong>TikTok:</strong> LIVE Studio → Stream Key</p>
-                <p><strong>Twitch:</strong> Dashboard → Settings → Stream Key</p>
-              </div>
-            </CardBody>
-          </Card>
+                {/* Action Buttons */}
+                <div className="flex gap-3">
+                  {!isStreaming ? (
+                    <Button
+                      color="danger"
+                      className="flex-1"
+                      size="lg"
+                      isDisabled={!videoFile || !streamKey}
+                      onPress={handleStartStream}
+                      startContent={<Play size={18} />}
+                    >
+                      Mulai Streaming
+                    </Button>
+                  ) : (
+                    <Button
+                      color="default"
+                      className="flex-1"
+                      size="lg"
+                      onPress={handleStopStream}
+                      startContent={<Square size={18} />}
+                    >
+                      Stop Streaming
+                    </Button>
+                  )}
+                </div>
+
+                {/* Platform Instructions */}
+                <div className="p-3 rounded-lg bg-content2 text-xs text-foreground/60 space-y-1">
+                  <p className="font-semibold mb-2">Cara mendapatkan Stream Key:</p>
+                  <p>• <strong>YouTube:</strong> Studio → Go Live → Stream Key</p>
+                  <p>• <strong>TikTok:</strong> LIVE Studio → Stream Key</p>
+                  <p>• <strong>Twitch:</strong> Dashboard → Settings → Stream Key</p>
+                </div>
+              </CardBody>
+            </Card>
+          </div>
         </div>
       </div>
-    </div>
+    </PageTransition>
   );
 }

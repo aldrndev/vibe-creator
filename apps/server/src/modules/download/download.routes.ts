@@ -145,4 +145,32 @@ export const downloadRoutes: FastifyPluginAsync = async (fastify) => {
       data: history,
     });
   });
+
+  /**
+   * Delete a download job
+   */
+  fastify.delete<{ Params: { jobId: string } }>('/:jobId', async (request, reply) => {
+    const user = request.user;
+    if (!user) {
+      return reply.status(401).send({
+        success: false,
+        error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+      });
+    }
+
+    try {
+      await downloadService.deleteJob(request.params.jobId, user.id);
+      
+      return reply.send({
+        success: true,
+        data: { deleted: true },
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Delete failed';
+      return reply.status(404).send({
+        success: false,
+        error: { code: 'NOT_FOUND', message },
+      });
+    }
+  });
 };

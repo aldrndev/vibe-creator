@@ -4,6 +4,8 @@ import { Check, Sparkles, Crown, Zap, ArrowLeft } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuthStore } from '@/stores/auth-store';
+import { authFetch } from '@/services/api';
+import toast from 'react-hot-toast';
 
 interface PricingTier {
   id: 'FREE' | 'CREATOR' | 'PRO';
@@ -82,11 +84,10 @@ export function PricingPage() {
     try {
       setIsLoading(tier);
       
-      const response = await fetch('/api/v1/payment/create-invoice', {
+      const response = await authFetch('/api/v1/payment/create-invoice', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tier }),
-        credentials: 'include',
       });
       
       if (!response.ok) {
@@ -98,14 +99,13 @@ export function PricingPage() {
       // Check if mock mode (development)
       if (data.data.invoiceUrl.startsWith('/payment/mock')) {
         // Confirm mock payment
-        await fetch('/api/v1/payment/mock-confirm', {
+        await authFetch('/api/v1/payment/mock-confirm', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ paymentId: data.data.paymentId }),
-          credentials: 'include',
         });
         
-        alert('Development mode: Payment simulated successfully!');
+        toast.success('Development mode: Payment simulated successfully!');
         window.location.reload();
       } else {
         // Redirect to Xendit payment page
@@ -113,7 +113,7 @@ export function PricingPage() {
       }
     } catch (err) {
       console.error('Upgrade failed:', err);
-      alert('Gagal memproses pembayaran');
+      toast.error('Gagal memproses pembayaran');
     } finally {
       setIsLoading(null);
     }

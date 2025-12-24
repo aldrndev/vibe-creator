@@ -40,8 +40,8 @@ services:
       NODE_ENV: production
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/vibe_creator
       REDIS_URL: redis://redis:6379
-      JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key}
-      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-your-super-secret-refresh-key}
+      JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-at-least-32-characters-long}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-your-super-secret-refresh-key-32-chars}
     volumes:
       - server_uploads:/app/uploads
     depends_on:
@@ -49,8 +49,35 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      cobalt:
+        condition: service_started
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Self-hosted Cobalt API for YouTube/TikTok/Instagram video downloads
+  cobalt:
+    image: ghcr.io/imputnet/cobalt:10
+    container_name: vibe-creator-cobalt
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+    environment:
+      # API mode (api only, no web interface)
+      API_URL: "http://localhost:9000"
+      # Disable authentication for internal use
+      API_AUTH_REQUIRED: "0"
+      # Quality settings
+      QUALITY: "1080"
+      # Enable all services
+      YOUTUBE_ENABLED: "1"
+      TIKTOK_ENABLED: "1"
+      TWITTER_ENABLED: "1"
+      INSTAGRAM_ENABLED: "1"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9000"]
       interval: 30s
       timeout: 10s
       retries: 3

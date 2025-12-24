@@ -94,6 +94,24 @@ export interface ClipEffects {
   fadeOut: number;
 }
 
+// Text overlay for video editor
+export interface TextOverlay {
+  id: string;
+  text: string;
+  fontFamily: string;
+  fontSize: number;
+  fontWeight: 'normal' | 'bold';
+  fontStyle: 'normal' | 'italic';
+  color: string;
+  backgroundColor?: string;
+  x: number; // percentage 0-100
+  y: number; // percentage 0-100
+  textAlign: 'left' | 'center' | 'right';
+  startMs: number;
+  endMs: number;
+  animation: 'none' | 'fade' | 'slide-up' | 'slide-down' | 'typewriter';
+}
+
 export interface CreateProjectInput {
   title: string;
   description?: string;

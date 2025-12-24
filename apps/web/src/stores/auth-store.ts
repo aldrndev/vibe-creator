@@ -76,21 +76,22 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   logout: async () => {
     const { accessToken } = get();
     
-    if (accessToken) {
-      try {
-        await fetch(`${API_BASE_URL}/auth/logout`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${accessToken}`,
-          },
-          credentials: 'include',
-        });
-      } catch {
-        // Ignore logout errors
-      }
+    // Call logout API FIRST to clear server session AND cookie
+    // We MUST wait for this to complete so the Set-Cookie header is received
+    try {
+      await fetch(`${API_BASE_URL}/auth/logout`, {
+        method: 'POST',
+        headers: {
+          // No Content-Type since we're not sending a body
+          ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {}),
+        },
+        credentials: 'include', // Important: this ensures cookie is sent AND received
+      });
+    } catch {
+      // Ignore network errors - still clear state
     }
     
+    // THEN clear state after cookie is cleared
     set({
       user: null,
       subscription: null,
@@ -101,6 +102,14 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   },
 
   refreshAccessToken: async () => {
+    const { isAuthenticated, accessToken } = get();
+    
+    // Only set loading if not already authenticated (initial load)
+    // This prevents dashboard from unmounting during background refresh
+    if (!isAuthenticated) {
+      set({ isLoading: true });
+    }
+    
     try {
       // Refresh token is sent automatically via HttpOnly cookie
       // No body needed - cookie contains the refresh token
@@ -122,23 +131,41 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         }
       }
       
-      // Refresh failed - silently set unauthenticated
-      set({
-        user: null,
-        subscription: null,
-        accessToken: null,
-        isAuthenticated: false,
-        isLoading: false,
-      });
+      // Handle different error cases
+      const errorData = await response.json().catch(() => ({}));
+      
+      // If refresh fails with 400 (no cookie) or 401 (invalid token)
+      // and we have NO access token in memory, just mark as not loading
+      // Don't force logout if user was never authenticated
+      if (!accessToken && !isAuthenticated) {
+        set({ isLoading: false });
+        return false;
+      }
+      
+      // If we had an access token but refresh failed, the session is truly expired
+      // Only logout if the user was actually authenticated before
+      if (isAuthenticated && (response.status === 401 || response.status === 400)) {
+        // Check if it's actually a session issue vs just cookie not being sent
+        if (errorData.error?.code === 'TOKEN_EXPIRED') {
+          set({
+            user: null,
+            subscription: null,
+            accessToken: null,
+            isAuthenticated: false,
+            isLoading: false,
+          });
+        } else {
+          // Unknown error - just finish loading without logging out
+          set({ isLoading: false });
+        }
+      } else {
+        set({ isLoading: false });
+      }
+      
       return false;
     } catch {
-      set({
-        user: null,
-        subscription: null,
-        accessToken: null,
-        isAuthenticated: false,
-        isLoading: false,
-      });
+      // Network error - don't logout, just finish loading
+      set({ isLoading: false });
       return false;
     }
   },

@@ -20,10 +20,16 @@ import {
   ModalBody,
   ModalFooter,
   useDisclosure,
+  Tabs,
+  Tab,
+  Textarea,
+  Switch,
 } from '@heroui/react';
-import { Users, DollarSign, FileVideo, TrendingUp, Search, Shield, Edit, Trash2 } from 'lucide-react';
+import { Users, DollarSign, FileVideo, TrendingUp, Search, Shield, Edit, Trash2, Megaphone, Plus } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth-store';
+import { authFetch } from '@/services/api';
 import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 
 interface AdminStats {
   users: {
@@ -51,6 +57,14 @@ interface UserData {
   _count: { projects: number; exports: number };
 }
 
+interface Announcement {
+  id: string;
+  title: string;
+  content: string;
+  isActive: boolean;
+  createdAt: string;
+}
+
 export function AdminPage() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
@@ -61,7 +75,20 @@ export function AdminPage() {
   const [selectedUser, setSelectedUser] = useState<UserData | null>(null);
   const [selectedTier, setSelectedTier] = useState<string>('');
   
+  // Announcements state
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [announcementsLoading, setAnnouncementsLoading] = useState(true);
+  const [newTitle, setNewTitle] = useState('');
+  const [newContent, setNewContent] = useState('');
+  // TODO: Implement announcement editing
+  const [_editingAnnouncement, _setEditingAnnouncement] = useState<Announcement | null>(null);
+  
   const { isOpen, onOpen, onClose } = useDisclosure();
+  const { 
+    isOpen: isAnnouncementOpen, 
+    onOpen: onAnnouncementOpen, 
+    onClose: onAnnouncementClose 
+  } = useDisclosure();
 
   // Check admin role
   useEffect(() => {
@@ -74,7 +101,7 @@ export function AdminPage() {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const res = await fetch('/api/v1/admin/stats', { credentials: 'include' });
+        const res = await authFetch('/api/v1/admin/stats');
         if (res.ok) {
           const data = await res.json();
           setStats(data.data);
@@ -94,7 +121,7 @@ export function AdminPage() {
         const url = searchQuery 
           ? `/api/v1/admin/users?search=${encodeURIComponent(searchQuery)}`
           : '/api/v1/admin/users';
-        const res = await fetch(url, { credentials: 'include' });
+        const res = await authFetch(url);
         if (res.ok) {
           const data = await res.json();
           setUsers(data.data.users);
@@ -110,26 +137,105 @@ export function AdminPage() {
     return () => clearTimeout(debounce);
   }, [searchQuery]);
 
+  // Fetch announcements
+  useEffect(() => {
+    fetchAnnouncements();
+  }, []);
+
+  const fetchAnnouncements = async () => {
+    setAnnouncementsLoading(true);
+    try {
+      const res = await authFetch('/api/v1/admin/announcements');
+      if (res.ok) {
+        const data = await res.json();
+        setAnnouncements(data.data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch announcements:', err);
+    } finally {
+      setAnnouncementsLoading(false);
+    }
+  };
+
   const handleUpdateSubscription = async () => {
     if (!selectedUser || !selectedTier) return;
     
     try {
-      const res = await fetch(`/api/v1/admin/users/${selectedUser.id}/subscription`, {
+      const res = await authFetch(`/api/v1/admin/users/${selectedUser.id}/subscription`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tier: selectedTier }),
-        credentials: 'include',
       });
       
       if (res.ok) {
-        // Refresh users
-        const usersRes = await fetch('/api/v1/admin/users', { credentials: 'include' });
+        const usersRes = await authFetch('/api/v1/admin/users');
         const data = await usersRes.json();
         setUsers(data.data.users);
         onClose();
+        toast.success('Subscription updated');
       }
     } catch (err) {
       console.error('Failed to update subscription:', err);
+      toast.error('Failed to update subscription');
+    }
+  };
+
+  const handleCreateAnnouncement = async () => {
+    if (!newTitle.trim() || !newContent.trim()) return;
+    
+    try {
+      const res = await authFetch('/api/v1/admin/announcements', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: newTitle, content: newContent }),
+      });
+      
+      if (res.ok) {
+        toast.success('Pengumuman berhasil dibuat');
+        setNewTitle('');
+        setNewContent('');
+        onAnnouncementClose();
+        fetchAnnouncements();
+      }
+    } catch (err) {
+      console.error('Failed to create announcement:', err);
+      toast.error('Gagal membuat pengumuman');
+    }
+  };
+
+  const handleUpdateAnnouncement = async (id: string, data: Partial<Announcement>) => {
+    try {
+      const res = await authFetch(`/api/v1/admin/announcements/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      
+      if (res.ok) {
+        toast.success('Pengumuman berhasil diupdate');
+        fetchAnnouncements();
+      }
+    } catch (err) {
+      console.error('Failed to update announcement:', err);
+      toast.error('Gagal mengupdate pengumuman');
+    }
+  };
+
+  const handleDeleteAnnouncement = async (id: string) => {
+    if (!confirm('Yakin ingin menghapus pengumuman ini?')) return;
+    
+    try {
+      const res = await authFetch(`/api/v1/admin/announcements/${id}`, {
+        method: 'DELETE',
+      });
+      
+      if (res.ok) {
+        toast.success('Pengumuman berhasil dihapus');
+        fetchAnnouncements();
+      }
+    } catch (err) {
+      console.error('Failed to delete announcement:', err);
+      toast.error('Gagal menghapus pengumuman');
     }
   };
 
@@ -210,76 +316,152 @@ export function AdminPage() {
         </Card>
       </div>
 
-      {/* Users Table */}
-      <Card>
-        <CardHeader className="flex flex-row justify-between items-center">
-          <h2 className="text-lg font-semibold">Users</h2>
-          <Input
-            placeholder="Search by name or email..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            startContent={<Search size={16} />}
-            className="max-w-xs"
-            size="sm"
-          />
-        </CardHeader>
-        <CardBody>
-          <Table aria-label="Users table">
-            <TableHeader>
-              <TableColumn>USER</TableColumn>
-              <TableColumn>TIER</TableColumn>
-              <TableColumn>EXPORTS</TableColumn>
-              <TableColumn>JOINED</TableColumn>
-              <TableColumn>ACTIONS</TableColumn>
-            </TableHeader>
-            <TableBody isLoading={isLoading}>
-              {users.map((u) => (
-                <TableRow key={u.id}>
-                  <TableCell>
-                    <div>
-                      <p className="font-medium">{u.name}</p>
-                      <p className="text-xs text-foreground/60">{u.email}</p>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Chip 
-                      size="sm"
-                      color={
-                        u.subscription?.tier === 'PRO' ? 'warning' :
-                        u.subscription?.tier === 'CREATOR' ? 'primary' : 'default'
-                      }
-                    >
-                      {u.subscription?.tier || 'FREE'}
-                    </Chip>
-                  </TableCell>
-                  <TableCell>
-                    {u.subscription?.exportsUsed || 0} / {u.subscription?.exportsLimit || 5}
-                  </TableCell>
-                  <TableCell>
-                    {new Date(u.createdAt).toLocaleDateString('id-ID')}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex gap-2">
-                      <Button 
-                        isIconOnly 
-                        size="sm" 
-                        variant="flat"
-                        onPress={() => {
-                          setSelectedUser(u);
-                          setSelectedTier(u.subscription?.tier || 'FREE');
-                          onOpen();
-                        }}
-                      >
-                        <Edit size={14} />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardBody>
-      </Card>
+      {/* Tabs for Users and Announcements */}
+      <Tabs aria-label="Admin sections" color="primary" variant="underlined">
+        <Tab key="users" title={<div className="flex items-center gap-2"><Users size={16} /> Users</div>}>
+          <Card className="mt-4">
+            <CardHeader className="flex flex-row justify-between items-center">
+              <h2 className="text-lg font-semibold">Users</h2>
+              <Input
+                placeholder="Search by name or email..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                startContent={<Search size={16} />}
+                className="max-w-xs"
+                size="sm"
+              />
+            </CardHeader>
+            <CardBody>
+              <Table aria-label="Users table">
+                <TableHeader>
+                  <TableColumn>USER</TableColumn>
+                  <TableColumn>TIER</TableColumn>
+                  <TableColumn>EXPORTS</TableColumn>
+                  <TableColumn>JOINED</TableColumn>
+                  <TableColumn>ACTIONS</TableColumn>
+                </TableHeader>
+                <TableBody isLoading={isLoading}>
+                  {users.map((u) => (
+                    <TableRow key={u.id}>
+                      <TableCell>
+                        <div>
+                          <p className="font-medium">{u.name}</p>
+                          <p className="text-xs text-foreground/60">{u.email}</p>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Chip 
+                          size="sm"
+                          color={
+                            u.subscription?.tier === 'PRO' ? 'warning' :
+                            u.subscription?.tier === 'CREATOR' ? 'primary' : 'default'
+                          }
+                        >
+                          {u.subscription?.tier || 'FREE'}
+                        </Chip>
+                      </TableCell>
+                      <TableCell>
+                        {u.subscription?.exportsUsed || 0} / {u.subscription?.exportsLimit || 5}
+                      </TableCell>
+                      <TableCell>
+                        {new Date(u.createdAt).toLocaleDateString('id-ID')}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex gap-2">
+                          <Button 
+                            isIconOnly 
+                            size="sm" 
+                            variant="flat"
+                            onPress={() => {
+                              setSelectedUser(u);
+                              setSelectedTier(u.subscription?.tier || 'FREE');
+                              onOpen();
+                            }}
+                          >
+                            <Edit size={14} />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardBody>
+          </Card>
+        </Tab>
+
+        <Tab key="announcements" title={<div className="flex items-center gap-2"><Megaphone size={16} /> Pengumuman</div>}>
+          <Card className="mt-4">
+            <CardHeader className="flex flex-row justify-between items-center">
+              <h2 className="text-lg font-semibold">Pengumuman</h2>
+              <Button 
+                color="primary" 
+                size="sm"
+                startContent={<Plus size={16} />}
+                onPress={onAnnouncementOpen}
+              >
+                Buat Pengumuman
+              </Button>
+            </CardHeader>
+            <CardBody>
+              {announcementsLoading ? (
+                <div className="text-center py-8 text-foreground/60">Loading...</div>
+              ) : announcements.length === 0 ? (
+                <div className="text-center py-8 text-foreground/60">
+                  Belum ada pengumuman
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {announcements.map((a) => (
+                    <Card key={a.id} className="bg-content2">
+                      <CardBody className="p-4">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <h3 className="font-medium">{a.title}</h3>
+                              <Chip 
+                                size="sm" 
+                                color={a.isActive ? 'success' : 'default'}
+                                variant="flat"
+                              >
+                                {a.isActive ? 'Aktif' : 'Nonaktif'}
+                              </Chip>
+                            </div>
+                            <p className="text-sm text-foreground/60">{a.content}</p>
+                            <p className="text-xs text-foreground/40 mt-2">
+                              {new Date(a.createdAt).toLocaleDateString('id-ID', {
+                                day: 'numeric',
+                                month: 'short',
+                                year: 'numeric',
+                              })}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Switch 
+                              size="sm"
+                              isSelected={a.isActive}
+                              onValueChange={(value) => handleUpdateAnnouncement(a.id, { isActive: value })}
+                            />
+                            <Button 
+                              isIconOnly 
+                              size="sm" 
+                              variant="flat"
+                              color="danger"
+                              onPress={() => handleDeleteAnnouncement(a.id)}
+                            >
+                              <Trash2 size={14} />
+                            </Button>
+                          </div>
+                        </div>
+                      </CardBody>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </CardBody>
+          </Card>
+        </Tab>
+      </Tabs>
 
       {/* Edit Subscription Modal */}
       <Modal isOpen={isOpen} onClose={onClose}>
@@ -308,6 +490,42 @@ export function AdminPage() {
             <Button variant="flat" onPress={onClose}>Cancel</Button>
             <Button color="primary" onPress={handleUpdateSubscription}>
               Update
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Create Announcement Modal */}
+      <Modal isOpen={isAnnouncementOpen} onClose={onAnnouncementClose}>
+        <ModalContent>
+          <ModalHeader>Buat Pengumuman</ModalHeader>
+          <ModalBody>
+            <div className="space-y-4">
+              <Input
+                label="Judul"
+                placeholder="Contoh: 🎉 Fitur Baru!"
+                value={newTitle}
+                onChange={(e) => setNewTitle(e.target.value)}
+                maxLength={200}
+              />
+              <Textarea
+                label="Konten"
+                placeholder="Isi pengumuman..."
+                value={newContent}
+                onChange={(e) => setNewContent(e.target.value)}
+                maxLength={1000}
+                minRows={3}
+              />
+            </div>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="flat" onPress={onAnnouncementClose}>Batal</Button>
+            <Button 
+              color="primary" 
+              onPress={handleCreateAnnouncement}
+              isDisabled={!newTitle.trim() || !newContent.trim()}
+            >
+              Buat
             </Button>
           </ModalFooter>
         </ModalContent>

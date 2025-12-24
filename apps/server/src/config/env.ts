@@ -39,6 +39,9 @@ const envSchema = z.object({
   MAX_UPLOAD_SIZE_MB: z.coerce.number().default(500),
   TEMP_DIR: z.string().default('./temp'),
   OUTPUT_DIR: z.string().default('./output'),
+  
+  // Video Download (Cobalt API)
+  COBALT_API_URL: z.string().url().optional(), // Self-hosted Cobalt API URL
 });
 
 const parsed = envSchema.safeParse(process.env);

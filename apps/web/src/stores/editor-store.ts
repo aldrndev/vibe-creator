@@ -5,7 +5,8 @@ import type {
   TrackType, 
   ClipTransforms, 
   ClipEffects,
-  ProjectSettings
+  ProjectSettings,
+  TextOverlay
 } from '@vibe-creator/shared';
 
 // Default values
@@ -95,6 +96,10 @@ interface EditorState {
   exportSettings: ExportSettings;
   isExporting: boolean;
   
+  // Text overlays
+  textOverlays: TextOverlay[];
+  selectedTextOverlayId: string | null;
+  
   // Actions
   initProject: (projectId: string, title: string, settings?: Partial<ProjectSettings>) => void;
   resetEditor: () => void;
@@ -135,6 +140,12 @@ interface EditorState {
   // Export actions
   setExportSettings: (settings: Partial<ExportSettings>) => void;
   getExportPayload: () => { projectId: string; timeline: EditorTimeline; export: ExportSettings } | null;
+  
+  // Text overlay actions
+  addTextOverlay: (overlay: Omit<TextOverlay, 'id'>) => string;
+  updateTextOverlay: (id: string, updates: Partial<TextOverlay>) => void;
+  removeTextOverlay: (id: string) => void;
+  selectTextOverlay: (id: string | null) => void;
 }
 
 function generateId(): string {
@@ -191,6 +202,10 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
     watermark: true, // Free tier default
   },
   isExporting: false,
+  
+  // Text overlays
+  textOverlays: [],
+  selectedTextOverlayId: null,
   
   // Actions
   initProject: (projectId, title, settings) => {
@@ -309,6 +324,11 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
   // Clip actions
   addClip: (trackId, clipData) => {
     const id = `clip-${generateId()}`;
+    
+    // Auto-resolve asset from assetId if not provided
+    const resolvedAsset = clipData.asset ?? 
+      (clipData.assetId ? get().assets.find(a => a.id === clipData.assetId) : undefined);
+    
     const clip: EditorClip = {
       id,
       assetId: clipData.assetId ?? null,
@@ -318,7 +338,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
       trimEndMs: clipData.trimEndMs ?? 0,
       transforms: clipData.transforms ?? DEFAULT_TRANSFORMS,
       effects: clipData.effects ?? DEFAULT_EFFECTS,
-      asset: clipData.asset,
+      asset: resolvedAsset,
     };
     
     set((state) => ({
@@ -457,5 +477,37 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
       timeline: state.timeline,
       export: state.exportSettings,
     };
+  },
+  
+  // Text overlay actions
+  addTextOverlay: (overlay) => {
+    const id = generateId();
+    set((state) => ({
+      textOverlays: [...state.textOverlays, { ...overlay, id }],
+      selectedTextOverlayId: id,
+      isDirty: true,
+    }));
+    return id;
+  },
+  
+  updateTextOverlay: (id, updates) => {
+    set((state) => ({
+      textOverlays: state.textOverlays.map((overlay) =>
+        overlay.id === id ? { ...overlay, ...updates } : overlay
+      ),
+      isDirty: true,
+    }));
+  },
+  
+  removeTextOverlay: (id) => {
+    set((state) => ({
+      textOverlays: state.textOverlays.filter((overlay) => overlay.id !== id),
+      selectedTextOverlayId: state.selectedTextOverlayId === id ? null : state.selectedTextOverlayId,
+      isDirty: true,
+    }));
+  },
+  
+  selectTextOverlay: (id) => {
+    set({ selectedTextOverlayId: id });
   },
 }));

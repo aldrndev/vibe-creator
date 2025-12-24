@@ -72,7 +72,7 @@ export const exportService = {
         format,
         resolution,
         status: 'QUEUED',
-        timelineData: timelineData as unknown as Record<string, unknown>,
+        timelineData: JSON.parse(JSON.stringify(timelineData)),
         expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
       },
     });

@@ -277,4 +277,56 @@ export const adminService = {
 
     return activities;
   },
+
+  // ============================================================================
+  // ANNOUNCEMENTS
+  // ============================================================================
+
+  /**
+   * Get all announcements
+   */
+  async getAnnouncements() {
+    return prisma.announcement.findMany({
+      orderBy: { createdAt: 'desc' },
+    });
+  },
+
+  /**
+   * Create announcement
+   */
+  async createAnnouncement(title: string, content: string) {
+    const announcement = await prisma.announcement.create({
+      data: { title, content },
+    });
+
+    logger.info({ id: announcement.id, title }, 'Announcement created');
+    return announcement;
+  },
+
+  /**
+   * Update announcement
+   */
+  async updateAnnouncement(
+    id: string, 
+    data: { title?: string; content?: string; isActive?: boolean }
+  ) {
+    const announcement = await prisma.announcement.update({
+      where: { id },
+      data,
+    });
+
+    logger.info({ id, ...data }, 'Announcement updated');
+    return announcement;
+  },
+
+  /**
+   * Delete announcement
+   */
+  async deleteAnnouncement(id: string) {
+    await prisma.announcement.delete({
+      where: { id },
+    });
+
+    logger.info({ id }, 'Announcement deleted');
+  },
 };

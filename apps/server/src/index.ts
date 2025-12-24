@@ -21,6 +21,7 @@ import { reactionRoutes } from '@/modules/reaction/reaction.routes';
 import { streamRoutes } from '@/modules/stream/stream.routes';
 import { paymentRoutes } from '@/modules/payment/payment.routes';
 import { adminRoutes } from '@/modules/admin/admin.routes';
+import { projectRoutes } from '@/modules/project/project.routes';
 
 async function main(): Promise<void> {
   const fastify = Fastify({
@@ -79,13 +80,26 @@ async function main(): Promise<void> {
 
         if (!session) return;
 
+        // Check if access token (not refresh token) is expired
+        // DON'T delete session - let refresh endpoint handle token renewal
         if (session.expiresAt < new Date()) {
-          await prisma.userSession.delete({ where: { id: session.id } });
+          // Just don't set user - endpoint will return 401
+          // Client should try refresh token flow
           return;
         }
 
         request.user = session.user;
         request.session = session;
+      });
+      
+      // Public announcements endpoint (no auth required)
+      api.get('/announcements', async (_request, reply) => {
+        const announcements = await prisma.announcement.findMany({
+          where: { isActive: true },
+          orderBy: { createdAt: 'desc' },
+          take: 10,
+        });
+        return reply.send({ success: true, data: announcements });
       });
       
       await api.register(authRoutes, { prefix: '/auth' });
@@ -98,6 +112,7 @@ async function main(): Promise<void> {
       await api.register(streamRoutes, { prefix: '/stream' });
       await api.register(paymentRoutes, { prefix: '/payment' });
       await api.register(adminRoutes, { prefix: '/admin' });
+      await api.register(projectRoutes, { prefix: '/projects' });
     },
     { prefix: '/api/v1' }
   );
@@ -123,6 +138,7 @@ async function main(): Promise<void> {
     await fastify.listen({ port: env.PORT, host: '0.0.0.0' });
     logger.info(`🚀 Server running on http://localhost:${env.PORT}`);
     logger.info(`📚 API available at http://localhost:${env.PORT}/api/v1`);
+    logger.info(`🎬 Cobalt API: ${env.COBALT_API_URL || 'Not configured - using yt-dlp fallback'}`);
   } catch (err) {
     logger.error(err, 'Failed to start server');
     process.exit(1);

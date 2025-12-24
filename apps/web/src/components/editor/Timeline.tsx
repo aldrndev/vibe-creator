@@ -1,5 +1,6 @@
 import { useRef, useCallback } from 'react';
 import { useEditorStore } from '@/stores/editor-store';
+import { Trash2, Music, Type } from 'lucide-react';
 
 export function Timeline() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -11,10 +12,15 @@ export function Timeline() {
     zoomLevel,
     scrollLeft,
     selectedClipId,
+    textOverlays,
+    selectedTextOverlayId,
     setCurrentTime,
     setScrollLeft,
     selectClip,
     updateClip,
+    removeClip,
+    selectTextOverlay,
+    removeTextOverlay,
   } = useEditorStore();
   
   const msToPixels = useCallback((ms: number) => (ms / 1000) * zoomLevel, [zoomLevel]);
@@ -86,9 +92,15 @@ export function Timeline() {
               key={track.id}
               className="h-12 px-2 flex items-center gap-2 border-b border-divider text-sm"
             >
-              <span className="truncate">{track.type}</span>
+              {track.type === 'VIDEO' && <span className="truncate">🎬 VIDEO</span>}
+              {track.type === 'AUDIO' && <span className="truncate flex items-center gap-1"><Music size={14} /> AUDIO</span>}
             </div>
           ))}
+          {/* TEXT track label */}
+          <div className="h-12 px-2 flex items-center gap-2 border-b border-divider text-sm">
+            <Type size={14} />
+            <span className="truncate">TEXT</span>
+          </div>
         </div>
         
         {/* Timeline area */}
@@ -154,10 +166,24 @@ export function Timeline() {
                           </div>
                         )}
                         
-                        <div className="relative h-full px-2 flex items-center">
-                          <span className="text-xs truncate text-foreground/90 font-medium drop-shadow-md">
+                        <div className="relative h-full px-2 flex items-center justify-between">
+                          <span className="text-xs truncate text-foreground/90 font-medium drop-shadow-md flex items-center gap-1">
+                            {track.type === 'AUDIO' && <Music size={12} className="flex-shrink-0" />}
                             {clip.asset?.name ?? 'Clip'}
                           </span>
+                          {/* Delete button on selected clips */}
+                          {isSelected && (
+                            <button
+                              className="p-1 bg-danger/80 hover:bg-danger rounded text-white flex-shrink-0"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                removeClip(track.id, clip.id);
+                              }}
+                              title="Delete clip"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          )}
                         </div>
                       </div>
                       
@@ -217,6 +243,56 @@ export function Timeline() {
                 })}
               </div>
             ))}
+            
+            {/* Text Overlays Track */}
+            <div
+              className="relative border-b border-divider bg-purple-500/5"
+              style={{ height: trackHeight }}
+            >
+              {textOverlays.map((overlay) => {
+                const overlayX = msToPixels(overlay.startMs);
+                const overlayWidth = msToPixels(overlay.endMs - overlay.startMs);
+                const isSelected = overlay.id === selectedTextOverlayId;
+                
+                return (
+                  <div
+                    key={overlay.id}
+                    className={`absolute top-1 bottom-1 rounded cursor-pointer transition-all ${
+                      isSelected
+                        ? 'ring-2 ring-purple-500 bg-purple-500/40'
+                        : 'bg-purple-500/20 hover:bg-purple-500/30'
+                    }`}
+                    style={{
+                      left: overlayX,
+                      width: Math.max(overlayWidth, 40),
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      selectTextOverlay(overlay.id);
+                    }}
+                  >
+                    <div className="h-full px-2 flex items-center justify-between">
+                      <span className="text-xs truncate text-foreground/90 font-medium flex items-center gap-1">
+                        <Type size={12} className="flex-shrink-0" />
+                        {overlay.text.substring(0, 20)}{overlay.text.length > 20 ? '...' : ''}
+                      </span>
+                      {isSelected && (
+                        <button
+                          className="p-1 bg-danger/80 hover:bg-danger rounded text-white flex-shrink-0"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeTextOverlay(overlay.id);
+                          }}
+                          title="Delete text overlay"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
             
             {/* Playhead */}
             <div

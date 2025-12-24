@@ -21,7 +21,7 @@ const loginSchema = z.object({
 });
 
 // Token durations
-const ACCESS_TOKEN_DURATION_MINUTES = 15; // Short-lived
+const ACCESS_TOKEN_DURATION_MINUTES = 60; // 1 hour - balance between security and UX
 const REFRESH_TOKEN_DURATION_DAYS = 30; // Long-lived
 
 // Cookie name for refresh token
@@ -48,9 +48,15 @@ function setRefreshTokenCookie(
 
 /**
  * Clear refresh token cookie
+ * Must include same attributes as when setting for browser to clear it
  */
 function clearRefreshTokenCookie(reply: FastifyReply) {
+  const isProduction = process.env.NODE_ENV === 'production';
+  
   reply.clearCookie(REFRESH_TOKEN_COOKIE, {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: 'lax',
     path: '/',
   });
 }
@@ -303,15 +309,34 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
     });
   });
 
-  // Logout
-  fastify.post('/logout', { preHandler: requireAuth }, async (request, reply) => {
-    if (request.session) {
-      await prisma.userSession.delete({
-        where: { id: request.session.id },
-      });
+  // Logout - doesn't require valid auth, always clears cookie
+  fastify.post('/logout', async (request, reply) => {
+    // Try to delete session if we have a valid token (best effort)
+    const authHeader = request.headers.authorization;
+    if (authHeader?.startsWith('Bearer ')) {
+      const token = authHeader.slice(7);
+      try {
+        await prisma.userSession.deleteMany({
+          where: { token },
+        });
+      } catch {
+        // Ignore errors - session might already be deleted
+      }
     }
 
-    // Clear refresh token cookie
+    // Also try to delete session using refresh token from cookie
+    const refreshToken = request.cookies[REFRESH_TOKEN_COOKIE];
+    if (refreshToken) {
+      try {
+        await prisma.userSession.deleteMany({
+          where: { refreshToken },
+        });
+      } catch {
+        // Ignore errors
+      }
+    }
+
+    // ALWAYS clear refresh token cookie
     clearRefreshTokenCookie(reply);
 
     return sendSuccess(reply, { message: 'Berhasil logout' });

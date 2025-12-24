@@ -73,17 +73,26 @@ class ApiClient {
             });
             return this.handleResponse<T>(retryResponse, endpoint, method, body);
           } else {
-            // Refresh failed, logout
-            await useAuthStore.getState().logout();
+            // Refresh failed - just return the original 401 response
+            // ProtectedRoute will handle redirect to login
+            return data;
           }
         } catch {
           this.isRefreshing = false;
           this.refreshPromise = null;
-          await useAuthStore.getState().logout();
+          // Return original response, don't force logout
+          return data;
         }
       } else {
         // Wait for ongoing refresh
         await this.waitForRefresh();
+        
+        // Check if we're authenticated after refresh
+        const newToken = useAuthStore.getState().accessToken;
+        if (!newToken) {
+          // Refresh failed, return original error
+          return data;
+        }
         
         // Retry with potentially new token
         const retryResponse = await fetch(`${this.baseUrl}${endpoint}`, {
@@ -144,3 +153,45 @@ class ApiClient {
 }
 
 export const api = new ApiClient(API_BASE_URL);
+
+/**
+ * Helper for raw fetch with automatic token refresh
+ * Use this when you need raw Response (e.g., for blobs, FormData uploads)
+ */
+export async function authFetch(
+  url: string,
+  options: RequestInit = {}
+): Promise<Response> {
+  const token = useAuthStore.getState().accessToken;
+  
+  const headers = new Headers(options.headers);
+  if (token && !headers.has('Authorization')) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+  
+  const response = await fetch(url, {
+    ...options,
+    headers,
+    credentials: 'include',
+  });
+  
+  // Handle 401 - try refresh token
+  if (response.status === 401) {
+    const refreshed = await useAuthStore.getState().refreshAccessToken();
+    if (refreshed) {
+      const newToken = useAuthStore.getState().accessToken;
+      const retryHeaders = new Headers(options.headers);
+      if (newToken) {
+        retryHeaders.set('Authorization', `Bearer ${newToken}`);
+      }
+      
+      return fetch(url, {
+        ...options,
+        headers: retryHeaders,
+        credentials: 'include',
+      });
+    }
+  }
+  
+  return response;
+}

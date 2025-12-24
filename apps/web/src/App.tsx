@@ -22,6 +22,7 @@ const DownloadsPage = lazy(() => import('@/pages/dashboard/DownloadsPage').then(
 const SettingsPage = lazy(() => import('@/pages/dashboard/SettingsPage').then(m => ({ default: m.SettingsPage })));
 const PricingPage = lazy(() => import('@/pages/dashboard/PricingPage').then(m => ({ default: m.PricingPage })));
 const AdminPage = lazy(() => import('@/pages/dashboard/AdminPage').then(m => ({ default: m.AdminPage })));
+const CommunityPage = lazy(() => import('@/pages/dashboard/CommunityPage').then(m => ({ default: m.CommunityPage })));
 
 // Lazy load heavy editor and tools pages
 const EditorPage = lazy(() => import('@/pages/editor/EditorPage').then(m => ({ default: m.EditorPage })));
@@ -40,6 +41,8 @@ function PageLoader() {
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuthStore();
+
+  // Auth check is done at App level, no need to check here again
 
   if (isLoading) {
     return (
@@ -128,16 +131,28 @@ export default function App() {
         >
           <Route index element={<Suspense fallback={<PageLoader />}><DashboardPage /></Suspense>} />
           <Route path="projects" element={<Suspense fallback={<PageLoader />}><ProjectsPage /></Suspense>} />
+          <Route path="exports" element={<Suspense fallback={<PageLoader />}><ProjectsPage /></Suspense>} />
           <Route path="prompts" element={<Suspense fallback={<PageLoader />}><PromptsPage /></Suspense>} />
           <Route path="prompts/new" element={<Suspense fallback={<PageLoader />}><PromptBuilderPage /></Suspense>} />
           <Route path="prompts/:id" element={<Suspense fallback={<PageLoader />}><PromptDetailPage /></Suspense>} />
           <Route path="downloads" element={<Suspense fallback={<PageLoader />}><DownloadsPage /></Suspense>} />
           <Route path="settings" element={<Suspense fallback={<PageLoader />}><SettingsPage /></Suspense>} />
           <Route path="pricing" element={<Suspense fallback={<PageLoader />}><PricingPage /></Suspense>} />
+          <Route path="community" element={<Suspense fallback={<PageLoader />}><CommunityPage /></Suspense>} />
           <Route path="admin" element={<Suspense fallback={<PageLoader />}><AdminPage /></Suspense>} />
         </Route>
 
-        {/* Editor route (full screen, no dashboard layout) */}
+        {/* Editor routes (full screen, no dashboard layout) */}
+        <Route
+          path="/tools/editor"
+          element={
+            <ProtectedRoute>
+              <Suspense fallback={<PageLoader />}>
+                <EditorPage />
+              </Suspense>
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/editor/:projectId"
           element={
