@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
+import { logger } from '@/lib/logger';
 
 interface UseVoiceRecorderReturn {
   isRecording: boolean;
@@ -84,7 +85,7 @@ export function useVoiceRecorder(): UseVoiceRecorderReturn {
       }, 100);
       
     } catch (err) {
-      console.error('Failed to start recording:', err);
+      logger.error('Failed to start recording', err);
       setError(err instanceof Error ? err.message : 'Failed to access microphone');
     }
   }, []);

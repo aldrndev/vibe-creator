@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import { logger } from '@/lib/logger';
 import { 
   Button, 
   Card, 
@@ -144,7 +145,7 @@ export function ReactionCreatorPage() {
       setProcessingStatus('Selesai!');
       
     } catch (err) {
-      console.error('Processing failed:', err);
+      logger.error('Processing failed', err);
       setProcessingStatus('Gagal: ' + (err instanceof Error ? err.message : 'Unknown error'));
     } finally {
       setIsProcessing(false);

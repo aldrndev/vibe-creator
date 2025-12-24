@@ -160,7 +160,7 @@ class FFmpegService {
     await this.ffmpeg.deleteFile(inputName);
     await this.ffmpeg.deleteFile(outputName);
 
-    return new Blob([data as any], { type: 'image/jpeg' });
+    return new Blob([data as BlobPart], { type: 'image/jpeg' });
   }
 
   /**
@@ -231,7 +231,7 @@ class FFmpegService {
     await this.ffmpeg.deleteFile(inputName);
     await this.ffmpeg.deleteFile(outputName);
 
-    return new Blob([data as any], { type: `video/${extension}` });
+    return new Blob([data as BlobPart], { type: `video/${extension}` });
   }
 
   /**
@@ -296,7 +296,7 @@ class FFmpegService {
 
     if (onProgress) onProgress(1);
 
-    return new Blob([data as any], { type: 'video/mp4' });
+    return new Blob([data as BlobPart], { type: 'video/mp4' });
   }
 
   /**

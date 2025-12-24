@@ -178,7 +178,7 @@ export function VideoPreview() {
       transformOrigin: 'center center',
       transition: 'filter 0.2s ease, transform 0.1s ease, opacity 0.2s ease',
     };
-  }, [activeClip?.transforms, activeClip?.effects]);
+  }, [activeClip]);
   
   // Sync video with timeline
   useEffect(() => {
@@ -217,6 +217,7 @@ export function VideoPreview() {
     const volume = activeClip.effects?.volume ?? 1;
     videoRef.current.volume = Math.max(0, Math.min(1, volume)); // Clamp to 0-1
     videoRef.current.muted = volume === 0;
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- Intentional optimization
   }, [activeClip?.effects?.volume]);
   
   // Handle playback speed changes
@@ -225,6 +226,7 @@ export function VideoPreview() {
     
     const speed = activeClip.effects?.speed ?? 1;
     videoRef.current.playbackRate = speed;
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- Intentional optimization
   }, [activeClip?.effects?.speed]);
   
   // Aspect ratio

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { logger } from '@/lib/logger';
 import { 
   Card, 
   CardBody, 
@@ -107,7 +108,7 @@ export function AdminPage() {
           setStats(data.data);
         }
       } catch (err) {
-        console.error('Failed to fetch stats:', err);
+        logger.error('Failed to fetch stats', err);
       }
     };
     fetchStats();
@@ -127,7 +128,7 @@ export function AdminPage() {
           setUsers(data.data.users);
         }
       } catch (err) {
-        console.error('Failed to fetch users:', err);
+        logger.error('Failed to fetch users', err);
       } finally {
         setIsLoading(false);
       }
@@ -151,7 +152,7 @@ export function AdminPage() {
         setAnnouncements(data.data);
       }
     } catch (err) {
-      console.error('Failed to fetch announcements:', err);
+      logger.error('Failed to fetch announcements', err);
     } finally {
       setAnnouncementsLoading(false);
     }
@@ -175,7 +176,7 @@ export function AdminPage() {
         toast.success('Subscription updated');
       }
     } catch (err) {
-      console.error('Failed to update subscription:', err);
+      logger.error('Failed to update subscription', err);
       toast.error('Failed to update subscription');
     }
   };
@@ -198,7 +199,7 @@ export function AdminPage() {
         fetchAnnouncements();
       }
     } catch (err) {
-      console.error('Failed to create announcement:', err);
+      logger.error('Failed to create announcement', err);
       toast.error('Gagal membuat pengumuman');
     }
   };
@@ -216,7 +217,7 @@ export function AdminPage() {
         fetchAnnouncements();
       }
     } catch (err) {
-      console.error('Failed to update announcement:', err);
+      logger.error('Failed to update announcement', err);
       toast.error('Gagal mengupdate pengumuman');
     }
   };
@@ -234,7 +235,7 @@ export function AdminPage() {
         fetchAnnouncements();
       }
     } catch (err) {
-      console.error('Failed to delete announcement:', err);
+      logger.error('Failed to delete announcement', err);
       toast.error('Gagal menghapus pengumuman');
     }
   };

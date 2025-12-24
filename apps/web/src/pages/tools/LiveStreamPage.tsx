@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import { logger } from '@/lib/logger';
 import { 
   Button, 
   Card, 
@@ -8,7 +9,7 @@ import {
   Divider,
   Chip
 } from '@heroui/react';
-import { Upload, Play, Square, ArrowLeft, Radio, Youtube, Twitch, Wifi, WifiOff, Settings, Video } from 'lucide-react';
+import { Upload, Play, Square, ArrowLeft, Radio, Wifi, WifiOff, Settings, Video, Tv } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 import { PageTransition, HoverCard } from '@/components/ui/PageTransition';
@@ -17,9 +18,9 @@ import { authFetch } from '@/services/api';
 type StreamPlatform = 'youtube' | 'tiktok' | 'twitch' | 'facebook' | 'instagram' | 'custom';
 
 const platformConfigs: Record<StreamPlatform, { name: string; icon: React.ReactNode; color: 'danger' | 'default' | 'secondary' | 'primary' | 'warning' }> = {
-  youtube: { name: 'YouTube', icon: <Youtube size={20} />, color: 'danger' },
+  youtube: { name: 'YouTube', icon: <Video size={20} />, color: 'danger' },
   tiktok: { name: 'TikTok', icon: <Radio size={20} />, color: 'default' },
-  twitch: { name: 'Twitch', icon: <Twitch size={20} />, color: 'secondary' },
+  twitch: { name: 'Twitch', icon: <Tv size={20} />, color: 'secondary' },
   facebook: { name: 'Facebook', icon: <Radio size={20} />, color: 'primary' },
   instagram: { name: 'Instagram', icon: <Radio size={20} />, color: 'warning' },
   custom: { name: 'Custom RTMP', icon: <Settings size={20} />, color: 'default' },
@@ -106,7 +107,7 @@ export function LiveStreamPage() {
       }, 5000);
       
     } catch (err) {
-      console.error('Stream start failed:', err);
+      logger.error('Stream start failed', err);
       setStreamStatus('Gagal: ' + (err instanceof Error ? err.message : 'Unknown error'));
       setIsStreaming(false);
     }
@@ -132,7 +133,7 @@ export function LiveStreamPage() {
       }
       
     } catch (err) {
-      console.error('Stream stop failed:', err);
+      logger.error('Stream stop failed', err);
       setStreamStatus('Gagal menghentikan: ' + (err instanceof Error ? err.message : 'Unknown error'));
     }
   };

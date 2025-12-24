@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { logger } from '@/lib/logger';
 import { Card, CardBody, CardHeader, Button, Chip, Divider } from '@heroui/react';
 import { Check, Sparkles, Crown, Zap, ArrowLeft } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -112,7 +113,7 @@ export function PricingPage() {
         window.location.href = data.data.invoiceUrl;
       }
     } catch (err) {
-      console.error('Upgrade failed:', err);
+      logger.error('Upgrade failed', err);
       toast.error('Gagal memproses pembayaran');
     } finally {
       setIsLoading(null);

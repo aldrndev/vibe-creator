@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { logger } from '@/lib/logger';
 import { Card, CardBody, Button, Chip, Progress, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, useDisclosure } from '@heroui/react';
 import { Download, FileVideo, Clock, Play, RefreshCw, Trash2 } from 'lucide-react';
 import { PageTransition, StaggerContainer, StaggerItem } from '@/components/ui/PageTransition';
@@ -95,7 +96,7 @@ export function DownloadsPage() {
       refetch();
     } catch (e) {
       toast.error('Gagal menghapus download');
-      console.error(e);
+      logger.error('Delete download failed', e);
     } finally {
       setIsDeleting(false);
       setDeleteTarget(null);
@@ -120,7 +121,7 @@ export function DownloadsPage() {
       onVideoOpen();
     } catch (e) {
       toast.error('Gagal memuat video');
-      console.error(e);
+      logger.error('Load video failed', e);
     } finally {
       setIsLoadingVideo(false);
     }

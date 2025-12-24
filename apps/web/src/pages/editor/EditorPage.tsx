@@ -1,4 +1,5 @@
 import { useEffect, useCallback, useRef, useState } from 'react';
+import { logger } from '@/lib/logger';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button, Slider, Tooltip, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Input, useDisclosure } from '@heroui/react';
 import { 
@@ -205,7 +206,7 @@ export function EditorPage() {
         extractTimelineThumbnails(file, 20).then(thumbnails => {
           updateAsset(id, { thumbnails });
         }).catch(err => {
-          console.error('Failed to generate thumbnails:', err);
+          logger.error('Failed to generate thumbnails', err);
         });
       }
       
@@ -286,8 +287,8 @@ export function EditorPage() {
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {
-      console.error('Export failed:', e);
-      toast.error('Export gagal. Cek console untuk detail.');
+      logger.error('Export failed', e);
+      toast.error('Export gagal. Coba lagi.');
     } finally {
       setIsExporting(false);
     }
@@ -375,7 +376,7 @@ export function EditorPage() {
 
       toast.success('Export berhasil!');
     } catch (e) {
-      console.error('Server export failed:', e);
+      logger.error('Server export failed', e);
       toast.error(`Server export gagal: ${e instanceof Error ? e.message : 'Unknown error'}`);
     } finally {
       setIsExporting(false);
@@ -567,7 +568,7 @@ export function EditorPage() {
       setDownloadStep(0);
       
     } catch (e) {
-      console.error('URL download failed:', e);
+      logger.error('URL download failed', e);
       setDownloadStep(0);
       toast.error(`Download gagal: ${e instanceof Error ? e.message : 'Unknown error'}`);
     } finally {

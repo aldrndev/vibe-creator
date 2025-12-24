@@ -211,12 +211,14 @@ export function ProjectsPage() {
                               <MoreVertical size={16} />
                             </Button>
                           </DropdownTrigger>
-                          <DropdownMenu aria-label="Export actions">
+                          <DropdownMenu 
+                            aria-label="Export actions"
+                            disabledKeys={!item.downloadUrl ? ['download'] : []}
+                          >
                             <DropdownItem 
                               key="download" 
                               startContent={<DownloadIcon size={16} />}
                               onPress={() => handleDownload(item.downloadUrl, `${item.project?.title ?? 'export'}.mp4`)}
-                              isDisabled={!item.downloadUrl}
                             >
                               Download
                             </DropdownItem>

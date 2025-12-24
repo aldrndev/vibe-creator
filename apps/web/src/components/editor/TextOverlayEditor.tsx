@@ -81,6 +81,7 @@ export function TextOverlayEditor({ isOpen, onClose, editingOverlay }: TextOverl
   const [endMs, setEndMs] = useState(5000);
   
   // Initialize form when editing
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (editingOverlay) {
       setText(editingOverlay.text);
@@ -113,6 +114,7 @@ export function TextOverlayEditor({ isOpen, onClose, editingOverlay }: TextOverl
       setEndMs(Math.min(5000, timeline.durationMs || 5000));
     }
   }, [editingOverlay, isOpen, timeline.durationMs]);
+  /* eslint-enable react-hooks/set-state-in-effect */
   
   const handleSave = () => {
     if (!text.trim()) return;

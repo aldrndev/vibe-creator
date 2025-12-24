@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import { logger } from '@/lib/logger';
 import { Button, Card, CardBody, CardHeader, Slider, Divider, Progress, Chip } from '@heroui/react';
 import { Upload, RefreshCw, Repeat, Film, Download, ArrowLeft, Sparkles, Check } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -116,7 +117,7 @@ export function LoopCreatorPage() {
       setProcessingStatus('Selesai!');
       
     } catch (err) {
-      console.error('Processing failed:', err);
+      logger.error('Processing failed', err);
       setProcessingStatus('Gagal: ' + (err instanceof Error ? err.message : 'Unknown error'));
     } finally {
       setIsProcessing(false);

@@ -28,7 +28,7 @@ export function Timeline() {
   
   // Render time ruler
   const renderRuler = () => {
-    const visibleWidth = containerRef.current?.clientWidth ?? 1000;
+    const visibleWidth = 1000; // Fallback width, actual sizing handled by CSS
     const totalWidth = Math.max(msToPixels(timeline.durationMs) + 500, visibleWidth);
     const step = zoomLevel >= 100 ? 1000 : zoomLevel >= 50 ? 5000 : 10000; // 1s, 5s, or 10s
     

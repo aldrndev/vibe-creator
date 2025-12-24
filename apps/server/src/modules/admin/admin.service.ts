@@ -48,7 +48,7 @@ export const adminService = {
       where: { status: 'PAID' },
       select: { amount: true },
     });
-    const totalRevenue = paidPayments.reduce((sum, p) => sum + p.amount, 0);
+    const totalRevenue = paidPayments.reduce((sum: number, p: { amount: number }) => sum + p.amount, 0);
 
     return {
       users: {
@@ -257,17 +257,17 @@ export const adminService = {
 
     // Combine and sort by date
     const activities = [
-      ...exports.map(e => ({ 
+      ...exports.map((e: typeof exports[number]) => ({ 
         type: 'export' as const, 
         ...e, 
         description: `Export ${e.status.toLowerCase()}`,
       })),
-      ...payments.map(p => ({ 
+      ...payments.map((p: typeof payments[number]) => ({ 
         type: 'payment' as const, 
         ...p,
         description: `Payment Rp ${p.amount.toLocaleString()} for ${p.tier}`,
       })),
-      ...users.map(u => ({ 
+      ...users.map((u: typeof users[number]) => ({ 
         type: 'signup' as const, 
         ...u,
         description: `New user registered`,
