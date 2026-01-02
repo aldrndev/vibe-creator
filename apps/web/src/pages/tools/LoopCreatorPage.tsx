@@ -131,11 +131,15 @@ export function LoopCreatorPage() {
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="flex items-center gap-4 mb-6">
-          <Link to="/dashboard">
-            <Button isIconOnly variant="light" size="sm">
-              <ArrowLeft size={20} />
-            </Button>
-          </Link>
+          <Button 
+            as={Link} 
+            to="/dashboard" 
+            isIconOnly 
+            variant="light" 
+            size="sm"
+          >
+            <ArrowLeft size={20} />
+          </Button>
           <div>
             <h1 className="text-2xl font-bold flex items-center gap-2">
               <Repeat size={24} className="text-primary" />
@@ -230,11 +234,6 @@ export function LoopCreatorPage() {
                             </div>
                             <p className="font-medium text-sm">{mode.name}</p>
                             <p className="text-xs text-foreground/50 mt-0.5">{mode.description}</p>
-                            {loopMode === mode.id && (
-                              <Chip size="sm" color={mode.color as 'primary' | 'secondary' | 'warning'} className="mt-2">
-                                <Check size={12} />
-                              </Chip>
-                            )}
                           </CardBody>
                         </Card>
                       </HoverCard>
@@ -282,6 +281,7 @@ export function LoopCreatorPage() {
                         Jumlah Loop: {loopCount}x
                       </label>
                       <Slider
+                        aria-label="Jumlah Loop"
                         step={1}
                         minValue={2}
                         maxValue={10}

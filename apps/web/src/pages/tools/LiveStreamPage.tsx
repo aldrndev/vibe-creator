@@ -147,11 +147,15 @@ export function LiveStreamPage() {
         <div 
           className="flex items-center gap-4 mb-6"
         >
-          <Link to="/dashboard">
-            <Button isIconOnly variant="light" size="sm">
-              <ArrowLeft size={20} />
-            </Button>
-          </Link>
+          <Button 
+            as={Link} 
+            to="/dashboard" 
+            isIconOnly 
+            variant="light" 
+            size="sm"
+          >
+            <ArrowLeft size={20} />
+          </Button>
           <div className="flex-1">
             <h1 className="text-2xl font-bold flex items-center gap-2">
               <Radio size={24} className="text-danger" />

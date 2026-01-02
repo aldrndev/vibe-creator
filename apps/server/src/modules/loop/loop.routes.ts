@@ -2,6 +2,7 @@ import { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { loopService } from './loop.service';
 import { createReadStream, existsSync, statSync } from 'fs';
+import path from 'path';
 
 const createLoopSchema = z.object({
   inputPath: z.string(),
@@ -145,7 +146,27 @@ export const loopRoutes: FastifyPluginAsync = async (fastify) => {
       });
     }
 
-    const filePath = `${process.cwd()}/uploads/loops/${request.params.filename}`;
+    // Security: Sanitize filename to prevent path traversal
+    const sanitizedFilename = path.basename(request.params.filename);
+    
+    // Security: Validate filename format (alphanumeric, dash, underscore, dot only)
+    if (!/^[\w\-.]+$/.test(sanitizedFilename)) {
+      return reply.status(400).send({
+        success: false,
+        error: { code: 'INVALID_FILENAME', message: 'Invalid filename format' },
+      });
+    }
+
+    const uploadsDir = path.resolve(process.cwd(), 'uploads', 'loops');
+    const filePath = path.join(uploadsDir, sanitizedFilename);
+    
+    // Security: Verify resolved path is within allowed directory
+    if (!path.resolve(filePath).startsWith(uploadsDir)) {
+      return reply.status(400).send({
+        success: false,
+        error: { code: 'INVALID_PATH', message: 'Invalid file path' },
+      });
+    }
     
     if (!existsSync(filePath)) {
       return reply.status(404).send({
@@ -160,8 +181,9 @@ export const loopRoutes: FastifyPluginAsync = async (fastify) => {
 
     return reply
       .header('Content-Type', isGif ? 'image/gif' : 'video/mp4')
-      .header('Content-Disposition', `attachment; filename="${request.params.filename}"`)
+      .header('Content-Disposition', `attachment; filename="${sanitizedFilename}"`)
       .header('Content-Length', stat.size)
+      .header('X-Content-Type-Options', 'nosniff')
       .send(stream);
   });
 };

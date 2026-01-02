@@ -25,7 +25,13 @@ function detectPlatform(url: string): string {
   if (url.includes('facebook.com') || url.includes('fb.watch')) return 'facebook';
   if (url.includes('vimeo.com')) return 'vimeo';
   if (url.includes('reddit.com')) return 'reddit';
+  if (url.includes('sora.chatgpt.com')) return 'sora';
   return 'unknown';
+}
+
+// Check if URL is a Sora video
+function isSoraUrl(url: string): boolean {
+  return url.includes('sora.chatgpt.com') && url.match(/(s_[0-9A-Za-z_-]{8,})/) !== null;
 }
 
 // Check if URL is a direct video link
@@ -130,7 +136,9 @@ export const downloadService = {
     });
 
     if (!job) {
-      throw new Error('Download job not found');
+      // Job already deleted or not found - treat as success
+      logger.info({ jobId }, 'Job already deleted or not found');
+      return { deleted: true };
     }
 
     // Delete file if exists
@@ -178,8 +186,12 @@ export const downloadService = {
 
       let result: { title: string; metadata: Record<string, unknown> };
 
+      // Check if it's a Sora video URL (prioritize Sora handler)
+      if (isSoraUrl(job.sourceUrl)) {
+        logger.info({ jobId, url: job.sourceUrl }, 'Downloading Sora video via multi-CDN fallback');
+        result = await this.downloadSoraVideo(job.sourceUrl, outputPath);
       // Check if it's a direct video URL
-      if (isDirectVideoUrl(job.sourceUrl)) {
+      } else if (isDirectVideoUrl(job.sourceUrl)) {
         logger.info({ jobId, url: job.sourceUrl }, 'Downloading direct video URL');
         result = await this.downloadDirectUrl(job.sourceUrl, outputPath);
       } else if (env.COBALT_API_URL) {
@@ -449,11 +461,118 @@ export const downloadService = {
   },
 
   /**
-   * Get user's download history
+   * Download Sora video using SoraPure's multi-CDN fallback approach
+   * Based on: https://github.com/bakhtiersizhaev/sorapure
+   */
+  async downloadSoraVideo(url: string, outputPath: string): Promise<{ title: string; metadata: Record<string, unknown> }> {
+    // Extract video ID from URL (s_xxxxx format)
+    const videoIdMatch = url.match(/(s_[0-9A-Za-z_-]{8,})/);
+    const videoId = videoIdMatch?.[1];
+    
+    if (!videoId) {
+      throw new Error('SORA_INVALID_URL: Cannot extract video ID (expected s_xxxxx format)');
+    }
+
+    logger.info({ videoId }, 'Downloading Sora video via multi-CDN fallback');
+
+    // CDN endpoints (decoded from sorapure)
+    const CDN_ENDPOINTS = {
+      CDN_DIRECT: `https://oscdn2.dyysy.com/MP4/${videoId}.mp4`,
+      CDN_PROXY: `https://api.soracdn.workers.dev/download-proxy?id=${videoId}`,
+      OPENAI_CDN: `https://cdn.openai.com/MP4/${videoId}.mp4`,
+    };
+
+    const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36';
+
+    // Try each CDN in order
+    const cdnAttempts = [
+      { name: 'CDN_DIRECT', url: CDN_ENDPOINTS.CDN_DIRECT },
+      { name: 'CDN_PROXY', url: CDN_ENDPOINTS.CDN_PROXY },
+      { name: 'OPENAI_CDN', url: CDN_ENDPOINTS.OPENAI_CDN },
+    ];
+
+    let videoBuffer: Buffer | null = null;
+    let sourceUsed = '';
+
+    for (const cdn of cdnAttempts) {
+      logger.info({ source: cdn.name, videoId }, `Attempting ${cdn.name}...`);
+      
+      try {
+        const response = await fetch(cdn.url, {
+          method: 'GET',
+          headers: { 'User-Agent': USER_AGENT },
+          signal: AbortSignal.timeout(120000), // 2 minutes timeout
+        });
+
+        if (response.ok) {
+          const contentType = response.headers.get('content-type') || '';
+          if (contentType.includes('video') || contentType.includes('octet-stream')) {
+            logger.info({ source: cdn.name, contentType }, `SUCCESS: ${cdn.name} found video`);
+            
+            const arrayBuffer = await response.arrayBuffer();
+            videoBuffer = Buffer.from(arrayBuffer);
+            sourceUsed = cdn.name;
+            break;
+          } else {
+            logger.warn({ source: cdn.name, contentType }, `${cdn.name} returned non-video content`);
+          }
+        } else {
+          logger.warn({ source: cdn.name, status: response.status }, `${cdn.name} failed`);
+        }
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+        logger.warn({ source: cdn.name, error: errorMsg }, `${cdn.name} failed`);
+      }
+    }
+
+    if (!videoBuffer) {
+      throw new Error('SORA_ALL_CDN_FAILED: All CDN sources failed. Video may not be publicly available.');
+    }
+
+    // Validate file size
+    const MAX_SIZE = 500 * 1024 * 1024; // 500MB
+    if (videoBuffer.length > MAX_SIZE) {
+      throw new Error('SORA_FILE_TOO_LARGE');
+    }
+
+    if (videoBuffer.length === 0) {
+      throw new Error('SORA_FILE_EMPTY');
+    }
+
+    // Write to file
+    await writeFile(outputPath, videoBuffer);
+
+    // Verify
+    const fileStats = await stat(outputPath);
+    if (fileStats.size === 0) {
+      throw new Error('SORA_FILE_WRITE_FAILED');
+    }
+
+    logger.info({ 
+      fileSize: fileStats.size, 
+      videoId, 
+      source: sourceUsed,
+    }, 'Sora video downloaded successfully');
+
+    return {
+      title: `Sora ${videoId}`,
+      metadata: { 
+        source: sourceUsed, 
+        videoId,
+        fileSize: fileStats.size,
+      },
+    };
+  },
+
+  /**
+   * Get user's download history (only completed downloads)
    */
   async getHistory(userId: string, limit = 10) {
     return prisma.downloadJob.findMany({
-      where: { userId },
+      where: { 
+        userId,
+        status: 'COMPLETED', // Only show completed downloads
+      },
       orderBy: { createdAt: 'desc' },
       take: limit,
     });

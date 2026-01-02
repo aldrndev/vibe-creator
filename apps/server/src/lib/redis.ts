@@ -1,5 +1,6 @@
 import Redis from 'ioredis';
 import { env } from '@/config/env';
+import { logger } from '@/lib/logger';
 
 export const redis = new Redis(env.REDIS_URL, {
   maxRetriesPerRequest: null,
@@ -7,9 +8,9 @@ export const redis = new Redis(env.REDIS_URL, {
 });
 
 redis.on('error', (err) => {
-  console.error('Redis connection error:', err);
+  logger.error({ err }, 'Redis connection error');
 });
 
 redis.on('connect', () => {
-  console.log('✅ Redis connected');
+  logger.info('Redis connected');
 });

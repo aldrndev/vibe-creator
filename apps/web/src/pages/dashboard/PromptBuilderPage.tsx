@@ -11,7 +11,7 @@ import {
   Chip,
 } from '@heroui/react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Sparkles, Copy, Check, Mic, Video, Image, Music, Scan } from 'lucide-react';
+import { ArrowLeft, Sparkles, Copy, Check, Mic, Video, Image, Music, Scan, Timer } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useCreatePrompt } from '@/hooks/use-prompts';
 import { SelectionGrid } from '@/components/ui/SelectionGrid';
@@ -84,6 +84,26 @@ interface CreativeScanFormData {
   focusAreas: string;
 }
 
+interface TimelapseScene {
+  description: string;
+  durationSeconds: number;
+}
+
+interface TimelapseFormData {
+  category: string;
+  subject: string;
+  transformation: string;
+  mode: 'single' | 'storyboard';
+  totalDurationSeconds: number;
+  scenes: TimelapseScene[];
+  style: string;
+  speedMultiplier: number;
+  camera: string;
+  aspectRatio: string;
+  lighting: string;
+  additionalDetails: string;
+}
+
 // ============================================================================
 // OPTIONS
 // ============================================================================
@@ -95,6 +115,7 @@ const promptTypes = [
   { key: 'IMAGE', label: 'Image / Thumbnail', description: 'Generate prompt untuk gambar', icon: Image },
   { key: 'RELAXING', label: 'Relaxing / Ambient', description: 'Generate prompt untuk audio ambient', icon: Music },
   { key: 'CREATIVE_SCAN', label: 'Creative Scan', description: 'Analisis video kompetitor', icon: Scan },
+  { key: 'TIMELAPSE', label: 'Timelapse / Sora AI', description: 'Generate prompt untuk video timelapse AI', icon: Timer },
 ];
 
 // === SCRIPT OPTIONS ===
@@ -556,6 +577,75 @@ const defaultCreativeScanForm: CreativeScanFormData = {
   focusAreas: '',
 };
 
+// === TIMELAPSE OPTIONS ===
+const timelapseCategories = [
+  { key: 'home-decor', label: 'Home Decor' },
+  { key: 'road-repair', label: 'Road Repair' },
+  { key: 'food', label: 'Food / Cooking' },
+  { key: 'nature', label: 'Nature' },
+  { key: 'industrial', label: 'Industrial' },
+  { key: 'construction', label: 'Construction' },
+  { key: 'art', label: 'Art Process' },
+  { key: 'weather', label: 'Weather' },
+];
+
+const timelapseTransformations = [
+  { key: 'before-after', label: 'Before → After' },
+  { key: 'growth', label: 'Growth' },
+  { key: 'decay', label: 'Decay' },
+  { key: 'construction', label: 'Construction' },
+  { key: 'repair', label: 'Repair' },
+  { key: 'cooking', label: 'Cooking' },
+  { key: 'blooming', label: 'Blooming' },
+];
+
+const timelapseSpeeds = [
+  { key: 10, label: '10x' },
+  { key: 50, label: '50x' },
+  { key: 100, label: '100x' },
+  { key: 500, label: '500x' },
+  { key: 1000, label: '1000x' },
+];
+
+const timelapseStyles = [
+  { key: 'realistic', label: 'Realistic' },
+  { key: 'cinematic', label: 'Cinematic' },
+  { key: 'aerial', label: 'Aerial' },
+  { key: 'documentary', label: 'Documentary' },
+  { key: 'artistic', label: 'Artistic' },
+];
+
+const timelapseCameras = [
+  { key: 'static', label: 'Static' },
+  { key: 'slow-pan', label: 'Slow Pan' },
+  { key: 'zoom-out', label: 'Zoom Out' },
+  { key: 'orbit', label: 'Orbit' },
+  { key: 'drone-flyover', label: 'Drone Flyover' },
+];
+
+const timelapseLightings = [
+  { key: 'natural-progression', label: 'Natural Progression' },
+  { key: 'golden-hour', label: 'Golden Hour' },
+  { key: 'day-to-night', label: 'Day to Night' },
+  { key: 'night-to-day', label: 'Night to Day' },
+  { key: 'consistent', label: 'Consistent' },
+];
+
+const defaultTimelapseForm: TimelapseFormData = {
+  category: '',
+  subject: '',
+  transformation: '',
+  mode: 'single',
+  totalDurationSeconds: 15,
+  scenes: [],
+  style: 'cinematic',
+  speedMultiplier: 100,
+  camera: 'static',
+  aspectRatio: '16:9',
+  lighting: 'natural-progression',
+  additionalDetails: '',
+};
+
 // ============================================================================
 // COMPONENT
 // ============================================================================
@@ -576,6 +666,7 @@ export function PromptBuilderPage() {
   const [imageForm, setImageForm] = useState<ImageFormData>(defaultImageForm);
   const [relaxingForm, setRelaxingForm] = useState<RelaxingFormData>(defaultRelaxingForm);
   const [creativeScanForm, setCreativeScanForm] = useState<CreativeScanFormData>(defaultCreativeScanForm);
+  const [timelapseForm, setTimelapseForm] = useState<TimelapseFormData>(defaultTimelapseForm);
 
   const handleGenerate = async () => {
     if (!title.trim()) {
@@ -678,6 +769,37 @@ export function PromptBuilderPage() {
           analysisType: creativeScanForm.analysisType,
           niche: creativeScanForm.niche || undefined,
           focusAreas: creativeScanForm.focusAreas ? [creativeScanForm.focusAreas] : [],
+        };
+        break;
+
+      case 'TIMELAPSE':
+        if (!timelapseForm.category) validationError = 'Category harus dipilih';
+        else if (!timelapseForm.subject.trim()) validationError = 'Subject harus diisi';
+        else if (!timelapseForm.transformation) validationError = 'Transformation harus dipilih';
+        else if (timelapseForm.mode === 'storyboard') {
+          if (timelapseForm.scenes.length < 2) validationError = 'Minimal 2 scenes untuk storyboard';
+          else {
+            const totalSceneDuration = timelapseForm.scenes.reduce((sum, s) => sum + s.durationSeconds, 0);
+            if (totalSceneDuration !== timelapseForm.totalDurationSeconds) {
+              validationError = `Total durasi scene (${totalSceneDuration}s) harus sama dengan durasi total (${timelapseForm.totalDurationSeconds}s)`;
+            }
+          }
+        }
+        
+        inputData = {
+          type: 'TIMELAPSE',
+          category: timelapseForm.category,
+          subject: timelapseForm.subject,
+          transformation: timelapseForm.transformation,
+          mode: timelapseForm.mode,
+          totalDurationSeconds: timelapseForm.totalDurationSeconds,
+          scenes: timelapseForm.mode === 'storyboard' ? timelapseForm.scenes : undefined,
+          style: timelapseForm.style,
+          speedMultiplier: timelapseForm.speedMultiplier,
+          camera: timelapseForm.camera,
+          aspectRatio: timelapseForm.aspectRatio,
+          lighting: timelapseForm.lighting,
+          additionalDetails: timelapseForm.additionalDetails || undefined,
         };
         break;
     }
@@ -1124,6 +1246,212 @@ export function PromptBuilderPage() {
     </Card>
   );
 
+  const renderTimelapseForm = () => {
+    const remainingSeconds = timelapseForm.mode === 'storyboard' 
+      ? timelapseForm.totalDurationSeconds - timelapseForm.scenes.reduce((sum, s) => sum + s.durationSeconds, 0)
+      : 0;
+
+    const addScene = () => {
+      if (timelapseForm.scenes.length >= 8) return;
+      const defaultDuration = Math.min(5, remainingSeconds || 5);
+      setTimelapseForm((p) => ({
+        ...p,
+        scenes: [...p.scenes, { description: '', durationSeconds: defaultDuration }],
+      }));
+    };
+
+    const removeScene = (index: number) => {
+      setTimelapseForm((p) => ({
+        ...p,
+        scenes: p.scenes.filter((_, i) => i !== index),
+      }));
+    };
+
+    const updateScene = (index: number, field: 'description' | 'durationSeconds', value: string | number) => {
+      setTimelapseForm((p) => ({
+        ...p,
+        scenes: p.scenes.map((s, i) => i === index ? { ...s, [field]: value } : s),
+      }));
+    };
+
+    return (
+      <Card>
+        <CardBody className="p-4 space-y-6">
+          <h3 className="font-medium">Detail Timelapse untuk Sora AI</h3>
+          <Chip color="secondary" variant="flat" size="sm">Sora AI: max 15s single / 25s storyboard</Chip>
+
+          <SelectionGrid
+            label="Kategori"
+            options={timelapseCategories}
+            value={timelapseForm.category}
+            onChange={(v) => setTimelapseForm((p) => ({ ...p, category: v }))}
+            columns={4}
+          />
+
+          <Input
+            label="Subject"
+            placeholder="Deskripsi objek/scene yang akan di-timelapse"
+            value={timelapseForm.subject}
+            onValueChange={(v) => setTimelapseForm((p) => ({ ...p, subject: v }))}
+            maxLength={200}
+          />
+
+          <SelectionGrid
+            label="Transformasi"
+            options={timelapseTransformations}
+            value={timelapseForm.transformation}
+            onChange={(v) => setTimelapseForm((p) => ({ ...p, transformation: v }))}
+            columns={4}
+          />
+
+          <div className="grid sm:grid-cols-2 gap-4">
+            <Select
+              label="Mode"
+              selectedKeys={[timelapseForm.mode]}
+              onChange={(e) => setTimelapseForm((p) => ({ 
+                ...p, 
+                mode: e.target.value as 'single' | 'storyboard',
+                totalDurationSeconds: e.target.value === 'single' ? 15 : 25,
+                scenes: [],
+              }))}
+            >
+              <SelectItem key="single">Single Video (max 15s)</SelectItem>
+              <SelectItem key="storyboard">Storyboard (max 25s)</SelectItem>
+            </Select>
+
+            <Select
+              label="Total Durasi"
+              selectedKeys={[String(timelapseForm.totalDurationSeconds)]}
+              onChange={(e) => setTimelapseForm((p) => ({ ...p, totalDurationSeconds: Number(e.target.value), scenes: [] }))}
+            >
+              {timelapseForm.mode === 'single' ? (
+                <>
+                  <SelectItem key="5" textValue="5 detik">5 detik</SelectItem>
+                  <SelectItem key="10" textValue="10 detik">10 detik</SelectItem>
+                  <SelectItem key="15" textValue="15 detik">15 detik</SelectItem>
+                </>
+              ) : (
+                <>
+                  <SelectItem key="15" textValue="15 detik">15 detik</SelectItem>
+                  <SelectItem key="20" textValue="20 detik">20 detik</SelectItem>
+                  <SelectItem key="25" textValue="25 detik">25 detik</SelectItem>
+                </>
+              )}
+            </Select>
+          </div>
+
+          {timelapseForm.mode === 'storyboard' && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium">Scenes (min 2, max 8)</label>
+                <div className="flex items-center gap-2">
+                  <Chip size="sm" color={remainingSeconds === 0 ? 'success' : remainingSeconds < 0 ? 'danger' : 'warning'}>
+                    Sisa: {remainingSeconds}s
+                  </Chip>
+                  <Button 
+                    size="sm" 
+                    variant="flat" 
+                    onPress={addScene}
+                    isDisabled={timelapseForm.scenes.length >= 8 || remainingSeconds <= 0}
+                  >
+                    + Scene
+                  </Button>
+                </div>
+              </div>
+
+              {timelapseForm.scenes.map((scene, index) => (
+                <div key={index} className="flex gap-2 items-start p-3 bg-content2 rounded-lg">
+                  <div className="flex-1">
+                    <Input
+                      size="sm"
+                      label={`Scene ${index + 1}`}
+                      placeholder="Deskripsi scene..."
+                      value={scene.description}
+                      onValueChange={(v) => updateScene(index, 'description', v)}
+                      maxLength={300}
+                    />
+                  </div>
+                  <Select
+                    size="sm"
+                    label="Durasi"
+                    className="w-24"
+                    selectedKeys={[String(scene.durationSeconds)]}
+                    onChange={(e) => updateScene(index, 'durationSeconds', Number(e.target.value))}
+                  >
+                    {[3, 4, 5, 6, 7, 8].map((d) => (
+                      <SelectItem key={String(d)} textValue={`${d}s`}>{d}s</SelectItem>
+                    ))}
+                  </Select>
+                  <Button 
+                    size="sm" 
+                    isIconOnly 
+                    variant="light" 
+                    color="danger"
+                    onPress={() => removeScene(index)}
+                  >
+                    ×
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="grid sm:grid-cols-2 gap-4">
+            <Select
+              label="Speed Multiplier"
+              selectedKeys={[String(timelapseForm.speedMultiplier)]}
+              onChange={(e) => setTimelapseForm((p) => ({ ...p, speedMultiplier: Number(e.target.value) }))}
+            >
+              {timelapseSpeeds.map((s) => <SelectItem key={String(s.key)}>{s.label}</SelectItem>)}
+            </Select>
+
+            <Select
+              label="Style"
+              selectedKeys={[timelapseForm.style]}
+              onChange={(e) => setTimelapseForm((p) => ({ ...p, style: e.target.value }))}
+            >
+              {timelapseStyles.map((s) => <SelectItem key={s.key}>{s.label}</SelectItem>)}
+            </Select>
+          </div>
+
+          <div className="grid sm:grid-cols-3 gap-4">
+            <Select
+              label="Kamera"
+              selectedKeys={[timelapseForm.camera]}
+              onChange={(e) => setTimelapseForm((p) => ({ ...p, camera: e.target.value }))}
+            >
+              {timelapseCameras.map((c) => <SelectItem key={c.key}>{c.label}</SelectItem>)}
+            </Select>
+
+            <Select
+              label="Aspect Ratio"
+              selectedKeys={[timelapseForm.aspectRatio]}
+              onChange={(e) => setTimelapseForm((p) => ({ ...p, aspectRatio: e.target.value }))}
+            >
+              {aspectRatios.map((a) => <SelectItem key={a.key}>{a.label}</SelectItem>)}
+            </Select>
+
+            <Select
+              label="Lighting"
+              selectedKeys={[timelapseForm.lighting]}
+              onChange={(e) => setTimelapseForm((p) => ({ ...p, lighting: e.target.value }))}
+            >
+              {timelapseLightings.map((l) => <SelectItem key={l.key}>{l.label}</SelectItem>)}
+            </Select>
+          </div>
+
+          <Textarea
+            label="Detail Tambahan (opsional)"
+            placeholder="Detail spesifik lainnya..."
+            value={timelapseForm.additionalDetails}
+            onValueChange={(v) => setTimelapseForm((p) => ({ ...p, additionalDetails: v }))}
+            maxLength={1000}
+          />
+        </CardBody>
+      </Card>
+    );
+  };
+
   const renderCurrentForm = () => {
     switch (selectedType) {
       case 'SCRIPT': return renderScriptForm();
@@ -1132,6 +1460,7 @@ export function PromptBuilderPage() {
       case 'IMAGE': return renderImageForm();
       case 'RELAXING': return renderRelaxingForm();
       case 'CREATIVE_SCAN': return renderCreativeScanForm();
+      case 'TIMELAPSE': return renderTimelapseForm();
       default: return null;
     }
   };

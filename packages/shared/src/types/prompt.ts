@@ -4,7 +4,8 @@ export type PromptType =
   | 'VIDEO_GEN' 
   | 'IMAGE' 
   | 'RELAXING' 
-  | 'CREATIVE_SCAN';
+  | 'CREATIVE_SCAN'
+  | 'TIMELAPSE';
 
 export interface Prompt {
   id: string;
@@ -33,7 +34,8 @@ export type PromptInputData =
   | VideoGenPromptInput
   | ImagePromptInput
   | RelaxingPromptInput
-  | CreativeScanPromptInput;
+  | CreativeScanPromptInput
+  | TimelapsePromptInput;
 
 export interface ScriptPromptInput {
   type: 'SCRIPT';
@@ -120,6 +122,68 @@ export interface ExtractedFrame {
   timestamp: number;
   r2Key: string;
   description?: string;
+}
+
+// Timelapse types for Sora AI
+export type TimelapseCategory = 
+  | 'home-decor' 
+  | 'road-repair' 
+  | 'food' 
+  | 'nature' 
+  | 'industrial' 
+  | 'construction' 
+  | 'art' 
+  | 'weather';
+
+export type TimelapseTransformation = 
+  | 'before-after' 
+  | 'growth' 
+  | 'decay' 
+  | 'construction' 
+  | 'repair' 
+  | 'cooking' 
+  | 'blooming';
+
+export type TimelapseStyle = 
+  | 'realistic' 
+  | 'cinematic' 
+  | 'aerial' 
+  | 'documentary' 
+  | 'artistic';
+
+export type TimelapseCameraMovement = 
+  | 'static' 
+  | 'slow-pan' 
+  | 'zoom-out' 
+  | 'orbit' 
+  | 'drone-flyover';
+
+export type TimelapseLighting = 
+  | 'natural-progression' 
+  | 'golden-hour' 
+  | 'day-to-night' 
+  | 'night-to-day' 
+  | 'consistent';
+
+export interface TimelapseScene {
+  description: string;        // 1-300 chars
+  durationSeconds: number;    // 3-8 range
+}
+
+export interface TimelapsePromptInput {
+  type: 'TIMELAPSE';
+  category: TimelapseCategory;
+  subject: string;            // 1-200 chars
+  transformation: TimelapseTransformation;
+  mode: 'single' | 'storyboard';
+  totalDurationSeconds: 5 | 10 | 15 | 20 | 25;
+  scenes?: TimelapseScene[];  // required for storyboard mode
+  style: TimelapseStyle;
+  speedMultiplier: 10 | 50 | 100 | 500 | 1000;
+  camera: TimelapseCameraMovement;
+  aspectRatio: '16:9' | '9:16' | '1:1' | '4:3';
+  lighting: TimelapseLighting;
+  additionalDetails?: string; // 0-1000 chars
 }
 
 export interface CreatePromptInput {

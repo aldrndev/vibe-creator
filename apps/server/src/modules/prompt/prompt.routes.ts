@@ -12,6 +12,7 @@ import {
   generateImagePrompt,
   generateRelaxingPrompt,
   generateCreativeScanPrompt,
+  generateTimelapsePrompt,
 } from '@vibe-creator/shared';
 import type { 
   PromptType, 
@@ -21,6 +22,7 @@ import type {
   ImagePromptInput,
   RelaxingPromptInput,
   CreativeScanPromptInput,
+  TimelapsePromptInput,
 } from '@vibe-creator/shared';
 
 // Validation schemas
@@ -31,6 +33,7 @@ const promptTypeSchema = z.enum([
   'IMAGE',
   'RELAXING',
   'CREATIVE_SCAN',
+  'TIMELAPSE',
 ]);
 
 const createPromptSchema = z.object({
@@ -352,6 +355,8 @@ function generatePromptFromInput(type: PromptType, inputData: Record<string, unk
         return generateRelaxingPrompt(inputData as unknown as RelaxingPromptInput);
       case 'CREATIVE_SCAN':
         return generateCreativeScanPrompt(inputData as unknown as CreativeScanPromptInput);
+      case 'TIMELAPSE':
+        return generateTimelapsePrompt(inputData as unknown as TimelapsePromptInput);
       default:
         return `// Prompt type tidak dikenali`;
     }

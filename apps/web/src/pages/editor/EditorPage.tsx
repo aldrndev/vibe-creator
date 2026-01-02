@@ -854,10 +854,10 @@ export function EditorPage() {
           <ModalBody className="space-y-4">
             <Input
               label="URL Video"
-              placeholder="https://youtube.com/watch?v=... atau TikTok/Instagram"
+              placeholder="https://youtube.com/watch?v=... atau TikTok/Instagram/Sora"
               value={urlInput}
               onChange={(e) => setUrlInput(e.target.value)}
-              description="Mendukung: YouTube, TikTok, Instagram, Twitter, Facebook"
+              description="Mendukung: YouTube, TikTok, Instagram, Twitter, Facebook, Sora AI"
               isDisabled={isDownloading}
             />
             
@@ -947,6 +947,23 @@ export function EditorPage() {
                         <p className="font-medium text-success mb-1">Facebook Siap Download</p>
                         <p className="text-sm text-foreground/60">
                           Video Facebook akan didownload dan ditambahkan ke timeline.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
+              
+              // Sora AI - supported
+              if (url.includes('sora.chatgpt.com')) {
+                return (
+                  <div className="rounded-lg overflow-hidden bg-success/10 border border-success/30 p-4">
+                    <div className="flex items-start gap-3">
+                      <div className="text-success text-xl">✨</div>
+                      <div>
+                        <p className="font-medium text-success mb-1">Sora AI Video Siap Download</p>
+                        <p className="text-sm text-foreground/60">
+                          Video AI dari OpenAI Sora akan didownload dan ditambahkan ke timeline.
                         </p>
                       </div>
                     </div>

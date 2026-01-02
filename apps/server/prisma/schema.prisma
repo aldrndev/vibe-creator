@@ -290,6 +290,7 @@ enum PromptType {
   IMAGE
   RELAXING
   CREATIVE_SCAN
+  TIMELAPSE
 }
 
 // ============================================================================

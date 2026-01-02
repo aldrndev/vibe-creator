@@ -42,6 +42,9 @@ const envSchema = z.object({
   
   // Video Download (Cobalt API)
   COBALT_API_URL: z.string().url().optional(), // Self-hosted Cobalt API URL
+  
+  // SaveSora API for downloading Sora videos
+  SAVESORA_API_KEY: z.string().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

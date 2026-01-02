@@ -47,8 +47,9 @@ export async function authPlugin(fastify: FastifyInstance): Promise<void> {
     }
 
     if (session.expiresAt < new Date()) {
-      logger.info('[AUTH_PLUGIN] Session expired');
-      await prisma.userSession.delete({ where: { id: session.id } });
+      // Access token expired - but DON'T delete session!
+      // The refresh token is still valid and will be used via /auth/refresh
+      logger.info('[AUTH_PLUGIN] Access token expired, awaiting token refresh');
       return;
     }
 

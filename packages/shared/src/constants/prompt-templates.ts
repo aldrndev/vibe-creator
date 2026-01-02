@@ -4,7 +4,8 @@ import type {
   VideoGenPromptInput,
   ImagePromptInput,
   RelaxingPromptInput,
-  CreativeScanPromptInput 
+  CreativeScanPromptInput,
+  TimelapsePromptInput,
 } from '../types/prompt';
 
 /**
@@ -381,6 +382,112 @@ Berdasarkan analisis, buatkan 3-5 ide konten yang:
 - Potentially perform better`;
 }
 
+/**
+ * Template generator untuk Timelapse/Sora AI Video
+ */
+export function generateTimelapsePrompt(input: TimelapsePromptInput): string {
+  const categoryLabels: Record<string, string> = {
+    'home-decor': 'Home Decor / Renovation',
+    'road-repair': 'Road / Infrastructure Repair',
+    'food': 'Food / Cooking Process',
+    'nature': 'Nature / Landscape',
+    'industrial': 'Industrial / Manufacturing',
+    'construction': 'Construction / Building',
+    'art': 'Art / Creative Process',
+    'weather': 'Weather / Sky Changes',
+  };
+
+  const transformationLabels: Record<string, string> = {
+    'before-after': 'Transformasi Before → After',
+    'growth': 'Growth / Pertumbuhan',
+    'decay': 'Decay / Perubahan alami',
+    'construction': 'Proses konstruksi/pembangunan',
+    'repair': 'Proses perbaikan/restorasi',
+    'cooking': 'Proses memasak/kuliner',
+    'blooming': 'Blooming / Mekar',
+  };
+
+  const cameraLabels: Record<string, string> = {
+    'static': 'Static (tidak bergerak)',
+    'slow-pan': 'Slow Pan (gerak horizontal pelan)',
+    'zoom-out': 'Slow Zoom Out (dari detail ke wide)',
+    'orbit': 'Orbit (berputar mengelilingi subject)',
+    'drone-flyover': 'Drone Flyover (aerial movement)',
+  };
+
+  const lightingLabels: Record<string, string> = {
+    'natural-progression': 'Natural Progression (perubahan cahaya alami)',
+    'golden-hour': 'Golden Hour consistent',
+    'day-to-night': 'Day to Night transition',
+    'night-to-day': 'Night to Day (sunrise)',
+    'consistent': 'Consistent lighting (tidak berubah)',
+  };
+
+  const isStoryboard = input.mode === 'storyboard' && input.scenes && input.scenes.length > 0;
+
+  let scenesSection = '';
+  if (isStoryboard && input.scenes) {
+    scenesSection = `
+## STORYBOARD SCENES (Total: ${input.totalDurationSeconds}s)
+
+${input.scenes.map((scene, i) => `### Scene ${i + 1} (${scene.durationSeconds}s)
+${scene.description}`).join('\n\n')}`;
+  }
+
+  return `Kamu adalah prompt engineer untuk Sora AI video generation.
+
+## TIMELAPSE BRIEF
+
+- **Category**: ${categoryLabels[input.category] || input.category}
+- **Subject**: ${input.subject}
+- **Transformation**: ${transformationLabels[input.transformation] || input.transformation}
+- **Mode**: ${input.mode === 'single' ? 'Single Video' : 'Storyboard (Multi-scene)'}
+- **Total Duration**: ${input.totalDurationSeconds} detik
+- **Speed Multiplier**: ${input.speedMultiplier}x
+- **Style**: ${input.style}
+- **Camera**: ${cameraLabels[input.camera] || input.camera}
+- **Aspect Ratio**: ${input.aspectRatio}
+- **Lighting**: ${lightingLabels[input.lighting] || input.lighting}
+
+${input.additionalDetails ? `## DETAIL TAMBAHAN\n${input.additionalDetails}` : ''}
+${scenesSection}
+
+## OUTPUT UNTUK SORA AI
+
+Buatkan prompt yang optimal untuk Sora AI:
+
+### Main Prompt
+\`\`\`
+[Deskripsi detail video timelapse dengan format yang tepat untuk Sora]
+- Opening frame: [keadaan awal]
+- Progression: [apa yang berubah selama timelapse]
+- Final frame: [keadaan akhir]
+- Camera: [movement instruction]
+- Lighting: [lighting progression]
+- Speed: Timelapse ${input.speedMultiplier}x accelerated
+- Style: ${input.style}
+\`\`\`
+
+${isStoryboard ? `### Per-Scene Prompts
+Untuk storyboard mode, buat prompt terpisah untuk setiap scene:
+
+${input.scenes?.map((scene, i) => `**Scene ${i + 1} (${scene.durationSeconds}s)**
+\`\`\`
+[Prompt khusus Sora untuk scene ini]
+\`\`\``).join('\n\n')}` : ''}
+
+### Technical Notes
+- Sora limit: ${input.mode === 'single' ? 'max 15 detik' : 'max 25 detik (storyboard)'}
+- Aspect ratio: ${input.aspectRatio}
+- Ensure smooth temporal consistency
+- Avoid sudden jumps in transformation
+
+### Negative Prompt
+\`\`\`
+[Apa yang harus dihindari: glitches, inconsistent lighting, jumpy transitions, etc.]
+\`\`\``;
+}
+
 export const PROMPT_GENERATORS = {
   SCRIPT: generateScriptPrompt,
   VOICE: generateVoicePrompt,
@@ -388,4 +495,5 @@ export const PROMPT_GENERATORS = {
   IMAGE: generateImagePrompt,
   RELAXING: generateRelaxingPrompt,
   CREATIVE_SCAN: generateCreativeScanPrompt,
+  TIMELAPSE: generateTimelapsePrompt,
 } as const;

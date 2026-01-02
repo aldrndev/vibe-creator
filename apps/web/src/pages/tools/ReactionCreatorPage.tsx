@@ -161,11 +161,15 @@ export function ReactionCreatorPage() {
         <div 
           className="flex items-center gap-4 mb-6"
         >
-          <Link to="/dashboard">
-            <Button isIconOnly variant="light" size="sm">
-              <ArrowLeft size={20} />
-            </Button>
-          </Link>
+          <Button 
+            as={Link} 
+            to="/dashboard" 
+            isIconOnly 
+            variant="light" 
+            size="sm"
+          >
+            <ArrowLeft size={20} />
+          </Button>
           <div>
             <h1 className="text-2xl font-bold flex items-center gap-2">
               <Layers size={24} className="text-primary" />
@@ -197,11 +201,6 @@ export function ReactionCreatorPage() {
                     </div>
                     <p className="font-medium">{mode.name}</p>
                     <p className="text-xs text-foreground/50 mt-0.5">{mode.description}</p>
-                    {layoutMode === mode.id && (
-                      <Chip size="sm" color={mode.color as 'primary' | 'secondary'} className="mt-2">
-                        <Check size={12} />
-                      </Chip>
-                    )}
                   </CardBody>
                 </Card>
               </HoverCard>
@@ -329,6 +328,7 @@ export function ReactionCreatorPage() {
                     <div>
                       <label className="text-sm font-medium mb-2 block">Posisi PiP</label>
                       <Select
+                        aria-label="Posisi PiP"
                         selectedKeys={[pipPosition]}
                         onSelectionChange={(keys) => setPipPosition(Array.from(keys)[0] as PipPosition)}
                       >
@@ -344,6 +344,7 @@ export function ReactionCreatorPage() {
                         Ukuran PiP: {Math.round(pipScale * 100)}%
                       </label>
                       <Slider
+                        aria-label="Ukuran PiP"
                         step={0.05}
                         minValue={0.15}
                         maxValue={0.5}
@@ -359,6 +360,7 @@ export function ReactionCreatorPage() {
                         Volume Reaksi: {Math.round(reactionVolume * 100)}%
                       </label>
                       <Slider
+                        aria-label="Volume Reaksi"
                         step={0.1}
                         minValue={0}
                         maxValue={2}

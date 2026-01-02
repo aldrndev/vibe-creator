@@ -2,10 +2,11 @@ import type { FastifyInstance, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { sendSuccess, sendError, sendCreated } from '@/utils/response';
-import { hashPassword, verifyPassword, generateToken } from '@/utils/crypto';
+import { hashPassword, verifyPassword, generateToken, hashToken } from '@/utils/crypto';
 import { verifyTurnstileToken } from '@/lib/turnstile';
 import { requireAuth } from '@/plugins/auth';
 import { ERROR_CODES } from '@vibe-creator/shared';
+import { logger } from '@/lib/logger';
 
 const registerSchema = z.object({
   email: z.string().email('Email tidak valid'),
@@ -77,6 +78,9 @@ async function createSession(
   const accessToken = generateToken();
   const refreshToken = generateToken(64);
   
+  // Security: Store hashed refresh token in DB
+  const hashedRefreshToken = hashToken(refreshToken);
+  
   const accessExpiresAt = new Date();
   accessExpiresAt.setMinutes(accessExpiresAt.getMinutes() + ACCESS_TOKEN_DURATION_MINUTES);
   
@@ -87,7 +91,7 @@ async function createSession(
     data: {
       userId,
       token: accessToken,
-      refreshToken,
+      refreshToken: hashedRefreshToken, // Store hashed
       userAgent,
       ipAddress,
       expiresAt: accessExpiresAt,
@@ -97,15 +101,67 @@ async function createSession(
 
   return {
     accessToken,
-    refreshToken,
+    refreshToken, // Return plain token to client
     accessExpiresAt,
     refreshExpiresAt,
   };
 }
 
 export async function authRoutes(fastify: FastifyInstance): Promise<void> {
-  // Register
-  fastify.post('/register', async (request, reply) => {
+  // Rate limit configs for auth endpoints
+  const registerRateLimit = {
+    config: {
+      rateLimit: {
+        max: 3,
+        timeWindow: '1 hour',
+        keyGenerator: (request: { ip: string }) => `register:${request.ip}`,
+        errorResponseBuilder: () => ({
+          success: false,
+          error: {
+            code: ERROR_CODES.RATE_LIMIT_EXCEEDED,
+            message: 'Terlalu banyak percobaan daftar. Silakan coba lagi dalam 1 jam.',
+          },
+        }),
+      },
+    },
+  };
+
+  const loginRateLimit = {
+    config: {
+      rateLimit: {
+        max: 5,
+        timeWindow: '15 minutes',
+        keyGenerator: (request: { ip: string }) => `login:${request.ip}`,
+        errorResponseBuilder: () => ({
+          success: false,
+          error: {
+            code: ERROR_CODES.RATE_LIMIT_EXCEEDED,
+            message: 'Terlalu banyak percobaan masuk. Silakan coba lagi dalam 15 menit.',
+          },
+        }),
+      },
+    },
+  };
+
+  const refreshRateLimit = {
+    config: {
+      rateLimit: {
+        max: 10,
+        timeWindow: '1 minute',
+        keyGenerator: (request: { ip: string }) => `refresh:${request.ip}`,
+        errorResponseBuilder: () => ({
+          success: false,
+          error: {
+            code: ERROR_CODES.RATE_LIMIT_EXCEEDED,
+            message: 'Terlalu banyak permintaan refresh token. Mohon tunggu sebentar.',
+          },
+        }),
+      },
+    },
+  };
+
+  // Register with stricter rate limit
+  fastify.post('/register', registerRateLimit, async (request, reply) => {
     const body = registerSchema.parse(request.body);
 
     // Verify Turnstile token
@@ -123,12 +179,15 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
       where: { email: body.email },
     });
 
+    // Security: Generic error message to prevent user enumeration
+    // Log actual reason internally for debugging
     if (existingUser) {
+      logger.info({ email: body.email }, 'Registration attempt for existing email');
       return sendError(
         reply,
-        ERROR_CODES.ALREADY_EXISTS,
-        'Email sudah terdaftar',
-        409
+        ERROR_CODES.VALIDATION_ERROR,
+        'Registrasi gagal. Silakan periksa data Anda atau hubungi support.',
+        400
       );
     }
 
@@ -174,8 +233,8 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
     });
   });
 
-  // Login
-  fastify.post('/login', async (request, reply) => {
+  // Login with stricter rate limit
+  fastify.post('/login', loginRateLimit, async (request, reply) => {
     const body = loginSchema.parse(request.body);
 
     // Verify Turnstile token
@@ -236,8 +295,8 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
     });
   });
 
-  // Refresh Token - reads from HttpOnly cookie
-  fastify.post('/refresh', async (request, reply) => {
+  // Refresh Token - reads from HttpOnly cookie with rate limit
+  fastify.post('/refresh', refreshRateLimit, async (request, reply) => {
     // Get refresh token from cookie
     const refreshToken = request.cookies[REFRESH_TOKEN_COOKIE];
 
@@ -250,9 +309,12 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
       );
     }
 
+    // Security: Hash the incoming token to match stored hash
+    const hashedRefreshToken = hashToken(refreshToken);
+
     const session = await prisma.userSession.findFirst({
       where: {
-        refreshToken,
+        refreshToken: hashedRefreshToken,
         refreshExpiresAt: { gt: new Date() },
       },
       include: {
@@ -269,6 +331,25 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
     });
 
     if (!session) {
+      // Security: Potential token reuse attack detected
+      // Check if this token was previously valid (indicates stolen token)
+      const expiredSession = await prisma.userSession.findFirst({
+        where: { refreshToken: hashedRefreshToken },
+        select: { userId: true },
+      });
+
+      if (expiredSession) {
+        // Token was valid before but already rotated - possible theft!
+        // Revoke ALL sessions for this user as a security measure
+        logger.warn(
+          { userId: expiredSession.userId, ip: request.ip },
+          'Refresh token reuse detected - revoking all sessions'
+        );
+        await prisma.userSession.deleteMany({
+          where: { userId: expiredSession.userId },
+        });
+      }
+
       // Clear invalid cookie
       clearRefreshTokenCookie(reply);
       return sendError(
@@ -282,6 +363,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
     // Generate new tokens (ROTATION: new refresh token for security)
     const newAccessToken = generateToken();
     const newRefreshToken = generateToken(64);
+    const hashedNewRefreshToken = hashToken(newRefreshToken);
     
     const newAccessExpiresAt = new Date();
     newAccessExpiresAt.setMinutes(newAccessExpiresAt.getMinutes() + ACCESS_TOKEN_DURATION_MINUTES);
@@ -293,7 +375,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
       where: { id: session.id },
       data: {
         token: newAccessToken,
-        refreshToken: newRefreshToken,
+        refreshToken: hashedNewRefreshToken, // Store new hashed token
         expiresAt: newAccessExpiresAt,
         refreshExpiresAt: newRefreshExpiresAt,
       },
@@ -328,8 +410,9 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
     const refreshToken = request.cookies[REFRESH_TOKEN_COOKIE];
     if (refreshToken) {
       try {
+        const hashedToken = hashToken(refreshToken);
         await prisma.userSession.deleteMany({
-          where: { refreshToken },
+          where: { refreshToken: hashedToken },
         });
       } catch {
         // Ignore errors

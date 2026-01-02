@@ -13,6 +13,7 @@ import {
   Search,
   Clock,
   ChevronRight,
+  Timer,
 } from 'lucide-react';
 import { usePrompts } from '@/hooks/use-prompts';
 import type { PromptType } from '@vibe-creator/shared';
@@ -25,6 +26,7 @@ const promptTypes: Array<{ key: PromptType | 'all'; label: string; icon: typeof 
   { key: 'IMAGE', label: 'Image', icon: Image },
   { key: 'RELAXING', label: 'Relaxing', icon: Music },
   { key: 'CREATIVE_SCAN', label: 'Scan', icon: Search },
+  { key: 'TIMELAPSE', label: 'Timelapse', icon: Timer },
 ];
 
 const promptTypeLabels: Record<string, { label: string; color: 'primary' | 'secondary' | 'success' | 'warning' | 'danger' | 'default' }> = {
@@ -34,6 +36,7 @@ const promptTypeLabels: Record<string, { label: string; color: 'primary' | 'seco
   IMAGE: { label: 'Image', color: 'warning' },
   RELAXING: { label: 'Relaxing', color: 'default' },
   CREATIVE_SCAN: { label: 'Scan', color: 'danger' },
+  TIMELAPSE: { label: 'Timelapse', color: 'secondary' },
 };
 
 export function PromptsPage() {
@@ -102,15 +105,15 @@ export function PromptsPage() {
         transition={{ duration: 0.3 }}
       >
         {isLoading ? (
-          <div className="space-y-4">
-            {[1, 2, 3].map((i) => (
-              <Card key={i}>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <Card key={i} className="border border-transparent shadow-sm">
                 <CardBody className="p-4">
                   <div className="flex items-center gap-4">
-                    <Skeleton className="w-10 h-10 rounded-lg" />
+                    <Skeleton className="w-12 h-12 rounded-xl" />
                     <div className="flex-1 space-y-2">
-                      <Skeleton className="w-1/3 h-4 rounded" />
-                      <Skeleton className="w-1/2 h-3 rounded" />
+                      <Skeleton className="w-2/3 h-4 rounded-lg" />
+                      <Skeleton className="w-1/2 h-3 rounded-lg" />
                     </div>
                   </div>
                 </CardBody>
@@ -118,43 +121,59 @@ export function PromptsPage() {
             ))}
           </div>
         ) : prompts.length > 0 ? (
-          <div className="space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {prompts.map((prompt) => {
               const typeConfig = promptTypeLabels[prompt.type] || { label: prompt.type, color: 'default' as const };
               const TypeIcon = promptTypes.find((t) => t.key === prompt.type)?.icon || Sparkles;
               
+              const colorMap: Record<string, string> = {
+                primary: 'bg-primary/10 text-primary',
+                secondary: 'bg-secondary/10 text-secondary',
+                success: 'bg-success/10 text-success',
+                warning: 'bg-warning/10 text-warning',
+                danger: 'bg-danger/10 text-danger',
+                default: 'bg-default/10 text-default-600',
+              };
+
               return (
                 <Card 
                   key={prompt.id}
                   isPressable
                   onPress={() => handlePromptClick(prompt.id)}
-                  className="hover:border-primary/50 transition-colors"
+                  className="group hover:bg-content2/50 transition-all border border-default-100 hover:border-default-300 shadow-sm hover:shadow-md"
                 >
                   <CardBody className="p-4">
                     <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                        <TypeIcon className="text-primary" size={20} />
+                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-colors ${colorMap[typeConfig.color] || colorMap.default}`}>
+                        <TypeIcon size={24} strokeWidth={1.5} />
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h3 className="font-medium truncate">{prompt.title}</h3>
+                      <div className="flex-1 min-w-0 text-left">
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <h3 className="font-semibold text-medium truncate">{prompt.title}</h3>
                           <Chip 
                             size="sm" 
                             variant="flat" 
                             color={typeConfig.color}
+                            classNames={{ content: "font-medium text-[10px] uppercase tracking-wider" }}
                           >
                             {typeConfig.label}
                           </Chip>
                         </div>
-                        <div className="flex items-center gap-4 text-sm text-foreground/60">
-                          <span>Versi {prompt.currentVersion}</span>
-                          <span className="flex items-center gap-1">
+                        <div className="flex items-center gap-4 text-xs text-foreground/50">
+                          <span className="font-medium bg-default-100 px-2 py-0.5 rounded-md">v{prompt.currentVersion}</span>
+                          <span className="flex items-center gap-1.5">
                             <Clock size={12} />
-                            {new Date(prompt.updatedAt).toLocaleDateString('id-ID')}
+                            {new Date(prompt.updatedAt).toLocaleDateString('id-ID', { 
+                              day: 'numeric', 
+                              month: 'short', 
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
                           </span>
                         </div>
                       </div>
-                      <ChevronRight size={20} className="text-foreground/40" />
+                      <ChevronRight size={20} className="text-foreground/30 group-hover:text-foreground/60 transition-colors group-hover:translate-x-0.5" />
                     </div>
                   </CardBody>
                 </Card>
@@ -162,7 +181,7 @@ export function PromptsPage() {
             })}
           </div>
         ) : (
-          <Card>
+          <Card className="border-dashed border-2 bg-transparent shadow-none">
             <CardBody className="p-12 text-center">
               {selectedType === 'all' ? (
                 <>
@@ -186,6 +205,7 @@ export function PromptsPage() {
                     {selectedType === 'IMAGE' && 'Buat prompt untuk generate thumbnail dan gambar konten.'}
                     {selectedType === 'RELAXING' && 'Buat prompt untuk generate audio relaxing dan ambient.'}
                     {selectedType === 'CREATIVE_SCAN' && 'Analisis video kompetitor untuk mendapat insight kreatif.'}
+                    {selectedType === 'TIMELAPSE' && 'Buat prompt timelapse untuk Sora AI video generation.'}
                   </p>
                 </>
               )}

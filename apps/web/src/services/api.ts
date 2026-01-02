@@ -39,6 +39,28 @@ class ApiClient {
   ): Promise<ApiResponse<T>> {
     const data = await response.json();
 
+    // Handle 429 Too Many Requests
+    if (response.status === 429) {
+      return {
+        success: false,
+        error: {
+          code: 'RATE_LIMIT_EXCEEDED',
+          message: data.message || 'Terlalu banyak permintaan. Mohon tunggu sebentar.',
+        },
+      };
+    }
+
+    // Handle standard Fastify errors that might not be in ApiResponse format
+    if (!data.success && !data.error && data.message) {
+      return {
+        success: false,
+        error: {
+          code: data.error || 'UNKNOWN_ERROR',
+          message: data.message,
+        },
+      };
+    }
+
     // Handle token expiration - auto refresh
     if (response.status === 401 && data.error?.code !== 'INVALID_CREDENTIALS') {
       // Don't refresh for auth endpoints

@@ -133,11 +133,15 @@ export function PricingPage() {
       <div className="max-w-5xl mx-auto">
         {/* Header */}
         <div className="flex items-center gap-4 mb-8">
-          <Link to="/dashboard/settings">
-            <Button isIconOnly variant="light" size="sm">
-              <ArrowLeft size={20} />
-            </Button>
-          </Link>
+          <Button 
+            as={Link} 
+            to="/dashboard/settings" 
+            isIconOnly 
+            variant="light" 
+            size="sm"
+          >
+            <ArrowLeft size={20} />
+          </Button>
           <div>
             <h1 className="text-2xl font-bold">Pricing</h1>
             <p className="text-foreground/60">Pilih paket yang sesuai kebutuhanmu</p>
