@@ -311,7 +311,7 @@ export function EditorPage() {
         return {
           file: clip.asset.file,
           startTime: clip.trimStartMs / 1000,
-          endTime: (clip.endMs - clip.startMs - clip.trimEndMs) / 1000,
+          endTime: (clip.trimStartMs + (clip.endMs - clip.startMs)) / 1000,
         };
       })
       .filter((c): c is { file: File; startTime: number; endTime: number } => c !== null);
@@ -451,20 +451,32 @@ export function EditorPage() {
     const { trackId, clip } = clipToSplit;
     const splitTimeMs = state.currentTimeMs;
     const relativeTime = splitTimeMs - clip.startMs;
+    const clipDuration = clip.endMs - clip.startMs;
+    const trimStart = clip.trimStartMs ?? 0;
+    const trimEnd = clip.trimEndMs ?? 0;
+    const assetDuration = clip.asset?.durationMs ?? (clipDuration + trimStart + trimEnd);
+    const firstDuration = relativeTime;
+    const secondDuration = clipDuration - relativeTime;
+    
+    const firstTrimStart = trimStart;
+    const firstTrimEnd = Math.max(0, assetDuration - firstTrimStart - firstDuration);
+    const secondTrimStart = trimStart + relativeTime;
+    const secondTrimEnd = Math.max(0, assetDuration - secondTrimStart - secondDuration);
     
     // Update original clip to end at split point
     useEditorStore.getState().updateClip(trackId, clip.id, {
       endMs: splitTimeMs,
-      trimEndMs: clip.trimEndMs + (clip.endMs - splitTimeMs),
+      trimStartMs: firstTrimStart,
+      trimEndMs: firstTrimEnd,
     });
     
     // Create new clip starting from split point
     addClip(trackId, {
       assetId: clip.assetId ?? null,
       startMs: splitTimeMs,
-      endMs: clip.endMs,
-      trimStartMs: clip.trimStartMs + relativeTime,
-      trimEndMs: clip.trimEndMs,
+      endMs: splitTimeMs + secondDuration,
+      trimStartMs: secondTrimStart,
+      trimEndMs: secondTrimEnd,
       transforms: clip.transforms,
       effects: clip.effects,
       asset: clip.asset,

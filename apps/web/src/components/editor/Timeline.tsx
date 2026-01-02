@@ -2,6 +2,8 @@ import { useRef, useCallback } from 'react';
 import { useEditorStore } from '@/stores/editor-store';
 import { Trash2, Music, Type } from 'lucide-react';
 
+const MIN_CLIP_DURATION_MS = 300;
+
 export function Timeline() {
   const containerRef = useRef<HTMLDivElement>(null);
   const timelineRef = useRef<HTMLDivElement>(null);
@@ -130,6 +132,122 @@ export function Timeline() {
                   const clipX = msToPixels(clip.startMs);
                   const clipWidth = msToPixels(clip.endMs - clip.startMs);
                   const isSelected = clip.id === selectedClipId;
+                  const clipDurationMs = clip.endMs - clip.startMs;
+                  const trimStartMs = clip.trimStartMs ?? 0;
+                  const trimEndMs = clip.trimEndMs ?? 0;
+                  const assetDurationMs = clip.asset?.durationMs ?? (clipDurationMs + trimStartMs + trimEndMs);
+                  
+                  const handleClipDrag = (e: React.MouseEvent) => {
+                    e.stopPropagation();
+                    selectClip(clip.id);
+                    
+                    const startX = e.clientX;
+                    const initialStart = clip.startMs;
+                    const initialEnd = clip.endMs;
+                    let didDrag = false;
+                    
+                    const handleMove = (moveE: MouseEvent) => {
+                      const deltaMs = pixelsToMs(moveE.clientX - startX);
+                      if (!didDrag && Math.abs(deltaMs) > 2) {
+                        didDrag = true;
+                      }
+                      
+                      const newStartMs = Math.max(0, initialStart + deltaMs);
+                      const duration = initialEnd - initialStart;
+                      
+                      updateClip(track.id, clip.id, {
+                        startMs: newStartMs,
+                        endMs: newStartMs + duration,
+                      });
+                    };
+                    
+                    const handleUp = () => {
+                      window.removeEventListener('mousemove', handleMove);
+                      window.removeEventListener('mouseup', handleUp);
+                      
+                      if (!didDrag) {
+                        selectClip(clip.id);
+                      }
+                    };
+                    
+                    window.addEventListener('mousemove', handleMove);
+                    window.addEventListener('mouseup', handleUp);
+                  };
+                  
+                  const handleTrimStartDrag = (e: React.MouseEvent) => {
+                    e.stopPropagation();
+                    const startX = e.clientX;
+                    const initialStart = clip.startMs;
+                    const initialTrimStart = trimStartMs;
+                    const initialEnd = clip.endMs;
+                    
+                    const handleMove = (moveE: MouseEvent) => {
+                      const deltaMs = pixelsToMs(moveE.clientX - startX);
+                      
+                      const maxStart = initialEnd - MIN_CLIP_DURATION_MS;
+                      const proposedStart = Math.min(maxStart, Math.max(0, initialStart + deltaMs));
+                      
+                      // Shift trimStart in sync with how far the edge moved
+                      const shiftedTrimStart = Math.max(0, initialTrimStart + (proposedStart - initialStart));
+                      
+                      // Keep duration anchored to the clip end
+                      const availableDuration = Math.max(0, assetDurationMs - shiftedTrimStart);
+                      const minDuration = Math.min(MIN_CLIP_DURATION_MS, availableDuration);
+                      let newDuration = Math.max(minDuration, initialEnd - proposedStart);
+                      newDuration = Math.min(newDuration, availableDuration);
+                      
+                      const newStart = initialEnd - newDuration;
+                      const newTrimStart = Math.max(0, initialTrimStart + (newStart - initialStart));
+                      const newTrimEnd = Math.max(0, assetDurationMs - newTrimStart - newDuration);
+                      
+                      updateClip(track.id, clip.id, {
+                        startMs: newStart,
+                        trimStartMs: newTrimStart,
+                        trimEndMs: newTrimEnd,
+                      });
+                    };
+                    
+                    const handleUp = () => {
+                      window.removeEventListener('mousemove', handleMove);
+                      window.removeEventListener('mouseup', handleUp);
+                    };
+                    
+                    window.addEventListener('mousemove', handleMove);
+                    window.addEventListener('mouseup', handleUp);
+                  };
+                  
+                  const handleTrimEndDrag = (e: React.MouseEvent) => {
+                    e.stopPropagation();
+                    const startX = e.clientX;
+                    const initialEnd = clip.endMs;
+                    const initialStart = clip.startMs;
+                    const initialTrimStart = trimStartMs;
+                    
+                    const handleMove = (moveE: MouseEvent) => {
+                      const deltaMs = pixelsToMs(moveE.clientX - startX);
+                      const availableDuration = Math.max(0, assetDurationMs - initialTrimStart);
+                      const minDuration = Math.min(MIN_CLIP_DURATION_MS, availableDuration);
+                      
+                      const desiredEnd = Math.max(initialStart + minDuration, initialEnd + deltaMs);
+                      const desiredDuration = desiredEnd - initialStart;
+                      const newDuration = Math.min(Math.max(desiredDuration, minDuration), availableDuration);
+                      const newEnd = initialStart + newDuration;
+                      const newTrimEnd = Math.max(0, assetDurationMs - initialTrimStart - newDuration);
+                      
+                      updateClip(track.id, clip.id, {
+                        endMs: newEnd,
+                        trimEndMs: newTrimEnd,
+                      });
+                    };
+                    
+                    const handleUp = () => {
+                      window.removeEventListener('mousemove', handleMove);
+                      window.removeEventListener('mouseup', handleUp);
+                    };
+                    
+                    window.addEventListener('mousemove', handleMove);
+                    window.addEventListener('mouseup', handleUp);
+                  };
                   
                   return (
                     <div
@@ -143,10 +261,7 @@ export function Timeline() {
                         left: clipX,
                         width: Math.max(clipWidth, 20),
                       }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        selectClip(clip.id);
-                      }}
+                      onMouseDown={handleClipDrag}
                     >
                       {/* Clip content */}
                       <div className="h-full w-full absolute inset-0 overflow-hidden rounded">
@@ -192,49 +307,11 @@ export function Timeline() {
                         <>
                           <div
                             className="absolute left-0 top-0 bottom-0 w-2 bg-primary cursor-ew-resize rounded-l"
-                            onMouseDown={(e) => {
-                              e.stopPropagation();
-                              const startX = e.clientX;
-                              const startMs = clip.startMs;
-                              
-                              const handleMove = (moveE: MouseEvent) => {
-                                const delta = moveE.clientX - startX;
-                                const newStartMs = Math.max(0, startMs + pixelsToMs(delta));
-                                if (newStartMs < clip.endMs - 100) {
-                                  updateClip(track.id, clip.id, { startMs: newStartMs });
-                                }
-                              };
-                              
-                              const handleUp = () => {
-                                window.removeEventListener('mousemove', handleMove);
-                                window.removeEventListener('mouseup', handleUp);
-                              };
-                              
-                              window.addEventListener('mousemove', handleMove);
-                              window.addEventListener('mouseup', handleUp);
-                            }}
+                            onMouseDown={handleTrimStartDrag}
                           />
                           <div
                             className="absolute right-0 top-0 bottom-0 w-2 bg-primary cursor-ew-resize rounded-r"
-                            onMouseDown={(e) => {
-                              e.stopPropagation();
-                              const startX = e.clientX;
-                              const endMs = clip.endMs;
-                              
-                              const handleMove = (moveE: MouseEvent) => {
-                                const delta = moveE.clientX - startX;
-                                const newEndMs = Math.max(clip.startMs + 100, endMs + pixelsToMs(delta));
-                                updateClip(track.id, clip.id, { endMs: newEndMs });
-                              };
-                              
-                              const handleUp = () => {
-                                window.removeEventListener('mousemove', handleMove);
-                                window.removeEventListener('mouseup', handleUp);
-                              };
-                              
-                              window.addEventListener('mousemove', handleMove);
-                              window.addEventListener('mouseup', handleUp);
-                            }}
+                            onMouseDown={handleTrimEndDrag}
                           />
                         </>
                       )}
