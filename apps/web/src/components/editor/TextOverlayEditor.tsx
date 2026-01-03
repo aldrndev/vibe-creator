@@ -129,6 +129,7 @@ export function TextOverlayEditor({ isOpen, onClose, editingOverlay }: TextOverl
       backgroundColor: backgroundColor || undefined,
       x,
       y,
+      rotation: 0, // Default rotation
       textAlign,
       startMs,
       endMs,

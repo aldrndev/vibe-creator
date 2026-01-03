@@ -1,4 +1,4 @@
-import { Card, CardBody, Slider, Select, SelectItem, Switch, Divider } from '@heroui/react';
+import { Card, CardBody, Slider, Select, SelectItem, Switch, Divider, Button } from '@heroui/react';
 import { 
   Settings2, 
   Move, 
@@ -9,7 +9,8 @@ import {
   VolumeX,
   Gauge,
   Palette,
-  Film
+  Film,
+  Unlink
 } from 'lucide-react';
 import { useEditorStore } from '@/stores/editor-store';
 import { clsx } from 'clsx';
@@ -43,17 +44,19 @@ interface InspectorPanelProps {
 }
 
 export function InspectorPanel({ className }: InspectorPanelProps) {
-  const { timeline, selectedClipId, updateClip } = useEditorStore();
+  const { timeline, selectedClipId, updateClip, detachLinkedClips } = useEditorStore();
 
-  // Find selected clip
+  // Find selected clip and its track type
   let selectedClip = null;
   let selectedTrackId: string | null = null;
+  let selectedTrackType: 'VIDEO' | 'AUDIO' | 'TEXT' | 'OVERLAY' | null = null;
   
   for (const track of timeline.tracks) {
     const clip = track.clips.find(c => c.id === selectedClipId);
     if (clip) {
       selectedClip = clip;
       selectedTrackId = track.id;
+      selectedTrackType = track.type;
       break;
     }
   }
@@ -137,128 +140,156 @@ export function InspectorPanel({ className }: InspectorPanelProps) {
         <Card className="bg-content2">
           <CardBody className="p-3">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded bg-primary/20 flex items-center justify-center">
-                <Film size={20} className="text-primary" />
+              <div className={`w-10 h-10 rounded flex items-center justify-center ${
+                selectedTrackType === 'AUDIO' ? 'bg-green-500/20' : 'bg-primary/20'
+              }`}>
+                {selectedTrackType === 'AUDIO' ? (
+                  <Volume2 size={20} className="text-green-500" />
+                ) : (
+                  <Film size={20} className="text-primary" />
+                )}
               </div>
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-sm truncate">
                   {selectedClip.asset?.name || 'Untitled Clip'}
                 </p>
                 <p className="text-xs text-foreground/50">
-                  {formatTime(selectedClip.endMs - selectedClip.startMs)}
+                  {selectedTrackType === 'AUDIO' ? 'Audio' : 'Video'} • {formatTime(selectedClip.endMs - selectedClip.startMs)}
+                  {selectedClip.linkId && ' • Linked'}
                 </p>
               </div>
             </div>
+            {/* Detach button for linked clips */}
+            {selectedClip.linkId && (
+              <Button
+                size="sm"
+                variant="flat"
+                color="warning"
+                className="w-full mt-3"
+                startContent={<Unlink size={14} />}
+                onPress={() => {
+                  if (selectedClipId) {
+                    detachLinkedClips(selectedClipId);
+                  }
+                }}
+              >
+                Detach Audio
+              </Button>
+            )}
           </CardBody>
         </Card>
 
         <Divider />
 
-        {/* Transform Section */}
-        <div className="space-y-3">
-          <h4 className="text-sm font-medium flex items-center gap-2">
-            <Move size={14} />
-            Transform
-          </h4>
+        {/* Transform Section - VIDEO ONLY */}
+        {selectedTrackType !== 'AUDIO' && (
+          <>
+            <div className="space-y-3">
+              <h4 className="text-sm font-medium flex items-center gap-2">
+                <Move size={14} />
+                Transform
+              </h4>
 
-          <div className="space-y-4">
-            {/* Position X */}
-            <div>
-              <div className="flex justify-between text-xs mb-1">
-                <span className="text-foreground/60">Position X</span>
-                <span>{Math.round(transforms.x)}px</span>
+              <div className="space-y-4">
+                {/* Position X */}
+                <div>
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="text-foreground/60">Position X</span>
+                    <span>{Math.round(transforms.x)}px</span>
+                  </div>
+                  <Slider 
+                    size="sm"
+                    minValue={-500}
+                    maxValue={500}
+                    step={1}
+                    value={transforms.x}
+                    onChange={(v) => handleTransformChange('x', v as number)}
+                    aria-label="Position X"
+                  />
+                </div>
+
+                {/* Position Y */}
+                <div>
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="text-foreground/60">Position Y</span>
+                    <span>{Math.round(transforms.y)}px</span>
+                  </div>
+                  <Slider 
+                    size="sm"
+                    minValue={-500}
+                    maxValue={500}
+                    step={1}
+                    value={transforms.y}
+                    onChange={(v) => handleTransformChange('y', v as number)}
+                    aria-label="Position Y"
+                  />
+                </div>
+
+                {/* Scale */}
+                <div>
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="text-foreground/60 flex items-center gap-1">
+                      <Maximize2 size={12} />
+                      Scale
+                    </span>
+                    <span>{Math.round(transforms.scale * 100)}%</span>
+                  </div>
+                  <Slider 
+                    size="sm"
+                    minValue={0.1}
+                    maxValue={3}
+                    step={0.01}
+                    value={transforms.scale}
+                    onChange={(v) => handleTransformChange('scale', v as number)}
+                    aria-label="Scale"
+                  />
+                </div>
+
+                {/* Rotation */}
+                <div>
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="text-foreground/60 flex items-center gap-1">
+                      <RotateCw size={12} />
+                      Rotation
+                    </span>
+                    <span>{Math.round(transforms.rotation)}°</span>
+                  </div>
+                  <Slider 
+                    size="sm"
+                    minValue={-180}
+                    maxValue={180}
+                    step={1}
+                    value={transforms.rotation}
+                    onChange={(v) => handleTransformChange('rotation', v as number)}
+                    aria-label="Rotation"
+                  />
+                </div>
+
+                {/* Opacity */}
+                <div>
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="text-foreground/60 flex items-center gap-1">
+                      <Eye size={12} />
+                      Opacity
+                    </span>
+                    <span>{Math.round(transforms.opacity * 100)}%</span>
+                  </div>
+                  <Slider 
+                    size="sm"
+                    minValue={0}
+                    maxValue={1}
+                    step={0.01}
+                    value={transforms.opacity}
+                    onChange={(v) => handleTransformChange('opacity', v as number)}
+                    aria-label="Opacity"
+                  />
+                </div>
               </div>
-              <Slider 
-                size="sm"
-                minValue={-500}
-                maxValue={500}
-                step={1}
-                value={transforms.x}
-                onChange={(v) => handleTransformChange('x', v as number)}
-                aria-label="Position X"
-              />
             </div>
 
-            {/* Position Y */}
-            <div>
-              <div className="flex justify-between text-xs mb-1">
-                <span className="text-foreground/60">Position Y</span>
-                <span>{Math.round(transforms.y)}px</span>
-              </div>
-              <Slider 
-                size="sm"
-                minValue={-500}
-                maxValue={500}
-                step={1}
-                value={transforms.y}
-                onChange={(v) => handleTransformChange('y', v as number)}
-                aria-label="Position Y"
-              />
-            </div>
-
-            {/* Scale */}
-            <div>
-              <div className="flex justify-between text-xs mb-1">
-                <span className="text-foreground/60 flex items-center gap-1">
-                  <Maximize2 size={12} />
-                  Scale
-                </span>
-                <span>{Math.round(transforms.scale * 100)}%</span>
-              </div>
-              <Slider 
-                size="sm"
-                minValue={0.1}
-                maxValue={3}
-                step={0.01}
-                value={transforms.scale}
-                onChange={(v) => handleTransformChange('scale', v as number)}
-                aria-label="Scale"
-              />
-            </div>
-
-            {/* Rotation */}
-            <div>
-              <div className="flex justify-between text-xs mb-1">
-                <span className="text-foreground/60 flex items-center gap-1">
-                  <RotateCw size={12} />
-                  Rotation
-                </span>
-                <span>{Math.round(transforms.rotation)}°</span>
-              </div>
-              <Slider 
-                size="sm"
-                minValue={-180}
-                maxValue={180}
-                step={1}
-                value={transforms.rotation}
-                onChange={(v) => handleTransformChange('rotation', v as number)}
-                aria-label="Rotation"
-              />
-            </div>
-
-            {/* Opacity */}
-            <div>
-              <div className="flex justify-between text-xs mb-1">
-                <span className="text-foreground/60 flex items-center gap-1">
-                  <Eye size={12} />
-                  Opacity
-                </span>
-                <span>{Math.round(transforms.opacity * 100)}%</span>
-              </div>
-              <Slider 
-                size="sm"
-                minValue={0}
-                maxValue={1}
-                step={0.01}
-                value={transforms.opacity}
-                onChange={(v) => handleTransformChange('opacity', v as number)}
-                aria-label="Opacity"
-              />
-            </div>
-          </div>
-        </div>
-
-        <Divider />
+            <Divider />
+          </>
+        )}
 
         {/* Audio Section */}
         <div className="space-y-3">
@@ -368,27 +399,29 @@ export function InspectorPanel({ className }: InspectorPanelProps) {
               </Select>
             </div>
 
-            {/* Filter */}
-            <div>
-              <div className="flex justify-between text-xs mb-1">
-                <span className="text-foreground/60">Filter</span>
+            {/* Filter - VIDEO ONLY */}
+            {selectedTrackType !== 'AUDIO' && (
+              <div>
+                <div className="flex justify-between text-xs mb-1">
+                  <span className="text-foreground/60">Filter</span>
+                </div>
+                <Select 
+                  size="sm"
+                  selectedKeys={[currentFilter]}
+                  onSelectionChange={(keys) => {
+                    const selected = Array.from(keys)[0] as string;
+                    if (selected) handleEffectChange('filters', selected === 'none' ? [] : [selected]);
+                  }}
+                  aria-label="Filter"
+                >
+                  {FILTER_PRESETS.map(preset => (
+                    <SelectItem key={preset.id}>
+                      {preset.name}
+                    </SelectItem>
+                  ))}
+                </Select>
               </div>
-              <Select 
-                size="sm"
-                selectedKeys={[currentFilter]}
-                onSelectionChange={(keys) => {
-                  const selected = Array.from(keys)[0] as string;
-                  if (selected) handleEffectChange('filters', selected === 'none' ? [] : [selected]);
-                }}
-                aria-label="Filter"
-              >
-                {FILTER_PRESETS.map(preset => (
-                  <SelectItem key={preset.id}>
-                    {preset.name}
-                  </SelectItem>
-                ))}
-              </Select>
-            </div>
+            )}
           </div>
         </div>
       </div>

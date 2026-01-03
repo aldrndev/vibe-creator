@@ -1,5 +1,6 @@
-import { useEffect, useCallback, useRef, useState } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 import { logger } from '@/lib/logger';
+import { clsx } from 'clsx';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button, Slider, Tooltip, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Input, useDisclosure } from '@heroui/react';
 import { 
@@ -9,7 +10,6 @@ import {
   SkipForward,
   Upload,
   Download,
-  Cloud,
   ZoomIn,
   ZoomOut,
   Scissors,
@@ -18,6 +18,11 @@ import {
   Link,
   Mic,
   Type,
+  Undo2,
+  Redo2,
+  LayoutTemplate,
+  MonitorPlay,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { useEditorStore } from '@/stores/editor-store';
 import { Timeline } from '@/components/editor/Timeline';
@@ -26,11 +31,13 @@ import { AssetPanel } from '@/components/editor/AssetPanel';
 import { VoiceRecorderModal } from '@/components/editor/VoiceRecorderModal';
 import { InspectorPanel } from '@/components/editor/InspectorPanel';
 import { TextOverlayEditor } from '@/components/editor/TextOverlayEditor';
+import { ExportModal } from '@/components/editor/ExportModal';
+import { useState } from 'react';
 
 import { useFFmpeg } from '@/hooks/use-ffmpeg';
-import { exportApi } from '@/services/export-api';
-import { downloadApi } from '@/services/download-api';
-import { authFetch } from '@/services/api';
+import { useExport } from '@/hooks/use-export';
+import { useUrlDownload } from '@/hooks/use-url-download';
+import { useHistory } from '@/hooks/use-history';
 import toast from 'react-hot-toast';
 
 export function EditorPage() {
@@ -38,15 +45,8 @@ export function EditorPage() {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  // Separate state for export processing (only for export, not thumbnail gen)
-  const [isExporting, setIsExporting] = useState(false);
-  const [exportProgress, setExportProgress] = useState(0);
-  
   // URL download modal
   const { isOpen: isUrlModalOpen, onOpen: openUrlModal, onClose: closeUrlModal } = useDisclosure();
-  const [urlInput, setUrlInput] = useState('');
-  const [isDownloading, setIsDownloading] = useState(false);
-  const [downloadStep, setDownloadStep] = useState(0); // 0=idle, 1=request, 2=downloading, 3=fetching, 4=adding
   
   // Voice recorder modal
   const { isOpen: isVoiceModalOpen, onOpen: openVoiceModal, onClose: closeVoiceModal } = useDisclosure();
@@ -54,7 +54,7 @@ export function EditorPage() {
   // Text overlay modal
   const { isOpen: isTextModalOpen, onOpen: openTextModal, onClose: closeTextModal } = useDisclosure();
   
-  const { extractTimelineThumbnails, concatenateClips } = useFFmpeg();
+  const { extractTimelineThumbnails } = useFFmpeg();
   
   const {
     projectTitle,
@@ -73,8 +73,45 @@ export function EditorPage() {
     updateAsset,
     addClip,
     removeClip,
+    textOverlays,
   } = useEditorStore();
 
+  // Export hook (server-side only)
+  const {
+    isExporting,
+    exportProgress,
+    handleServerExport: serverExport,
+    handleCancelExport,
+  } = useExport({
+    projectId,
+    onPause: pause,
+  });
+
+  // URL download hook
+  const {
+    urlInput,
+    setUrlInput,
+    isDownloading,
+    downloadStep,
+    handleUrlDownload,
+    resetDownload,
+  } = useUrlDownload({
+    addAsset,
+    addClip,
+    getVideoTrackId: () => timeline.tracks.find(t => t.type === 'VIDEO')?.id,
+    getLastClipEndMs: () => {
+      const track = timeline.tracks.find(t => t.type === 'VIDEO');
+      const lastClip = track?.clips[track.clips.length - 1];
+      return lastClip?.endMs || 0;
+    },
+    onClose: () => {
+      closeUrlModal();
+      resetDownload();
+    },
+  });
+
+  // History (undo/redo)
+  const { undo, redo, canUndo, canRedo } = useHistory();
   // Initialize project
   useEffect(() => {
     if (projectId) {
@@ -219,8 +256,12 @@ export function EditorPage() {
           ? Math.max(...track.clips.map(c => c.endMs))
           : 0;
         
+        // Generate linkId for video files (links video + audio clips)
+        const linkId = isVideo ? `link-${id}` : undefined;
+        
         addClip(track.id, {
           assetId: id,
+          linkId,
           startMs: lastClipEnd,
           endMs: lastClipEnd + durationMs,
           trimStartMs: 0,
@@ -238,6 +279,30 @@ export function EditorPage() {
             height,
           },
         });
+        
+        // For video files, also create a linked audio clip on AUDIO track
+        if (isVideo) {
+          const audioTrack = useEditorStore.getState().timeline.tracks.find(t => t.type === 'AUDIO');
+          if (audioTrack) {
+            addClip(audioTrack.id, {
+              assetId: id,
+              linkId, // Same linkId as video clip
+              startMs: lastClipEnd,
+              endMs: lastClipEnd + durationMs,
+              trimStartMs: 0,
+              trimEndMs: 0,
+              transforms: { x: 0, y: 0, scale: 1, rotation: 0, opacity: 1 },
+              effects: { filters: [], speed: 1, volume: 1, fadeIn: 0, fadeOut: 0 },
+              asset: {
+                id: `${id}-audio`,
+                name: `${file.name} (Audio)`,
+                type: 'AUDIO',
+                url,
+                durationMs,
+              },
+            });
+          }
+        }
       }
     }
     
@@ -247,141 +312,87 @@ export function EditorPage() {
     }
   }, [addAsset, addClip, updateAsset, extractTimelineThumbnails]);
 
-  const handleExport = async () => {
-    // gathering clips from video track
+  // Helper to prepare clips for export
+  const prepareClipsForExport = useCallback(() => {
     const videoTrack = timeline.tracks.find(t => t.type === 'VIDEO');
     if (!videoTrack || videoTrack.clips.length === 0) {
-      toast.error('Tidak ada klip untuk di-export');
-      return;
+      return [];
     }
 
-    const clipsToExport = videoTrack.clips
+    return videoTrack.clips
       .sort((a, b) => a.startMs - b.startMs)
       .map(clip => {
         if (!clip.asset?.file) return null;
+        
+        // Include full transforms and effects for server-side processing
+        const transforms = clip.transforms || { x: 0, y: 0, scale: 1, rotation: 0, opacity: 1 };
+        const effects = clip.effects || { filters: [], speed: 1, volume: 1, fadeIn: 0, fadeOut: 0 };
+        
         return {
           file: clip.asset.file,
           startTime: clip.trimStartMs / 1000,
           endTime: (clip.trimStartMs + (clip.endMs - clip.startMs)) / 1000,
+          // Transforms
+          transforms: {
+            x: transforms.x,
+            y: transforms.y,
+            scale: transforms.scale,
+            rotation: transforms.rotation,
+            opacity: transforms.opacity,
+          },
+          // Effects
+          effects: {
+            filters: effects.filters || [],
+            speed: effects.speed,
+            volume: effects.volume,
+            fadeIn: effects.fadeIn,
+            fadeOut: effects.fadeOut,
+          },
         };
       })
-      .filter(c => c !== null) as Array<{ file: File; startTime: number; endTime: number }>;
+      .filter((c): c is NonNullable<typeof c> => c !== null);
+  }, [timeline.tracks]);
 
-    if (clipsToExport.length === 0) {
-      toast.error('Gagal memproses klip. Pastikan video diimport dari device ini.');
-      return;
-    }
-
-    try {
-      pause();
-      setIsExporting(true);
-      setExportProgress(0);
-      
-      const blob = await concatenateClips(clipsToExport);
-      
-      setExportProgress(1);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `export-${Date.now()}.mp4`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch (e) {
-      logger.error('Export failed', e);
-      toast.error('Export gagal. Coba lagi.');
-    } finally {
-      setIsExporting(false);
-    }
-  };
-
-  // Server-side export handler
-  const handleServerExport = async () => {
-    const videoTrack = timeline.tracks.find(t => t.type === 'VIDEO');
-    const clips = videoTrack?.clips || [];
-    
+  // Export modal state
+  // Export modal state
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [mobileTab, setMobileTab] = useState<'assets' | 'preview' | 'inspector'>('preview');
+  const onExportClick = useCallback(() => {
+    const clips = prepareClipsForExport();
     if (clips.length === 0) {
       toast.error('Tidak ada klip untuk di-export');
       return;
     }
+    setIsExportModalOpen(true);
+  }, [prepareClipsForExport]);
 
-    // Get file objects from clips
-    const clipFiles = clips
-      .map(clip => {
-        if (!clip.asset?.file) return null;
-        return {
-          file: clip.asset.file,
-          startTime: clip.trimStartMs / 1000,
-          endTime: (clip.trimStartMs + (clip.endMs - clip.startMs)) / 1000,
-        };
-      })
-      .filter((c): c is { file: File; startTime: number; endTime: number } => c !== null);
-
-    if (clipFiles.length === 0) {
-      toast.error('Tidak ada file video untuk diupload');
-      return;
-    }
-
-    try {
-      pause();
-      setIsExporting(true);
-      setExportProgress(0);
-
-      // Step 1: Upload video files
-      const uploadedFiles: Array<{ localPath: string; startTime: number; endTime: number }> = [];
-      
-      for (let i = 0; i < clipFiles.length; i++) {
-        const clipFile = clipFiles[i];
-        if (!clipFile) continue;
-        
-        setExportProgress((i / clipFiles.length) * 0.3); // 30% for uploads
-        const uploaded = await exportApi.uploadVideo(clipFile.file);
-        uploadedFiles.push({
-          localPath: uploaded.filepath,
-          startTime: clipFile.startTime,
-          endTime: clipFile.endTime,
-        });
-      }
-
-      setExportProgress(0.3);
-
-      // Step 2: Create export job
-      const job = await exportApi.createExportJob({
-        projectId: projectId || 'default',
-        timelineData: {
-          clips: uploadedFiles,
-          settings: {
-            width: 1920,
-            height: 1080,
-            fps: 30,
-          },
-        },
-      });
-
-      setExportProgress(0.4);
-
-      // Step 3: Poll for completion
-      await exportApi.waitForCompletion(
-        job.jobId,
-        (progress) => setExportProgress(0.4 + progress * 0.5) // 40-90%
-      );
-
-      setExportProgress(1);
-
-      // Step 4: Download
-      const downloadUrl = exportApi.getDownloadUrl(job.jobId);
-      const a = document.createElement('a');
-      a.href = downloadUrl;
-      a.download = `export-${Date.now()}.mp4`;
-      a.click();
-
-      toast.success('Export berhasil!');
-    } catch (e) {
-      logger.error('Server export failed', e);
-      toast.error(`Server export gagal: ${e instanceof Error ? e.message : 'Unknown error'}`);
-    } finally {
-      setIsExporting(false);
-    }
-  };
+  // Actual export execution from modal
+  const handleExportConfirm = useCallback((settings: {
+    format: 'MP4' | 'WEBM' | 'MOV';
+    resolution: 'SD' | 'HD' | 'UHD';
+    width?: number;
+    height?: number;
+    fps?: number;
+  }) => {
+    const clips = prepareClipsForExport();
+    
+    // Format text overlays
+    const formattedTextOverlays = textOverlays.map(overlay => ({
+      id: overlay.id,
+      content: overlay.text,
+      startMs: overlay.startMs,
+      endMs: overlay.endMs,
+      x: overlay.x,
+      y: overlay.y,
+      fontSize: overlay.fontSize,
+      fontFamily: overlay.fontFamily,
+      color: overlay.color,
+      backgroundColor: overlay.backgroundColor,
+    }));
+    
+    // Pass settings to serverExport
+    serverExport(clips, formattedTextOverlays, settings);
+  }, [prepareClipsForExport, textOverlays, serverExport]);
 
   // Delete selected clip
   const handleDeleteClip = () => {
@@ -485,109 +496,6 @@ export function EditorPage() {
     toast.success('Klip berhasil dipotong');
   };
 
-  // Handle URL download
-  const handleUrlDownload = async () => {
-    if (!urlInput.trim()) {
-      toast.error('Masukkan URL video');
-      return;
-    }
-
-    try {
-      setIsDownloading(true);
-      setDownloadStep(1); // Step 1: Sending request
-      
-      // Create download job
-      const job = await downloadApi.requestDownload(urlInput);
-      setDownloadStep(2); // Step 2: Downloading on server
-      
-      // Wait for completion
-      await downloadApi.waitForCompletion(job.jobId);
-      
-      // Get the downloaded file info
-      const result = await downloadApi.getStatus(job.jobId);
-      setDownloadStep(3); // Step 3: Fetching video
-      
-      // Fetch the video file from server
-      const fileUrl = downloadApi.getFileUrl(job.jobId);
-      const fileResponse = await authFetch(fileUrl);
-      
-      if (!fileResponse.ok) {
-        throw new Error('Gagal mengambil file video');
-      }
-      
-      const blob = await fileResponse.blob();
-      const fileName = result.title || `download-${Date.now()}.mp4`;
-      const file = new File([blob], fileName, { type: 'video/mp4' });
-      
-      // Get video duration
-      const videoEl = document.createElement('video');
-      videoEl.preload = 'metadata';
-      const videoUrl = URL.createObjectURL(blob);
-      videoEl.src = videoUrl;
-      
-      await new Promise<void>((resolve) => {
-        videoEl.onloadedmetadata = () => resolve();
-        videoEl.onerror = () => resolve();
-      });
-      
-      const durationMs = (videoEl.duration || 10) * 1000;
-      
-      setDownloadStep(4); // Step 4: Adding to timeline
-      
-      // Create asset and add to timeline
-      const assetId = `video-${Date.now()}`;
-      addAsset({
-        id: assetId,
-        name: fileName,
-        type: 'VIDEO',
-        url: videoUrl,
-        file,
-        durationMs,
-      });
-      
-      // Add to video track
-      const videoTrack = timeline.tracks.find(t => t.type === 'VIDEO');
-      if (videoTrack) {
-        const lastClip = videoTrack.clips[videoTrack.clips.length - 1];
-        const startMs = lastClip ? lastClip.endMs : 0;
-        
-        addClip(videoTrack.id, {
-          assetId,
-          startMs,
-          endMs: startMs + durationMs,
-          trimStartMs: 0,
-          trimEndMs: 0,
-          transforms: {
-            x: 0,
-            y: 0,
-            scale: 1,
-            rotation: 0,
-            opacity: 1,
-          },
-          effects: {
-            filters: [],
-            speed: 1,
-            volume: 1,
-            fadeIn: 0,
-            fadeOut: 0,
-          },
-        });
-      }
-      
-      toast.success(`"${fileName}" ditambahkan ke timeline!`);
-      closeUrlModal();
-      setUrlInput('');
-      setDownloadStep(0);
-      
-    } catch (e) {
-      logger.error('URL download failed', e);
-      setDownloadStep(0);
-      toast.error(`Download gagal: ${e instanceof Error ? e.message : 'Unknown error'}`);
-    } finally {
-      setIsDownloading(false);
-    }
-  };
-
   // Handle voice recording save
   const handleVoiceSave = (blob: Blob, duration: number) => {
     // Create asset from audio blob
@@ -633,21 +541,49 @@ export function EditorPage() {
   return (
     <div className="fixed inset-0 bg-background flex flex-col">
       {/* Header */}
-      <header className="h-14 border-b border-divider flex items-center justify-between px-4 flex-shrink-0">
-        <div className="flex items-center gap-4">
-          <Button
-            size="sm"
-            variant="light"
-            onPress={() => navigate('/dashboard/projects')}
+      <header className="h-14 border-b border-divider flex items-center px-4 justify-between bg-content1 flex-shrink-0 z-20 overflow-x-auto no-scrollbar gap-4">
+        <div className="flex items-center gap-4 flex-shrink-0">
+          <Button 
+            size="sm" 
+            variant="light" 
+            onPress={() => navigate('/dashboard')}
+            className="min-w-0 px-2"
           >
-            ← Kembali
+            ← <span className="hidden md:inline ml-1">Kembali</span>
           </Button>
+          
+          {/* Undo/Redo buttons */}
+          <div className="hidden md:flex items-center gap-1 border-l border-divider pl-4">
+            <Tooltip content="Undo (Ctrl+Z)">
+              <Button
+                size="sm"
+                variant="light"
+                isIconOnly
+                isDisabled={!canUndo}
+                onPress={undo}
+              >
+                <Undo2 size={16} />
+              </Button>
+            </Tooltip>
+            <Tooltip content="Redo (Ctrl+Shift+Z)">
+              <Button
+                size="sm"
+                variant="light"
+                isIconOnly
+                isDisabled={!canRedo}
+                onPress={redo}
+              >
+                <Redo2 size={16} />
+              </Button>
+            </Tooltip>
+          </div>
+          
           <h1 className="text-lg font-semibold">{projectTitle}</h1>
         </div>
         
         <div className="flex items-center gap-2">
           {isExporting ? (
-            <div className="flex items-center gap-2 px-4">
+            <div className="flex items-center gap-3 px-4">
               <div className="text-sm text-foreground/70">Exporting... {Math.round(exportProgress * 100)}%</div>
               <div className="w-24 h-1 bg-default-200 rounded-full overflow-hidden">
                 <div 
@@ -655,6 +591,14 @@ export function EditorPage() {
                   style={{ width: `${exportProgress * 100}%` }}
                 />
               </div>
+              <Button
+                size="sm"
+                variant="flat"
+                color="danger"
+                onPress={handleCancelExport}
+              >
+                Batal
+              </Button>
             </div>
           ) : (
             <>
@@ -663,48 +607,45 @@ export function EditorPage() {
                 variant="flat"
                 startContent={<Upload size={16} />}
                 onPress={() => fileInputRef.current?.click()}
+                className="min-w-0"
               >
-                Import
+                <span className="hidden md:inline">Import</span>
               </Button>
               <Button
                 size="sm"
                 variant="flat"
                 startContent={<Link size={16} />}
                 onPress={openUrlModal}
+                className="min-w-0 hidden sm:flex"
               >
-                Import URL
+               <span className="hidden md:inline">Import URL</span>
               </Button>
               <Button
                 size="sm"
                 variant="flat"
                 startContent={<Mic size={16} />}
                 onPress={openVoiceModal}
+                className="min-w-0"
               >
-                Record
+                <span className="hidden md:inline">Record</span>
               </Button>
               <Button
                 size="sm"
                 variant="flat"
                 startContent={<Type size={16} />}
                 onPress={openTextModal}
+                className="min-w-0"
               >
-                Add Text
-              </Button>
-              <Button
-                size="sm"
-                variant="flat"
-                startContent={<Cloud size={16} />}
-                onPress={handleServerExport}
-              >
-                Export (Server)
+                <span className="hidden md:inline">Add Text</span>
               </Button>
               <Button
                 size="sm"
                 color="primary"
                 startContent={<Download size={16} />}
-                onPress={handleExport}
+                onPress={onExportClick}
+                className="min-w-0"
               >
-                Export (Client)
+                <span className="hidden md:inline">Export</span>
               </Button>
             </>
           )}
@@ -712,20 +653,26 @@ export function EditorPage() {
       </header>
       
       {/* Main area */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative">
         {/* Left panel - Assets */}
-        <AssetPanel />
+        <AssetPanel className={clsx(
+          "md:flex z-10", 
+          mobileTab === 'assets' ? 'flex w-full absolute inset-0 md:static md:w-64' : 'hidden'
+        )} />
         
         {/* Center - Preview + Controls */}
-        <div className="flex-1 flex flex-col min-w-0 min-h-0">
+        <div className={clsx(
+          "flex-1 flex flex-col min-w-0 min-h-0",
+          mobileTab !== 'preview' ? 'hidden md:flex' : 'flex'
+        )}>
           {/* Video Preview - use min-h-0 to allow shrinking */}
           <div className="flex-1 flex items-center justify-center bg-content2 dark:bg-black/50 p-4 min-h-0 overflow-hidden">
             <VideoPreview />
           </div>
           
           {/* Playback controls */}
-          <div className="h-16 border-t border-divider flex items-center justify-center gap-4 px-4 flex-shrink-0 bg-background">
-            <div className="flex items-center gap-2">
+          <div className="h-16 border-t border-divider flex items-center md:justify-center overflow-x-auto no-scrollbar gap-4 px-4 flex-shrink-0 bg-background">
+            <div className="flex items-center gap-2 flex-shrink-0">
               <Tooltip content="Ke awal (Home)">
                 <Button
                   size="sm"
@@ -822,7 +769,7 @@ export function EditorPage() {
                 step={10}
                 value={zoomLevel}
                 onChange={(v) => setZoomLevel(v as number)}
-                className="w-24"
+                className="w-24 hidden md:flex"
                 aria-label="Zoom level"
               />
               
@@ -840,8 +787,42 @@ export function EditorPage() {
           </div>
         </div>
         
-        {/* Right panel - Inspector (visible when clip selected on desktop) */}
-        <InspectorPanel className="hidden lg:flex" />
+        {/* Right panel - Inspector */}
+        <InspectorPanel className={clsx(
+          "md:flex z-10", 
+          mobileTab === 'inspector' ? 'flex w-full absolute inset-0 md:static md:w-80' : 'hidden'
+        )} />
+      </div>
+
+      {/* Mobile Tab Navigation */}
+      <div className="md:hidden h-14 border-t border-divider bg-content1 flex items-center justify-around px-2 flex-shrink-0">
+        <Button 
+          variant={mobileTab === 'assets' ? 'flat' : 'light'} 
+          color={mobileTab === 'assets' ? 'primary' : 'default'}
+          className="flex-1 flex flex-col gap-1 h-full py-2 rounded-none"
+          onPress={() => setMobileTab('assets')}
+        >
+          <LayoutTemplate size={20} />
+          <span className="text-[10px]">Assets</span>
+        </Button>
+        <Button 
+          variant={mobileTab === 'preview' ? 'flat' : 'light'} 
+          color={mobileTab === 'preview' ? 'primary' : 'default'}
+          className="flex-1 flex flex-col gap-1 h-full py-2 rounded-none"
+          onPress={() => setMobileTab('preview')}
+        >
+          <MonitorPlay size={20} />
+          <span className="text-[10px]">Preview</span>
+        </Button>
+        <Button 
+          variant={mobileTab === 'inspector' ? 'flat' : 'light'} 
+          color={mobileTab === 'inspector' ? 'primary' : 'default'}
+          className="flex-1 flex flex-col gap-1 h-full py-2 rounded-none"
+          onPress={() => setMobileTab('inspector')}
+        >
+          <SlidersHorizontal size={20} />
+          <span className="text-[10px]">Edit</span>
+        </Button>
       </div>
       
       {/* Timeline */}
@@ -1036,6 +1017,14 @@ export function EditorPage() {
       <TextOverlayEditor
         isOpen={isTextModalOpen}
         onClose={closeTextModal}
+      />
+
+      {/* Export Modal */}
+      <ExportModal 
+        isOpen={isExportModalOpen}
+        onOpenChange={setIsExportModalOpen}
+        onExport={handleExportConfirm}
+        isExporting={isExporting}
       />
     </div>
   );

@@ -10,19 +10,40 @@ const createReactionSchema = z.object({
   position: z.enum(['top-left', 'top-right', 'bottom-left', 'bottom-right']).default('bottom-right'),
   scale: z.number().min(0.1).max(0.5).default(0.3),
   margin: z.number().min(0).max(100).default(20),
+  aspectRatio: z.enum(['16:9', '9:16', '1:1', '4:5']).default('16:9'),
 });
 
 const createSideBySideSchema = z.object({
   leftVideoPath: z.string(),
   rightVideoPath: z.string(),
   layout: z.enum(['horizontal', 'vertical']).default('horizontal'),
+  aspectRatio: z.enum(['16:9', '9:16', '1:1', '4:5']).default('16:9'),
+  reactionVolume: z.number().min(0).max(2).default(0.8),
+  mainVolume: z.number().min(0).max(2).default(1.0),
+  splitRatio: z.number().min(0.5).max(0.7).default(0.5), // Main must be at least 50%, max 70%
+  smoothBorder: z.boolean().default(false).optional(),
+  overlayMode: z.boolean().default(false).optional(),
 });
 
 const createReactionMixedSchema = createReactionSchema.extend({
   reactionVolume: z.number().min(0).max(2).default(0.8),
+  mainVolume: z.number().min(0).max(2).default(1.0),
+  circular: z.boolean().default(false),
 });
 
 export const reactionRoutes: FastifyPluginAsync = async (fastify) => {
+  // --- JANITOR: Auto Cleanup ---
+  // Run every 30 minutes, delete files older than 1 hour.
+  const cleanupInterval = setInterval(() => {
+    reactionService.cleanupOldReactions(60 * 60 * 1000).catch(err => {
+        fastify.log.error({ err }, 'Reaction Janitor Error');
+    });
+  }, 30 * 60 * 1000);
+
+  fastify.addHook('onClose', (_instance, done) => {
+    clearInterval(cleanupInterval);
+    done();
+  });
   /**
    * Create reaction video with PiP overlay
    */
@@ -62,7 +83,7 @@ export const reactionRoutes: FastifyPluginAsync = async (fastify) => {
   /**
    * Create side-by-side video
    */
-  fastify.post('/side-by-side', async (request, reply) => {
+  fastify.post('/create-side-by-side', async (request, reply) => {
     const user = request.user;
     if (!user) {
       return reply.status(401).send({
@@ -142,6 +163,7 @@ export const reactionRoutes: FastifyPluginAsync = async (fastify) => {
         error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
       });
     }
+
 
     // Security: Sanitize filename to prevent path traversal
     const sanitizedFilename = path.basename(request.params.filename);

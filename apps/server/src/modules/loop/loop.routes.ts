@@ -8,13 +8,16 @@ const createLoopSchema = z.object({
   inputPath: z.string(),
   startMs: z.number().optional(),
   endMs: z.number().optional(),
-  loopCount: z.number().min(1).max(10).default(3),
+  loopCount: z.number().min(1).max(5000).default(3), // increased max for long duration
+  aspectRatio: z.enum(['16:9', '9:16', '1:1', '4:5', '']).optional(),
+  crossfade: z.boolean().optional(),
 });
 
 const createBoomerangSchema = z.object({
   inputPath: z.string(),
   startMs: z.number().optional(),
   endMs: z.number().optional(),
+  loopCount: z.number().min(1).max(5000).default(1), // Added loopCount for boomerang
 });
 
 const createGifSchema = z.object({
@@ -26,6 +29,19 @@ const createGifSchema = z.object({
 });
 
 export const loopRoutes: FastifyPluginAsync = async (fastify) => {
+  // --- JANITOR: Auto Cleanup ---
+  // Run every 30 minutes, delete files older than 1 hour.
+  const cleanupInterval = setInterval(() => {
+    loopService.cleanupOldLoops(60 * 60 * 1000).catch(err => {
+        fastify.log.error({ err }, 'Loop Janitor Error');
+    });
+  }, 30 * 60 * 1000);
+
+  fastify.addHook('onClose', (instance, done) => {
+    clearInterval(cleanupInterval);
+    done();
+  });
+
   /**
    * Create looped video
    */

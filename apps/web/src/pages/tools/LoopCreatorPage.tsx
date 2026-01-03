@@ -1,10 +1,11 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { logger } from '@/lib/logger';
-import { Button, Card, CardBody, CardHeader, Slider, Divider, Progress, Chip } from '@heroui/react';
-import { Upload, RefreshCw, Repeat, Film, Download, ArrowLeft, Sparkles, Check } from 'lucide-react';
+import { Button, Card, CardBody, CardHeader, Slider, Divider, Progress, Chip, Select, SelectItem, Switch, Input } from '@heroui/react';
+import { Upload, RefreshCw, Repeat, Film, Download, ArrowLeft, Sparkles, Check, AlertTriangle, AlertCircle, Lock } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { PageTransition, HoverCard } from '@/components/ui/PageTransition';
 import { authFetch } from '@/services/api';
+
 
 type LoopMode = 'loop' | 'boomerang' | 'gif';
 
@@ -32,33 +33,81 @@ const loopModes = [
   },
 ];
 
+const formatDuration = (seconds: number) => {
+  if (seconds < 60) return `${seconds.toFixed(1)}s`;
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}m ${s}s`;
+};
+
 export function LoopCreatorPage() {
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [videoUrl, setVideoUrl] = useState<string>('');
   const [loopMode, setLoopMode] = useState<LoopMode>('loop');
   const [loopCount, setLoopCount] = useState(3);
+  const [aspectRatio, setAspectRatio] = useState<string>('');
   const [startMs, setStartMs] = useState(0);
   const [endMs, setEndMs] = useState(5000);
+  const [maxDuration, setMaxDuration] = useState(30000);
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStatus, setProcessingStatus] = useState('');
-  const [resultUrl, setResultUrl] = useState<string>('');
+  const [results, setResults] = useState<Record<string, string>>({});
+  const [useDurationMode, setUseDurationMode] = useState(false);
+  const [targetMinutes, setTargetMinutes] = useState(1);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
+  // Calculate loopCount based on targetMinutes and current video segment duration
+  useEffect(() => {
+    if (useDurationMode && videoRef.current) {
+      const segmentDurationSeconds = (endMs - startMs) / 1000;
+      if (segmentDurationSeconds > 0) {
+        const targetDurationSeconds = targetMinutes * 60;
+        let calculatedLoopCount = Math.ceil(targetDurationSeconds / segmentDurationSeconds);
+        if (loopMode === 'boomerang') {
+          // Boomerang cycle is 2x segment duration (forward + backward)
+          calculatedLoopCount = Math.ceil(targetDurationSeconds / (segmentDurationSeconds * 2));
+        }
+        setLoopCount(Math.max(1, calculatedLoopCount));
+      } else {
+        setLoopCount(1);
+      }
+    }
+  }, [useDurationMode, targetMinutes, startMs, endMs, loopMode]);
+
+  // Reset states when switching modes to prevent invalid values per mode limits
+  useEffect(() => {
+    setLoopCount(loopMode === 'boomerang' ? 1 : 3);
+    if (loopMode === 'boomerang') setUseDurationMode(false);
+  }, [loopMode]);
+
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      // Gate: Max Size 200MB
+      if (file.size > 200 * 1024 * 1024) {
+        alert('File terlalu besar! Maksimal 200MB.');
+        return;
+      }
       setVideoFile(file);
       setVideoUrl(URL.createObjectURL(file));
-      setResultUrl('');
+      setResults({});
     }
   };
 
   const handleVideoLoaded = () => {
     if (videoRef.current) {
-      const duration = videoRef.current.duration * 1000;
-      setEndMs(Math.min(duration, 10000));
+       const duration = videoRef.current.duration * 1000;
+       // Gate: Max Duration 5 Minutes
+       if (duration > 5 * 60 * 1000) {
+          alert('Durasi video terlalu panjang! Maksimal 5 menit.');
+          setVideoFile(null);
+          setVideoUrl('');
+          return;
+       }
+       setMaxDuration(duration);
+       setEndMs(Math.min(duration, 10000));
     }
   };
 
@@ -79,7 +128,7 @@ export function LoopCreatorPage() {
       
       if (!uploadRes.ok) throw new Error('Upload failed');
       const uploadData = await uploadRes.json();
-      const inputPath = uploadData.data.path;
+      const inputPath = uploadData.data.filepath; // fix: use filepath from backend
       
       setProcessingStatus(`Membuat ${loopMode === 'gif' ? 'GIF' : loopMode === 'boomerang' ? 'boomerang' : 'loop'}...`);
       
@@ -89,14 +138,23 @@ export function LoopCreatorPage() {
           ? '/api/v1/loop/boomerang'
           : '/api/v1/loop/create';
           
-      const body: Record<string, unknown> = {
-        inputPath,
-        startMs,
-        endMs,
-      };
+      const body: any = { inputPath, startMs, endMs };
+
+      if (aspectRatio) {
+        body.aspectRatio = aspectRatio;
+      }
       
+      // Auto enable seamless for standard loops
       if (loopMode === 'loop') {
-        body.loopCount = loopCount;
+         body.crossfade = true;
+         // UI is "Total Plays", Backend expects "Repeats" (Total - 1)
+         body.loopCount = Math.max(1, loopCount - 1);
+      }
+      // NEW: Enable loopCount for Boomerang (Ping-Pong Loop)
+      if (loopMode === 'boomerang') {
+         // UI is "Total Plays of (Forward+Backward) Cycle"
+         // Backend Loop filter repeats = loopCount - 1
+         body.loopCount = Math.max(1, loopCount - 1);
       }
       if (loopMode === 'gif') {
         body.fps = 15;
@@ -112,8 +170,23 @@ export function LoopCreatorPage() {
       if (!processRes.ok) throw new Error('Processing failed');
       const processData = await processRes.json();
       
-      const filename = processData.data.outputPath.split('/').pop();
-      setResultUrl(`/api/v1/loop/download/${filename}`);
+      // Handle Windows/Unix paths for filename
+      const outputPath = processData.data.outputPath || processData.data; // Handle potential response variations
+      const filename = typeof outputPath === 'string' ? outputPath.split(/[/\\]/).pop() : '';
+      
+      if (!filename) throw new Error('Invalid output path');
+
+      setProcessingStatus('Mendownload hasil...');
+      const downloadRes = await authFetch(`/api/v1/loop/download/${filename}`);
+      if (!downloadRes.ok) throw new Error('Gagal mengambil file hasil');
+
+      const blob = await downloadRes.blob();
+      const downloadUrl = URL.createObjectURL(blob);
+
+      setResults(prev => ({
+        ...prev,
+        [loopMode]: downloadUrl
+      }));
       setProcessingStatus('Selesai!');
       
     } catch (err) {
@@ -124,6 +197,21 @@ export function LoopCreatorPage() {
     }
   };
 
+  // Cleanup blob URLs on unmount
+  useEffect(() => {
+    return () => {
+      Object.values(results).forEach(url => {
+        if (url && url.startsWith('blob:')) {
+          URL.revokeObjectURL(url);
+        }
+      });
+    };
+  }, [results]); // Add results dependency to clean up old blobs if results change? 
+                // Or just empty dependency for unmount? map keeps refs.
+                // Best to cleanup only on unmount for simple implementation.
+                // But if map changes, we might want to clean up old ones?
+                // For simplicity, cleaning up on unmount is sufficient for now.
+  
   const currentModeConfig = loopModes.find(m => m.id === loopMode)!;
 
   return (
@@ -169,7 +257,7 @@ export function LoopCreatorPage() {
                       <Upload size={32} className="text-primary" />
                     </div>
                     <p className="text-foreground/60 font-medium">Klik untuk upload video</p>
-                    <p className="text-foreground/40 text-sm mt-1">MP4, MOV, WebM</p>
+                    <p className="text-foreground/40 text-sm mt-1">MP4, MOV, WebM • Max 200MB, 5 Min</p>
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -241,7 +329,39 @@ export function LoopCreatorPage() {
                   </div>
                 </div>
 
-                <Divider />
+                <div className="relative">
+                  {!videoFile && (
+                    <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-background/60 backdrop-blur-sm rounded-lg">
+                      <div className="bg-default-100 p-3 rounded-full mb-2">
+                        <Lock size={20} className="text-foreground/50" />
+                      </div>
+                      <p className="text-xs font-medium text-foreground/50">Upload video untuk mengatur</p>
+                    </div>
+                  )}
+                  <div className={!videoFile ? "opacity-30 pointer-events-none blur-[1px] transition-all space-y-6" : "transition-all space-y-6"}>
+                    <Divider />
+
+                    <div className="mt-4">
+                  <Select 
+                    label="Format Output (Canvas)" 
+                    placeholder="Pilih Rasio" 
+                    selectedKeys={aspectRatio ? [aspectRatio] : []}
+                    onChange={(e) => setAspectRatio(e.target.value)}
+                    className="max-w-full"
+                    size="sm"
+                  >
+                    <SelectItem key="">Original (Tanpa Crop)</SelectItem>
+                    <SelectItem key="16:9">16:9 (YouTube, FB Video)</SelectItem>
+                    <SelectItem key="9:16">9:16 (TikTok/Reels/Shorts)</SelectItem>
+                    <SelectItem key="1:1">1:1 (IG/FB Feed)</SelectItem>
+                    <SelectItem key="4:5">4:5 (IG/FB Portrait)</SelectItem>
+                  </Select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    *Otomatis menambahkan background blur jika rasio tidak sesuai
+                  </p>
+                </div>
+
+                <Divider className="my-4" />
 
                 {/* Trim Controls */}
                 <div>
@@ -256,6 +376,7 @@ export function LoopCreatorPage() {
                       maxValue={endMs - 500}
                       value={startMs}
                       onChange={(v) => setStartMs(v as number)}
+                      getValue={(v) => `${(v as number / 1000).toFixed(1)}s`}
                       className="flex-1"
                       color="primary"
                     />
@@ -263,36 +384,130 @@ export function LoopCreatorPage() {
                       label="Akhir"
                       step={100}
                       minValue={startMs + 500}
-                      maxValue={30000}
+                      maxValue={maxDuration}
                       value={endMs}
                       onChange={(v) => setEndMs(v as number)}
+                      getValue={(v) => `${(v as number / 1000).toFixed(1)}s`}
                       className="flex-1"
                       color="primary"
                     />
                   </div>
                 </div>
+                
+                {/* GIF Duration Warning */}
+                {loopMode === 'gif' && (endMs - startMs) > 10000 && (
+                   <div className="mt-3 p-2 bg-warning/10 border border-warning/20 rounded-md flex items-center gap-2">
+                     <AlertCircle size={14} className="text-warning" />
+                     <p className="text-xs text-warning-700">
+                       Durasi GIF {((endMs-startMs)/1000).toFixed(1)}s cukup panjang. Ukuran file mungkin sangat besar.
+                     </p>
+                   </div>
+                )}
 
-                {/* Loop Count */}
-                {loopMode === 'loop' && (
+                {/* Loop Count / Duration Control */}
+                {(loopMode === 'loop' || loopMode === 'boomerang') && (
                   <>
                     <Divider />
-                    <div>
-                      <label className="text-sm font-medium mb-2 block">
-                        Jumlah Loop: {loopCount}x
-                      </label>
-                      <Slider
-                        aria-label="Jumlah Loop"
-                        step={1}
-                        minValue={2}
-                        maxValue={10}
-                        value={loopCount}
-                        onChange={(v) => setLoopCount(v as number)}
-                        color="primary"
-                      />
+                    <div className="space-y-4">
+                      {loopMode === 'loop' && (
+                      <div className="flex justify-between items-center">
+                        <label className="text-sm font-medium">Target Output</label>
+                        <Switch 
+                          size="sm" 
+                          isSelected={useDurationMode} 
+                          onValueChange={setUseDurationMode}
+                        >
+                          <span className="text-xs">{useDurationMode ? 'Durasi' : 'Jumlah Putar'}</span>
+                        </Switch>
+                      </div>
+                      )}
+
+                       {(loopMode === 'loop' && useDurationMode) ? (() => {
+                         // [EXISTING DURATION MODE LOGIC FOR LOOP]
+                         const durationMs = endMs - startMs;
+                         let unitMs = durationMs;
+                           const overlap = Math.min(2000, durationMs * 0.3);
+                           unitMs = durationMs - overlap;
+                         
+                         const maxPossibleMinutes = Math.floor((5000 * unitMs) / 60000);
+                         const uiMaxMinutes = Math.min(500, maxPossibleMinutes);
+
+                         return (
+                        <div className="space-y-2">
+                           <Input
+                             type="number"
+                             label="Durasi Target (Menit)"
+                             placeholder={`Maks: ${uiMaxMinutes} menit`}
+                             value={targetMinutes.toString()}
+                             onValueChange={(v) => {
+                               setTargetMinutes(Number(v));
+                               const targetMs = Number(v) * 60 * 1000;
+                               const calcLoops = Math.ceil(targetMs / unitMs);
+                               setLoopCount(calcLoops);
+                             }}
+                             min={1}
+                             max={uiMaxMinutes}
+                             classNames={{
+                               input: "[&::-webkit-inner-spin-button]:appearance-none"
+                             }}
+                             description={`Maksimal input: ${uiMaxMinutes} menit (berdasarkan batas 5000x putaran).`}
+                             isInvalid={loopCount > 5000}
+                             errorMessage={loopCount > 5000 ? `Durasi ini membutuhkan ${loopCount}x putaran (Melebihi batas 5000x). Harap kurangi durasi.` : ''}
+                           />
+                           <p className={`text-xs ${loopCount > 5000 ? 'text-danger' : 'text-muted-foreground'}`}>
+                             Sistem akan mengulang sebanyak <b>{loopCount}x</b> {loopCount > 5000 && '(Terlalu Banyak!)'} untuk mencapai durasi ini.
+                           </p>
+                        </div>
+                         );
+                       })() : (
+                        <div>
+                          {loopMode === 'boomerang' && (
+                             <div className="mb-2 p-2 bg-primary/10 rounded-md text-xs text-primary">
+                                <b>Mode Boomerang:</b> Total Putar disesuaikan agar durasi maksimal 1 Menit.
+                             </div>
+                          )}
+                          <div className="flex justify-between items-center mb-2">
+                            <label className="text-sm font-medium">
+                              Total Putar: {loopCount}x
+                            </label>
+                            <span className="text-xs text-muted-foreground">
+                              Estimasi: {formatDuration((
+                                loopMode === 'loop' 
+                                  ? ((endMs - startMs - Math.min(2000, (endMs - startMs)*0.3)) * loopCount)
+                                  : ((endMs - startMs) * 2 * loopCount)
+                              ) / 1000)}
+                            </span>
+                          </div>
+                          <Slider 
+                            aria-label="Loop Count"
+                            step={1}
+                            minValue={1}
+                            maxValue={(() => {
+                                if (loopMode === 'boomerang') {
+                                    // Calculate Max Loops to hit 60s
+                                    const unitMs = (endMs - startMs) * 2;
+                                    const maxLoops = Math.max(1, Math.floor(60000 / unitMs));
+                                    return maxLoops;
+                                }
+                                return 50; // Standard Loop Max
+                            })()} 
+                            value={loopCount}
+                            onChange={(v) => setLoopCount(v as number)}
+                            className="flex-1"
+                          />
+                          {loopMode === 'boomerang' && (
+                             <p className="text-xs text-muted-foreground mt-1">
+                               Max {Math.max(1, Math.floor(60000 / ((endMs-startMs)*2)))}x putaran (karena batas durasi 1 menit).
+                             </p>
+                          )}
+                        </div>
+                       )}
                     </div>
                   </>
                 )}
 
+                  </div>
+                </div>
                 <Divider />
 
                 {/* Processing Status */}
@@ -308,7 +523,7 @@ export function LoopCreatorPage() {
                   <Button
                     color={currentModeConfig.color as 'primary' | 'secondary' | 'warning'}
                     className="flex-1"
-                    isDisabled={!videoFile || isProcessing}
+                    isDisabled={!videoFile || isProcessing || loopCount > 5000}
                     isLoading={isProcessing}
                     onPress={handleProcess}
                     startContent={!isProcessing && <currentModeConfig.icon size={18} />}
@@ -317,10 +532,10 @@ export function LoopCreatorPage() {
                     {loopMode === 'gif' ? 'Buat GIF' : loopMode === 'boomerang' ? 'Buat Boomerang' : 'Buat Loop'}
                   </Button>
                   
-                  {resultUrl && (
+                  {results[loopMode] && (
                     <Button
                       as="a"
-                      href={resultUrl}
+                      href={results[loopMode]}
                       download
                       color="success"
                       size="lg"
@@ -336,31 +551,41 @@ export function LoopCreatorPage() {
         </div>
 
         {/* Result Preview */}
-        {resultUrl && (
+        {results[loopMode] && (
           <div className="mt-6">
             <Card className="border-2 border-success/30 bg-success/5">
               <CardHeader className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-lg bg-success/20 flex items-center justify-center">
                   <Check size={16} className="text-success" />
                 </div>
-                <h2 className="text-lg font-semibold">Hasil</h2>
+                <h2 className="text-lg font-semibold">Hasil ({loopMode === 'loop' ? 'Seamless' : loopMode === 'boomerang' ? 'Boomerang' : 'GIF'})</h2>
                 <Chip color="success" size="sm" variant="flat">Selesai</Chip>
               </CardHeader>
               <CardBody>
+                <div className="mb-4 p-3 bg-warning/10 border border-warning/20 rounded-lg flex items-start gap-3">
+                  <AlertTriangle className="text-warning shrink-0 mt-0.5" size={18} />
+                  <div>
+                    <h3 className="text-sm font-semibold text-warning-700 dark:text-warning-500">Video Tidak Disimpan Permanen</h3>
+                    <p className="text-xs text-muted-foreground mt-1 text-warning-800/80 dark:text-warning-300/80">
+                       Hasil video ini hanya tersimpan di server selama <b>60 menit</b>. 
+                       Harap segera unduh video Anda sebelum dihapus otomatis oleh sistem.
+                    </p>
+                  </div>
+                </div>
                 {loopMode === 'gif' ? (
                   <img 
-                    src={resultUrl} 
+                    src={results[loopMode]} 
                     alt="Result GIF" 
-                    className="max-w-md mx-auto rounded-xl"
+                    className="w-full max-w-2xl mx-auto rounded-xl"
                   />
                 ) : (
                   <video
-                    src={resultUrl}
+                    src={results[loopMode]}
                     controls
                     loop
                     autoPlay
                     muted
-                    className="max-w-md mx-auto rounded-xl"
+                    className="w-full max-w-2xl mx-auto rounded-xl"
                   />
                 )}
               </CardBody>

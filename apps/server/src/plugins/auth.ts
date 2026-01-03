@@ -25,11 +25,18 @@ export async function authPlugin(fastify: FastifyInstance): Promise<void> {
       authStart: authHeader?.substring(0, 20),
     }, '[AUTH_PLUGIN] Request received');
     
-    if (!authHeader?.startsWith('Bearer ')) {
-      return;
-    }
+    let token: string | undefined;
 
-    const token = authHeader.slice(7);
+    if (authHeader?.startsWith('Bearer ')) {
+      token = authHeader.slice(7);
+    } else {
+      // Allow token in query param for file downloads/media
+      const query = request.query as { token?: string };
+      if (query?.token) {
+        token = query.token;
+      }
+    }
+    
     
     if (!token) {
       return;

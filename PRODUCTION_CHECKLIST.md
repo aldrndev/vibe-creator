@@ -11,6 +11,13 @@ Checklist item yang perlu dilakukan sebelum deploy ke production.
 - [ ] Implement signed URLs untuk download (mengganti direct file serving)
 - [ ] Set lifecycle policy untuk temp files (auto-delete setelah 24 jam)
 
+### FFmpeg Processing
+- [x] Replace `fluent-ffmpeg` (deprecated) dengan direct FFmpeg CLI
+- [x] Implement `ffmpeg-command-builder.ts` (deterministic args array)
+- [x] Implement `ffmpeg-progress.ts` (parse -progress pipe:1)
+- [x] Implement `ffmpeg-runner.ts` (spawn + cancel + cleanup)
+- [ ] Add process isolation & resource limits (cgroups/Docker)
+
 ### Infrastructure
 - [ ] PostgreSQL: Enable PITR + automated backups
 - [ ] Redis: Setup Sentinel/Cluster untuk HA

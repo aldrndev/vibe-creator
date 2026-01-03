@@ -11,7 +11,33 @@ const createExportSchema = z.object({
       localPath: z.string(),
       startTime: z.number(),
       endTime: z.number(),
+      transforms: z.object({
+        x: z.number(),
+        y: z.number(),
+        scale: z.number(),
+        rotation: z.number(),
+        opacity: z.number(),
+      }).optional(),
+      effects: z.object({
+        filters: z.array(z.string()),
+        speed: z.number(),
+        volume: z.number(),
+        fadeIn: z.number(),
+        fadeOut: z.number(),
+      }).optional(),
     })),
+    textOverlays: z.array(z.object({
+      id: z.string(),
+      content: z.string(),
+      startMs: z.number(),
+      endMs: z.number(),
+      x: z.number(),
+      y: z.number(),
+      fontSize: z.number(),
+      fontFamily: z.string(),
+      color: z.string(),
+      backgroundColor: z.string().optional(),
+    })).optional(),
     settings: z.object({
       width: z.number().default(1920),
       height: z.number().default(1080),
@@ -24,10 +50,29 @@ const createExportSchema = z.object({
 });
 
 export const exportRoutes: FastifyPluginAsync = async (fastify) => {
+  // Rate limit config for export creation - max 10 per hour per user
+  const exportRateLimit = {
+    config: {
+      rateLimit: {
+        max: 10,
+        timeWindow: '1 hour',
+        keyGenerator: (request: { user?: { id: string } | null; ip: string }) => 
+          request.user?.id ? `export:${request.user.id}` : `export:${request.ip}`,
+        errorResponseBuilder: () => ({
+          success: false,
+          error: {
+            code: 'RATE_LIMIT_EXCEEDED',
+            message: 'Too many export requests. Please try again later.',
+          },
+        }),
+      },
+    },
+  };
+
   /**
    * Create export job
    */
-  fastify.post('/request', async (request, reply) => {
+  fastify.post('/request', exportRateLimit, async (request, reply) => {
     const user = request.user;
     if (!user) {
       return reply.status(401).send({
@@ -180,6 +225,34 @@ export const exportRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.status(500).send({
         success: false,
         error: { code: 'DOWNLOAD_ERROR', message },
+      });
+    }
+  });
+
+  /**
+   * Cancel an export job
+   */
+  fastify.post<{ Params: { jobId: string } }>('/:jobId/cancel', async (request, reply) => {
+    const user = request.user;
+    if (!user) {
+      return reply.status(401).send({
+        success: false,
+        error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+      });
+    }
+
+    try {
+      const result = await exportService.cancelJob(request.params.jobId, user.id);
+      
+      return reply.send({
+        success: true,
+        data: result,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Cancel failed';
+      return reply.status(400).send({
+        success: false,
+        error: { code: 'CANCEL_ERROR', message },
       });
     }
   });

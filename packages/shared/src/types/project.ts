@@ -70,6 +70,7 @@ export interface TimelineClip {
   id: string;
   trackId: string;
   assetId: string | null;
+  linkId?: string; // Links clips together (e.g., video + audio from same source)
   startMs: number;
   endMs: number;
   trimStartMs: number;
@@ -106,6 +107,7 @@ export interface TextOverlay {
   backgroundColor?: string;
   x: number; // percentage 0-100
   y: number; // percentage 0-100
+  rotation: number; // degrees -360 to 360
   textAlign: 'left' | 'center' | 'right';
   startMs: number;
   endMs: number;

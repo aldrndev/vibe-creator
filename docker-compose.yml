@@ -42,6 +42,10 @@ services:
       REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-at-least-32-characters-long}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-your-super-secret-refresh-key-32-chars}
+      # FFmpeg config
+      MEDIA_INPUT_DIR: /app/uploads
+      MEDIA_TEMP_DIR: /app/uploads/temp
+      MEDIA_OUTPUT_DIR: /app/uploads/exports
     volumes:
       - server_uploads:/app/uploads
     depends_on:
@@ -56,6 +60,17 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+    # Resource limits for FFmpeg export safety
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'
+          memory: 4G
+        reservations:
+          cpus: '1.0'
+          memory: 512M
+    # Prevent fork bomb attacks
+    pids_limit: 100
 
   # Self-hosted Cobalt API for YouTube/TikTok/Instagram video downloads
   cobalt:

@@ -145,13 +145,30 @@ model Project {
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
-  user     User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   assets   ProjectAsset[]
   timeline Timeline?
   exports  ExportHistory[]
+  versions ProjectVersion[]
 
   @@index([userId])
   @@map("projects")
+}
+
+model ProjectVersion {
+  id           String   @id @default(cuid())
+  projectId    String
+  name         String   // e.g., "v1", "Final Cut", "Client Feedback"
+  description  String?
+  timelineData Json     // Snapshot of timeline state
+  textOverlays Json     @default("[]") // Snapshot of text overlays
+  metadata     Json     @default("{}") // Additional metadata
+  createdAt    DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@map("project_versions")
 }
 
 model ProjectAsset {
@@ -298,30 +315,37 @@ enum PromptType {
 // ============================================================================
 
 model ExportHistory {
-  id            String           @id @default(cuid())
-  userId        String
-  projectId     String
-  format        ExportFormat
-  resolution    ExportResolution
-  status        ExportStatus     @default(QUEUED)
-  progress      Int              @default(0)
-  attempts      Int              @default(0)
-  timelineData  Json?            // Timeline snapshot for processing
-  localPath     String?          // Local file path (dev)
-  r2Key         String?          // R2 key (prod)
-  fileSizeBytes BigInt?
-  errorMessage  String?
-  startedAt     DateTime?
-  expiresAt     DateTime?
-  createdAt     DateTime         @default(now())
-  completedAt   DateTime?
+  id             String           @id @default(cuid())
+  userId         String
+  projectId      String?          // Optional - allows exports without saved project
+  format         ExportFormat
+  resolution     ExportResolution
+  status         ExportStatus     @default(QUEUED)
+  phase          String           @default("QUEUED") // Current processing phase
+  phaseProgress  Int              @default(0) // 0-100 progress within phase
+  progress       Int              @default(0) // Overall 0-100 progress
+  attempts       Int              @default(0)
+  maxAttempts    Int              @default(3)
+  idempotencyKey String?          @unique // For retry safety
+  timelineData   Json?            // Timeline snapshot for processing
+  localPath      String?          // Local file path (dev)
+  r2Key          String?          // R2 key (prod)
+  downloadUrl    String?          // Signed download URL
+  urlExpiresAt   DateTime?        // URL expiration time
+  fileSizeBytes  BigInt?
+  errorMessage   String?
+  startedAt      DateTime?
+  expiresAt      DateTime?
+  createdAt      DateTime         @default(now())
+  completedAt    DateTime?
 
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([projectId])
   @@index([status])
+  @@index([idempotencyKey])
   @@map("export_history")
 }
 

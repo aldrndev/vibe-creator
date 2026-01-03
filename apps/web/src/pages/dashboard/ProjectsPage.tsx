@@ -6,6 +6,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { api } from '@/services/api';
 import toast from 'react-hot-toast';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useAuthStore } from '@/stores/auth-store';
 
 interface ExportItem {
   id: string;
@@ -38,6 +39,13 @@ export function ProjectsPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { data: exports = [], isLoading } = useExports();
+  const accessToken = useAuthStore((state) => state.accessToken);
+
+  const getAuthenticatedUrl = (url: string | null) => {
+    if (!url || !accessToken) return url;
+    const separator = url.includes('?') ? '&' : '?';
+    return `${url}${separator}token=${accessToken}`;
+  };
 
   const deleteExport = useMutation({
     mutationFn: async (id: string) => {
@@ -163,9 +171,18 @@ export function ProjectsPage() {
                 <HoverCard>
                   <Card className="h-full group border-2 border-transparent hover:border-primary/30 transition-colors">
                     <CardBody className="p-4">
-                      {/* Thumbnail placeholder */}
-                      <div className="aspect-video bg-content2 rounded-lg mb-4 flex items-center justify-center overflow-hidden">
-                        <ToolIcon size={40} className="text-foreground/20 group-hover:text-primary/40 transition-colors" />
+                      {/* Video thumbnail/preview */}
+                      <div className="aspect-video bg-content2 rounded-lg mb-4 flex items-center justify-center overflow-hidden relative">
+                        {item.status === 'COMPLETED' && item.downloadUrl ? (
+                          <video 
+                            src={getAuthenticatedUrl(item.downloadUrl) || undefined}
+                            className="w-full h-full object-cover"
+                            controls
+                            preload="metadata"
+                          />
+                        ) : (
+                          <ToolIcon size={40} className="text-foreground/20 group-hover:text-primary/40 transition-colors" />
+                        )}
                       </div>
                       
                       {/* Info */}
@@ -200,7 +217,7 @@ export function ProjectsPage() {
                             size="sm" 
                             variant="light"
                             color="primary"
-                            onPress={() => handleDownload(item.downloadUrl, `${item.project?.title ?? 'export'}.mp4`)}
+                            onPress={() => handleDownload(getAuthenticatedUrl(item.downloadUrl), `export-${item.id.slice(0, 8)}.mp4`)}
                           >
                             <DownloadIcon size={16} />
                           </Button>
@@ -218,7 +235,7 @@ export function ProjectsPage() {
                             <DropdownItem 
                               key="download" 
                               startContent={<DownloadIcon size={16} />}
-                              onPress={() => handleDownload(item.downloadUrl, `${item.project?.title ?? 'export'}.mp4`)}
+                              onPress={() => handleDownload(getAuthenticatedUrl(item.downloadUrl), `export-${item.id.slice(0, 8)}.mp4`)}
                             >
                               Download
                             </DropdownItem>

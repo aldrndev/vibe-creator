@@ -11,6 +11,8 @@ import { redis } from '@/lib/redis';
 
 import { errorHandlerPlugin } from '@/plugins/error-handler';
 
+import { authPlugin } from '@/plugins/auth';
+
 import { authRoutes } from '@/modules/auth/auth.routes';
 import { promptRoutes } from '@/modules/prompt/prompt.routes';
 import { exportRoutes } from '@/modules/export/export.routes';
@@ -59,38 +61,7 @@ async function main(): Promise<void> {
   // API routes
   await fastify.register(
     async (api) => {
-      // Add auth hook directly in API context
-      api.decorateRequest('user', null);
-      api.decorateRequest('session', null);
-      
-      api.addHook('onRequest', async (request) => {
-        const authHeader = request.headers.authorization;
-        
-        if (!authHeader?.startsWith('Bearer ')) {
-          return;
-        }
-
-        const token = authHeader.slice(7);
-        if (!token) return;
-
-        const session = await prisma.userSession.findUnique({
-          where: { token },
-          include: { user: true },
-        });
-
-        if (!session) return;
-
-        // Check if access token (not refresh token) is expired
-        // DON'T delete session - let refresh endpoint handle token renewal
-        if (session.expiresAt < new Date()) {
-          // Just don't set user - endpoint will return 401
-          // Client should try refresh token flow
-          return;
-        }
-
-        request.user = session.user;
-        request.session = session;
-      });
+      await authPlugin(api);
       
       // Public announcements endpoint (no auth required)
       api.get('/announcements', async (_request, reply) => {

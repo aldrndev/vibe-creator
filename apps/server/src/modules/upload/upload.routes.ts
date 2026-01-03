@@ -20,7 +20,7 @@ export const uploadRoutes: FastifyPluginAsync = async (fastify) => {
   // Register multipart
   await fastify.register(fastifyMultipart, {
     limits: {
-      fileSize: 1024 * 1024 * 500, // 500 MB limit
+      fileSize: 1024 * 1024 * 200, // 200 MB limit
     },
   });
 

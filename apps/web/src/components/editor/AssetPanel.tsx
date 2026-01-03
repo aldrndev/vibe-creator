@@ -1,8 +1,13 @@
 import { Button, ScrollShadow } from '@heroui/react';
-import { Film, Music, Image as ImageIcon, Trash2 } from 'lucide-react';
+import { Film, Music, Image as ImageIcon, Trash2, Plus } from 'lucide-react';
 import { useEditorStore } from '@/stores/editor-store';
+import { clsx } from 'clsx';
 
-export function AssetPanel() {
+interface AssetPanelProps {
+  className?: string;
+}
+
+export function AssetPanel({ className }: AssetPanelProps) {
   const { assets, removeAsset, timeline, addClip } = useEditorStore();
   
   const getIcon = (type: 'VIDEO' | 'AUDIO' | 'IMAGE') => {
@@ -47,7 +52,7 @@ export function AssetPanel() {
   };
   
   return (
-    <div className="w-64 border-r border-divider flex flex-col bg-background/50 flex-shrink-0">
+    <div className={clsx("w-64 border-r border-divider flex flex-col bg-background/50 flex-shrink-0", className)}>
       <div className="p-3 border-b border-divider">
         <h3 className="font-medium text-sm">Media</h3>
       </div>
@@ -61,46 +66,45 @@ export function AssetPanel() {
         ) : (
           <div className="space-y-2">
             {assets.map((asset) => (
-              <div
+              <div 
                 key={asset.id}
-                className="group relative p-2 rounded-lg bg-foreground/5 hover:bg-foreground/10 transition-colors cursor-pointer"
-                onClick={() => handleAddToTimeline(asset)}
+                className="group relative flex items-center gap-3 p-2 rounded-lg hover:bg-content2 transition-colors cursor-pointer border border-transparent hover:border-divider"
               >
-                <div className="flex items-start gap-2">
-                  {/* Thumbnail */}
-                  <div className="w-12 h-12 rounded bg-foreground/10 flex items-center justify-center flex-shrink-0">
-                    {asset.type === 'VIDEO' && asset.thumbnailUrl ? (
-                      <img 
-                        src={asset.thumbnailUrl} 
-                        alt="" 
-                        className="w-full h-full object-cover rounded"
-                      />
-                    ) : (
-                      getIcon(asset.type)
-                    )}
-                  </div>
-                  
-                  {/* Info */}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{asset.name}</p>
-                    <p className="text-xs text-foreground/50">
-                      {asset.type} • {formatDuration(asset.durationMs)}
-                    </p>
-                  </div>
-                  
-                  {/* Delete button */}
-                  <Button
-                    size="sm"
-                    variant="light"
-                    isIconOnly
-                    className="opacity-0 group-hover:opacity-100 transition-opacity"
-                    onPress={() => {
-                      removeAsset(asset.id);
-                    }}
-                  >
-                    <Trash2 size={14} />
-                  </Button>
+                <div className="w-10 h-10 rounded bg-content3 flex items-center justify-center text-foreground/50 flex-shrink-0 overflow-hidden">
+                  {asset.type === 'IMAGE' || (asset.type === 'VIDEO' &&  asset.url) ? (
+                    // In a real app we would have thumbnails. For now just icon
+                    getIcon(asset.type)
+                  ) : (
+                    getIcon(asset.type)
+                  )}
                 </div>
+                
+                <div className="flex-1 min-w-0" onClick={() => handleAddToTimeline(asset)}>
+                  <p className="text-sm font-medium truncate">{asset.name}</p>
+                  <p className="text-xs text-foreground/50">{formatDuration(asset.durationMs)}</p>
+                </div>
+                
+                <Button
+                  isIconOnly
+                  size="sm"
+                  variant="light"
+                  color="danger"
+                  className="opacity-0 group-hover:opacity-100"
+                  onPress={() => removeAsset(asset.id)}
+                >
+                  <Trash2 size={14} />
+                </Button>
+                
+                <Button
+                  isIconOnly
+                  size="sm"
+                  variant="flat"
+                  color="primary"
+                  className="absolute right-10 opacity-0 group-hover:opacity-100"
+                  onPress={() => handleAddToTimeline(asset)}
+                >
+                  <Plus size={14} />
+                </Button>
               </div>
             ))}
           </div>

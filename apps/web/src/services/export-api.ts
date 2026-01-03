@@ -18,6 +18,8 @@ interface ExportStatusResponse {
   progress: number;
   errorMessage?: string;
   localPath?: string;
+  downloadUrl?: string;
+  urlExpiresAt?: string;
   completedAt?: string;
 }
 
@@ -26,6 +28,32 @@ interface TimelineData {
     localPath: string;
     startTime: number;
     endTime: number;
+    transforms?: {
+      x: number;
+      y: number;
+      scale: number;
+      rotation: number;
+      opacity: number;
+    };
+    effects?: {
+      filters: string[];
+      speed: number;
+      volume: number;
+      fadeIn: number;
+      fadeOut: number;
+    };
+  }>;
+  textOverlays?: Array<{
+    id: string;
+    content: string;
+    startMs: number;
+    endMs: number;
+    x: number;
+    y: number;
+    fontSize: number;
+    fontFamily: string;
+    color: string;
+    backgroundColor?: string;
   }>;
   settings: {
     width: number;
@@ -107,6 +135,21 @@ export const exportApi = {
    */
   getDownloadUrl(jobId: string): string {
     return `/api/v1/export/${jobId}/download`;
+  },
+
+  /**
+   * Cancel an export job
+   */
+  async cancelExportJob(jobId: string): Promise<{ success: boolean; message: string }> {
+    const response = await authFetch(`${API_BASE}/export/${jobId}/cancel`, {
+      method: 'POST',
+    });
+
+    const data = await response.json();
+    if (!data.success) {
+      throw new Error(data.error?.message || 'Cancel failed');
+    }
+    return data.data;
   },
 
   /**

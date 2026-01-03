@@ -297,98 +297,103 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
 
   // Refresh Token - reads from HttpOnly cookie with rate limit
   fastify.post('/refresh', refreshRateLimit, async (request, reply) => {
-    // Get refresh token from cookie
-    const refreshToken = request.cookies[REFRESH_TOKEN_COOKIE];
+    try {
+      // Get refresh token from cookie
+      const refreshToken = request.cookies[REFRESH_TOKEN_COOKIE];
 
-    if (!refreshToken) {
-      return sendError(
-        reply,
-        ERROR_CODES.TOKEN_EXPIRED,
-        'Refresh token tidak ditemukan',
-        400
-      );
-    }
-
-    // Security: Hash the incoming token to match stored hash
-    const hashedRefreshToken = hashToken(refreshToken);
-
-    const session = await prisma.userSession.findFirst({
-      where: {
-        refreshToken: hashedRefreshToken,
-        refreshExpiresAt: { gt: new Date() },
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-            name: true,
-            avatarUrl: true,
-            role: true,
-          },
-        },
-      },
-    });
-
-    if (!session) {
-      // Security: Potential token reuse attack detected
-      // Check if this token was previously valid (indicates stolen token)
-      const expiredSession = await prisma.userSession.findFirst({
-        where: { refreshToken: hashedRefreshToken },
-        select: { userId: true },
-      });
-
-      if (expiredSession) {
-        // Token was valid before but already rotated - possible theft!
-        // Revoke ALL sessions for this user as a security measure
-        logger.warn(
-          { userId: expiredSession.userId, ip: request.ip },
-          'Refresh token reuse detected - revoking all sessions'
+      if (!refreshToken) {
+        return sendError(
+          reply,
+          ERROR_CODES.TOKEN_EXPIRED,
+          'Refresh token tidak ditemukan',
+          400
         );
-        await prisma.userSession.deleteMany({
-          where: { userId: expiredSession.userId },
-        });
       }
 
-      // Clear invalid cookie
-      clearRefreshTokenCookie(reply);
-      return sendError(
-        reply,
-        ERROR_CODES.TOKEN_EXPIRED,
-        'Refresh token tidak valid atau sudah expired',
-        401
-      );
-    }
+      // Security: Hash the incoming token to match stored hash
+      const hashedRefreshToken = hashToken(refreshToken);
 
-    // Generate new tokens (ROTATION: new refresh token for security)
-    const newAccessToken = generateToken();
-    const newRefreshToken = generateToken(64);
-    const hashedNewRefreshToken = hashToken(newRefreshToken);
-    
-    const newAccessExpiresAt = new Date();
-    newAccessExpiresAt.setMinutes(newAccessExpiresAt.getMinutes() + ACCESS_TOKEN_DURATION_MINUTES);
-    
-    const newRefreshExpiresAt = new Date();
-    newRefreshExpiresAt.setDate(newRefreshExpiresAt.getDate() + REFRESH_TOKEN_DURATION_DAYS);
+      const session = await prisma.userSession.findFirst({
+        where: {
+          refreshToken: hashedRefreshToken,
+          refreshExpiresAt: { gt: new Date() },
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              email: true,
+              name: true,
+              avatarUrl: true,
+              role: true,
+            },
+          },
+        },
+      });
 
-    await prisma.userSession.update({
-      where: { id: session.id },
-      data: {
-        token: newAccessToken,
-        refreshToken: hashedNewRefreshToken, // Store new hashed token
+      if (!session) {
+        // Security: Potential token reuse attack detected
+        // Check if this token was previously valid (indicates stolen token)
+        const expiredSession = await prisma.userSession.findFirst({
+          where: { refreshToken: hashedRefreshToken },
+          select: { userId: true },
+        });
+
+        if (expiredSession) {
+          // Token was valid before but already rotated - possible theft!
+          // Revoke ALL sessions for this user as a security measure
+          logger.warn(
+            { userId: expiredSession.userId, ip: request.ip },
+            'Refresh token reuse detected - revoking all sessions'
+          );
+          await prisma.userSession.deleteMany({
+            where: { userId: expiredSession.userId },
+          });
+        }
+
+        // Clear invalid cookie
+        clearRefreshTokenCookie(reply);
+        return sendError(
+          reply,
+          ERROR_CODES.TOKEN_EXPIRED,
+          'Refresh token tidak valid atau sudah expired',
+          401
+        );
+      }
+
+      // Generate new tokens (ROTATION: new refresh token for security)
+      const newAccessToken = generateToken();
+      const newRefreshToken = generateToken(64);
+      const hashedNewRefreshToken = hashToken(newRefreshToken);
+      
+      const newAccessExpiresAt = new Date();
+      newAccessExpiresAt.setMinutes(newAccessExpiresAt.getMinutes() + ACCESS_TOKEN_DURATION_MINUTES);
+      
+      const newRefreshExpiresAt = new Date();
+      newRefreshExpiresAt.setDate(newRefreshExpiresAt.getDate() + REFRESH_TOKEN_DURATION_DAYS);
+
+      await prisma.userSession.update({
+        where: { id: session.id },
+        data: {
+          token: newAccessToken,
+          refreshToken: hashedNewRefreshToken, // Store new hashed token
+          expiresAt: newAccessExpiresAt,
+          refreshExpiresAt: newRefreshExpiresAt,
+        },
+      });
+
+      // Set new refresh token cookie (rotation)
+      setRefreshTokenCookie(reply, newRefreshToken, newRefreshExpiresAt);
+
+      return sendSuccess(reply, {
+        user: session.user,
+        accessToken: newAccessToken,
         expiresAt: newAccessExpiresAt,
-        refreshExpiresAt: newRefreshExpiresAt,
-      },
-    });
-
-    // Set new refresh token cookie (rotation)
-    setRefreshTokenCookie(reply, newRefreshToken, newRefreshExpiresAt);
-
-    return sendSuccess(reply, {
-      user: session.user,
-      accessToken: newAccessToken,
-      expiresAt: newAccessExpiresAt,
-    });
+      });
+    } catch (error: any) {
+      logger.error({ err: error }, 'Refresh token error');
+      return sendError(reply, ERROR_CODES.INTERNAL_ERROR, `Refresh failed: ${error.message}`, 500);
+    }
   });
 
   // Logout - doesn't require valid auth, always clears cookie

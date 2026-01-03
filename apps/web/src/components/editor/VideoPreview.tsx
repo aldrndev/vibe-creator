@@ -3,18 +3,33 @@ import { useEditorStore } from '@/stores/editor-store';
 import { FILTER_PRESETS } from './InspectorPanel';
 import { clsx } from 'clsx';
 
-// Text overlay layer component with drag functionality
+// Resize handle positions
+type HandlePosition = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w' | 'rotate';
+
+interface DragState {
+  id: string;
+  type: 'move' | 'resize' | 'rotate';
+  handle?: HandlePosition;
+  startX: number;
+  startY: number;
+  startPosX: number;
+  startPosY: number;
+  startFontSize: number;
+  startRotation: number;
+}
+
+// Text overlay layer component with drag, resize, and rotation
 function TextOverlayLayer() {
   const containerRef = useRef<HTMLDivElement>(null);
   const { textOverlays, currentTimeMs, selectedTextOverlayId, selectTextOverlay, updateTextOverlay } = useEditorStore();
-  const [dragState, setDragState] = useState<{ id: string; startX: number; startY: number; startPosX: number; startPosY: number } | null>(null);
+  const [dragState, setDragState] = useState<DragState | null>(null);
   
   // Filter overlays visible at current time
   const visibleOverlays = textOverlays.filter(
     overlay => currentTimeMs >= overlay.startMs && currentTimeMs < overlay.endMs
   );
   
-  // Handle drag move
+  // Handle drag/resize/rotate move
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!dragState || !containerRef.current) return;
     
@@ -22,19 +37,43 @@ function TextOverlayLayer() {
     const deltaX = ((e.clientX - dragState.startX) / rect.width) * 100;
     const deltaY = ((e.clientY - dragState.startY) / rect.height) * 100;
     
-    // Calculate new position (constrained to 5-95%)
-    const newX = Math.max(5, Math.min(95, dragState.startPosX + deltaX));
-    const newY = Math.max(5, Math.min(95, dragState.startPosY + deltaY));
-    
-    updateTextOverlay(dragState.id, { x: newX, y: newY });
-  }, [dragState, updateTextOverlay]);
+    if (dragState.type === 'move') {
+      // Movement - constrain to 5-95%
+      const newX = Math.max(5, Math.min(95, dragState.startPosX + deltaX));
+      const newY = Math.max(5, Math.min(95, dragState.startPosY + deltaY));
+      updateTextOverlay(dragState.id, { x: newX, y: newY });
+      
+    } else if (dragState.type === 'resize') {
+      // Resize by changing font size
+      const deltaSize = (deltaX + deltaY) / 2; // Average of both directions
+      const scaleFactor = dragState.handle?.includes('w') || dragState.handle?.includes('n') ? -1 : 1;
+      const newFontSize = Math.max(12, Math.min(200, dragState.startFontSize + deltaSize * scaleFactor));
+      updateTextOverlay(dragState.id, { fontSize: Math.round(newFontSize) });
+      
+    } else if (dragState.type === 'rotate') {
+      // Rotation - calculate angle from center
+      const overlay = textOverlays.find(o => o.id === dragState.id);
+      if (!overlay) return;
+      
+      const centerX = rect.left + (overlay.x / 100) * rect.width;
+      const centerY = rect.top + (overlay.y / 100) * rect.height;
+      
+      const angle = Math.atan2(e.clientY - centerY, e.clientX - centerX) * (180 / Math.PI);
+      const snappedAngle = Math.round(angle / 5) * 5; // Snap to 5 degree increments
+      
+      // Get current rotation from store
+      if (overlay.rotation !== snappedAngle) {
+        updateTextOverlay(dragState.id, { rotation: snappedAngle });
+      }
+    }
+  }, [dragState, updateTextOverlay, textOverlays]);
   
   // Handle drag end
   const handleMouseUp = useCallback(() => {
     setDragState(null);
   }, []);
   
-  // Attach/detach global mouse listeners for drag
+  // Attach/detach global mouse listeners
   useEffect(() => {
     if (dragState) {
       window.addEventListener('mousemove', handleMouseMove);
@@ -46,17 +85,88 @@ function TextOverlayLayer() {
     }
   }, [dragState, handleMouseMove, handleMouseUp]);
   
-  // Start drag
-  const handleMouseDown = (e: React.MouseEvent, overlayId: string, currentX: number, currentY: number) => {
+  // Start move
+  const handleMoveStart = (e: React.MouseEvent, overlay: typeof textOverlays[0]) => {
     e.stopPropagation();
-    selectTextOverlay(overlayId);
+    selectTextOverlay(overlay.id);
     setDragState({
-      id: overlayId,
+      id: overlay.id,
+      type: 'move',
       startX: e.clientX,
       startY: e.clientY,
-      startPosX: currentX,
-      startPosY: currentY,
+      startPosX: overlay.x,
+      startPosY: overlay.y,
+      startFontSize: overlay.fontSize,
+      startRotation: overlay.rotation || 0,
     });
+  };
+  
+  // Start resize
+  const handleResizeStart = (e: React.MouseEvent, overlay: typeof textOverlays[0], handle: HandlePosition) => {
+    e.stopPropagation();
+    selectTextOverlay(overlay.id);
+    setDragState({
+      id: overlay.id,
+      type: 'resize',
+      handle,
+      startX: e.clientX,
+      startY: e.clientY,
+      startPosX: overlay.x,
+      startPosY: overlay.y,
+      startFontSize: overlay.fontSize,
+      startRotation: overlay.rotation || 0,
+    });
+  };
+  
+  // Start rotate
+  const handleRotateStart = (e: React.MouseEvent, overlay: typeof textOverlays[0]) => {
+    e.stopPropagation();
+    selectTextOverlay(overlay.id);
+    setDragState({
+      id: overlay.id,
+      type: 'rotate',
+      startX: e.clientX,
+      startY: e.clientY,
+      startPosX: overlay.x,
+      startPosY: overlay.y,
+      startFontSize: overlay.fontSize,
+      startRotation: overlay.rotation || 0,
+    });
+  };
+  
+  // Render resize handles
+  const renderHandles = (_overlayId: string, overlay: typeof textOverlays[0]) => {
+    const handleClass = "absolute w-3 h-3 bg-primary border-2 border-white rounded-full shadow-md cursor-pointer z-10";
+    const handles: { pos: HandlePosition; style: React.CSSProperties; cursor: string }[] = [
+      { pos: 'nw', style: { top: -6, left: -6 }, cursor: 'nwse-resize' },
+      { pos: 'n', style: { top: -6, left: '50%', transform: 'translateX(-50%)' }, cursor: 'ns-resize' },
+      { pos: 'ne', style: { top: -6, right: -6 }, cursor: 'nesw-resize' },
+      { pos: 'e', style: { top: '50%', right: -6, transform: 'translateY(-50%)' }, cursor: 'ew-resize' },
+      { pos: 'se', style: { bottom: -6, right: -6 }, cursor: 'nwse-resize' },
+      { pos: 's', style: { bottom: -6, left: '50%', transform: 'translateX(-50%)' }, cursor: 'ns-resize' },
+      { pos: 'sw', style: { bottom: -6, left: -6 }, cursor: 'nesw-resize' },
+      { pos: 'w', style: { top: '50%', left: -6, transform: 'translateY(-50%)' }, cursor: 'ew-resize' },
+    ];
+    
+    return (
+      <>
+        {handles.map(({ pos, style, cursor }) => (
+          <div
+            key={pos}
+            className={handleClass}
+            style={{ ...style, cursor }}
+            onMouseDown={(e) => handleResizeStart(e, overlay, pos)}
+          />
+        ))}
+        {/* Rotation handle */}
+        <div
+          className="absolute -top-8 left-1/2 -translate-x-1/2 w-4 h-4 bg-secondary border-2 border-white rounded-full shadow-md cursor-grab z-10"
+          onMouseDown={(e) => handleRotateStart(e, overlay)}
+        >
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 w-0.5 h-4 bg-secondary/50" />
+        </div>
+      </>
+    );
   };
   
   if (visibleOverlays.length === 0) return null;
@@ -66,8 +176,9 @@ function TextOverlayLayer() {
       {visibleOverlays.map(overlay => {
         const isSelected = overlay.id === selectedTextOverlayId;
         const isDragging = dragState?.id === overlay.id;
+        const rotation = overlay.rotation || 0;
         
-        // Calculate animation progress for fade effect
+        // Animation progress
         const durationMs = overlay.endMs - overlay.startMs;
         const progress = (currentTimeMs - overlay.startMs) / durationMs;
         
@@ -80,16 +191,18 @@ function TextOverlayLayer() {
             break;
           case 'slide-up':
             animationStyle = {
-              transform: `translate(-50%, ${progress < 0.1 ? (1 - progress * 10) * 20 : 0}px)`,
+              transform: `translate(-50%, ${progress < 0.1 ? (1 - progress * 10) * 20 : 0}px) rotate(${rotation}deg)`,
               opacity: progress < 0.1 ? progress * 10 : 1,
             };
             break;
           case 'slide-down':
             animationStyle = {
-              transform: `translate(-50%, ${progress < 0.1 ? -(1 - progress * 10) * 20 : 0}px)`,
+              transform: `translate(-50%, ${progress < 0.1 ? -(1 - progress * 10) * 20 : 0}px) rotate(${rotation}deg)`,
               opacity: progress < 0.1 ? progress * 10 : 1,
             };
             break;
+          default:
+            animationStyle = { transform: `translate(-50%, -50%) rotate(${rotation}deg)` };
         }
         
         return (
@@ -97,29 +210,31 @@ function TextOverlayLayer() {
             key={overlay.id}
             className={clsx(
               'absolute pointer-events-auto cursor-grab transition-all select-none',
-              isSelected && 'ring-2 ring-primary ring-offset-2',
-              isDragging && 'cursor-grabbing'
+              isSelected && 'ring-2 ring-primary ring-offset-2 ring-offset-transparent',
+              isDragging && dragState?.type === 'move' && 'cursor-grabbing'
             )}
             style={{
               left: `${overlay.x}%`,
               top: `${overlay.y}%`,
-              transform: animationStyle.transform || 'translate(-50%, -50%)',
+              transform: animationStyle.transform || `translate(-50%, -50%) rotate(${rotation}deg)`,
               fontFamily: overlay.fontFamily,
               fontSize: `${overlay.fontSize}px`,
               fontWeight: overlay.fontWeight,
               fontStyle: overlay.fontStyle,
               color: overlay.color,
               backgroundColor: overlay.backgroundColor || 'transparent',
-              padding: overlay.backgroundColor ? '8px 16px' : 0,
+              padding: overlay.backgroundColor ? '8px 16px' : '4px 8px',
               borderRadius: 4,
               textAlign: overlay.textAlign,
               whiteSpace: 'pre-wrap',
               opacity: animationStyle.opacity ?? 1,
               maxWidth: '80%',
             }}
-            onMouseDown={(e) => handleMouseDown(e, overlay.id, overlay.x, overlay.y)}
+            onMouseDown={(e) => handleMoveStart(e, overlay)}
           >
             {overlay.text}
+            {/* Resize & rotation handles when selected */}
+            {isSelected && renderHandles(overlay.id, overlay)}
           </div>
         );
       })}

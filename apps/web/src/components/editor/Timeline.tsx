@@ -265,7 +265,7 @@ export function Timeline() {
                     >
                       {/* Clip content */}
                       <div className="h-full w-full absolute inset-0 overflow-hidden rounded">
-                        {/* Thumbnails background */}
+                        {/* Thumbnails background for VIDEO */}
                         {clip.asset?.thumbnails && clip.asset.thumbnails.length > 0 && (
                           <div className="absolute inset-0 flex opacity-50">
                             {/* Repeat thumbnails to fill width */}
@@ -278,6 +278,25 @@ export function Timeline() {
                                 draggable={false}
                               />
                             ))}
+                          </div>
+                        )}
+                        
+                        {/* Waveform visualization for AUDIO */}
+                        {track.type === 'AUDIO' && (
+                          <div className="absolute inset-0 flex items-center justify-evenly px-1 opacity-60">
+                            {/* Generate static waveform bars */}
+                            {Array.from({ length: Math.max(Math.floor(clipWidth / 4), 10) }).map((_, i) => {
+                              // Deterministic heights based on index to avoid random() during render
+                              const heights = [0.3, 0.7, 0.5, 0.9, 0.4, 0.8, 0.6, 0.95, 0.35, 0.75];
+                              const height = heights[i % heights.length];
+                              return (
+                                <div
+                                  key={i}
+                                  className="w-[2px] bg-green-400 rounded-full"
+                                  style={{ height: `${(height ?? 0.5) * 80}%` }}
+                                />
+                              );
+                            })}
                           </div>
                         )}
                         

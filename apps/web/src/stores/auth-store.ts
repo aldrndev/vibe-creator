@@ -44,6 +44,8 @@ const API_BASE_URL = '/api/v1';
  * Auth store with memory-only access token (no persist)
  * Refresh token is stored in HttpOnly cookie by server
  */
+let refreshPromise: Promise<boolean> | null = null;
+
 export const useAuthStore = create<AuthState>()((set, get) => ({
   user: null,
   subscription: null,
@@ -102,72 +104,83 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   },
 
   refreshAccessToken: async () => {
-    const { isAuthenticated, accessToken } = get();
-    
-    // Only set loading if not already authenticated (initial load)
-    // This prevents dashboard from unmounting during background refresh
-    if (!isAuthenticated) {
-      set({ isLoading: true });
+    // Deduplication: Return existing promise if one is in flight
+    if (refreshPromise) {
+      return refreshPromise;
     }
-    
-    try {
-      // Refresh token is sent automatically via HttpOnly cookie
-      // No body needed - cookie contains the refresh token
-      const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
-        method: 'POST',
-        credentials: 'include',
-      });
 
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          set({
-            user: data.data.user,
-            accessToken: data.data.accessToken,
-            isAuthenticated: true,
-            isLoading: false,
-          });
-          return true;
+    refreshPromise = (async () => {
+      const { isAuthenticated, accessToken } = get();
+      
+      // Only set loading if not already authenticated (initial load)
+      // This prevents dashboard from unmounting during background refresh
+      if (!isAuthenticated) {
+        set({ isLoading: true });
+      }
+      
+      try {
+        // Refresh token is sent automatically via HttpOnly cookie
+        // No body needed - cookie contains the refresh token
+        const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+          method: 'POST',
+          credentials: 'include',
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success) {
+            set({
+              user: data.data.user,
+              accessToken: data.data.accessToken,
+              isAuthenticated: true,
+              isLoading: false,
+            });
+            return true;
+          }
         }
-      }
-      
-      // Handle different error cases
-      const errorData = await response.json().catch(() => ({}));
-      
-      // If refresh fails with 400 (no cookie) or 401 (invalid token)
-      // and we have NO access token in memory, just mark as not loading
-      // Don't force logout if user was never authenticated
-      if (!accessToken && !isAuthenticated) {
-        set({ isLoading: false });
-        return false;
-      }
-      
-      // If we had an access token but refresh failed, the session is truly expired
-      // Only logout if the user was actually authenticated before
-      if (isAuthenticated && (response.status === 401 || response.status === 400)) {
-        // Check if it's actually a session issue vs just cookie not being sent
-        if (errorData.error?.code === 'TOKEN_EXPIRED') {
-          set({
-            user: null,
-            subscription: null,
-            accessToken: null,
-            isAuthenticated: false,
-            isLoading: false,
-          });
+        
+        // Handle different error cases
+        const errorData = await response.json().catch(() => ({}));
+        
+        // If refresh fails with 400 (no cookie) or 401 (invalid token)
+        // and we have NO access token in memory, just mark as not loading
+        // Don't force logout if user was never authenticated
+        if (!accessToken && !isAuthenticated) {
+          set({ isLoading: false });
+          return false;
+        }
+        
+        // If we had an access token but refresh failed, the session is truly expired
+        // Only logout if the user was actually authenticated before
+        if (isAuthenticated && (response.status === 401 || response.status === 400)) {
+          // Check if it's actually a session issue vs just cookie not being sent
+          if (errorData.error?.code === 'TOKEN_EXPIRED') {
+            set({
+              user: null,
+              subscription: null,
+              accessToken: null,
+              isAuthenticated: false,
+              isLoading: false,
+            });
+          } else {
+            // Unknown error - just finish loading without logging out
+            set({ isLoading: false });
+          }
         } else {
-          // Unknown error - just finish loading without logging out
           set({ isLoading: false });
         }
-      } else {
+        
+        return false;
+      } catch {
+        // Network error - don't logout, just finish loading
         set({ isLoading: false });
+        return false;
+      } finally {
+        refreshPromise = null;
       }
-      
-      return false;
-    } catch {
-      // Network error - don't logout, just finish loading
-      set({ isLoading: false });
-      return false;
-    }
+    })();
+
+    return refreshPromise;
   },
 
   checkAuth: async () => {
