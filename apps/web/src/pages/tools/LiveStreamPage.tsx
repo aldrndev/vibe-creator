@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { logger } from '@/lib/logger';
 import { 
   Button, 
@@ -7,13 +7,19 @@ import {
   CardHeader, 
   Input,
   Divider,
-  Chip
+  Chip,
+  Select,
+  SelectItem,
+  Switch,
+  Slider
 } from '@heroui/react';
-import { Upload, Play, Square, ArrowLeft, Radio, Wifi, WifiOff, Settings, Video, Tv } from 'lucide-react';
+import { Upload, Play, Square, ArrowLeft, Radio, Wifi, WifiOff, Settings, Video, Tv, Info } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 import { PageTransition, HoverCard } from '@/components/ui/PageTransition';
+
 import { authFetch } from '@/services/api';
+import { TopupModal } from '@/components/tools/TopupModal';
 
 type StreamPlatform = 'youtube' | 'tiktok' | 'twitch' | 'facebook' | 'instagram' | 'custom';
 
@@ -38,8 +44,78 @@ export function LiveStreamPage() {
   const [streamId, setStreamId] = useState<string>('');
   const [streamStatus, setStreamStatus] = useState<string>('');
   
+  const [quality, setQuality] = useState<'720p' | '1080p'>('720p');
+  const [bitrate, setBitrate] = useState<number>(2500);
+  const [duration, setDuration] = useState<number>(60);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [quotaRemaining, setQuotaRemaining] = useState<number | null>(null);
+  const [showTopup, setShowTopup] = useState(false);
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
   const statusIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  
+  // Restore Session on Mount
+  useEffect(() => {
+    const checkActiveStream = async () => {
+        try {
+            const res = await authFetch('/api/v1/stream/active');
+            if(res.ok) {
+                const data = await res.json();
+                const active = data.data.streams[0]; // Take first active
+                if(active) {
+                    setStreamId(active.id);
+                    setPlatform(active.platform as StreamPlatform);
+                    setIsStreaming(true);
+                    setStreamStatus(active.status);
+                    
+                    // Start polling immediately
+                    pollStatus(active.id);
+                }
+            }
+        } catch (e) {
+            console.error("Failed to restore session", e);
+        }
+    };
+    checkActiveStream();
+    
+    return () => {
+        if(statusIntervalRef.current) clearInterval(statusIntervalRef.current);
+    };
+    // Fetch Quota
+    const fetchQuota = async () => {
+        try {
+            const res = await authFetch('/api/v1/billing/quota');
+            if(res.ok) {
+                const data = await res.json();
+                setQuotaRemaining(data.data.remaining);
+            }
+        } catch {}
+    };
+    fetchQuota();
+    
+  }, []);
+
+  const pollStatus = (id: string) => {
+      if(statusIntervalRef.current) clearInterval(statusIntervalRef.current);
+      statusIntervalRef.current = setInterval(async () => {
+        try {
+          const statusRes = await authFetch(`/api/v1/stream/${id}/status`);
+          const statusData = await statusRes.json();
+          
+          if (statusData.data.status === 'ENDED' || statusData.data.status === 'FAILED') {
+            setIsStreaming(false);
+            setStreamStatus(statusData.data.status);
+            if (statusIntervalRef.current) clearInterval(statusIntervalRef.current);
+          } else {
+             setStreamStatus(statusData.data.status);
+          }
+        } catch { } // Ignore
+      }, 5000);
+  };
+  
+  // Upload Cache Logic
+  const lastUploadedFile = useRef<File | null>(null);
+  const lastUploadedPath = useRef<string | null>(null);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -55,17 +131,30 @@ export function LiveStreamPage() {
     try {
       setStreamStatus('Mengupload video...');
       
-      const formData = new FormData();
-      formData.append('video', videoFile);
+      let inputPath = '';
       
-      const uploadRes = await authFetch('/api/v1/upload/video', {
-        method: 'POST',
-        body: formData,
-      });
-      
-      if (!uploadRes.ok) throw new Error('Upload failed');
-      const uploadData = await uploadRes.json();
-      const inputPath = uploadData.data.path;
+      // Check Cache
+      if (videoFile === lastUploadedFile.current && lastUploadedPath.current) {
+        logger.info('Using cached uploaded video path');
+        inputPath = lastUploadedPath.current;
+        setStreamStatus('Menggunakan video cache...');
+      } else {
+         const formData = new FormData();
+         formData.append('video', videoFile);
+         
+         const uploadRes = await authFetch('/api/v1/upload/video', {
+            method: 'POST',
+            body: formData,
+         });
+         
+         if (!uploadRes.ok) throw new Error('Upload failed');
+         const uploadData = await uploadRes.json();
+         inputPath = uploadData.data.filepath;
+         
+         // Update Cache
+         lastUploadedFile.current = videoFile;
+         lastUploadedPath.current = inputPath;
+      }
       
       setStreamStatus('Memulai streaming...');
       
@@ -77,34 +166,24 @@ export function LiveStreamPage() {
           config: {
             platform,
             streamKey,
-            rtmpUrl: platform === 'custom' ? customRtmpUrl : undefined,
+            rtmpUrl: (platform === 'custom' || showAdvanced) ? customRtmpUrl : undefined,
+            quality,
+            bitrateKbps: bitrate,
+            durationMinutes: duration,
           },
         }),
       });
       
-      if (!streamRes.ok) throw new Error('Start stream failed');
       const streamData = await streamRes.json();
+      
+      if (!streamRes.ok) {
+        throw new Error(streamData.error?.message || 'Start stream failed');
+      }
       
       setStreamId(streamData.data.streamId);
       setIsStreaming(true);
       setStreamStatus('LIVE');
-      
-      statusIntervalRef.current = setInterval(async () => {
-        try {
-          const statusRes = await authFetch(`/api/v1/stream/${streamData.data.streamId}/status`);
-          const statusData = await statusRes.json();
-          
-          if (statusData.data.status === 'ENDED' || statusData.data.status === 'FAILED') {
-            setIsStreaming(false);
-            setStreamStatus(statusData.data.status);
-            if (statusIntervalRef.current) {
-              clearInterval(statusIntervalRef.current);
-            }
-          }
-        } catch {
-          // Ignore polling errors
-        }
-      }, 5000);
+      pollStatus(streamData.data.streamId); // Use shared poller
       
     } catch (err) {
       logger.error('Stream start failed', err);
@@ -149,13 +228,14 @@ export function LiveStreamPage() {
         >
           <Button 
             as={Link} 
-            to="/dashboard" 
+            to="/tools/live-stream-history" 
             isIconOnly 
             variant="light" 
             size="sm"
           >
             <ArrowLeft size={20} />
           </Button>
+
           <div className="flex-1">
             <h1 className="text-2xl font-bold flex items-center gap-2">
               <Radio size={24} className="text-danger" />
@@ -163,6 +243,7 @@ export function LiveStreamPage() {
             </h1>
             <p className="text-foreground/60 text-sm">Stream video ke platform favorit</p>
           </div>
+
           {isStreaming && (
             <div
             >
@@ -176,6 +257,7 @@ export function LiveStreamPage() {
               </Chip>
             </div>
           )}
+
         </div>
 
         {/* Platform Selection */}
@@ -286,8 +368,17 @@ export function LiveStreamPage() {
                 <h2 className="text-lg font-semibold">{currentPlatformConfig.name} Settings</h2>
               </CardHeader>
               <CardBody className="space-y-6">
+                
+                {/* Mode Toggle */}
+                {platform !== 'custom' && (
+                    <div className="flex justify-between items-center bg-content2 p-2 rounded-lg">
+                        <span className="text-xs text-foreground/60">Advanced Mode (Edit URL)</span>
+                        <Switch size="sm" isSelected={showAdvanced} onValueChange={setShowAdvanced} />
+                    </div>
+                )}
+                
                 {/* Custom RTMP URL */}
-                {platform === 'custom' && (
+                {(platform === 'custom' || showAdvanced) && (
                   <Input
                     label="RTMP URL"
                     placeholder="rtmp://your-server.com/live"
@@ -307,6 +398,66 @@ export function LiveStreamPage() {
                   description="Dapatkan stream key dari dashboard platform streaming kamu"
                   isDisabled={isStreaming}
                 />
+                
+                <Divider />
+                
+                {/* Quality Settings */}
+                <div className="space-y-4">
+                    <h3 className="text-sm font-semibold flex items-center gap-2">
+                        <Settings size={16} /> Stream Quality
+                    </h3>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                        <Select 
+                            label="Resolusi" 
+                            size="sm"
+                            selectedKeys={[quality]}
+                            onChange={(e) => {
+                                const q = e.target.value as '720p' | '1080p';
+                                setQuality(q);
+                                // Auto-adjust bitrate defaults
+                                if(q === '1080p') setBitrate(4500);
+                                else setBitrate(2500);
+                            }}
+                        >
+                            <SelectItem key="720p">HD 720p (Smooth)</SelectItem>
+                            <SelectItem key="1080p">FHD 1080p (Sharp)</SelectItem>
+                        </Select>
+                        
+                        <div className="space-y-1">
+                             <div className="flex justify-between text-xs">
+                                <span>Bitrate</span>
+                                <span>{bitrate} kbps</span>
+                             </div>
+                             <Slider 
+                                aria-label="Bitrate"
+                                size="sm"
+                                step={100}
+                                minValue={1000}
+                                maxValue={8000}
+                                value={bitrate}
+                                onChange={(v) => setBitrate(v as number)}
+                                className="max-w-md"
+                             />
+                        </div>
+                    </div>
+                    
+                    <Select
+                        label="Durasi Auto-Stop"
+                        size="sm"
+                        selectedKeys={[duration.toString()]}
+                        onChange={(e) => setDuration(Number(e.target.value))}
+                        isDisabled={isStreaming}
+                        description="Stream akan otomatis berhenti ketika durasi ini habis."
+                    >
+                        <SelectItem key="30">30 Menit</SelectItem>
+                        <SelectItem key="60">1 Jam</SelectItem>
+                        <SelectItem key="180">3 Jam</SelectItem>
+                        <SelectItem key="360">6 Jam</SelectItem>
+                        <SelectItem key="720">12 Jam</SelectItem>
+                        <SelectItem key="1440">24 Jam</SelectItem>
+                    </Select>
+                </div>
 
                 <Divider />
 
@@ -330,6 +481,24 @@ export function LiveStreamPage() {
                     )}
                   </div>
                 )}
+
+                {/* Quota Info */}
+                <div className="flex justify-between items-center px-1 pb-2">
+                   <div className="flex flex-col">
+                      <span className="text-sm font-medium">Sisa Kuota</span>
+                      <span className="text-xs text-foreground/50">Reset tiap bulan</span>
+                   </div>
+                   <Chip 
+                    size="md"
+                    color={quotaRemaining === null ? "default" : (quotaRemaining < 15 ? "danger" : (quotaRemaining < 60 ? "warning" : "primary"))} 
+                    variant="flat"
+                    className="font-bold cursor-pointer hover:opacity-80 transition-opacity"
+                    startContent={<Info size={14} />}
+                    onClick={() => setShowTopup(true)}
+                   >
+                     {quotaRemaining === null ? "..." : `${quotaRemaining} Menit (+)`}
+                   </Chip>
+                </div>
 
                 {/* Action Buttons */}
                 <div className="flex gap-3">
@@ -368,6 +537,8 @@ export function LiveStreamPage() {
             </Card>
           </div>
         </div>
+
+        <TopupModal isOpen={showTopup} onClose={() => setShowTopup(false)} />
       </div>
     </PageTransition>
   );

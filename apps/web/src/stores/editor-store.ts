@@ -1,13 +1,13 @@
-import { create } from 'zustand';
-import type { 
-  TimelineTrack, 
-  TimelineClip, 
-  TrackType, 
-  ClipTransforms, 
+import { create } from "zustand";
+import type {
+  TimelineTrack,
+  TimelineClip,
+  TrackType,
+  ClipTransforms,
   ClipEffects,
   ProjectSettings,
-  TextOverlay
-} from '@vibe-creator/shared';
+  TextOverlay,
+} from "@vibe-creator/shared";
 
 // Schema version for state migrations
 export const EDITOR_SCHEMA_VERSION = 1;
@@ -49,7 +49,7 @@ const DEFAULT_PROJECT_SETTINGS: ProjectSettings = {
 export interface EditorAsset {
   id: string;
   name: string;
-  type: 'VIDEO' | 'AUDIO' | 'IMAGE';
+  type: "VIDEO" | "AUDIO" | "IMAGE";
   url: string; // Blob URL or presigned URL
   file?: File; // Original file for FFmpeg processing
   durationMs?: number;
@@ -64,18 +64,18 @@ export interface EditorTimeline {
   tracks: EditorTrack[];
 }
 
-export interface EditorTrack extends Omit<TimelineTrack, 'timelineId'> {
+export interface EditorTrack extends Omit<TimelineTrack, "timelineId"> {
   clips: EditorClip[];
 }
 
-export interface EditorClip extends Omit<TimelineClip, 'trackId'> {
+export interface EditorClip extends Omit<TimelineClip, "trackId"> {
   asset?: EditorAsset;
 }
 
 export interface ExportSettings {
-  format: 'mp4';
-  resolution: '720p' | '1080p' | '4k';
-  quality: 'low' | 'medium' | 'high';
+  format: "mp4";
+  resolution: "720p" | "1080p" | "4k";
+  quality: "low" | "medium" | "high";
   watermark: boolean;
 }
 
@@ -85,77 +85,95 @@ interface EditorState {
   projectTitle: string;
   projectSettings: ProjectSettings;
   isDirty: boolean;
-  
+
   // Timeline state
   timeline: EditorTimeline;
-  
+
   // Assets
   assets: EditorAsset[];
-  
+
   // Selection
   selectedTrackId: string | null;
   selectedClipId: string | null;
-  
+
   // Playback
   currentTimeMs: number;
   isPlaying: boolean;
-  
+
   // Zoom & scroll
   zoomLevel: number; // pixels per second
   scrollLeft: number;
-  
+
   // Export
   exportSettings: ExportSettings;
   isExporting: boolean;
-  
+
   // Text overlays
   textOverlays: TextOverlay[];
   selectedTextOverlayId: string | null;
-  
+
   // Actions
-  initProject: (projectId: string, title: string, settings?: Partial<ProjectSettings>) => void;
+  initProject: (
+    projectId: string,
+    title: string,
+    settings?: Partial<ProjectSettings>
+  ) => void;
+  loadTimeline: (timeline: EditorTimeline) => void;
   resetEditor: () => void;
-  
+
   // Asset actions
   addAsset: (asset: EditorAsset) => void;
   updateAsset: (assetId: string, updates: Partial<EditorAsset>) => void;
   removeAsset: (assetId: string) => void;
-  
+
   // Track actions
   addTrack: (type: TrackType) => void;
   removeTrack: (trackId: string) => void;
   updateTrack: (trackId: string, updates: Partial<EditorTrack>) => void;
-  
+
   // Clip actions
-  addClip: (trackId: string, clip: Omit<EditorClip, 'id'>) => string;
+  addClip: (trackId: string, clip: Omit<EditorClip, "id">) => string;
   removeClip: (trackId: string, clipId: string) => void;
-  updateClip: (trackId: string, clipId: string, updates: Partial<EditorClip>) => void;
-  moveClip: (fromTrackId: string, toTrackId: string, clipId: string, newStartMs: number) => void;
+  updateClip: (
+    trackId: string,
+    clipId: string,
+    updates: Partial<EditorClip>
+  ) => void;
+  moveClip: (
+    fromTrackId: string,
+    toTrackId: string,
+    clipId: string,
+    newStartMs: number
+  ) => void;
   detachLinkedClips: (clipId: string) => void;
-  
+
   // Selection actions
   selectTrack: (trackId: string | null) => void;
   selectClip: (clipId: string | null) => void;
-  
+
   // Playback actions
   setCurrentTime: (timeMs: number) => void;
   play: () => void;
   pause: () => void;
   togglePlayback: () => void;
-  
+
   // Zoom actions
   setZoomLevel: (level: number) => void;
   setScrollLeft: (scroll: number) => void;
-  
+
   // Timeline actions
   recalculateDuration: () => void;
-  
+
   // Export actions
   setExportSettings: (settings: Partial<ExportSettings>) => void;
-  getExportPayload: () => { projectId: string; timeline: EditorTimeline; export: ExportSettings } | null;
-  
+  getExportPayload: () => {
+    projectId: string;
+    timeline: EditorTimeline;
+    export: ExportSettings;
+  } | null;
+
   // Text overlay actions
-  addTextOverlay: (overlay: Omit<TextOverlay, 'id'>) => string;
+  addTextOverlay: (overlay: Omit<TextOverlay, "id">) => string;
   updateTextOverlay: (id: string, updates: Partial<TextOverlay>) => void;
   removeTextOverlay: (id: string) => void;
   selectTextOverlay: (id: string | null) => void;
@@ -169,8 +187,8 @@ const initialTimeline: EditorTimeline = {
   durationMs: 0,
   tracks: [
     {
-      id: 'track-video-1',
-      type: 'VIDEO',
+      id: "track-video-1",
+      type: "VIDEO",
       order: 0,
       muted: false,
       volume: 1,
@@ -178,8 +196,8 @@ const initialTimeline: EditorTimeline = {
       clips: [],
     },
     {
-      id: 'track-audio-1',
-      type: 'AUDIO',
+      id: "track-audio-1",
+      type: "AUDIO",
       order: 1,
       muted: false,
       volume: 1,
@@ -192,34 +210,34 @@ const initialTimeline: EditorTimeline = {
 export const useEditorStore = create<EditorState>()((set, get) => ({
   // Initial state
   projectId: null,
-  projectTitle: 'Untitled Project',
+  projectTitle: "Untitled Project",
   projectSettings: DEFAULT_PROJECT_SETTINGS,
   isDirty: false,
-  
+
   timeline: initialTimeline,
   assets: [],
-  
+
   selectedTrackId: null,
   selectedClipId: null,
-  
+
   currentTimeMs: 0,
   isPlaying: false,
-  
+
   zoomLevel: 100, // 100px per second
   scrollLeft: 0,
-  
+
   exportSettings: {
-    format: 'mp4',
-    resolution: '1080p',
-    quality: 'high',
+    format: "mp4",
+    resolution: "1080p",
+    quality: "high",
     watermark: true, // Free tier default
   },
   isExporting: false,
-  
+
   // Text overlays
   textOverlays: [],
   selectedTextOverlayId: null,
-  
+
   // Actions
   initProject: (projectId, title, settings) => {
     set({
@@ -227,7 +245,10 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
       projectTitle: title,
       projectSettings: { ...DEFAULT_PROJECT_SETTINGS, ...settings },
       isDirty: false,
-      timeline: { ...initialTimeline, tracks: initialTimeline.tracks.map(t => ({ ...t, clips: [] })) },
+      timeline: {
+        ...initialTimeline,
+        tracks: initialTimeline.tracks.map((t) => ({ ...t, clips: [] })),
+      },
       assets: [],
       selectedTrackId: null,
       selectedClipId: null,
@@ -235,14 +256,25 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
       isPlaying: false,
     });
   },
-  
+
+  loadTimeline: (timeline) => {
+    set({
+      timeline,
+      isDirty: true,
+    });
+    get().recalculateDuration();
+  },
+
   resetEditor: () => {
     set({
       projectId: null,
-      projectTitle: 'Untitled Project',
+      projectTitle: "Untitled Project",
       projectSettings: DEFAULT_PROJECT_SETTINGS,
       isDirty: false,
-      timeline: { ...initialTimeline, tracks: initialTimeline.tracks.map(t => ({ ...t, clips: [] })) },
+      timeline: {
+        ...initialTimeline,
+        tracks: initialTimeline.tracks.map((t) => ({ ...t, clips: [] })),
+      },
       assets: [],
       selectedTrackId: null,
       selectedClipId: null,
@@ -251,7 +283,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
       isExporting: false,
     });
   },
-  
+
   // Asset actions
   addAsset: (asset) => {
     set((state) => ({
@@ -259,7 +291,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
       isDirty: true,
     }));
   },
-  
+
   updateAsset: (assetId, updates) => {
     set((state) => ({
       assets: state.assets.map((a) =>
@@ -279,14 +311,14 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
       },
     }));
   },
-  
+
   removeAsset: (assetId) => {
     set((state) => ({
       assets: state.assets.filter((a) => a.id !== assetId),
       isDirty: true,
     }));
   },
-  
+
   // Track actions
   addTrack: (type) => {
     const id = `track-${type.toLowerCase()}-${generateId()}`;
@@ -309,19 +341,20 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
       isDirty: true,
     }));
   },
-  
+
   removeTrack: (trackId) => {
     set((state) => ({
       timeline: {
         ...state.timeline,
         tracks: state.timeline.tracks.filter((t) => t.id !== trackId),
       },
-      selectedTrackId: state.selectedTrackId === trackId ? null : state.selectedTrackId,
+      selectedTrackId:
+        state.selectedTrackId === trackId ? null : state.selectedTrackId,
       isDirty: true,
     }));
     get().recalculateDuration();
   },
-  
+
   updateTrack: (trackId, updates) => {
     set((state) => ({
       timeline: {
@@ -333,15 +366,18 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
       isDirty: true,
     }));
   },
-  
+
   // Clip actions
   addClip: (trackId, clipData) => {
     const id = `clip-${generateId()}`;
-    
+
     // Auto-resolve asset from assetId if not provided
-    const resolvedAsset = clipData.asset ?? 
-      (clipData.assetId ? get().assets.find(a => a.id === clipData.assetId) : undefined);
-    
+    const resolvedAsset =
+      clipData.asset ??
+      (clipData.assetId
+        ? get().assets.find((a) => a.id === clipData.assetId)
+        : undefined);
+
     const clip: EditorClip = {
       id,
       assetId: clipData.assetId ?? null,
@@ -354,7 +390,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
       effects: clipData.effects ?? DEFAULT_EFFECTS,
       asset: resolvedAsset,
     };
-    
+
     set((state) => ({
       timeline: {
         ...state.timeline,
@@ -364,19 +400,19 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
       },
       isDirty: true,
     }));
-    
+
     get().recalculateDuration();
     return id;
   },
-  
+
   removeClip: (trackId, clipId) => {
     const state = get();
-    
+
     // Find the clip to get its linkId
-    const track = state.timeline.tracks.find(t => t.id === trackId);
-    const clip = track?.clips.find(c => c.id === clipId);
+    const track = state.timeline.tracks.find((t) => t.id === trackId);
+    const clip = track?.clips.find((c) => c.id === clipId);
     const linkId = clip?.linkId;
-    
+
     set((state) => ({
       timeline: {
         ...state.timeline,
@@ -391,27 +427,30 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
           }),
         })),
       },
-      selectedClipId: state.selectedClipId === clipId ? null : state.selectedClipId,
+      selectedClipId:
+        state.selectedClipId === clipId ? null : state.selectedClipId,
       isDirty: true,
     }));
     get().recalculateDuration();
   },
-  
+
   updateClip: (trackId, clipId, updates) => {
     const state = get();
-    
+
     // Find the clip to get its linkId
-    const track = state.timeline.tracks.find(t => t.id === trackId);
-    const clip = track?.clips.find(c => c.id === clipId);
+    const track = state.timeline.tracks.find((t) => t.id === trackId);
+    const clip = track?.clips.find((c) => c.id === clipId);
     const linkId = clip?.linkId;
-    
+
     // Only propagate timing-related updates to linked clips
     const timingUpdates: Partial<EditorClip> = {};
     if (updates.startMs !== undefined) timingUpdates.startMs = updates.startMs;
     if (updates.endMs !== undefined) timingUpdates.endMs = updates.endMs;
-    if (updates.trimStartMs !== undefined) timingUpdates.trimStartMs = updates.trimStartMs;
-    if (updates.trimEndMs !== undefined) timingUpdates.trimEndMs = updates.trimEndMs;
-    
+    if (updates.trimStartMs !== undefined)
+      timingUpdates.trimStartMs = updates.trimStartMs;
+    if (updates.trimEndMs !== undefined)
+      timingUpdates.trimEndMs = updates.trimEndMs;
+
     set((state) => ({
       timeline: {
         ...state.timeline,
@@ -421,7 +460,11 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
             // Update the target clip with all updates
             if (c.id === clipId) return { ...c, ...updates };
             // Update linked clips with only timing updates
-            if (linkId && c.linkId === linkId && Object.keys(timingUpdates).length > 0) {
+            if (
+              linkId &&
+              c.linkId === linkId &&
+              Object.keys(timingUpdates).length > 0
+            ) {
               return { ...c, ...timingUpdates };
             }
             return c;
@@ -432,17 +475,17 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
     }));
     get().recalculateDuration();
   },
-  
+
   moveClip: (fromTrackId, toTrackId, clipId, newStartMs) => {
     const state = get();
     const fromTrack = state.timeline.tracks.find((t) => t.id === fromTrackId);
     const clip = fromTrack?.clips.find((c) => c.id === clipId);
-    
+
     if (!clip) return;
-    
+
     const clipDuration = clip.endMs - clip.startMs;
     const linkId = clip.linkId;
-    
+
     // For linked clips, only update position (keep on same track type)
     set((state) => ({
       timeline: {
@@ -489,23 +532,23 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
     }));
     get().recalculateDuration();
   },
-  
+
   // Detach linked clips (break the linkId connection)
   detachLinkedClips: (clipId) => {
     const state = get();
-    
+
     // Find the clip and its linkId
     let linkId: string | undefined;
     for (const track of state.timeline.tracks) {
-      const clip = track.clips.find(c => c.id === clipId);
+      const clip = track.clips.find((c) => c.id === clipId);
       if (clip?.linkId) {
         linkId = clip.linkId;
         break;
       }
     }
-    
+
     if (!linkId) return; // No linked clips to detach
-    
+
     // Remove linkId from all clips with this linkId
     set((state) => ({
       timeline: {
@@ -525,26 +568,27 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
       isDirty: true,
     }));
   },
-  
+
   // Selection
   selectTrack: (trackId) => set({ selectedTrackId: trackId }),
   selectClip: (clipId) => set({ selectedClipId: clipId }),
-  
+
   // Playback
   setCurrentTime: (timeMs) => set({ currentTimeMs: Math.max(0, timeMs) }),
   play: () => set({ isPlaying: true }),
   pause: () => set({ isPlaying: false }),
   togglePlayback: () => set((state) => ({ isPlaying: !state.isPlaying })),
-  
+
   // Zoom
-  setZoomLevel: (level) => set({ zoomLevel: Math.max(10, Math.min(500, level)) }),
+  setZoomLevel: (level) =>
+    set({ zoomLevel: Math.max(10, Math.min(500, level)) }),
   setScrollLeft: (scroll) => set({ scrollLeft: Math.max(0, scroll) }),
-  
+
   // Duration
   recalculateDuration: () => {
     const state = get();
     let maxEnd = 0;
-    
+
     for (const track of state.timeline.tracks) {
       for (const clip of track.clips) {
         if (clip.endMs > maxEnd) {
@@ -552,30 +596,30 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
         }
       }
     }
-    
+
     set((state) => ({
       timeline: { ...state.timeline, durationMs: maxEnd },
     }));
   },
-  
+
   // Export
   setExportSettings: (settings) => {
     set((state) => ({
       exportSettings: { ...state.exportSettings, ...settings },
     }));
   },
-  
+
   getExportPayload: () => {
     const state = get();
     if (!state.projectId) return null;
-    
+
     return {
       projectId: state.projectId,
       timeline: state.timeline,
       export: state.exportSettings,
     };
   },
-  
+
   // Text overlay actions
   addTextOverlay: (overlay) => {
     const id = generateId();
@@ -586,7 +630,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
     }));
     return id;
   },
-  
+
   updateTextOverlay: (id, updates) => {
     set((state) => ({
       textOverlays: state.textOverlays.map((overlay) =>
@@ -595,15 +639,16 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
       isDirty: true,
     }));
   },
-  
+
   removeTextOverlay: (id) => {
     set((state) => ({
       textOverlays: state.textOverlays.filter((overlay) => overlay.id !== id),
-      selectedTextOverlayId: state.selectedTextOverlayId === id ? null : state.selectedTextOverlayId,
+      selectedTextOverlayId:
+        state.selectedTextOverlayId === id ? null : state.selectedTextOverlayId,
       isDirty: true,
     }));
   },
-  
+
   selectTextOverlay: (id) => {
     set({ selectedTextOverlayId: id });
   },

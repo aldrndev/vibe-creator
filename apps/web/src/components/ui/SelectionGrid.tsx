@@ -1,4 +1,4 @@
-import { Card, CardBody } from '@heroui/react';
+import { Card, CardBody } from "@heroui/react";
 
 interface SelectionOption {
   key: string;
@@ -16,12 +16,12 @@ interface SelectionGridProps {
 /**
  * Rich selection grid component - replaces text inputs with clickable cards
  */
-export function SelectionGrid({ 
-  options, 
-  value, 
-  onChange, 
+export function SelectionGrid({
+  options,
+  value,
+  onChange,
   columns = 4,
-  label 
+  label,
 }: SelectionGridProps) {
   return (
     <div>
@@ -35,13 +35,20 @@ export function SelectionGrid({
             isPressable
             onPress={() => onChange(opt.key)}
             className={`border-2 transition-colors ${
-              value === opt.key 
-                ? 'border-primary bg-primary/10' 
-                : 'border-transparent hover:border-divider'
+              value === opt.key
+                ? "border-primary bg-primary/10"
+                : "border-transparent hover:border-divider"
             }`}
           >
-            <CardBody className="p-2 text-center">
-              <p className="text-sm font-medium">{opt.label}</p>
+            <CardBody className="p-2 text-center flex flex-col items-center justify-center gap-0.5">
+              <p className="text-sm font-medium leading-tight">
+                {opt.label.split(" / ")[0]}
+              </p>
+              {opt.label.includes(" / ") && (
+                <p className="text-[10px] text-foreground/60 leading-tight">
+                  {opt.label.split(" / ")[1]}
+                </p>
+              )}
             </CardBody>
           </Card>
         ))}
@@ -62,17 +69,17 @@ interface MultiSelectGridProps {
 /**
  * Multi-select grid for selecting multiple options
  */
-export function MultiSelectGrid({ 
-  options, 
-  values, 
-  onChange, 
+export function MultiSelectGrid({
+  options,
+  values,
+  onChange,
   columns = 4,
   label,
-  maxSelections = 5
+  maxSelections = 5,
 }: MultiSelectGridProps) {
   const handleToggle = (key: string) => {
     if (values.includes(key)) {
-      onChange(values.filter(v => v !== key));
+      onChange(values.filter((v) => v !== key));
     } else if (values.length < maxSelections) {
       onChange([...values, key]);
     }
@@ -82,7 +89,10 @@ export function MultiSelectGrid({
     <div>
       {label && (
         <label className="text-sm font-medium block mb-2">
-          {label} {maxSelections > 1 && <span className="text-foreground/50">(max {maxSelections})</span>}
+          {label}{" "}
+          {maxSelections > 1 && (
+            <span className="text-foreground/50">(max {maxSelections})</span>
+          )}
         </label>
       )}
       <div className={`grid grid-cols-2 sm:grid-cols-${columns} gap-2`}>
@@ -92,13 +102,20 @@ export function MultiSelectGrid({
             isPressable
             onPress={() => handleToggle(opt.key)}
             className={`border-2 transition-colors ${
-              values.includes(opt.key) 
-                ? 'border-primary bg-primary/10' 
-                : 'border-transparent hover:border-divider'
+              values.includes(opt.key)
+                ? "border-primary bg-primary/10"
+                : "border-transparent hover:border-divider"
             }`}
           >
-            <CardBody className="p-2 text-center">
-              <p className="text-sm font-medium">{opt.label}</p>
+            <CardBody className="p-2 text-center flex flex-col items-center justify-center gap-0.5">
+              <p className="text-sm font-medium leading-tight">
+                {opt.label.split(" / ")[0]}
+              </p>
+              {opt.label.includes(" / ") && (
+                <p className="text-[10px] text-foreground/60 leading-tight">
+                  {opt.label.split(" / ")[1]}
+                </p>
+              )}
             </CardBody>
           </Card>
         ))}

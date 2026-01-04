@@ -36,6 +36,7 @@
     "nanoid": "5.0.9",
     "pino": "9.6.0",
     "pino-pretty": "13.0.0",
+    "xendit-node": "^7.0.0",
     "zod": "3.24.1"
   },
   "devDependencies": {

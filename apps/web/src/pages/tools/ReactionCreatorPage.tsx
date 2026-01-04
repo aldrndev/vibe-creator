@@ -1,73 +1,89 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, type ChangeEvent } from "react";
 
-import { 
-  Button, 
-  Card, 
-  CardBody, 
-  CardHeader, 
-  Slider, 
-  Divider, 
-  Progress,
+import {
+  Button,
+  Card,
+  CardBody,
+  Slider,
+  Divider,
   Select,
   SelectItem,
-  Chip,
-  Switch
-} from '@heroui/react';
-import { Upload, Play, Download, ArrowLeft, Monitor, Smartphone, Grid, Layers, Check, Sparkles, Volume2, Lock, 
-  AlertTriangle 
-} from 'lucide-react';
-import { Link } from 'react-router-dom';
-import { authFetch } from '@/services/api';
-import toast from 'react-hot-toast';
+  Switch,
+} from "@heroui/react";
+import {
+  Download,
+  Monitor,
+  Smartphone,
+  Grid,
+  Layers,
+  Check,
+  Sparkles,
+  Settings2,
+  Volume2,
+  AlertTriangle,
+} from "lucide-react";
+import { authFetch } from "@/services/api";
+import toast from "react-hot-toast";
 
+import { PageTransition } from "@/components/ui/PageTransition";
+import { ReactionPreview } from "@/components/tools/ReactionPreview";
 
-import { PageTransition, HoverCard } from '@/components/ui/PageTransition';
+const RESOLUTIONS: Record<string, { w: number; h: number }> = {
+  "16:9": { w: 1920, h: 1080 },
+  "9:16": { w: 1080, h: 1920 },
+  "1:1": { w: 1080, h: 1080 },
+  "4:5": { w: 1080, h: 1350 },
+};
 
-type LayoutMode = 'pip' | 'side-by-side';
-type PipPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
-type SideBySideLayout = 'horizontal' | 'vertical';
+type LayoutMode = "pip" | "side-by-side";
+type PipPosition = "top-left" | "top-right" | "bottom-left" | "bottom-right";
+type SideBySideLayout = "horizontal" | "vertical";
 
 const layoutModes = [
-  { 
-    id: 'pip' as const, 
-    name: 'Picture-in-Picture', 
-    description: 'Video reaksi di sudut',
+  {
+    id: "pip" as const,
+    name: "Picture-in-Picture",
+    description: "Video reaksi di sudut",
     icon: Layers,
-    color: 'primary'
+    color: "primary",
   },
-  { 
-    id: 'side-by-side' as const, 
-    name: 'Side by Side', 
-    description: 'Dua video berdampingan',
+  {
+    id: "side-by-side" as const,
+    name: "Side by Side",
+    description: "Dua video berdampingan",
     icon: Grid,
-    color: 'secondary'
+    color: "secondary",
   },
 ];
 
 export function ReactionCreatorPage() {
   const [mainVideoFile, setMainVideoFile] = useState<File | null>(null);
-  const [mainVideoUrl, setMainVideoUrl] = useState<string>('');
+  const [mainVideoUrl, setMainVideoUrl] = useState<string>("");
   const [reactionVideoFile, setReactionVideoFile] = useState<File | null>(null);
-  const [reactionVideoUrl, setReactionVideoUrl] = useState<string>('');
-  
-  const [layoutMode, setLayoutMode] = useState<'side-by-side' | 'pip'>('side-by-side');
+  const [reactionVideoUrl, setReactionVideoUrl] = useState<string>("");
+
+  const [layoutMode, setLayoutMode] = useState<LayoutMode>("side-by-side");
   const [splitRatio, setSplitRatio] = useState(0.5);
   const [smoothBorder, setSmoothBorder] = useState(false);
   const [overlayMode, setOverlayMode] = useState(false);
-  const [pipPosition, setPipPosition] = useState<PipPosition>('top-right');
+  const [pipPosition] = useState<PipPosition>("top-right");
   const [pipScale, setPipScale] = useState(0.3);
   const [_pipMargin, _setPipMargin] = useState(20);
   const [reactionVolume, setReactionVolume] = useState(0.8);
   const [mainVolume, setMainVolume] = useState(1.0);
-  const [sideBySideLayout, setSideBySideLayout] = useState<SideBySideLayout>('horizontal');
-  const [aspectRatio, setAspectRatio] = useState('16:9');
+  const [customPosition, setCustomPosition] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
+  const [sideBySideLayout, setSideBySideLayout] =
+    useState<SideBySideLayout>("horizontal");
+  const [aspectRatio, setAspectRatio] = useState("16:9");
   const [circular, setCircular] = useState(false);
 
-  
   const [isProcessing, setIsProcessing] = useState(false);
-  const [processingStatus, setProcessingStatus] = useState('');
+  const [processingStatus, setProcessingStatus] = useState("");
   const [results, setResults] = useState<Record<string, string>>({});
-  
+
   const mainInputRef = useRef<HTMLInputElement>(null);
   const reactionInputRef = useRef<HTMLInputElement>(null);
 
@@ -75,7 +91,7 @@ export function ReactionCreatorPage() {
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 200 * 1024 * 1024) {
-        alert('Ukuran file maksimal 200MB');
+        alert("Ukuran file maksimal 200MB");
         return;
       }
       setMainVideoFile(file);
@@ -84,11 +100,13 @@ export function ReactionCreatorPage() {
     }
   };
 
-  const handleReactionVideoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleReactionVideoSelect = (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 200 * 1024 * 1024) {
-        alert('Ukuran file maksimal 200MB');
+        alert("Ukuran file maksimal 200MB");
         return;
       }
       setReactionVideoFile(file);
@@ -102,103 +120,116 @@ export function ReactionCreatorPage() {
 
     try {
       setIsProcessing(true);
-      setProcessingStatus('Mengupload video utama...');
-      
+      setProcessingStatus("Mengupload video utama...");
+
       const mainFormData = new FormData();
-      mainFormData.append('video', mainVideoFile);
-      
-      const mainUploadRes = await authFetch('/api/v1/upload/video', {
-        method: 'POST',
+      mainFormData.append("video", mainVideoFile);
+
+      const mainUploadRes = await authFetch("/api/v1/upload/video", {
+        method: "POST",
         body: mainFormData,
       });
-      if (!mainUploadRes.ok) throw new Error('Main video upload failed');
+      if (!mainUploadRes.ok) throw new Error("Main video upload failed");
       const mainData = await mainUploadRes.json();
-      
-      setProcessingStatus('Mengupload video reaksi...');
+
+      setProcessingStatus("Mengupload video reaksi...");
       const reactionFormData = new FormData();
-      reactionFormData.append('video', reactionVideoFile);
-      const reactionUploadRes = await authFetch('/api/v1/upload/video', {
-        method: 'POST',
+      reactionFormData.append("video", reactionVideoFile);
+      const reactionUploadRes = await authFetch("/api/v1/upload/video", {
+        method: "POST",
         body: reactionFormData,
       });
-      if (!reactionUploadRes.ok) throw new Error('Reaction video upload failed');
+      if (!reactionUploadRes.ok)
+        throw new Error("Reaction video upload failed");
       const reactionData = await reactionUploadRes.json();
 
-      setProcessingStatus('Memproses video...');
+      setProcessingStatus("Memproses video...");
 
-      if (layoutMode === 'pip') {
+      if (layoutMode === "pip") {
         const payload = {
-           mainVideoPath: mainData.data.filepath,
-           reactionVideoPath: reactionData.data.filepath,
-           position: pipPosition,
-           scale: pipScale, // Assuming pipScale is already a decimal
-           margin: 20,
-           circular: circular,
-           aspectRatio: aspectRatio,
-           reactionVolume,
-           mainVolume,
+          mainVideoPath: mainData.data.filepath,
+          reactionVideoPath: reactionData.data.filepath,
+          layout: layoutMode,
+          position: pipPosition,
+          customPosition: customPosition, // Add custom position
+          scale: pipScale,
+          margin: 20,
+          aspectRatio,
+          splitRatio:
+            (layoutMode as string) === "side-by-side" ? splitRatio : undefined,
+          smoothBorder:
+            (layoutMode as string) === "side-by-side"
+              ? smoothBorder
+              : undefined,
+          overlayMode:
+            (layoutMode as string) === "side-by-side" ? overlayMode : undefined,
+          reactionVolume,
+          mainVolume,
+          circular,
         };
-        
-        const res = await authFetch('/api/v1/reaction/create-mixed', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+
+        const res = await authFetch("/api/v1/reaction/create-mixed", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
-        
+
         const data = await res.json();
         if (res.ok && data.data) {
-           const filename = data.data.outputPath.split('/').pop();
-           setProcessingStatus('Mendownload hasil...');
-           const downloadRes = await authFetch(`/api/v1/reaction/download/${filename}`);
-           if (!downloadRes.ok) throw new Error('Gagal mengambil video hasil');
-           const blob = await downloadRes.blob();
-           const url = URL.createObjectURL(blob);
-           setResults(prev => ({ ...prev, [layoutMode]: url }));
-           toast.success('Video berhasil diproses!');
+          const filename = data.data.outputPath.split("/").pop();
+          setProcessingStatus("Mendownload hasil...");
+          const downloadRes = await authFetch(
+            `/api/v1/reaction/download/${filename}`
+          );
+          if (!downloadRes.ok) throw new Error("Gagal mengambil video hasil");
+          const blob = await downloadRes.blob();
+          const url = URL.createObjectURL(blob);
+          setResults((prev) => ({ ...prev, [layoutMode]: url }));
+          toast.success("Video berhasil diproses!");
         } else {
-           throw new Error(data.error?.message || 'Gagal memproses video');
+          throw new Error(data.error?.message || "Gagal memproses video");
         }
-
       } else {
         // Side-by-Side
         const payload = {
-           leftVideoPath: mainData.data.filepath, // Main is Left/Top
-           rightVideoPath: reactionData.data.filepath, // Reaction is Right/Bottom
-           layout: sideBySideLayout,
-           aspectRatio,
-           reactionVolume,
-           mainVolume,
-           splitRatio,
-           smoothBorder,
-           overlayMode,
+          leftVideoPath: mainData.data.filepath, // Main is Left/Top
+          rightVideoPath: reactionData.data.filepath, // Reaction is Right/Bottom
+          layout: sideBySideLayout,
+          aspectRatio,
+          reactionVolume,
+          mainVolume,
+          splitRatio,
+          smoothBorder,
+          overlayMode,
         };
 
-        const res = await authFetch('/api/v1/reaction/create-side-by-side', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+        const res = await authFetch("/api/v1/reaction/create-side-by-side", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
-        
+
         const data = await res.json();
         if (res.ok && data.data) {
-           const filename = data.data.outputPath.split('/').pop();
-           setProcessingStatus('Mendownload hasil...');
-           const downloadRes = await authFetch(`/api/v1/reaction/download/${filename}`);
-           if (!downloadRes.ok) throw new Error('Gagal mengambil video hasil');
-           const blob = await downloadRes.blob();
-           const url = URL.createObjectURL(blob);
-           setResults(prev => ({ ...prev, [layoutMode]: url }));
-           toast.success('Video berhasil diproses!');
+          const filename = data.data.outputPath.split("/").pop();
+          setProcessingStatus("Mendownload hasil...");
+          const downloadRes = await authFetch(
+            `/api/v1/reaction/download/${filename}`
+          );
+          if (!downloadRes.ok) throw new Error("Gagal mengambil video hasil");
+          const blob = await downloadRes.blob();
+          const url = URL.createObjectURL(blob);
+          setResults((prev) => ({ ...prev, [layoutMode]: url }));
+          toast.success("Video berhasil diproses!");
         } else {
-           throw new Error(data.error?.message || 'Gagal memproses video');
+          throw new Error(data.error?.message || "Gagal memproses video");
         }
       }
-      setProcessingStatus('Selesai!');
-      
+      setProcessingStatus("Selesai!");
     } catch (err) {
-      console.error('Processing failed', err);
-      const message = err instanceof Error ? err.message : 'Unknown error';
-      setProcessingStatus('Gagal: ' + message);
+      console.error("Processing failed", err);
+      const message = err instanceof Error ? err.message : "Unknown error";
+      setProcessingStatus("Gagal: " + message);
       toast.error(message);
       setIsProcessing(false);
     } finally {
@@ -209,457 +240,586 @@ export function ReactionCreatorPage() {
   // Cleanup blob URL on unmount or change
   useEffect(() => {
     return () => {
-      Object.values(results).forEach(url => {
-        if (url && url.startsWith('blob:')) {
-            URL.revokeObjectURL(url);
+      Object.values(results).forEach((url) => {
+        if (url && url.startsWith("blob:")) {
+          URL.revokeObjectURL(url);
         }
       });
     };
   }, [results]);
 
-  const currentLayoutConfig = layoutModes.find(m => m.id === layoutMode)!;
   const resultUrl = results[layoutMode];
 
   return (
     <PageTransition className="min-h-screen bg-background p-6">
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div 
-          className="flex items-center gap-4 mb-6"
-        >
-          <Button 
-            as={Link} 
-            to="/dashboard" 
-            isIconOnly 
-            variant="light" 
-            size="sm"
-          >
-            <ArrowLeft size={20} />
-          </Button>
-          <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <Layers size={24} className="text-primary" />
-              Reaction Creator
-            </h1>
-            <p className="text-foreground/60 text-sm">Buat video reaction atau tempel</p>
-          </div>
+        <div className="mb-8">
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <Layers size={24} className="text-primary" />
+            Reaction Creator
+          </h1>
+          <p className="text-foreground/60 text-sm">
+            Buat video reaction atau tempel dengan mudah
+          </p>
         </div>
 
-        {/* Layout Mode Selection */}
-        <div
-          className="mb-6"
-        >
-          <div className="grid grid-cols-2 gap-4 max-w-md">
-            {layoutModes.map((mode) => (
-              <HoverCard key={mode.id}>
-                <Card 
-                  isPressable
-                  onPress={() => setLayoutMode(mode.id)}
-                  className={`border-2 transition-colors ${
-                    layoutMode === mode.id 
-                      ? `border-${mode.color} bg-${mode.color}/10` 
-                      : 'border-transparent hover:border-divider'
-                  }`}
-                >
-                  <CardBody className="p-4 text-center">
-                    <div className={`w-12 h-12 rounded-lg bg-${mode.color}/20 flex items-center justify-center mx-auto mb-2`}>
-                      <mode.icon size={24} className={`text-${mode.color}`} />
-                    </div>
-                    <p className="font-medium">{mode.name}</p>
-                    <p className="text-xs text-foreground/50 mt-0.5">{mode.description}</p>
-                  </CardBody>
-                </Card>
-              </HoverCard>
-            ))}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left: Main Video */}
-          <div
-          >
-            <Card className="h-full">
-              <CardHeader className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                  <Monitor size={16} className="text-primary" />
-                </div>
-                <h2 className="text-lg font-semibold">Video Utama</h2>
-              </CardHeader>
-              <CardBody className="space-y-4">
-                {!mainVideoUrl ? (
-                  <div 
-                    className="aspect-video bg-content2 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:bg-content3 transition-colors border-2 border-dashed border-divider hover:border-primary/50"
-                    onClick={() => mainInputRef.current?.click()}
-                  >
-                    <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mb-3">
-                      <Upload size={28} className="text-primary" />
-                    </div>
-                    <p className="text-foreground/60 font-medium">Upload video utama</p>
-                    <p className="text-foreground/40 text-xs mt-1">Video yang akan ditonton/direaksikan • Max 200MB, 5 Min</p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    <video
-                      src={mainVideoUrl}
-                      controls
-                      className="w-full aspect-video rounded-xl bg-black"
-                    />
-                    <Button 
-                      variant="flat" 
-                      size="sm"
-                      onPress={() => mainInputRef.current?.click()}
-                      startContent={<Upload size={14} />}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+          {/* LEFT COLUMN: HERO PREVIEW (Span 8) */}
+          <div className="lg:col-span-8 flex flex-col gap-4">
+            <Card className="flex-1 bg-black/5 border-divider overflow-hidden min-h-[500px] flex flex-col">
+              <div className="relative flex-1 flex items-center justify-center bg-zinc-900/50 p-8">
+                {/* Empty State / Upload Zone if videos missing */}
+                {!mainVideoUrl || !reactionVideoUrl ? (
+                  <div className="flex flex-col md:flex-row gap-6 w-full max-w-3xl items-stretch justify-center h-1/2">
+                    {/* Main Upload */}
+                    <div
+                      onClick={() => mainInputRef.current?.click()}
+                      className={`flex-1 rounded-2xl border-2 border-dashed flex flex-col items-center justify-center p-8 cursor-pointer transition-all hover:scale-[1.02] group
+                                ${
+                                  mainVideoUrl
+                                    ? "border-success/50 bg-success/10"
+                                    : "border-zinc-700 hover:border-primary hover:bg-zinc-800/50"
+                                }`}
                     >
-                      Ganti
-                    </Button>
-                  </div>
-                )}
-                
-                <input
-                  ref={mainInputRef}
-                  type="file"
-                  accept="video/*"
-                  onChange={handleMainVideoSelect}
-                  className="hidden"
-                />
-              </CardBody>
-            </Card>
-          </div>
-
-          {/* Middle: Reaction Video */}
-          <div
-          >
-            <Card className="h-full">
-              <CardHeader className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-secondary/10 flex items-center justify-center">
-                  <Smartphone size={16} className="text-secondary" />
-                </div>
-                <h2 className="text-lg font-semibold">Video Reaksi</h2>
-              </CardHeader>
-              <CardBody className="space-y-4">
-                {!reactionVideoUrl ? (
-                  <div 
-                    className="aspect-video bg-content2 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:bg-content3 transition-colors border-2 border-dashed border-divider hover:border-secondary/50"
-                    onClick={() => reactionInputRef.current?.click()}
-                  >
-                    <div className="w-14 h-14 rounded-full bg-secondary/10 flex items-center justify-center mb-3">
-                      <Upload size={28} className="text-secondary" />
-                    </div>
-                    <p className="text-foreground/60 font-medium">Upload video reaksi</p>
-                    <p className="text-foreground/40 text-xs mt-1">Video wajah/reaksi kamu • Max 200MB, 5 Min</p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    <video
-                      src={reactionVideoUrl}
-                      controls
-                      className="w-full aspect-video rounded-xl bg-black"
-                    />
-                    <Button 
-                      variant="flat" 
-                      size="sm"
-                      onPress={() => reactionInputRef.current?.click()}
-                      startContent={<Upload size={14} />}
-                    >
-                      Ganti
-                    </Button>
-                  </div>
-                )}
-                
-                <input
-                  ref={reactionInputRef}
-                  type="file"
-                  accept="video/*"
-                  onChange={handleReactionVideoSelect}
-                  className="hidden"
-                />
-              </CardBody>
-            </Card>
-          </div>
-
-          {/* Right: Settings */}
-          <div
-          >
-            <Card>
-              <CardHeader className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-warning/10 flex items-center justify-center">
-                  <Sparkles size={16} className="text-warning" />
-                </div>
-                <h2 className="text-lg font-semibold">Pengaturan</h2>
-              </CardHeader>
-              <CardBody className="space-y-6">
-                <div className="relative">
-                  {(!mainVideoFile || !reactionVideoFile) && (
-                    <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-background/60 backdrop-blur-sm rounded-lg">
-                      <div className="bg-default-100 p-3 rounded-full mb-2">
-                        <Lock size={20} className="text-foreground/50" />
-                      </div>
-                      <p className="text-xs font-medium text-foreground/50">Upload kedua video untuk mengatur</p>
-                    </div>
-                  )}
-                  <div className={(!mainVideoFile || !reactionVideoFile) ? "opacity-30 pointer-events-none blur-[1px] transition-all space-y-6" : "transition-all space-y-6"}>
-                    
-                    {/* Global Output Settings */}
-                    <div>
-                         <label className="text-sm font-medium mb-2 block">Aspect Ratio (Output)</label>
-                         <Select
-                           aria-label="Aspect Ratio"
-                           selectedKeys={[aspectRatio]}
-                           onSelectionChange={(keys) => setAspectRatio(Array.from(keys)[0] as string)}
-                           classNames={{ value: "text-small" }}
-                         >
-                           <SelectItem key="16:9" textValue="16:9 (YouTube)">16:9 (YouTube, FB Video)</SelectItem>
-                           <SelectItem key="9:16" textValue="9:16 (TikTok/Reels)">9:16 (TikTok, Reels, YT Shorts)</SelectItem>
-                           <SelectItem key="1:1" textValue="1:1 (Square)">1:1 (Instagram, FB Feed)</SelectItem>
-                           <SelectItem key="4:5" textValue="4:5 (Portrait)">4:5 (IG/FB Portrait)</SelectItem>
-                         </Select>
-                    </div>
-
-                    {/* PiP Settings */}
-                    {layoutMode === 'pip' && (
-                      <>
-                        <div className="flex justify-between items-center bg-default-50 p-2 rounded-lg">
-                            <label className="text-sm font-medium">Bentuk Lingkaran</label>
-                            <Switch size="sm" isSelected={circular} onValueChange={setCircular} aria-label="Circular Mode" />
-                        </div>
-
-                        <div>
-                          <label className="text-sm font-medium mb-2 block">Posisi PiP</label>
-                          <Select
-                            aria-label="Posisi PiP"
-                            selectedKeys={[pipPosition]}
-                            onSelectionChange={(keys) => setPipPosition(Array.from(keys)[0] as PipPosition)}
+                      {mainVideoUrl ? (
+                        <>
+                          <div className="w-16 h-16 rounded-full bg-success/20 flex items-center justify-center mb-4">
+                            <Check size={32} className="text-success" />
+                          </div>
+                          <p className="font-semibold text-success">
+                            Main Video Loaded
+                          </p>
+                          <Button
+                            size="sm"
+                            variant="flat"
+                            className="mt-2"
+                            onPress={() => mainInputRef.current?.click()}
                           >
-                            <SelectItem key="top-left">Kiri Atas</SelectItem>
-                            <SelectItem key="top-right">Kanan Atas</SelectItem>
-                            <SelectItem key="bottom-left">Kiri Bawah</SelectItem>
-                            <SelectItem key="bottom-right">Kanan Bawah</SelectItem>
-                          </Select>
-                        </div>
-
-                        <div>
-                          <label className="text-sm font-medium mb-2 block">
-                            Ukuran PiP: {Math.round(pipScale * 100)}%
-                          </label>
-                          <Slider
-                            aria-label="Ukuran PiP"
-                            step={0.05}
-                            minValue={0.15}
-                            maxValue={0.5}
-                            value={pipScale}
-                            onChange={(v) => setPipScale(v as number)}
-                            color="primary"
-                          />
-                        </div>
-
-
-                      </>
-                    )}
-
-                    {/* Side-by-side Settings */}
-                    {layoutMode === 'side-by-side' && (
-                      <div className="flex flex-col gap-6">
-                        <label className="text-sm font-medium mb-3 block">Orientasi</label>
-                        <div className="grid grid-cols-2 gap-2">
-                          <Card 
-                            isPressable
-                            onPress={() => setSideBySideLayout('horizontal')}
-                            className={`border-2 ${sideBySideLayout === 'horizontal' ? 'border-primary bg-primary/10' : 'border-transparent'}`}
-                          >
-                            <CardBody className="p-3 text-center">
-                              <div className="flex gap-1 justify-center mb-2">
-                                <div className="w-6 h-4 bg-foreground/20 rounded" />
-                                <div className="w-6 h-4 bg-foreground/20 rounded" />
-                              </div>
-                              <p className="text-sm">Horizontal</p>
-                            </CardBody>
-                          </Card>
-                          <Card 
-                            isPressable
-                            onPress={() => setSideBySideLayout('vertical')}
-                            className={`border-2 ${sideBySideLayout === 'vertical' ? 'border-primary bg-primary/10' : 'border-transparent'}`}
-                          >
-                            <CardBody className="p-3 text-center">
-                              <div className="flex flex-col gap-1 items-center mb-2">
-                                <div className="w-8 h-3 bg-foreground/20 rounded" />
-                                <div className="w-8 h-3 bg-foreground/20 rounded" />
-                              </div>
-                              <p className="text-sm">Vertical</p>
-                            </CardBody>
-                          </Card>
-                        </div>
-
-                        {/* Split Ratio Slider */}
-                        <div className="mt-4 space-y-3">
-                            <div className="flex justify-between text-sm">
-                              <span className="flex items-center gap-2">
-                                <Grid size={16} className="text-foreground/50" />
-                                Rasio Pembagian
-                              </span>
-                              <span className="text-foreground/70">{Math.round(splitRatio * 100)}% Main</span>
-                            </div>
-                            <Slider 
-                              aria-label="Split Ratio"
-                              size="sm"
-                              step={0.05}
-                              maxValue={0.7}
-                              minValue={0.5}
-                              defaultValue={0.5}
-                              value={splitRatio}
-                              onChange={(v) => {
-                                const val = Array.isArray(v) ? v[0] : v;
-                                if (typeof val === 'number') setSplitRatio(val);
-                              }}
-                              className="max-w-md"
-                              color="primary"
+                            Ganti
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <div className="w-20 h-20 rounded-full bg-zinc-800 flex items-center justify-center mb-6 group-hover:bg-primary/20 transition-colors">
+                            <Monitor
+                              size={40}
+                              className="text-zinc-400 group-hover:text-primary"
                             />
-                            <p className="text-xs text-foreground/40">
-                              Geser ke kanan untuk memperbesar video utama (Max 70%).
-                            </p>
-                        </div>
-                        
-                        <div className="flex flex-col gap-2">
-                          <Switch
-                            size="sm"
-                            isSelected={smoothBorder}
-                            onValueChange={setSmoothBorder}
-                          >
-                            <span className="text-sm">Gradient Blending (Halus)</span>
-                          </Switch>
-                          <p className="text-xs text-foreground/40 pl-10">
-                             Efek gradasi transparan di perbatasan. Gunakan bersama <b>Overlay Mode</b> untuk hasil menyatu terbaik.
+                          </div>
+                          <p className="text-lg font-bold text-zinc-300">
+                            Upload Main Video
                           </p>
-                        </div>
-                        
-                        <div className="flex flex-col gap-2">
-                           <Switch
-                            size="sm"
-                            isSelected={overlayMode}
-                            onValueChange={setOverlayMode}
-                          >
-                            <span className="text-sm">Overlay Mode (Tumpuk)</span>
-                          </Switch>
-                           <p className="text-xs text-foreground/40 pl-10">
-                             Video Utama Full Screen, Video Reaksi ditumpuk di atasnya.
+                          <p className="text-sm text-zinc-500 mt-2 text-center">
+                            Video utama yang akan direaksikan
                           </p>
-                        </div>
-                      </div>
-                    )}
-                    
-                    {/* Audio Settings (Global) */}
-                    <div>
-                        <label className="text-sm font-medium mb-2 flex items-center gap-2">
-                          <Volume2 size={14} /> Main Volume: {Math.round(mainVolume * 100)}%
-                        </label>
-                        <Slider
-                          aria-label="Main Volume"
-                          step={0.1}
-                          minValue={0}
-                          maxValue={2}
-                          value={mainVolume}
-                          onChange={(v) => setMainVolume(v as number)}
-                          color="success"
-                        />
+                        </>
+                      )}
                     </div>
 
-                    <div>
-                      <label className="text-sm font-medium mb-2 flex items-center gap-2">
-                        <Volume2 size={14} /> Reaction Volume: {Math.round(reactionVolume * 100)}%
-                      </label>
-                      <Slider
-                        aria-label="Volume Reaksi"
-                        step={0.1}
-                        minValue={0}
-                        maxValue={2}
-                        value={reactionVolume}
-                        onChange={(v) => setReactionVolume(v as number)}
-                        color="secondary"
-                      />
+                    {/* Reaction Upload */}
+                    <div
+                      onClick={() => reactionInputRef.current?.click()}
+                      className={`flex-1 rounded-2xl border-2 border-dashed flex flex-col items-center justify-center p-8 cursor-pointer transition-all hover:scale-[1.02] group
+                                ${
+                                  reactionVideoUrl
+                                    ? "border-success/50 bg-success/10"
+                                    : "border-zinc-700 hover:border-secondary hover:bg-zinc-800/50"
+                                }`}
+                    >
+                      {reactionVideoUrl ? (
+                        <>
+                          <div className="w-16 h-16 rounded-full bg-success/20 flex items-center justify-center mb-4">
+                            <Check size={32} className="text-success" />
+                          </div>
+                          <p className="font-semibold text-success">
+                            Reaction Video Loaded
+                          </p>
+                          <Button
+                            size="sm"
+                            variant="flat"
+                            className="mt-2"
+                            onPress={() => reactionInputRef.current?.click()}
+                          >
+                            Ganti
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <div className="w-20 h-20 rounded-full bg-zinc-800 flex items-center justify-center mb-6 group-hover:bg-secondary/20 transition-colors">
+                            <Smartphone
+                              size={40}
+                              className="text-zinc-400 group-hover:text-secondary"
+                            />
+                          </div>
+                          <p className="text-lg font-bold text-zinc-300">
+                            Upload Reaction
+                          </p>
+                          <p className="text-sm text-zinc-500 mt-2 text-center">
+                            Video wajah / kamera depan
+                          </p>
+                        </>
+                      )}
                     </div>
                   </div>
-                </div>
-
-                <Divider />
-
-                {/* Processing Status */}
-                {isProcessing && (
-                  <div className="space-y-2 p-3 rounded-lg bg-primary/5">
-                    <Progress isIndeterminate size="sm" color="primary" aria-label="Sedang memproses" />
-                    <p className="text-sm text-center text-foreground/60">{processingStatus}</p>
+                ) : (
+                  // PREVIEW MODE
+                  <div className="w-full h-full flex items-center justify-center">
+                    {/* Interactive Preview Component */}
+                    <ReactionPreview
+                      mainVideoUrl={mainVideoUrl}
+                      reactionVideoUrl={reactionVideoUrl}
+                      aspectRatio={aspectRatio}
+                      pipScale={pipScale}
+                      circular={circular}
+                      onPositionChange={(x, y) => {
+                        const res = RESOLUTIONS[aspectRatio];
+                        if (res) {
+                          setCustomPosition({
+                            x: Math.round(x * res.w),
+                            y: Math.round(y * res.h),
+                          });
+                        }
+                      }}
+                      layoutMode={layoutMode}
+                      sideBySideLayout={sideBySideLayout}
+                      splitRatio={splitRatio}
+                      smoothBorder={smoothBorder}
+                      overlayMode={overlayMode}
+                    />
                   </div>
                 )}
+              </div>
 
+              {/* Bottom Bar: File Controls */}
+              {(mainVideoUrl || reactionVideoUrl) && (
+                <div className="bg-content1 p-4 flex flex-col sm:flex-row justify-between items-center border-t border-divider gap-4">
+                  <div className="flex gap-2 w-full sm:w-auto">
+                    <Button
+                      size="sm"
+                      variant="flat"
+                      fullWidth
+                      className="sm:w-auto"
+                      startContent={<Monitor size={14} />}
+                      onPress={() => mainInputRef.current?.click()}
+                    >
+                      Ganti Main
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="flat"
+                      fullWidth
+                      className="sm:w-auto"
+                      startContent={<Smartphone size={14} />}
+                      onPress={() => reactionInputRef.current?.click()}
+                    >
+                      Ganti React
+                    </Button>
+                  </div>
+                  <div className="text-xs text-foreground/50 text-center sm:text-right w-full sm:w-auto">
+                    {customPosition
+                      ? `Posisi: ${customPosition.x}px, ${customPosition.y}px`
+                      : "Drag preview untuk mengatur posisi"}
+                  </div>
+                </div>
+              )}
+            </Card>
 
-
-                <Divider className="my-2" />
-
-                {/* Action Buttons */}
-                <div className="flex gap-3">
-                  <Button
-                    color={currentLayoutConfig.color as 'primary' | 'secondary'}
-                    className="flex-1"
-                    isDisabled={!mainVideoFile || !reactionVideoFile || isProcessing}
-                    isLoading={isProcessing}
-                    onPress={handleProcess}
-                    startContent={!isProcessing && <Play size={18} />}
-                    size="lg"
-                  >
-                    Buat Video
-                  </Button>
-                  
-                  {resultUrl && (
+            {/* Result Area (Moved below Preview) */}
+            {resultUrl && (
+              <Card className="border-2 border-success/30 bg-success/5 animate-in fade-in slide-in-from-bottom-4">
+                <CardBody className="space-y-4">
+                  <div className="flex flex-row items-center gap-4">
+                    <div className="bg-success/20 p-3 rounded-full">
+                      <Check className="text-success" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-bold text-success-700">
+                        Video Selesai!
+                      </h3>
+                      <p className="text-xs text-success-600/80">
+                        Siap didownload.
+                      </p>
+                    </div>
                     <Button
                       as="a"
                       href={resultUrl}
                       download
                       color="success"
-                      size="lg"
-                      startContent={<Download size={18} />}
+                      startContent={<Download size={16} />}
                     >
-                      Download
+                      Download Video
                     </Button>
-                  )}
+                  </div>
+
+                  <div className="p-3 bg-warning/10 border border-warning/20 rounded-lg flex items-start gap-3">
+                    <AlertTriangle
+                      className="text-warning shrink-0 mt-0.5"
+                      size={18}
+                    />
+                    <div>
+                      <h3 className="text-sm font-semibold text-warning-700 dark:text-warning-500">
+                        Video Tidak Disimpan Permanen
+                      </h3>
+                      <p className="text-xs text-muted-foreground mt-1 text-warning-800/80 dark:text-warning-300/80">
+                        Hasil video ini hanya tersimpan di server selama{" "}
+                        <b>60 menit</b>. Harap segera unduh video Anda sebelum
+                        dihapus otomatis oleh sistem.
+                      </p>
+                    </div>
+                  </div>
+                </CardBody>
+              </Card>
+            )}
+          </div>
+
+          {/* RIGHT COLUMN: CONTROLS (Span 4) */}
+          <div className="lg:col-span-4 space-y-6">
+            <Card>
+              <CardBody className="p-0 overflow-hidden">
+                {/* Mode Selector (Styled like Loop Tool) */}
+                <div className="p-4 bg-default-50/50 border-b border-divider">
+                  <label className="text-xs font-semibold uppercase text-foreground/50 mb-3 block px-1">
+                    Mode Layout
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    {layoutModes.map((mode) => (
+                      <Card
+                        key={mode.id}
+                        isPressable
+                        onPress={() => setLayoutMode(mode.id)}
+                        className={`border-2 transition-all ${
+                          layoutMode === mode.id
+                            ? `border-${mode.color} bg-${mode.color}/5`
+                            : "border-transparent hover:border-default-200"
+                        }`}
+                        shadow="sm"
+                      >
+                        <CardBody className="p-3 text-center flex flex-col items-center justify-center gap-2 h-full">
+                          <div
+                            className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
+                              layoutMode === mode.id
+                                ? `bg-${mode.color}/20 text-${mode.color}`
+                                : "bg-default-100 text-default-500"
+                            }`}
+                          >
+                            <mode.icon size={18} />
+                          </div>
+                          <div>
+                            <p
+                              className={`font-semibold text-sm ${
+                                layoutMode === mode.id
+                                  ? `text-${mode.color}`
+                                  : ""
+                              }`}
+                            >
+                              {mode.name}
+                            </p>
+                            <p className="text-[10px] text-foreground/50 leading-tight mt-0.5">
+                              {mode.description}
+                            </p>
+                          </div>
+                        </CardBody>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="p-6 space-y-6">
+                  {/* Visual Preferences Section */}
+                  <Card
+                    className="border border-divider shadow-none bg-default-50/50"
+                    radius="sm"
+                  >
+                    <CardBody className="space-y-4 p-4">
+                      <h3 className="text-xs font-bold uppercase text-foreground/50 flex items-center gap-2">
+                        <Settings2 size={14} /> Preferensi Visual
+                      </h3>
+
+                      {/* Aspect Ratio - Common */}
+                      <div>
+                        <div className="flex justify-between items-center mb-2">
+                          <label className="text-sm font-medium">
+                            Aspect Ratio Output
+                          </label>
+                        </div>
+                        <Select
+                          selectedKeys={[aspectRatio]}
+                          onChange={(e: ChangeEvent<HTMLSelectElement>) =>
+                            setAspectRatio(e.target.value)
+                          }
+                          size="sm"
+                          aria-label="Aspect Ratio"
+                        >
+                          <SelectItem key="16:9">
+                            16:9 (YouTube, FB Video)
+                          </SelectItem>
+                          <SelectItem key="9:16">
+                            9:16 (TikTok/Reels/Shorts)
+                          </SelectItem>
+                          <SelectItem key="1:1">1:1 (IG/FB Feed)</SelectItem>
+                          <SelectItem key="4:5">
+                            4:5 (IG/FB Portrait)
+                          </SelectItem>
+                        </Select>
+                      </div>
+
+                      <Divider className="my-2" />
+
+                      {layoutMode === "pip" ? (
+                        /* PIP Specifics */
+                        <div className="space-y-4 animate-in fade-in">
+                          <div>
+                            <div className="flex justify-between items-center">
+                              <label className="text-sm font-medium">
+                                Mode Lingkaran
+                              </label>
+                              <Switch
+                                size="sm"
+                                isSelected={circular}
+                                onValueChange={setCircular}
+                                aria-label="Circular Mode"
+                              />
+                            </div>
+                            <p className="text-[10px] text-foreground/50">
+                              Ubah bentuk video reaction menjadi lingkaran.
+                            </p>
+                          </div>
+
+                          <div>
+                            <div className="flex justify-between items-center mb-1">
+                              <label className="text-sm font-medium">
+                                Ukuran (Scale)
+                              </label>
+                              <span className="text-xs font-mono bg-default-200 px-2 py-0.5 rounded text-foreground/70">
+                                {Math.round(pipScale * 100)}%
+                              </span>
+                            </div>
+                            <Slider
+                              size="sm"
+                              step={0.01}
+                              minValue={0.15}
+                              maxValue={0.5}
+                              value={pipScale}
+                              onChange={(v) => setPipScale(v as number)}
+                              className="max-w-md"
+                              aria-label="PIP Scale"
+                            />
+                          </div>
+                          <p className="text-xs text-foreground/50 mt-1 italic">
+                            *Tip: Geser kotak preview di kiri untuk posisi
+                          </p>
+                        </div>
+                      ) : (
+                        /* SxS Specifics */
+                        <div className="space-y-4 animate-in fade-in">
+                          <div>
+                            <label className="text-sm font-medium mb-3 block flex items-center gap-2">
+                              <Grid size={14} className="text-secondary" />
+                              Arah Grid
+                            </label>
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                variant={
+                                  sideBySideLayout === "horizontal"
+                                    ? "solid"
+                                    : "flat"
+                                }
+                                color="secondary"
+                                className="flex-1"
+                                onPress={() =>
+                                  setSideBySideLayout("horizontal")
+                                }
+                              >
+                                <div className="flex flex-col items-center mt-2">
+                                  <div className="flex gap-0.5">
+                                    <div className="w-3 h-4 border-2 border-current rounded-sm"></div>
+                                    <div className="w-3 h-4 border-2 border-current rounded-sm bg-current/20"></div>
+                                  </div>
+                                  <span className="text-[10px]">
+                                    Horizontal
+                                  </span>
+                                </div>
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant={
+                                  sideBySideLayout === "vertical"
+                                    ? "solid"
+                                    : "flat"
+                                }
+                                color="secondary"
+                                className="flex-1"
+                                onPress={() => setSideBySideLayout("vertical")}
+                              >
+                                <div className="flex flex-col items-center mt-2">
+                                  <div className="flex flex-col gap-0.5">
+                                    <div className="w-4 h-2 border-2 border-current rounded-sm"></div>
+                                    <div className="w-4 h-2 border-2 border-current rounded-sm bg-current/20"></div>
+                                  </div>
+                                  <span className="text-[10px]">Vertical</span>
+                                </div>
+                              </Button>
+                            </div>
+                          </div>
+
+                          <div>
+                            <div className="flex justify-between items-center mb-1">
+                              <label className="text-sm font-medium">
+                                Split Ratio
+                              </label>
+                              <span className="text-xs font-mono bg-default-200 px-2 py-0.5 rounded text-foreground/70">
+                                {Math.round(splitRatio * 100)}% /{" "}
+                                {Math.round((1 - splitRatio) * 100)}%
+                              </span>
+                            </div>
+                            <Slider
+                              size="sm"
+                              step={0.05}
+                              minValue={0.5}
+                              maxValue={0.7}
+                              value={splitRatio}
+                              onChange={(v) => setSplitRatio(v as number)}
+                              aria-label="Split Ratio"
+                            />
+                            <p className="text-[10px] text-foreground/40 mt-1">
+                              Default ratio 50/50, geser kekanan untuk merubah.
+                            </p>
+                          </div>
+
+                          <div className="space-y-3 pt-2 bg-default-100/50 p-2 rounded-lg">
+                            <div className="flex justify-between items-start gap-2">
+                              <div className="flex-1">
+                                <label className="text-xs font-medium block">
+                                  Gradient Blending
+                                </label>
+                                <p className="text-[10px] text-foreground/50 leading-tight">
+                                  Membuat batas antar video menjadi halus
+                                  (seamless) dengan gradasi.
+                                </p>
+                              </div>
+                              <Switch
+                                size="sm"
+                                isSelected={smoothBorder}
+                                onValueChange={setSmoothBorder}
+                                aria-label="Smooth Border"
+                              />
+                            </div>
+                            <div className="flex justify-between items-start gap-2">
+                              <div className="flex-1">
+                                <label className="text-xs font-medium block">
+                                  Overlay Background
+                                </label>
+                                <p className="text-[10px] text-foreground/50 leading-tight">
+                                  Menambahkan background blur di area kosong
+                                  agar terlihat smooth.
+                                </p>
+                              </div>
+                              <Switch
+                                size="sm"
+                                isSelected={overlayMode}
+                                onValueChange={setOverlayMode}
+                                aria-label="Overlay Mode"
+                              />
+                            </div>
+                            <p className="text-[10px] text-foreground/50">
+                              Aktifkan keduanya untuk smooth faded border antar
+                              video.
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </CardBody>
+                  </Card>
+
+                  {/* Audio Mixer Section */}
+                  <Card
+                    className="border border-divider shadow-none bg-default-50/50"
+                    radius="sm"
+                  >
+                    <CardBody className="space-y-4 p-4">
+                      <h3 className="text-xs font-bold uppercase text-foreground/50 flex items-center gap-2">
+                        <Volume2 size={14} /> Audio Mixer
+                      </h3>
+
+                      <div>
+                        <div className="flex justify-between items-center mb-1">
+                          <label className="text-xs font-semibold text-foreground/70">
+                            Main Audio
+                          </label>
+                          <span className="text-[10px] font-mono bg-success/10 text-success px-1.5 py-0.5 rounded">
+                            {Math.round(mainVolume * 100)}%
+                          </span>
+                        </div>
+                        <Slider
+                          size="sm"
+                          color="success"
+                          step={0.1}
+                          minValue={0}
+                          maxValue={2}
+                          value={mainVolume}
+                          onChange={(v) => setMainVolume(v as number)}
+                          aria-label="Main Volume"
+                        />
+                      </div>
+
+                      <div>
+                        <div className="flex justify-between items-center mb-1">
+                          <label className="text-xs font-semibold text-foreground/70">
+                            Reaction Audio
+                          </label>
+                          <span className="text-[10px] font-mono bg-secondary/10 text-secondary px-1.5 py-0.5 rounded">
+                            {Math.round(reactionVolume * 100)}%
+                          </span>
+                        </div>
+                        <Slider
+                          size="sm"
+                          color="secondary"
+                          step={0.1}
+                          minValue={0}
+                          maxValue={2}
+                          value={reactionVolume}
+                          onChange={(v) => setReactionVolume(v as number)}
+                          aria-label="Reaction Volume"
+                        />
+                      </div>
+                    </CardBody>
+                  </Card>
+
+                  {/* Process Button */}
+                  <Button
+                    size="lg"
+                    color="primary"
+                    className="w-full font-semibold shadow-lg shadow-primary/20"
+                    startContent={!isProcessing && <Sparkles size={20} />}
+                    isLoading={isProcessing}
+                    isDisabled={!mainVideoFile || !reactionVideoFile}
+                    onPress={handleProcess}
+                  >
+                    {isProcessing ? processingStatus : "Buat Video Reaction"}
+                  </Button>
                 </div>
               </CardBody>
             </Card>
           </div>
         </div>
 
-        {/* Result Preview */}
-        {resultUrl && (
-          <div
-            className="mt-6"
-          >
-            <Card className="border-2 border-success/30 bg-success/5">
-              <CardHeader className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-success/20 flex items-center justify-center">
-                  <Check size={16} className="text-success" />
-                </div>
-                <h2 className="text-lg font-semibold">Hasil</h2>
-                <Chip color="success" size="sm" variant="flat">Selesai</Chip>
-              </CardHeader>
-              <CardBody>
-                <div className="mb-4 p-3 bg-warning/10 border border-warning/20 rounded-lg flex items-start gap-3">
-                  <AlertTriangle className="text-warning shrink-0 mt-0.5" size={18} />
-                  <div>
-                    <h3 className="text-sm font-semibold text-warning-700 dark:text-warning-500">Video Tidak Disimpan Permanen</h3>
-                    <p className="text-xs text-muted-foreground mt-1 text-warning-800/80 dark:text-warning-300/80">
-                       Hasil video ini hanya tersimpan di server selama <b>60 menit</b>. 
-                       Harap segera unduh video Anda sebelum dihapus otomatis oleh sistem.
-                    </p>
-                  </div>
-                </div>
-                <video
-                  src={resultUrl}
-                  controls
-                  autoPlay
-                  muted
-                  className="w-full max-w-2xl mx-auto rounded-xl"
-                />
-              </CardBody>
-            </Card>
-          </div>
-        )}
+        {/* Hidden Inputs */}
+        <input
+          ref={mainInputRef}
+          type="file"
+          accept="video/*"
+          onChange={handleMainVideoSelect}
+          className="hidden"
+        />
+        <input
+          ref={reactionInputRef}
+          type="file"
+          accept="video/*"
+          onChange={handleReactionVideoSelect}
+          className="hidden"
+        />
       </div>
     </PageTransition>
   );

@@ -1,24 +1,29 @@
-import type { FastifyInstance, FastifyReply } from 'fastify';
-import { z } from 'zod';
-import { prisma } from '@/lib/prisma';
-import { sendSuccess, sendError, sendCreated } from '@/utils/response';
-import { hashPassword, verifyPassword, generateToken, hashToken } from '@/utils/crypto';
-import { verifyTurnstileToken } from '@/lib/turnstile';
-import { requireAuth } from '@/plugins/auth';
-import { ERROR_CODES } from '@vibe-creator/shared';
-import { logger } from '@/lib/logger';
+import type { FastifyInstance, FastifyReply } from "fastify";
+import { z } from "zod";
+import { prisma } from "@/lib/prisma";
+import { sendSuccess, sendError, sendCreated } from "@/utils/response";
+import {
+  hashPassword,
+  verifyPassword,
+  generateToken,
+  hashToken,
+} from "@/utils/crypto";
+import { verifyTurnstileToken } from "@/lib/turnstile";
+import { requireAuth } from "@/plugins/auth";
+import { ERROR_CODES } from "@vibe-creator/shared";
+import { logger } from "@/lib/logger";
 
 const registerSchema = z.object({
-  email: z.string().email('Email tidak valid'),
-  password: z.string().min(8, 'Password minimal 8 karakter'),
-  name: z.string().min(2, 'Nama minimal 2 karakter'),
-  turnstileToken: z.string().min(1, 'Captcha diperlukan'),
+  email: z.string().email("Email tidak valid"),
+  password: z.string().min(8, "Password minimal 8 karakter"),
+  name: z.string().min(2, "Nama minimal 2 karakter"),
+  turnstileToken: z.string().min(1, "Captcha diperlukan"),
 });
 
 const loginSchema = z.object({
-  email: z.string().email('Email tidak valid'),
-  password: z.string().min(1, 'Password diperlukan'),
-  turnstileToken: z.string().min(1, 'Captcha diperlukan'),
+  email: z.string().email("Email tidak valid"),
+  password: z.string().min(1, "Password diperlukan"),
+  turnstileToken: z.string().min(1, "Captcha diperlukan"),
 });
 
 // Token durations
@@ -26,7 +31,7 @@ const ACCESS_TOKEN_DURATION_MINUTES = 60; // 1 hour - balance between security a
 const REFRESH_TOKEN_DURATION_DAYS = 30; // Long-lived
 
 // Cookie name for refresh token
-const REFRESH_TOKEN_COOKIE = 'vibe_refresh_token';
+const REFRESH_TOKEN_COOKIE = "vibe_refresh_token";
 
 /**
  * Set refresh token as HttpOnly cookie
@@ -36,13 +41,13 @@ function setRefreshTokenCookie(
   refreshToken: string,
   expiresAt: Date
 ) {
-  const isProduction = process.env.NODE_ENV === 'production';
-  
+  const isProduction = process.env.NODE_ENV === "production";
+
   reply.setCookie(REFRESH_TOKEN_COOKIE, refreshToken, {
     httpOnly: true,
     secure: isProduction, // HTTPS only in production
-    sameSite: 'lax',
-    path: '/',
+    sameSite: "lax",
+    path: "/",
     expires: expiresAt,
   });
 }
@@ -52,13 +57,13 @@ function setRefreshTokenCookie(
  * Must include same attributes as when setting for browser to clear it
  */
 function clearRefreshTokenCookie(reply: FastifyReply) {
-  const isProduction = process.env.NODE_ENV === 'production';
-  
+  const isProduction = process.env.NODE_ENV === "production";
+
   reply.clearCookie(REFRESH_TOKEN_COOKIE, {
     httpOnly: true,
     secure: isProduction,
-    sameSite: 'lax',
-    path: '/',
+    sameSite: "lax",
+    path: "/",
   });
 }
 
@@ -77,15 +82,19 @@ async function createSession(
 
   const accessToken = generateToken();
   const refreshToken = generateToken(64);
-  
+
   // Security: Store hashed refresh token in DB
   const hashedRefreshToken = hashToken(refreshToken);
-  
+
   const accessExpiresAt = new Date();
-  accessExpiresAt.setMinutes(accessExpiresAt.getMinutes() + ACCESS_TOKEN_DURATION_MINUTES);
-  
+  accessExpiresAt.setMinutes(
+    accessExpiresAt.getMinutes() + ACCESS_TOKEN_DURATION_MINUTES
+  );
+
   const refreshExpiresAt = new Date();
-  refreshExpiresAt.setDate(refreshExpiresAt.getDate() + REFRESH_TOKEN_DURATION_DAYS);
+  refreshExpiresAt.setDate(
+    refreshExpiresAt.getDate() + REFRESH_TOKEN_DURATION_DAYS
+  );
 
   await prisma.userSession.create({
     data: {
@@ -113,13 +122,14 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
     config: {
       rateLimit: {
         max: 3,
-        timeWindow: '1 hour',
+        timeWindow: "1 hour",
         keyGenerator: (request: { ip: string }) => `register:${request.ip}`,
         errorResponseBuilder: () => ({
           success: false,
           error: {
             code: ERROR_CODES.RATE_LIMIT_EXCEEDED,
-            message: 'Terlalu banyak percobaan daftar. Silakan coba lagi dalam 1 jam.',
+            message:
+              "Terlalu banyak percobaan daftar. Silakan coba lagi dalam 1 jam.",
           },
         }),
       },
@@ -130,13 +140,14 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
     config: {
       rateLimit: {
         max: 5,
-        timeWindow: '15 minutes',
+        timeWindow: "15 minutes",
         keyGenerator: (request: { ip: string }) => `login:${request.ip}`,
         errorResponseBuilder: () => ({
           success: false,
           error: {
             code: ERROR_CODES.RATE_LIMIT_EXCEEDED,
-            message: 'Terlalu banyak percobaan masuk. Silakan coba lagi dalam 15 menit.',
+            message:
+              "Terlalu banyak percobaan masuk. Silakan coba lagi dalam 15 menit.",
           },
         }),
       },
@@ -147,13 +158,14 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
     config: {
       rateLimit: {
         max: 10,
-        timeWindow: '1 minute',
+        timeWindow: "1 minute",
         keyGenerator: (request: { ip: string }) => `refresh:${request.ip}`,
         errorResponseBuilder: () => ({
           success: false,
           error: {
             code: ERROR_CODES.RATE_LIMIT_EXCEEDED,
-            message: 'Terlalu banyak permintaan refresh token. Mohon tunggu sebentar.',
+            message:
+              "Terlalu banyak permintaan refresh token. Mohon tunggu sebentar.",
           },
         }),
       },
@@ -161,16 +173,19 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
   };
 
   // Register with stricter rate limit
-  fastify.post('/register', registerRateLimit, async (request, reply) => {
+  fastify.post("/register", registerRateLimit, async (request, reply) => {
     const body = registerSchema.parse(request.body);
 
     // Verify Turnstile token
-    const isValidCaptcha = await verifyTurnstileToken(body.turnstileToken, request.ip);
+    const isValidCaptcha = await verifyTurnstileToken(
+      body.turnstileToken,
+      request.ip
+    );
     if (!isValidCaptcha) {
       return sendError(
         reply,
         ERROR_CODES.VALIDATION_ERROR,
-        'Verifikasi captcha gagal. Silakan coba lagi.',
+        "Verifikasi captcha gagal. Silakan coba lagi.",
         400
       );
     }
@@ -182,17 +197,20 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
     // Security: Generic error message to prevent user enumeration
     // Log actual reason internally for debugging
     if (existingUser) {
-      logger.info({ email: body.email }, 'Registration attempt for existing email');
+      logger.info(
+        { email: body.email },
+        "Registration attempt for existing email"
+      );
       return sendError(
         reply,
         ERROR_CODES.VALIDATION_ERROR,
-        'Registrasi gagal. Silakan periksa data Anda atau hubungi support.',
+        "Registrasi gagal. Silakan periksa data Anda atau hubungi support.",
         400
       );
     }
 
     const hashedPassword = await hashPassword(body.password);
-    
+
     const user = await prisma.user.create({
       data: {
         email: body.email,
@@ -200,8 +218,8 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
         name: body.name,
         subscription: {
           create: {
-            tier: 'FREE',
-            status: 'ACTIVE',
+            tier: "FREE",
+            status: "ACTIVE",
             exportsUsed: 0,
             exportsLimit: 0,
           },
@@ -218,7 +236,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
 
     const tokens = await createSession(
       user.id,
-      request.headers['user-agent'] ?? null,
+      request.headers["user-agent"] ?? null,
       request.ip
     );
 
@@ -234,16 +252,19 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
   });
 
   // Login with stricter rate limit
-  fastify.post('/login', loginRateLimit, async (request, reply) => {
+  fastify.post("/login", loginRateLimit, async (request, reply) => {
     const body = loginSchema.parse(request.body);
 
     // Verify Turnstile token
-    const isValidCaptcha = await verifyTurnstileToken(body.turnstileToken, request.ip);
+    const isValidCaptcha = await verifyTurnstileToken(
+      body.turnstileToken,
+      request.ip
+    );
     if (!isValidCaptcha) {
       return sendError(
         reply,
         ERROR_CODES.VALIDATION_ERROR,
-        'Verifikasi captcha gagal. Silakan coba lagi.',
+        "Verifikasi captcha gagal. Silakan coba lagi.",
         400
       );
     }
@@ -256,7 +277,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
       return sendError(
         reply,
         ERROR_CODES.INVALID_CREDENTIALS,
-        'Email atau password salah',
+        "Email atau password salah",
         401
       );
     }
@@ -267,14 +288,14 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
       return sendError(
         reply,
         ERROR_CODES.INVALID_CREDENTIALS,
-        'Email atau password salah',
+        "Email atau password salah",
         401
       );
     }
 
     const tokens = await createSession(
       user.id,
-      request.headers['user-agent'] ?? null,
+      request.headers["user-agent"] ?? null,
       request.ip
     );
 
@@ -296,7 +317,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
   });
 
   // Refresh Token - reads from HttpOnly cookie with rate limit
-  fastify.post('/refresh', refreshRateLimit, async (request, reply) => {
+  fastify.post("/refresh", refreshRateLimit, async (request, reply) => {
     try {
       // Get refresh token from cookie
       const refreshToken = request.cookies[REFRESH_TOKEN_COOKIE];
@@ -305,7 +326,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
         return sendError(
           reply,
           ERROR_CODES.TOKEN_EXPIRED,
-          'Refresh token tidak ditemukan',
+          "Refresh token tidak ditemukan",
           400
         );
       }
@@ -344,7 +365,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
           // Revoke ALL sessions for this user as a security measure
           logger.warn(
             { userId: expiredSession.userId, ip: request.ip },
-            'Refresh token reuse detected - revoking all sessions'
+            "Refresh token reuse detected - revoking all sessions"
           );
           await prisma.userSession.deleteMany({
             where: { userId: expiredSession.userId },
@@ -356,7 +377,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
         return sendError(
           reply,
           ERROR_CODES.TOKEN_EXPIRED,
-          'Refresh token tidak valid atau sudah expired',
+          "Refresh token tidak valid atau sudah expired",
           401
         );
       }
@@ -365,12 +386,16 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
       const newAccessToken = generateToken();
       const newRefreshToken = generateToken(64);
       const hashedNewRefreshToken = hashToken(newRefreshToken);
-      
+
       const newAccessExpiresAt = new Date();
-      newAccessExpiresAt.setMinutes(newAccessExpiresAt.getMinutes() + ACCESS_TOKEN_DURATION_MINUTES);
-      
+      newAccessExpiresAt.setMinutes(
+        newAccessExpiresAt.getMinutes() + ACCESS_TOKEN_DURATION_MINUTES
+      );
+
       const newRefreshExpiresAt = new Date();
-      newRefreshExpiresAt.setDate(newRefreshExpiresAt.getDate() + REFRESH_TOKEN_DURATION_DAYS);
+      newRefreshExpiresAt.setDate(
+        newRefreshExpiresAt.getDate() + REFRESH_TOKEN_DURATION_DAYS
+      );
 
       await prisma.userSession.update({
         where: { id: session.id },
@@ -385,22 +410,32 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
       // Set new refresh token cookie (rotation)
       setRefreshTokenCookie(reply, newRefreshToken, newRefreshExpiresAt);
 
+      const subscription = await prisma.subscription.findUnique({
+        where: { userId: session.userId },
+      });
+
       return sendSuccess(reply, {
         user: session.user,
+        subscription,
         accessToken: newAccessToken,
         expiresAt: newAccessExpiresAt,
       });
     } catch (error: any) {
-      logger.error({ err: error }, 'Refresh token error');
-      return sendError(reply, ERROR_CODES.INTERNAL_ERROR, `Refresh failed: ${error.message}`, 500);
+      logger.error({ err: error }, "Refresh token error");
+      return sendError(
+        reply,
+        ERROR_CODES.INTERNAL_ERROR,
+        `Refresh failed: ${error.message}`,
+        500
+      );
     }
   });
 
   // Logout - doesn't require valid auth, always clears cookie
-  fastify.post('/logout', async (request, reply) => {
+  fastify.post("/logout", async (request, reply) => {
     // Try to delete session if we have a valid token (best effort)
     const authHeader = request.headers.authorization;
-    if (authHeader?.startsWith('Bearer ')) {
+    if (authHeader?.startsWith("Bearer ")) {
       const token = authHeader.slice(7);
       try {
         await prisma.userSession.deleteMany({
@@ -427,15 +462,20 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
     // ALWAYS clear refresh token cookie
     clearRefreshTokenCookie(reply);
 
-    return sendSuccess(reply, { message: 'Berhasil logout' });
+    return sendSuccess(reply, { message: "Berhasil logout" });
   });
 
   // Get current user
-  fastify.get('/me', { preHandler: requireAuth }, async (request, reply) => {
+  fastify.get("/me", { preHandler: requireAuth }, async (request, reply) => {
     const user = request.user;
 
     if (!user) {
-      return sendError(reply, ERROR_CODES.UNAUTHORIZED, 'Tidak terautentikasi', 401);
+      return sendError(
+        reply,
+        ERROR_CODES.UNAUTHORIZED,
+        "Tidak terautentikasi",
+        401
+      );
     }
 
     const subscription = await prisma.subscription.findUnique({

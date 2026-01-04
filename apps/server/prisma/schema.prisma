@@ -28,6 +28,11 @@ model User {
   exports        ExportHistory[]
   streamSessions StreamSession[]
   payments       PaymentHistory[]
+  
+  billingSubscription BillingSubscription?
+  streamQuotaCycles   StreamQuotaCycle[]
+  streamTopupPurchases StreamTopupPurchase[]
+  jobs                Job[]
 
   @@map("users")
 }
@@ -150,9 +155,19 @@ model Project {
   timeline Timeline?
   exports  ExportHistory[]
   versions ProjectVersion[]
+  jobs     Job[]
+
+  // AI Director Fields
+  mode      ProjectMode @default(TIMELINE)
+  storyData Json?       @map("story_data")
 
   @@index([userId])
   @@map("projects")
+}
+
+enum ProjectMode {
+  STORY
+  TIMELINE
 }
 
 model ProjectVersion {
@@ -398,6 +413,48 @@ enum DownloadStatus {
   FAILED
 }
 
+// ============================================================================
+// ASYNC JOBS (AI DIRECTOR)
+// ============================================================================
+
+model Job {
+  id          String    @id @default(cuid())
+  userId      String
+  projectId   String?   // Optional: some jobs might be project-agnostic
+  type        JobType
+  status      JobStatus @default(PENDING)
+  input       Json      @default("{}")
+  output      Json?
+  error       String?
+  progress    Int       @default(0) // 0-100
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([projectId])
+  @@index([status])
+  @@map("jobs")
+}
+
+enum JobStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum JobType {
+  STORY_GENERATION
+  SCENE_GENERATION
+  ASSET_GENERATION
+}
+
 // ================================
 // STREAMING MODELS
 // ================================
@@ -408,19 +465,115 @@ model StreamSession {
   platform     String       // youtube, tiktok, twitch, etc.
   status       StreamStatus @default(STARTING)
   startedAt    DateTime     @default(now())
+  autoStopAt   DateTime?
   endedAt      DateTime?
+  stopReason   StreamStopReason?
+  durationMinutesBilled Int?
+  
+  quotaCycleId String?
+  quotaCycle   StreamQuotaCycle? @relation(fields: [quotaCycleId], references: [id])
+  
+  config       Json?        // Redacted stream config
   errorMessage String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([userId])
-  @@index([status])
+  @@index([userId, status])
+  @@index([autoStopAt, status])
   @@map("stream_sessions")
 }
 
 enum StreamStatus {
+  CREATED
   STARTING
   LIVE
-  ENDED
+  STOPPING
+  STOPPED
   FAILED
+  ENDED // Legacy support
+}
+
+enum StreamStopReason {
+  USER_REQUEST
+  AUTO_STOP
+  ERROR
+  ADMIN
+  SERVER_RESTART
+  QUOTA_EXHAUSTED
+}
+
+// ================================
+// BILLING MODELS
+// ================================
+
+model BillingSubscription {
+  id                     String   @id @default(cuid())
+  userId                 String   @unique
+  provider               String   // XENDIT
+  providerSubscriptionId String   @unique // Xendit ID
+  status                 String   // ACTIVE, PAST_DUE, etc.
+  planKey                String
+  currentPeriodStartAt   DateTime
+  currentPeriodEndAt     DateTime
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("billing_subscriptions")
+}
+
+model StreamQuotaCycle {
+  id              String   @id @default(cuid())
+  userId          String
+  cycleStartAt    DateTime
+  cycleEndAt      DateTime
+  
+  quotaMinutesBase  Int
+  quotaMinutesTopup Int      @default(0)
+  quotaMinutesUsed  Int      @default(0)
+  
+  status          String   @default("OPEN") // OPEN, CLOSED
+  
+  sessions        StreamSession[]
+  topups          StreamTopupPurchase[]
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, cycleStartAt, cycleEndAt])
+  @@index([userId, status])
+  @@map("stream_quota_cycles")
+}
+
+model PaymentEvent {
+  id              String   @id @default(cuid())
+  provider        String   @default("XENDIT")
+  providerEventId String   @unique
+  eventType       String
+  payload         Json
+  receivedAt      DateTime @default(now())
+  
+  @@map("payment_events")
+}
+
+model StreamTopupPurchase {
+  id                  String   @id @default(cuid())
+  userId              String
+  provider            String   @default("XENDIT")
+  providerPaymentId   String   @unique
+  minutes             Int
+  amount              Int
+  status              String   // PENDING, PAID, FAILED
+  appliedToQuotaCycleId String?
+  
+  quotaCycle StreamQuotaCycle? @relation(fields: [appliedToQuotaCycleId], references: [id])
+  user       User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  
+  @@map("stream_topup_purchases")
 }

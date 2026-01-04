@@ -45,6 +45,9 @@ const envSchema = z.object({
   
   // SaveSora API for downloading Sora videos
   SAVESORA_API_KEY: z.string().optional(),
+
+  // AI Keys
+  OPENAI_API_KEY: z.string().min(1).optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

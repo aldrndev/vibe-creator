@@ -8,6 +8,9 @@ const startStreamSchema = z.object({
     platform: z.enum(['youtube', 'tiktok', 'twitch', 'facebook', 'instagram', 'custom']),
     rtmpUrl: z.string().optional(),
     streamKey: z.string(),
+    quality: z.enum(['720p', '1080p']).default('720p'),
+    bitrateKbps: z.number().optional(),
+    durationMinutes: z.number().min(1).max(1440).default(60), // Max 24 hours
   }),
 });
 
@@ -29,6 +32,7 @@ export const streamRoutes: FastifyPluginAsync = async (fastify) => {
     }
 
     try {
+      console.log('Stream Start Body:', JSON.stringify(request.body, null, 2));
       const body = startStreamSchema.parse(request.body);
       const result = await streamService.startStream({
         userId: user.id,
@@ -37,6 +41,9 @@ export const streamRoutes: FastifyPluginAsync = async (fastify) => {
           platform: body.config.platform,
           rtmpUrl: body.config.rtmpUrl || '',
           streamKey: body.config.streamKey,
+          quality: body.config.quality,
+          bitrateKbps: body.config.bitrateKbps,
+          durationMinutes: body.config.durationMinutes,
         },
       });
 
@@ -46,6 +53,7 @@ export const streamRoutes: FastifyPluginAsync = async (fastify) => {
       });
     } catch (err) {
       if (err instanceof z.ZodError) {
+        console.log('Validation Error:', JSON.stringify(err.errors, null, 2));
         return reply.status(400).send({
           success: false,
           error: { code: 'VALIDATION_ERROR', message: err.errors[0]?.message },

@@ -49,8 +49,8 @@ export async function getVideoResolution(inputPath: string): Promise<{ width: nu
                 return reject(new Error('Invalid resolution format'));
             }
 
-            const width = parseInt(parts[0], 10);
-            const height = parseInt(parts[1], 10);
+            const width = parseInt(parts[0] || '0', 10);
+            const height = parseInt(parts[1] || '0', 10);
 
             if (isNaN(width) || isNaN(height)) {
                 return reject(new Error('Invalid width/height'));

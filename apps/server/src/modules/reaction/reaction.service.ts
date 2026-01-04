@@ -28,6 +28,7 @@ interface CreateReactionInput {
   mainVideoPath: string;
   reactionVideoPath: string;
   position: OverlayPosition;
+  customPosition?: { x: number; y: number }; // Absolute pixels
   scale: number; // 0.1 to 0.5 (10% to 50% of main video size)
   margin: number; // pixels from edge
   aspectRatio?: string;
@@ -51,7 +52,11 @@ interface CreateSideBySideInput {
 /**
  * Get overlay position filter string
  */
-function getOverlayPosition(position: OverlayPosition, margin: number): string {
+function getOverlayPosition(position: OverlayPosition, margin: number, custom?: { x: number; y: number }): string {
+  if (custom) {
+    return `${Math.round(custom.x)}:${Math.round(custom.y)}`;
+  }
+
   switch (position) {
     case 'top-left':
       return `${margin}:${margin}`;
@@ -268,7 +273,7 @@ export const reactionService = {
     const ffmpegPath = getFFmpegPath();
 
     const { w: targetW, h: targetH } = RESOLUTIONS[aspectRatio] || RESOLUTIONS['16:9']!;
-    const overlayPos = getOverlayPosition(position, margin);
+    const overlayPos = getOverlayPosition(position, margin, input.customPosition);
     
     // Smart Scaling Logic:
     // prevent vertical PiP from being too tall on landscape canvas
