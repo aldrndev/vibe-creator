@@ -1,28 +1,31 @@
-import { NavLink, useMatch } from 'react-router-dom';
-import { 
-  LayoutDashboard, 
-  FolderOpen, 
-  Download, 
+import { NavLink, useMatch, useLocation } from "react-router-dom";
+import {
+  LayoutDashboard,
+  FolderOpen,
+  Download,
   Settings,
-  Plus
-} from 'lucide-react';
-import { clsx } from 'clsx';
+  Plus,
+} from "lucide-react";
+import { clsx } from "clsx";
 
 const navItems = [
-  { name: 'Home', href: '/dashboard', icon: LayoutDashboard, end: true },
-  { name: 'Exports', href: '/dashboard/exports', icon: FolderOpen },
-  { name: 'Create', href: '/dashboard/prompts', icon: Plus, isMain: true },
-  { name: 'Downloads', href: '/dashboard/downloads', icon: Download },
-  { name: 'Settings', href: '/dashboard/settings', icon: Settings },
+  { name: "Home", href: "/dashboard", icon: LayoutDashboard, end: true },
+  { name: "Exports", href: "/dashboard/exports", icon: FolderOpen },
+  { name: "Create", href: "/dashboard/prompts", icon: Plus, isMain: true },
+  { name: "Downloads", href: "/dashboard/downloads", icon: Download },
+  { name: "Settings", href: "/dashboard/settings", icon: Settings },
 ];
 
 export function MobileBottomNav() {
-  // Use useMatch to check if we're on editor page - more specific than useLocation
-  const isEditorPage = useMatch('/editor/:projectId');
-  const isToolsEditor = useMatch('/tools/editor');
-  
-  // Don't show on editor page
-  if (isEditorPage || isToolsEditor) {
+  const location = useLocation();
+  // Use useMatch for specific legacy routes
+  const isEditorPage = useMatch("/editor/:projectId");
+  const isToolsEditor = useMatch("/tools/editor");
+
+  // Hide on ALL /tools/* routes (they are focused task pages with their own layouts)
+  const isToolPage = location.pathname.startsWith("/tools/");
+
+  if (isEditorPage || isToolsEditor || isToolPage) {
     return null;
   }
 
@@ -33,8 +36,8 @@ export function MobileBottomNav() {
           if (item.isMain) {
             // Use same pattern as other items - no Button component
             return (
-              <NavLink 
-                key={item.name} 
+              <NavLink
+                key={item.name}
                 to={item.href}
                 className="flex items-center justify-center"
               >
@@ -44,17 +47,17 @@ export function MobileBottomNav() {
               </NavLink>
             );
           }
-          
+
           // Use NavLink's className function for isActive - exactly like sidebar
           return (
-            <NavLink 
-              key={item.name} 
+            <NavLink
+              key={item.name}
               to={item.href}
               end={item.end}
               className={({ isActive }) =>
                 clsx(
-                  'flex-1 flex flex-col items-center justify-center py-2 gap-0.5 transition-colors relative',
-                  isActive ? 'text-primary' : 'text-foreground/50'
+                  "flex-1 flex flex-col items-center justify-center py-2 gap-0.5 transition-colors relative",
+                  isActive ? "text-primary" : "text-foreground/50"
                 )
               }
             >

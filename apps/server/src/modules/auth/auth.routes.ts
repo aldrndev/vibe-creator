@@ -302,6 +302,11 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
     // Set refresh token as HttpOnly cookie
     setRefreshTokenCookie(reply, tokens.refreshToken, tokens.refreshExpiresAt);
 
+    // Fetch subscription for consistent tier display
+    const subscription = await prisma.subscription.findUnique({
+      where: { userId: user.id },
+    });
+
     // Only return access token in response body
     return sendSuccess(reply, {
       user: {
@@ -311,6 +316,15 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
         avatarUrl: user.avatarUrl,
         role: user.role,
       },
+      subscription: subscription
+        ? {
+            tier: subscription.tier,
+            status: subscription.status,
+            exportsUsed: subscription.exportsUsed,
+            exportsLimit: subscription.exportsLimit,
+            validUntil: subscription.validUntil,
+          }
+        : null,
       accessToken: tokens.accessToken,
       expiresAt: tokens.accessExpiresAt,
     });
@@ -416,7 +430,15 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
 
       return sendSuccess(reply, {
         user: session.user,
-        subscription,
+        subscription: subscription
+          ? {
+              tier: subscription.tier,
+              status: subscription.status,
+              exportsUsed: subscription.exportsUsed,
+              exportsLimit: subscription.exportsLimit,
+              validUntil: subscription.validUntil,
+            }
+          : null,
         accessToken: newAccessToken,
         expiresAt: newAccessExpiresAt,
       });

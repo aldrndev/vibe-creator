@@ -27,12 +27,36 @@ import {
   Repeat,
   MessageSquareReply,
   Radio,
+  Wand2,
 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { useAuthStore } from "@/stores/auth-store";
 import { useThemeStore } from "@/stores/theme-store";
 import { clsx } from "clsx";
 import { MobileBottomNav } from "./MobileBottomNav";
+import { FEATURES } from "@/lib/feature-flags";
+
+// Build Tools children based on feature flags
+const toolsChildren = [
+  FEATURES.STORY_DIRECTOR && {
+    name: "AI Director",
+    href: "/tools/story-director",
+    icon: Sparkles,
+  },
+  FEATURES.MODERN_EDITOR && {
+    name: "Video Studio",
+    href: "/tools/modern-editor",
+    icon: Wand2,
+  },
+  { name: "Edit Video", href: "/tools/editor", icon: Video },
+  { name: "Loop Creator", href: "/tools/loop-creator", icon: Repeat },
+  {
+    name: "Reaction Video",
+    href: "/tools/reaction-creator",
+    icon: MessageSquareReply,
+  },
+  { name: "Live Streaming", href: "/tools/live-stream-history", icon: Radio },
+].filter(Boolean) as Array<{ name: string; href: string; icon: typeof Video }>;
 
 // Main navigation items
 const navigation = [
@@ -41,21 +65,7 @@ const navigation = [
   {
     name: "Tools",
     icon: Video,
-    children: [
-      { name: "AI Director", href: "/tools/story-director", icon: Sparkles },
-      { name: "Edit Video", href: "/tools/editor", icon: Video },
-      { name: "Loop Creator", href: "/tools/loop-creator", icon: Repeat },
-      {
-        name: "Reaction Video",
-        href: "/tools/reaction-creator",
-        icon: MessageSquareReply,
-      },
-      {
-        name: "Live Streaming",
-        href: "/tools/live-stream-history",
-        icon: Radio,
-      },
-    ],
+    children: toolsChildren,
   },
   { name: "Prompt Builder", href: "/dashboard/prompts", icon: Sparkles },
   { name: "Downloads", href: "/dashboard/downloads", icon: Download },
@@ -310,7 +320,13 @@ export function DashboardLayout() {
         {/* Page content */}
         <main
           ref={mainRef}
-          className="flex-1 overflow-auto p-4 md:p-6 pb-20 md:pb-6"
+          className={clsx(
+            "flex-1 flex flex-col min-w-0", // base styles
+            // For Modern Editor (Full Screen Tool), remove padding/overflow to let tool handle it
+            location.pathname.includes("/modern-editor")
+              ? "overflow-hidden p-0"
+              : "overflow-auto p-4 md:p-6 pb-20 md:pb-6"
+          )}
         >
           <Outlet />
         </main>

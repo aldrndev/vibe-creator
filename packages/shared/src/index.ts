@@ -5,6 +5,7 @@ export * from "./types/prompt";
 export * from "./types/subscription";
 export * from "./types/api";
 export * from "./types/story";
+export * from "./types/modern-editor.types";
 
 // Constants
 export * from "./constants/prompt-templates";

@@ -3,10 +3,9 @@
  * Handles client-side FFmpeg export, server-side export, and cancellation
  */
 
-import { useState, useCallback } from 'react';
-import { logger } from '@/lib/logger';
-import { exportApi } from '@/services/export-api';
-import toast from 'react-hot-toast';
+import { useState, useCallback } from "react";
+import { logger } from "@/lib/logger";
+import { exportApi } from "@/services/export-api";
 
 // Full clip data with transforms and effects for server-side processing
 export interface ClipTransforms {
@@ -55,182 +54,207 @@ interface UseExportOptions {
 
 export function useExport(options: UseExportOptions = {}) {
   const { projectId, onPause, concatenateClips } = options;
-  
+
   const [isExporting, setIsExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
   const [exportJobId, setExportJobId] = useState<string | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
+  const [exportSuccess, setExportSuccess] = useState(false);
 
   /**
    * Client-side FFmpeg export
    */
-  const handleLocalExport = useCallback(async (clips: ClipData[]) => {
-    if (clips.length === 0) {
-      toast.error('Tidak ada klip untuk di-export');
-      return;
-    }
+  const handleLocalExport = useCallback(
+    async (clips: ClipData[]) => {
+      setExportError(null);
+      setExportSuccess(false);
 
-    if (!concatenateClips) {
-      toast.error('FFmpeg tidak tersedia');
-      return;
-    }
+      if (clips.length === 0) {
+        setExportError("Tidak ada klip untuk di-export");
+        return;
+      }
 
-    try {
-      onPause?.();
-      setIsExporting(true);
-      setExportProgress(0);
-      
-      const blob = await concatenateClips(clips);
-      
-      setExportProgress(1);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `export-${Date.now()}.mp4`;
-      a.click();
-      URL.revokeObjectURL(url);
-      
-      toast.success('Export berhasil!');
-    } catch (e) {
-      logger.error('Export failed', e);
-      toast.error('Export gagal. Coba lagi.');
-    } finally {
-      setIsExporting(false);
-    }
-  }, [concatenateClips, onPause]);
+      if (!concatenateClips) {
+        setExportError("FFmpeg tidak tersedia");
+        return;
+      }
+
+      try {
+        onPause?.();
+        setIsExporting(true);
+        setExportProgress(0);
+
+        const blob = await concatenateClips(clips);
+
+        setExportProgress(1);
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `export-${Date.now()}.mp4`;
+        a.click();
+        URL.revokeObjectURL(url);
+
+        setExportSuccess(true);
+      } catch (e) {
+        logger.error("Export failed", e);
+        setExportError("Export gagal. Coba lagi.");
+      } finally {
+        setIsExporting(false);
+      }
+    },
+    [concatenateClips, onPause]
+  );
 
   /**
    * Server-side export with full timeline data
    */
-  const handleServerExport = useCallback(async (
-    clips: ClipData[], 
-    textOverlays?: TextOverlayData[],
-    options?: {
-      format: 'MP4' | 'WEBM' | 'MOV';
-      resolution: 'SD' | 'HD' | 'UHD';
-      width?: number;
-      height?: number;
-      fps?: number;
-    }
-  ) => {
-    if (clips.length === 0) {
-      toast.error('Tidak ada file video untuk diupload');
-      return;
-    }
+  const handleServerExport = useCallback(
+    async (
+      clips: ClipData[],
+      textOverlays?: TextOverlayData[],
+      exportOptions?: {
+        format: "MP4" | "WEBM" | "MOV";
+        resolution: "SD" | "HD" | "UHD";
+        width?: number;
+        height?: number;
+        fps?: number;
+      }
+    ) => {
+      setExportError(null);
+      setExportSuccess(false);
 
-    try {
-      onPause?.();
-      setIsExporting(true);
-      setExportProgress(0);
-
-      // Step 1: Upload video files with transforms/effects
-      const uploadedFiles: Array<{
-        localPath: string;
-        startTime: number;
-        endTime: number;
-        transforms?: ClipTransforms;
-        effects?: ClipEffects;
-      }> = [];
-      
-      for (let i = 0; i < clips.length; i++) {
-        const clipFile = clips[i];
-        if (!clipFile) continue;
-        
-        setExportProgress((i / clips.length) * 0.3);
-        const uploaded = await exportApi.uploadVideo(clipFile.file);
-        uploadedFiles.push({
-          localPath: uploaded.filepath,
-          startTime: clipFile.startTime,
-          endTime: clipFile.endTime,
-          transforms: clipFile.transforms,
-          effects: clipFile.effects,
-        });
+      if (clips.length === 0) {
+        setExportError("Tidak ada file video untuk diupload");
+        return;
       }
 
-      setExportProgress(0.3);
+      try {
+        onPause?.();
+        setIsExporting(true);
+        setExportProgress(0);
 
-      // Step 2: Create export job with backend-compatible settings
-      const job = await exportApi.createExportJob({
-        projectId: projectId || 'default',
-        format: options?.format || 'MP4', 
-        resolution: options?.resolution || 'HD',
-        addWatermark: false, // No watermark by default
-        timelineData: {
-          clips: uploadedFiles,
-          textOverlays: textOverlays || [],
-          settings: {
-            width: options?.width || 1920,
-            height: options?.height || 1080,
-            fps: options?.fps || 30,
+        // Step 1: Upload video files with transforms/effects
+        const uploadedFiles: Array<{
+          localPath: string;
+          startTime: number;
+          endTime: number;
+          transforms?: ClipTransforms;
+          effects?: ClipEffects;
+        }> = [];
+
+        for (let i = 0; i < clips.length; i++) {
+          const clipFile = clips[i];
+          if (!clipFile) continue;
+
+          setExportProgress((i / clips.length) * 0.3);
+          const uploaded = await exportApi.uploadVideo(clipFile.file);
+          uploadedFiles.push({
+            localPath: uploaded.filepath,
+            startTime: clipFile.startTime,
+            endTime: clipFile.endTime,
+            transforms: clipFile.transforms,
+            effects: clipFile.effects,
+          });
+        }
+
+        setExportProgress(0.3);
+
+        // Step 2: Create export job with backend-compatible settings
+        const job = await exportApi.createExportJob({
+          projectId: projectId || "default",
+          format: exportOptions?.format || "MP4",
+          resolution: exportOptions?.resolution || "HD",
+          addWatermark: false, // No watermark by default
+          timelineData: {
+            clips: uploadedFiles,
+            textOverlays: textOverlays || [],
+            settings: {
+              width: exportOptions?.width || 1920,
+              height: exportOptions?.height || 1080,
+              fps: exportOptions?.fps || 30,
+            },
           },
-        },
-      });
-      
-      setExportJobId(job.jobId);
-      setExportProgress(0.4);
+        });
 
+        setExportJobId(job.jobId);
+        setExportProgress(0.4);
 
-      // Step 3: Poll for completion
-      const finalStatus = await exportApi.waitForCompletion(
-        job.jobId,
-        (progress) => setExportProgress(0.4 + progress * 0.5)
-      );
+        // Step 3: Poll for completion
+        const finalStatus = await exportApi.waitForCompletion(
+          job.jobId,
+          (progress) => setExportProgress(0.4 + progress * 0.5)
+        );
 
-      setExportProgress(1);
+        setExportProgress(1);
 
-      // Step 4: Download using authenticated fetch (href doesn't include auth)
-      if (!finalStatus.downloadUrl) {
-        throw new Error('Download URL not available');
+        // Step 4: Download using authenticated fetch (href doesn't include auth)
+        if (!finalStatus.downloadUrl) {
+          throw new Error("Download URL not available");
+        }
+
+        // Use authFetch to get the file with authentication
+        const { authFetch } = await import("@/services/api");
+        const response = await authFetch(finalStatus.downloadUrl);
+
+        if (!response.ok) {
+          throw new Error("Failed to download export file");
+        }
+
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `export-${Date.now()}.mp4`;
+        a.click();
+        window.URL.revokeObjectURL(url);
+
+        setExportSuccess(true);
+      } catch (e) {
+        logger.error("Server export failed", e);
+        setExportError(
+          `Server export gagal: ${
+            e instanceof Error ? e.message : "Unknown error"
+          }`
+        );
+      } finally {
+        setIsExporting(false);
+        setExportJobId(null);
       }
-      
-      // Use authFetch to get the file with authentication
-      const { authFetch } = await import('@/services/api');
-      const response = await authFetch(finalStatus.downloadUrl);
-      
-      if (!response.ok) {
-        throw new Error('Failed to download export file');
-      }
-      
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `export-${Date.now()}.mp4`;
-      a.click();
-      window.URL.revokeObjectURL(url);
-
-      toast.success('Export berhasil!');
-    } catch (e) {
-      logger.error('Server export failed', e);
-      toast.error(`Server export gagal: ${e instanceof Error ? e.message : 'Unknown error'}`);
-    } finally {
-      setIsExporting(false);
-      setExportJobId(null);
-    }
-  }, [projectId, onPause]);
+    },
+    [projectId, onPause]
+  );
 
   /**
    * Cancel export job
    */
   const handleCancelExport = useCallback(async () => {
     if (!exportJobId) return;
-    
+
     try {
       await exportApi.cancelExportJob(exportJobId);
-      toast.success('Export dibatalkan');
+      setExportSuccess(false);
       setIsExporting(false);
       setExportJobId(null);
     } catch (e) {
-      logger.error('Cancel export failed', e);
-      toast.error('Gagal membatalkan export');
+      logger.error("Cancel export failed", e);
+      setExportError("Gagal membatalkan export");
     }
   }, [exportJobId]);
+
+  const clearExportStatus = useCallback(() => {
+    setExportError(null);
+    setExportSuccess(false);
+  }, []);
 
   return {
     isExporting,
     exportProgress,
     exportJobId,
+    exportError,
+    exportSuccess,
     handleLocalExport,
     handleServerExport,
     handleCancelExport,
+    clearExportStatus,
   };
 }

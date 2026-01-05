@@ -13,11 +13,12 @@ interface Subscription {
   status: "ACTIVE" | "EXPIRED" | "CANCELLED";
   exportsUsed: number;
   exportsLimit: number;
-  validUntil: Date | null;
+  validUntil: string | null;
 }
 
 interface AuthResponse {
   user: User;
+  subscription: Subscription | null;
   accessToken: string;
   expiresAt: string;
 }
@@ -56,6 +57,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   setAuth: (data) => {
     set({
       user: data.user,
+      subscription: data.subscription,
       accessToken: data.accessToken,
       isAuthenticated: true,
       isLoading: false,

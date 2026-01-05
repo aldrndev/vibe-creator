@@ -2,10 +2,18 @@ import { useEffect, useState } from "react";
 import { PageTransition } from "@/components/ui/PageTransition";
 import { Button, Card, CardBody, Chip, Spinner, Divider } from "@heroui/react";
 import { Link } from "react-router-dom";
-import { Radio, Play, Zap, Square, Video, Tv } from "lucide-react";
+import {
+  Radio,
+  Play,
+  Zap,
+  Square,
+  Video,
+  Tv,
+  CheckCircle2,
+  AlertCircle,
+} from "lucide-react";
 import { authFetch } from "@/services/api";
 import { TopupModal } from "@/components/tools/TopupModal";
-import toast from "react-hot-toast";
 
 interface StreamSession {
   id: string;
@@ -17,14 +25,28 @@ interface StreamSession {
   stopReason: string | null;
 }
 
+interface FeedbackMessage {
+  type: "success" | "error";
+  text: string;
+}
+
 export function LiveStreamHistoryPage() {
   const [streams, setStreams] = useState<StreamSession[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showTopup, setShowTopup] = useState(false);
+  const [feedback, setFeedback] = useState<FeedbackMessage | null>(null);
 
   useEffect(() => {
     fetchHistory();
   }, []);
+
+  // Auto-dismiss feedback after 4 seconds
+  useEffect(() => {
+    if (feedback) {
+      const timer = setTimeout(() => setFeedback(null), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [feedback]);
 
   const fetchHistory = async () => {
     try {
@@ -34,7 +56,8 @@ export function LiveStreamHistoryPage() {
         setStreams(data.data.streams);
       }
     } catch (e) {
-      console.error(e);
+      setFeedback({ type: "error", text: "Gagal memuat riwayat stream" });
+      void e;
     } finally {
       setIsLoading(false);
     }
@@ -51,14 +74,16 @@ export function LiveStreamHistoryPage() {
       });
 
       if (res.ok) {
-        toast.success("Stream berhasil dihentikan");
+        setFeedback({ type: "success", text: "Stream berhasil dihentikan" });
         fetchHistory(); // Refresh list to show updated status
       } else {
         const data = await res.json();
         throw new Error(data.error?.message || "Gagal menghentikan stream");
       }
-    } catch (e: any) {
-      toast.error(e.message);
+    } catch (e: unknown) {
+      const message =
+        e instanceof Error ? e.message : "Gagal menghentikan stream";
+      setFeedback({ type: "error", text: message });
     }
   };
 
@@ -127,6 +152,24 @@ export function LiveStreamHistoryPage() {
         </div>
 
         <TopupModal isOpen={showTopup} onClose={() => setShowTopup(false)} />
+
+        {/* Inline Feedback Banner */}
+        {feedback && (
+          <div
+            className={`p-3 rounded-lg flex items-center gap-2 ${
+              feedback.type === "success"
+                ? "bg-success/10 text-success border border-success/20"
+                : "bg-danger/10 text-danger border border-danger/20"
+            }`}
+          >
+            {feedback.type === "success" ? (
+              <CheckCircle2 size={18} />
+            ) : (
+              <AlertCircle size={18} />
+            )}
+            <span className="text-sm font-medium">{feedback.text}</span>
+          </div>
+        )}
 
         {/* Content */}
         {isLoading ? (

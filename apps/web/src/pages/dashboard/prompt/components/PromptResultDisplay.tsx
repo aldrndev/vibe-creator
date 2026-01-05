@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Button, Card, CardBody, Tabs, Tab } from "@heroui/react";
 import { Copy, Check, Sparkles } from "lucide-react";
 import { motion } from "framer-motion";
-import toast from "react-hot-toast";
 
 interface PromptResultDisplayProps {
   generatedPrompt: string | null;
@@ -17,7 +16,7 @@ export function PromptResultDisplay({
     if (generatedPrompt) {
       await navigator.clipboard.writeText(generatedPrompt);
       setCopied(true);
-      toast.success("Prompt disalin ke clipboard");
+      // Button text changes to "Disalin!" - no additional feedback needed
       setTimeout(() => setCopied(false), 2000);
     }
   };
@@ -106,7 +105,7 @@ export function PromptResultDisplay({
                               className="absolute top-2 right-2 opacity-50 hover:opacity-100"
                               onPress={() => {
                                 navigator.clipboard.writeText(section.content);
-                                toast.success(`${section.title} disalin!`);
+                                // Visual feedback: button opacity change is sufficient
                               }}
                             >
                               <Copy size={14} />

@@ -91,6 +91,11 @@ const StoryDirectorPage = lazy(() =>
     default: m.StoryDirectorPage,
   }))
 );
+const ModernEditorPage = lazy(() =>
+  import("@/pages/tools/ModernEditorPage").then((m) => ({
+    default: m.ModernEditorPage,
+  }))
+);
 
 // Loading fallback component
 function PageLoader() {
@@ -327,6 +332,14 @@ export default function App() {
             element={
               <Suspense fallback={<PageLoader />}>
                 <StoryDirectorPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/tools/modern-editor"
+            element={
+              <Suspense fallback={<PageLoader />}>
+                <ModernEditorPage />
               </Suspense>
             }
           />

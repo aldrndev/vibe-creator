@@ -1,8 +1,8 @@
-import { useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { 
-  Button, 
-  Card, 
+import { useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import {
+  Button,
+  Card,
   CardBody,
   Chip,
   Tabs,
@@ -18,28 +18,32 @@ import {
   ModalFooter,
   Input,
   useDisclosure,
-} from '@heroui/react';
-import { motion } from 'framer-motion';
-import { 
-  ArrowLeft, 
-  Copy, 
-  Check, 
-  Clock, 
+} from "@heroui/react";
+import { motion } from "framer-motion";
+import {
+  ArrowLeft,
+  Copy,
+  Check,
+  Clock,
   MoreVertical,
   Edit,
   Trash,
   RefreshCw,
-} from 'lucide-react';
-import toast from 'react-hot-toast';
-import { usePrompt, useUpdatePrompt, useDeletePrompt, useRegeneratePrompt } from '@/hooks/use-prompts';
+} from "lucide-react";
+import {
+  usePrompt,
+  useUpdatePrompt,
+  useDeletePrompt,
+  useRegeneratePrompt,
+} from "@/hooks/use-prompts";
 
 const promptTypeLabels: Record<string, string> = {
-  SCRIPT: 'Script / Ide',
-  VOICE: 'Voice / TTS',
-  VIDEO_GEN: 'Video Generation',
-  IMAGE: 'Image / Thumbnail',
-  RELAXING: 'Relaxing / Ambient',
-  CREATIVE_SCAN: 'Creative Scan',
+  SCRIPT: "Script / Ide",
+  VOICE: "Voice / TTS",
+  VIDEO_GEN: "Video Generation",
+  IMAGE: "Image / Thumbnail",
+  RELAXING: "Relaxing / Ambient",
+  CREATIVE_SCAN: "Creative Scan",
 };
 
 export function PromptDetailPage() {
@@ -49,47 +53,47 @@ export function PromptDetailPage() {
   const updatePrompt = useUpdatePrompt(id!);
   const deletePrompt = useDeletePrompt();
   const regeneratePrompt = useRegeneratePrompt(id!);
-  
+
   const [selectedVersion, setSelectedVersion] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [newTitle, setNewTitle] = useState('');
-  
+  const [newTitle, setNewTitle] = useState("");
+
   const editModal = useDisclosure();
   const deleteModal = useDisclosure();
 
   const handleCopy = async (text: string) => {
     await navigator.clipboard.writeText(text);
     setCopied(true);
-    toast.success('Prompt disalin ke clipboard');
+    // Button text changes to "Disalin!" - sufficient visual feedback
     setTimeout(() => setCopied(false), 2000);
   };
 
   const handleEdit = async () => {
     try {
       await updatePrompt.mutateAsync({ title: newTitle });
-      toast.success('Judul berhasil diubah');
       editModal.onClose();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Gagal mengubah judul');
+      // Modal closing is sufficient feedback
+    } catch {
+      // Error is logged by mutation
     }
   };
 
   const handleDelete = async () => {
     try {
       await deletePrompt.mutateAsync(id!);
-      toast.success('Prompt berhasil dihapus');
-      navigate('/dashboard/prompts');
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Gagal menghapus prompt');
+      navigate("/dashboard/prompts");
+      // Navigation is sufficient feedback
+    } catch {
+      // Error is logged by mutation
     }
   };
 
   const handleRegenerate = async () => {
     try {
-      const result = await regeneratePrompt.mutateAsync();
-      toast.success(`Prompt di-regenerate (versi ${result.version})`);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Gagal regenerate prompt');
+      await regeneratePrompt.mutateAsync();
+      // Data is refetched - UI update is sufficient feedback
+    } catch {
+      // Error is logged by mutation
     }
   };
 
@@ -105,9 +109,9 @@ export function PromptDetailPage() {
     return (
       <div className="text-center py-12">
         <p className="text-foreground/60">Prompt tidak ditemukan</p>
-        <Button 
-          variant="light" 
-          onPress={() => navigate('/dashboard/prompts')}
+        <Button
+          variant="light"
+          onPress={() => navigate("/dashboard/prompts")}
           className="mt-4"
         >
           Kembali ke Prompt
@@ -116,7 +120,7 @@ export function PromptDetailPage() {
     );
   }
 
-  const currentVersion = selectedVersion 
+  const currentVersion = selectedVersion
     ? prompt.versions.find((v) => v.id === selectedVersion)
     : prompt.versions[0];
 
@@ -128,7 +132,7 @@ export function PromptDetailPage() {
           <Button
             isIconOnly
             variant="light"
-            onPress={() => navigate('/dashboard/prompts')}
+            onPress={() => navigate("/dashboard/prompts")}
           >
             <ArrowLeft size={20} />
           </Button>
@@ -140,7 +144,8 @@ export function PromptDetailPage() {
               </Chip>
             </div>
             <p className="text-foreground/60 text-sm">
-              {prompt.versions.length} versi • Dibuat {new Date(prompt.createdAt).toLocaleDateString('id-ID')}
+              {prompt.versions.length} versi • Dibuat{" "}
+              {new Date(prompt.createdAt).toLocaleDateString("id-ID")}
             </p>
           </div>
         </div>
@@ -197,20 +202,26 @@ export function PromptDetailPage() {
                     key={version.id}
                     onClick={() => setSelectedVersion(version.id)}
                     className={`w-full p-3 rounded-lg border text-left transition-all ${
-                      (selectedVersion === version.id || (!selectedVersion && version.id === prompt.versions[0]?.id))
-                        ? 'border-primary bg-primary/10'
-                        : 'border-divider hover:border-primary/50'
+                      selectedVersion === version.id ||
+                      (!selectedVersion &&
+                        version.id === prompt.versions[0]?.id)
+                        ? "border-primary bg-primary/10"
+                        : "border-divider hover:border-primary/50"
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="font-medium">Versi {version.version}</span>
+                      <span className="font-medium">
+                        Versi {version.version}
+                      </span>
                       {version.id === prompt.currentVersionId && (
-                        <Chip size="sm" color="success" variant="flat">Aktif</Chip>
+                        <Chip size="sm" color="success" variant="flat">
+                          Aktif
+                        </Chip>
                       )}
                     </div>
                     <div className="flex items-center gap-1 text-xs text-foreground/60 mt-1">
                       <Clock size={12} />
-                      {new Date(version.createdAt).toLocaleString('id-ID')}
+                      {new Date(version.createdAt).toLocaleString("id-ID")}
                     </div>
                     {version.userNotes && (
                       <p className="text-xs text-foreground/60 mt-2 line-clamp-2">
@@ -232,7 +243,7 @@ export function PromptDetailPage() {
         >
           <Card className="h-full">
             <CardBody className="p-0 flex flex-col">
-              <Tabs 
+              <Tabs
                 aria-label="Prompt tabs"
                 classNames={{
                   tabList: "px-4 pt-4",
@@ -244,14 +255,18 @@ export function PromptDetailPage() {
                       <Button
                         size="sm"
                         variant="flat"
-                        startContent={copied ? <Check size={16} /> : <Copy size={16} />}
-                        onPress={() => handleCopy(currentVersion?.generatedPrompt || '')}
+                        startContent={
+                          copied ? <Check size={16} /> : <Copy size={16} />
+                        }
+                        onPress={() =>
+                          handleCopy(currentVersion?.generatedPrompt || "")
+                        }
                       >
-                        {copied ? 'Disalin!' : 'Salin'}
+                        {copied ? "Disalin!" : "Salin"}
                       </Button>
                     </div>
                     <pre className="whitespace-pre-wrap text-sm font-mono text-foreground/80 bg-content2 p-4 rounded-lg max-h-[60vh] overflow-auto">
-                      {currentVersion?.generatedPrompt || 'Tidak ada prompt'}
+                      {currentVersion?.generatedPrompt || "Tidak ada prompt"}
                     </pre>
                   </div>
                 </Tab>
@@ -283,8 +298,8 @@ export function PromptDetailPage() {
             <Button variant="light" onPress={editModal.onClose}>
               Batal
             </Button>
-            <Button 
-              color="primary" 
+            <Button
+              color="primary"
               onPress={handleEdit}
               isLoading={updatePrompt.isPending}
             >
@@ -299,14 +314,17 @@ export function PromptDetailPage() {
         <ModalContent>
           <ModalHeader>Hapus Prompt</ModalHeader>
           <ModalBody>
-            <p>Apakah kamu yakin ingin menghapus prompt ini? Tindakan ini tidak dapat dibatalkan.</p>
+            <p>
+              Apakah kamu yakin ingin menghapus prompt ini? Tindakan ini tidak
+              dapat dibatalkan.
+            </p>
           </ModalBody>
           <ModalFooter>
             <Button variant="light" onPress={deleteModal.onClose}>
               Batal
             </Button>
-            <Button 
-              color="danger" 
+            <Button
+              color="danger"
               onPress={handleDelete}
               isLoading={deletePrompt.isPending}
             >

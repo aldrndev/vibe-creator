@@ -3,7 +3,6 @@ import { Button, Input, Card, CardBody } from "@heroui/react";
 import { motion } from "framer-motion";
 import { ArrowLeft, Sparkles } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import toast from "react-hot-toast";
 import { useCreatePrompt } from "@/hooks/use-prompts";
 import { PromptType } from "@vibe-creator/shared";
 
@@ -59,68 +58,82 @@ export function PromptBuilderPage() {
     useState<TimelapseFormData>(defaultTimelapseForm);
 
   const handleGenerate = () => {
-    let inputData: any;
+    let inputData:
+      | ScriptFormData
+      | VoiceFormData
+      | VideoGenFormData
+      | ImageFormData
+      | RelaxingFormData
+      | CreativeScanFormData
+      | TimelapseFormData;
 
     switch (selectedType) {
-      case "SCRIPT":
-        inputData = { ...scriptForm };
+      case "SCRIPT": {
+        const formData = { ...scriptForm };
         // Transform comma-separated strings to arrays
-        if (typeof inputData.keywords === "string") {
-          inputData.keywords = inputData.keywords
+        if (typeof formData.keywords === "string") {
+          formData.keywords = formData.keywords
             .split(",")
-            .map((s: string) => s.trim())
+            .map((s) => s.trim())
             .filter(Boolean);
         }
-        if (typeof inputData.emotionalJourney === "string") {
-          // Split by comma or -> if user typed it
-          inputData.emotionalJourney = inputData.emotionalJourney
+        if (typeof formData.emotionalJourney === "string") {
+          formData.emotionalJourney = formData.emotionalJourney
             .split(/,|->/)
-            .map((s: string) => s.trim())
+            .map((s) => s.trim())
             .filter(Boolean);
         }
+        inputData = formData;
         break;
-      case "VOICE":
-        inputData = { ...voiceForm };
-        if (typeof inputData.emphasis === "string") {
-          inputData.emphasis = inputData.emphasis
+      }
+      case "VOICE": {
+        const formData = { ...voiceForm };
+        if (typeof formData.emphasis === "string") {
+          formData.emphasis = formData.emphasis
             .split(",")
-            .map((s: string) => s.trim())
+            .map((s) => s.trim())
             .filter(Boolean);
         }
-        if (typeof inputData.pauses === "string") {
-          inputData.pauses = inputData.pauses
+        if (typeof formData.pauses === "string") {
+          formData.pauses = formData.pauses
             .split(",")
-            .map((s: string) => s.trim())
+            .map((s) => s.trim())
             .filter(Boolean);
         }
+        inputData = formData;
         break;
+      }
       case "VIDEO_GEN":
         inputData = videoGenForm;
         break;
-      case "IMAGE":
-        inputData = { ...imageForm };
-        if (typeof inputData.colors === "string") {
-          inputData.colors = inputData.colors
+      case "IMAGE": {
+        const formData = { ...imageForm };
+        if (typeof formData.colors === "string") {
+          formData.colors = formData.colors
             .split(",")
-            .map((s: string) => s.trim())
+            .map((s) => s.trim())
             .filter(Boolean);
         }
+        inputData = formData;
         break;
-      case "RELAXING":
-        inputData = { ...relaxingForm };
-        if (typeof inputData.secondarySounds === "string") {
-          inputData.secondarySounds = inputData.secondarySounds
+      }
+      case "RELAXING": {
+        const formData = { ...relaxingForm };
+        if (typeof formData.secondarySounds === "string") {
+          formData.secondarySounds = formData.secondarySounds
             .split(",")
-            .map((s: string) => s.trim())
+            .map((s) => s.trim())
             .filter(Boolean);
         }
-        if (typeof inputData.ambientDetails === "string") {
-          inputData.ambientDetails = inputData.ambientDetails
+        if (typeof formData.ambientDetails === "string") {
+          formData.ambientDetails = formData.ambientDetails
             .split(",")
-            .map((s: string) => s.trim())
+            .map((s) => s.trim())
             .filter(Boolean);
         }
+        inputData = formData;
         break;
+      }
       case "CREATIVE_SCAN":
         inputData = creativeScanForm;
         break;
@@ -132,22 +145,12 @@ export function PromptBuilderPage() {
     const payload = {
       type: selectedType,
       title: title || `${selectedType} Prompt - ${new Date().toLocaleString()}`,
-      inputData,
+      inputData: inputData as unknown as Record<string, unknown>,
     };
 
-    createPrompt.mutate(payload, {
-      onSuccess: () => {
-        toast.success("Prompt berhasil dibuat!");
-      },
-      onError: (error) => {
-        // Show proper error message
-        const message =
-          error instanceof Error ? error.message : "Gagal membuat prompt";
-        // toast is already imported in PromptResultDisplay, need to import here or pass it?
-        // Wait, I need to import toast in PromptBuilderPage.tsx
-        toast.error(message); // Temporary fallback if toast not imported, but better to import toast.
-      },
-    });
+    // Mutation handles success/error - result displayed in PromptResultDisplay
+    // Error state can be shown via createPrompt.isError and createPrompt.error
+    createPrompt.mutate(payload);
   };
 
   const renderCurrentForm = () => {

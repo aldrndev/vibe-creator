@@ -9,6 +9,8 @@ import {
   Select,
   SelectItem,
   Switch,
+  Accordion,
+  AccordionItem,
 } from "@heroui/react";
 import {
   Download,
@@ -23,7 +25,6 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { authFetch } from "@/services/api";
-import toast from "react-hot-toast";
 
 import { PageTransition } from "@/components/ui/PageTransition";
 import { ReactionPreview } from "@/components/tools/ReactionPreview";
@@ -83,34 +84,76 @@ export function ReactionCreatorPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStatus, setProcessingStatus] = useState("");
   const [results, setResults] = useState<Record<string, string>>({});
+  const [mainVideoError, setMainVideoError] = useState<string | null>(null);
+  const [reactionVideoError, setReactionVideoError] = useState<string | null>(
+    null
+  );
 
   const mainInputRef = useRef<HTMLInputElement>(null);
   const reactionInputRef = useRef<HTMLInputElement>(null);
 
-  const handleMainVideoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleMainVideoSelect = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const file = e.target.files?.[0];
+    setMainVideoError(null);
     if (file) {
       if (file.size > 200 * 1024 * 1024) {
-        alert("Ukuran file maksimal 200MB");
+        setMainVideoError("Ukuran file maksimal 200MB");
         return;
       }
+
+      // Check duration
+      const video = document.createElement("video");
+      video.preload = "metadata";
+      video.src = URL.createObjectURL(file);
+
+      await new Promise<void>((resolve) => {
+        video.onloadedmetadata = () => resolve();
+        video.onerror = () => resolve();
+      });
+
+      if (video.duration > 300) {
+        setMainVideoError("Durasi video maksimal 5 menit");
+        URL.revokeObjectURL(video.src);
+        return;
+      }
+
       setMainVideoFile(file);
-      setMainVideoUrl(URL.createObjectURL(file));
+      setMainVideoUrl(video.src);
       setResults({});
     }
   };
 
-  const handleReactionVideoSelect = (
+  const handleReactionVideoSelect = async (
     e: React.ChangeEvent<HTMLInputElement>
   ) => {
     const file = e.target.files?.[0];
+    setReactionVideoError(null);
     if (file) {
       if (file.size > 200 * 1024 * 1024) {
-        alert("Ukuran file maksimal 200MB");
+        setReactionVideoError("Ukuran file maksimal 200MB");
         return;
       }
+
+      // Check duration
+      const video = document.createElement("video");
+      video.preload = "metadata";
+      video.src = URL.createObjectURL(file);
+
+      await new Promise<void>((resolve) => {
+        video.onloadedmetadata = () => resolve();
+        video.onerror = () => resolve();
+      });
+
+      if (video.duration > 300) {
+        setReactionVideoError("Durasi video maksimal 5 menit");
+        URL.revokeObjectURL(video.src);
+        return;
+      }
+
       setReactionVideoFile(file);
-      setReactionVideoUrl(URL.createObjectURL(file));
+      setReactionVideoUrl(video.src);
       setResults({});
     }
   };
@@ -185,7 +228,6 @@ export function ReactionCreatorPage() {
           const blob = await downloadRes.blob();
           const url = URL.createObjectURL(blob);
           setResults((prev) => ({ ...prev, [layoutMode]: url }));
-          toast.success("Video berhasil diproses!");
         } else {
           throw new Error(data.error?.message || "Gagal memproses video");
         }
@@ -220,17 +262,14 @@ export function ReactionCreatorPage() {
           const blob = await downloadRes.blob();
           const url = URL.createObjectURL(blob);
           setResults((prev) => ({ ...prev, [layoutMode]: url }));
-          toast.success("Video berhasil diproses!");
         } else {
           throw new Error(data.error?.message || "Gagal memproses video");
         }
       }
       setProcessingStatus("Selesai!");
     } catch (err) {
-      console.error("Processing failed", err);
       const message = err instanceof Error ? err.message : "Unknown error";
       setProcessingStatus("Gagal: " + message);
-      toast.error(message);
       setIsProcessing(false);
     } finally {
       setIsProcessing(false);
@@ -251,31 +290,49 @@ export function ReactionCreatorPage() {
   const resultUrl = results[layoutMode];
 
   return (
-    <PageTransition className="min-h-screen bg-background p-6">
+    <PageTransition className="min-h-screen bg-background p-4 md:p-6 pb-24 md:pb-6">
       <div className="max-w-7xl mx-auto">
+        {/* Hidden Inputs */}
+        <input
+          type="file"
+          accept="video/*"
+          ref={mainInputRef}
+          onChange={handleMainVideoSelect}
+          className="hidden"
+        />
+        <input
+          type="file"
+          accept="video/*"
+          ref={reactionInputRef}
+          onChange={handleReactionVideoSelect}
+          className="hidden"
+        />
+
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Layers size={24} className="text-primary" />
-            Reaction Creator
-          </h1>
-          <p className="text-foreground/60 text-sm">
-            Buat video reaction atau tempel dengan mudah
-          </p>
+        <div className="mb-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
+          <div>
+            <h1 className="text-xl md:text-2xl font-bold flex items-center gap-2">
+              <Layers size={24} className="text-primary" />
+              Reaction Creator
+            </h1>
+            <p className="text-foreground/60 text-sm">
+              Buat video reaction atau tempel dengan mudah
+            </p>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8">
           {/* LEFT COLUMN: HERO PREVIEW (Span 8) */}
           <div className="lg:col-span-8 flex flex-col gap-4">
-            <Card className="flex-1 bg-black/5 border-divider overflow-hidden min-h-[500px] flex flex-col">
-              <div className="relative flex-1 flex items-center justify-center bg-zinc-900/50 p-8">
+            <Card className="flex-1 bg-black/5 border-divider overflow-hidden min-h-[350px] md:min-h-[500px] flex flex-col">
+              <div className="relative flex-1 flex items-center justify-center md:items-start md:justify-start bg-zinc-900/50 p-4 md:p-8">
                 {/* Empty State / Upload Zone if videos missing */}
                 {!mainVideoUrl || !reactionVideoUrl ? (
-                  <div className="flex flex-col md:flex-row gap-6 w-full max-w-3xl items-stretch justify-center h-1/2">
+                  <div className="flex flex-col md:flex-row gap-4 w-full max-w-3xl items-stretch justify-center h-full md:h-1/2">
                     {/* Main Upload */}
                     <div
                       onClick={() => mainInputRef.current?.click()}
-                      className={`flex-1 rounded-2xl border-2 border-dashed flex flex-col items-center justify-center p-8 cursor-pointer transition-all hover:scale-[1.02] group
+                      className={`flex-1 rounded-2xl border-2 border-dashed flex flex-col items-center justify-center p-6 cursor-pointer transition-all hover:scale-[1.02] group active:scale-95
                                 ${
                                   mainVideoUrl
                                     ? "border-success/50 bg-success/10"
@@ -284,10 +341,13 @@ export function ReactionCreatorPage() {
                     >
                       {mainVideoUrl ? (
                         <>
-                          <div className="w-16 h-16 rounded-full bg-success/20 flex items-center justify-center mb-4">
-                            <Check size={32} className="text-success" />
+                          <div className="w-12 h-12 md:w-16 md:h-16 rounded-full bg-success/20 flex items-center justify-center mb-3 md:mb-4">
+                            <Check
+                              size={24}
+                              className="text-success md:w-8 md:h-8"
+                            />
                           </div>
-                          <p className="font-semibold text-success">
+                          <p className="font-semibold text-success text-sm md:text-base">
                             Main Video Loaded
                           </p>
                           <Button
@@ -301,26 +361,34 @@ export function ReactionCreatorPage() {
                         </>
                       ) : (
                         <>
-                          <div className="w-20 h-20 rounded-full bg-zinc-800 flex items-center justify-center mb-6 group-hover:bg-primary/20 transition-colors">
+                          <div className="w-16 h-16 md:w-20 md:h-20 rounded-full bg-zinc-800 flex items-center justify-center mb-4 md:mb-6 group-hover:bg-primary/20 transition-colors">
                             <Monitor
-                              size={40}
-                              className="text-zinc-400 group-hover:text-primary"
+                              size={32}
+                              className="text-zinc-400 group-hover:text-primary md:w-10 md:h-10"
                             />
                           </div>
-                          <p className="text-lg font-bold text-zinc-300">
-                            Upload Main Video
+                          <p className="text-base md:text-lg font-bold text-zinc-300">
+                            Upload Main
                           </p>
-                          <p className="text-sm text-zinc-500 mt-2 text-center">
-                            Video utama yang akan direaksikan
+                          <p className="text-xs md:text-sm text-zinc-500 mt-1 text-center">
+                            Video utama
+                          </p>
+                          <p className="text-xs text-zinc-600 mt-2">
+                            Max: 200MB / 5 menit
                           </p>
                         </>
+                      )}
+                      {mainVideoError && (
+                        <p className="text-xs text-danger mt-2 text-center">
+                          {mainVideoError}
+                        </p>
                       )}
                     </div>
 
                     {/* Reaction Upload */}
                     <div
                       onClick={() => reactionInputRef.current?.click()}
-                      className={`flex-1 rounded-2xl border-2 border-dashed flex flex-col items-center justify-center p-8 cursor-pointer transition-all hover:scale-[1.02] group
+                      className={`flex-1 rounded-2xl border-2 border-dashed flex flex-col items-center justify-center p-6 cursor-pointer transition-all hover:scale-[1.02] group active:scale-95
                                 ${
                                   reactionVideoUrl
                                     ? "border-success/50 bg-success/10"
@@ -329,11 +397,14 @@ export function ReactionCreatorPage() {
                     >
                       {reactionVideoUrl ? (
                         <>
-                          <div className="w-16 h-16 rounded-full bg-success/20 flex items-center justify-center mb-4">
-                            <Check size={32} className="text-success" />
+                          <div className="w-12 h-12 md:w-16 md:h-16 rounded-full bg-success/20 flex items-center justify-center mb-3 md:mb-4">
+                            <Check
+                              size={24}
+                              className="text-success md:w-8 md:h-8"
+                            />
                           </div>
-                          <p className="font-semibold text-success">
-                            Reaction Video Loaded
+                          <p className="font-semibold text-success text-sm md:text-base">
+                            Reaction Loaded
                           </p>
                           <Button
                             size="sm"
@@ -346,19 +417,27 @@ export function ReactionCreatorPage() {
                         </>
                       ) : (
                         <>
-                          <div className="w-20 h-20 rounded-full bg-zinc-800 flex items-center justify-center mb-6 group-hover:bg-secondary/20 transition-colors">
+                          <div className="w-16 h-16 md:w-20 md:h-20 rounded-full bg-zinc-800 flex items-center justify-center mb-4 md:mb-6 group-hover:bg-secondary/20 transition-colors">
                             <Smartphone
-                              size={40}
-                              className="text-zinc-400 group-hover:text-secondary"
+                              size={32}
+                              className="text-zinc-400 group-hover:text-secondary md:w-10 md:h-10"
                             />
                           </div>
-                          <p className="text-lg font-bold text-zinc-300">
+                          <p className="text-base md:text-lg font-bold text-zinc-300">
                             Upload Reaction
                           </p>
-                          <p className="text-sm text-zinc-500 mt-2 text-center">
-                            Video wajah / kamera depan
+                          <p className="text-xs md:text-sm text-zinc-500 mt-1 text-center">
+                            Video Reaction
+                          </p>
+                          <p className="text-xs text-zinc-600 mt-2">
+                            Max: 200MB / 5 menit
                           </p>
                         </>
+                      )}
+                      {reactionVideoError && (
+                        <p className="text-xs text-danger mt-2 text-center">
+                          {reactionVideoError}
+                        </p>
                       )}
                     </div>
                   </div>
@@ -474,10 +553,10 @@ export function ReactionCreatorPage() {
           </div>
 
           {/* RIGHT COLUMN: CONTROLS (Span 4) */}
-          <div className="lg:col-span-4 space-y-6">
+          <div className="lg:col-span-4 space-y-4 md:space-y-6">
             <Card>
               <CardBody className="p-0 overflow-hidden">
-                {/* Mode Selector (Styled like Loop Tool) */}
+                {/* Mode Selector (Always Visible) */}
                 <div className="p-4 bg-default-50/50 border-b border-divider">
                   <label className="text-xs font-semibold uppercase text-foreground/50 mb-3 block px-1">
                     Mode Layout
@@ -525,302 +604,396 @@ export function ReactionCreatorPage() {
                   </div>
                 </div>
 
-                <div className="p-6 space-y-6">
-                  {/* Visual Preferences Section */}
-                  <Card
-                    className="border border-divider shadow-none bg-default-50/50"
-                    radius="sm"
+                {/* Desktop: Standard Vertical Flow / Mobile: Accordion */}
+                <div className="p-0 md:p-6 md:space-y-6">
+                  {/* Accordion Wrapper for Mobile Layout Optimization */}
+                  <Accordion
+                    defaultExpandedKeys={["visual", "audio"]}
+                    selectionMode="multiple"
+                    className="md:hidden px-2"
                   >
-                    <CardBody className="space-y-4 p-4">
-                      <h3 className="text-xs font-bold uppercase text-foreground/50 flex items-center gap-2">
-                        <Settings2 size={14} /> Preferensi Visual
-                      </h3>
-
-                      {/* Aspect Ratio - Common */}
-                      <div>
-                        <div className="flex justify-between items-center mb-2">
-                          <label className="text-sm font-medium">
-                            Aspect Ratio Output
-                          </label>
+                    <AccordionItem
+                      key="visual"
+                      aria-label="Visual Preferences"
+                      title={
+                        <div className="flex items-center gap-2 text-sm font-semibold">
+                          <Settings2 size={16} /> Preferensi Visual
                         </div>
-                        <Select
-                          selectedKeys={[aspectRatio]}
-                          onChange={(e: ChangeEvent<HTMLSelectElement>) =>
-                            setAspectRatio(e.target.value)
-                          }
-                          size="sm"
-                          aria-label="Aspect Ratio"
-                        >
-                          <SelectItem key="16:9">
-                            16:9 (YouTube, FB Video)
-                          </SelectItem>
-                          <SelectItem key="9:16">
-                            9:16 (TikTok/Reels/Shorts)
-                          </SelectItem>
-                          <SelectItem key="1:1">1:1 (IG/FB Feed)</SelectItem>
-                          <SelectItem key="4:5">
-                            4:5 (IG/FB Portrait)
-                          </SelectItem>
-                        </Select>
-                      </div>
-
-                      <Divider className="my-2" />
-
-                      {layoutMode === "pip" ? (
-                        /* PIP Specifics */
-                        <div className="space-y-4 animate-in fade-in">
-                          <div>
-                            <div className="flex justify-between items-center">
-                              <label className="text-sm font-medium">
-                                Mode Lingkaran
-                              </label>
-                              <Switch
-                                size="sm"
-                                isSelected={circular}
-                                onValueChange={setCircular}
-                                aria-label="Circular Mode"
-                              />
-                            </div>
-                            <p className="text-[10px] text-foreground/50">
-                              Ubah bentuk video reaction menjadi lingkaran.
-                            </p>
-                          </div>
-
-                          <div>
-                            <div className="flex justify-between items-center mb-1">
-                              <label className="text-sm font-medium">
-                                Ukuran (Scale)
-                              </label>
-                              <span className="text-xs font-mono bg-default-200 px-2 py-0.5 rounded text-foreground/70">
-                                {Math.round(pipScale * 100)}%
-                              </span>
-                            </div>
-                            <Slider
-                              size="sm"
-                              step={0.01}
-                              minValue={0.15}
-                              maxValue={0.5}
-                              value={pipScale}
-                              onChange={(v) => setPipScale(v as number)}
-                              className="max-w-md"
-                              aria-label="PIP Scale"
-                            />
-                          </div>
-                          <p className="text-xs text-foreground/50 mt-1 italic">
-                            *Tip: Geser kotak preview di kiri untuk posisi
-                          </p>
-                        </div>
-                      ) : (
-                        /* SxS Specifics */
-                        <div className="space-y-4 animate-in fade-in">
-                          <div>
-                            <label className="text-sm font-medium mb-3 block flex items-center gap-2">
-                              <Grid size={14} className="text-secondary" />
-                              Arah Grid
+                      }
+                    >
+                      <div className="space-y-6 pb-2">
+                        {/* Aspect Ratio */}
+                        <div>
+                          <div className="flex justify-between items-center mb-2">
+                            <label className="text-sm font-medium">
+                              Aspect Ratio Output
                             </label>
-                            <div className="flex gap-2">
-                              <Button
-                                size="sm"
-                                variant={
-                                  sideBySideLayout === "horizontal"
-                                    ? "solid"
-                                    : "flat"
-                                }
-                                color="secondary"
-                                className="flex-1"
-                                onPress={() =>
-                                  setSideBySideLayout("horizontal")
-                                }
-                              >
-                                <div className="flex flex-col items-center mt-2">
-                                  <div className="flex gap-0.5">
-                                    <div className="w-3 h-4 border-2 border-current rounded-sm"></div>
-                                    <div className="w-3 h-4 border-2 border-current rounded-sm bg-current/20"></div>
-                                  </div>
-                                  <span className="text-[10px]">
-                                    Horizontal
-                                  </span>
-                                </div>
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant={
-                                  sideBySideLayout === "vertical"
-                                    ? "solid"
-                                    : "flat"
-                                }
-                                color="secondary"
-                                className="flex-1"
-                                onPress={() => setSideBySideLayout("vertical")}
-                              >
-                                <div className="flex flex-col items-center mt-2">
-                                  <div className="flex flex-col gap-0.5">
-                                    <div className="w-4 h-2 border-2 border-current rounded-sm"></div>
-                                    <div className="w-4 h-2 border-2 border-current rounded-sm bg-current/20"></div>
-                                  </div>
-                                  <span className="text-[10px]">Vertical</span>
-                                </div>
-                              </Button>
-                            </div>
                           </div>
-
-                          <div>
-                            <div className="flex justify-between items-center mb-1">
-                              <label className="text-sm font-medium">
-                                Split Ratio
-                              </label>
-                              <span className="text-xs font-mono bg-default-200 px-2 py-0.5 rounded text-foreground/70">
-                                {Math.round(splitRatio * 100)}% /{" "}
-                                {Math.round((1 - splitRatio) * 100)}%
-                              </span>
-                            </div>
-                            <Slider
-                              size="sm"
-                              step={0.05}
-                              minValue={0.5}
-                              maxValue={0.7}
-                              value={splitRatio}
-                              onChange={(v) => setSplitRatio(v as number)}
-                              aria-label="Split Ratio"
-                            />
-                            <p className="text-[10px] text-foreground/40 mt-1">
-                              Default ratio 50/50, geser kekanan untuk merubah.
-                            </p>
-                          </div>
-
-                          <div className="space-y-3 pt-2 bg-default-100/50 p-2 rounded-lg">
-                            <div className="flex justify-between items-start gap-2">
-                              <div className="flex-1">
-                                <label className="text-xs font-medium block">
-                                  Gradient Blending
-                                </label>
-                                <p className="text-[10px] text-foreground/50 leading-tight">
-                                  Membuat batas antar video menjadi halus
-                                  (seamless) dengan gradasi.
-                                </p>
-                              </div>
-                              <Switch
-                                size="sm"
-                                isSelected={smoothBorder}
-                                onValueChange={setSmoothBorder}
-                                aria-label="Smooth Border"
-                              />
-                            </div>
-                            <div className="flex justify-between items-start gap-2">
-                              <div className="flex-1">
-                                <label className="text-xs font-medium block">
-                                  Overlay Background
-                                </label>
-                                <p className="text-[10px] text-foreground/50 leading-tight">
-                                  Menambahkan background blur di area kosong
-                                  agar terlihat smooth.
-                                </p>
-                              </div>
-                              <Switch
-                                size="sm"
-                                isSelected={overlayMode}
-                                onValueChange={setOverlayMode}
-                                aria-label="Overlay Mode"
-                              />
-                            </div>
-                            <p className="text-[10px] text-foreground/50">
-                              Aktifkan keduanya untuk smooth faded border antar
-                              video.
-                            </p>
-                          </div>
+                          <Select
+                            selectedKeys={[aspectRatio]}
+                            onChange={(e: ChangeEvent<HTMLSelectElement>) =>
+                              setAspectRatio(e.target.value)
+                            }
+                            size="sm"
+                            aria-label="Aspect Ratio"
+                          >
+                            <SelectItem key="16:9">
+                              16:9 (YouTube, FB Video)
+                            </SelectItem>
+                            <SelectItem key="9:16">
+                              9:16 (TikTok/Reels/Shorts)
+                            </SelectItem>
+                            <SelectItem key="1:1">1:1 (IG/FB Feed)</SelectItem>
+                            <SelectItem key="4:5">
+                              4:5 (IG/FB Portrait)
+                            </SelectItem>
+                          </Select>
                         </div>
-                      )}
-                    </CardBody>
-                  </Card>
-
-                  {/* Audio Mixer Section */}
-                  <Card
-                    className="border border-divider shadow-none bg-default-50/50"
-                    radius="sm"
-                  >
-                    <CardBody className="space-y-4 p-4">
-                      <h3 className="text-xs font-bold uppercase text-foreground/50 flex items-center gap-2">
-                        <Volume2 size={14} /> Audio Mixer
-                      </h3>
-
-                      <div>
-                        <div className="flex justify-between items-center mb-1">
-                          <label className="text-xs font-semibold text-foreground/70">
-                            Main Audio
-                          </label>
-                          <span className="text-[10px] font-mono bg-success/10 text-success px-1.5 py-0.5 rounded">
-                            {Math.round(mainVolume * 100)}%
-                          </span>
-                        </div>
-                        <Slider
-                          size="sm"
-                          color="success"
-                          step={0.1}
-                          minValue={0}
-                          maxValue={2}
-                          value={mainVolume}
-                          onChange={(v) => setMainVolume(v as number)}
-                          aria-label="Main Volume"
+                        <Divider />
+                        {/* Dynamic Controls based on Layout */}
+                        <DynamicControls
+                          layoutMode={layoutMode}
+                          circular={circular}
+                          setCircular={setCircular}
+                          pipScale={pipScale}
+                          setPipScale={setPipScale}
+                          sideBySideLayout={sideBySideLayout}
+                          setSideBySideLayout={setSideBySideLayout}
+                          splitRatio={splitRatio}
+                          setSplitRatio={setSplitRatio}
+                          smoothBorder={smoothBorder}
+                          setSmoothBorder={setSmoothBorder}
+                          overlayMode={overlayMode}
+                          setOverlayMode={setOverlayMode}
                         />
                       </div>
-
-                      <div>
-                        <div className="flex justify-between items-center mb-1">
-                          <label className="text-xs font-semibold text-foreground/70">
-                            Reaction Audio
-                          </label>
-                          <span className="text-[10px] font-mono bg-secondary/10 text-secondary px-1.5 py-0.5 rounded">
-                            {Math.round(reactionVolume * 100)}%
-                          </span>
+                    </AccordionItem>
+                    <AccordionItem
+                      key="audio"
+                      aria-label="Audio Mixer"
+                      title={
+                        <div className="flex items-center gap-2 text-sm font-semibold">
+                          <Volume2 size={16} /> Audio Mixer
                         </div>
-                        <Slider
-                          size="sm"
-                          color="secondary"
-                          step={0.1}
-                          minValue={0}
-                          maxValue={2}
-                          value={reactionVolume}
-                          onChange={(v) => setReactionVolume(v as number)}
-                          aria-label="Reaction Volume"
+                      }
+                    >
+                      <div className="space-y-4 pb-4">
+                        <AudioControls
+                          mainVolume={mainVolume}
+                          setMainVolume={setMainVolume}
+                          reactionVolume={reactionVolume}
+                          setReactionVolume={setReactionVolume}
                         />
                       </div>
-                    </CardBody>
-                  </Card>
+                    </AccordionItem>
+                  </Accordion>
 
-                  {/* Process Button */}
-                  <Button
-                    size="lg"
-                    color="primary"
-                    className="w-full font-semibold shadow-lg shadow-primary/20"
-                    startContent={!isProcessing && <Sparkles size={20} />}
-                    isLoading={isProcessing}
-                    isDisabled={!mainVideoFile || !reactionVideoFile}
-                    onPress={handleProcess}
-                  >
-                    {isProcessing ? processingStatus : "Buat Video Reaction"}
-                  </Button>
+                  {/* Desktop Only: Unwrapped */}
+                  <div className="hidden md:block space-y-6">
+                    <Card
+                      className="border border-divider shadow-none bg-default-50/50"
+                      radius="sm"
+                    >
+                      <CardBody className="space-y-4 p-4">
+                        <h3 className="text-xs font-bold uppercase text-foreground/50 flex items-center gap-2">
+                          <Settings2 size={14} /> Preferensi Visual
+                        </h3>
+                        {/* Aspect Ratio */}
+                        <div>
+                          <div className="flex justify-between items-center mb-2">
+                            <label className="text-sm font-medium">
+                              Aspect Ratio Output
+                            </label>
+                          </div>
+                          <Select
+                            selectedKeys={[aspectRatio]}
+                            onChange={(e: ChangeEvent<HTMLSelectElement>) =>
+                              setAspectRatio(e.target.value)
+                            }
+                            size="sm"
+                            aria-label="Aspect Ratio"
+                          >
+                            <SelectItem key="16:9">
+                              16:9 (YouTube, FB Video)
+                            </SelectItem>
+                            <SelectItem key="9:16">
+                              9:16 (TikTok/Reels/Shorts)
+                            </SelectItem>
+                            <SelectItem key="1:1">1:1 (IG/FB Feed)</SelectItem>
+                            <SelectItem key="4:5">
+                              4:5 (IG/FB Portrait)
+                            </SelectItem>
+                          </Select>
+                        </div>
+                        <Divider className="my-2" />
+                        <DynamicControls
+                          layoutMode={layoutMode}
+                          circular={circular}
+                          setCircular={setCircular}
+                          pipScale={pipScale}
+                          setPipScale={setPipScale}
+                          sideBySideLayout={sideBySideLayout}
+                          setSideBySideLayout={setSideBySideLayout}
+                          splitRatio={splitRatio}
+                          setSplitRatio={setSplitRatio}
+                          smoothBorder={smoothBorder}
+                          setSmoothBorder={setSmoothBorder}
+                          overlayMode={overlayMode}
+                          setOverlayMode={setOverlayMode}
+                        />
+                      </CardBody>
+                    </Card>
+
+                    <Card
+                      className="border border-divider shadow-none bg-default-50/50"
+                      radius="sm"
+                    >
+                      <CardBody className="space-y-4 p-4">
+                        <h3 className="text-xs font-bold uppercase text-foreground/50 flex items-center gap-2">
+                          <Volume2 size={14} /> Audio Mixer
+                        </h3>
+                        <AudioControls
+                          mainVolume={mainVolume}
+                          setMainVolume={setMainVolume}
+                          reactionVolume={reactionVolume}
+                          setReactionVolume={setReactionVolume}
+                        />
+                      </CardBody>
+                    </Card>
+                  </div>
+
+                  {/* Process Button - Sticky on Mobile */}
+                  <div className="fixed bottom-0 left-0 right-0 p-4 bg-background/80 backdrop-blur-lg border-t border-divider md:static md:bg-transparent md:border-none md:p-0 z-50">
+                    <Button
+                      size="lg"
+                      color="primary"
+                      className="w-full font-semibold shadow-lg shadow-primary/20"
+                      startContent={!isProcessing && <Sparkles size={20} />}
+                      isLoading={isProcessing}
+                      isDisabled={!mainVideoFile || !reactionVideoFile}
+                      onPress={handleProcess}
+                    >
+                      {isProcessing ? processingStatus : "Buat Video Reaction"}
+                    </Button>
+                  </div>
                 </div>
               </CardBody>
             </Card>
           </div>
         </div>
-
-        {/* Hidden Inputs */}
-        <input
-          ref={mainInputRef}
-          type="file"
-          accept="video/*"
-          onChange={handleMainVideoSelect}
-          className="hidden"
-        />
-        <input
-          ref={reactionInputRef}
-          type="file"
-          accept="video/*"
-          onChange={handleReactionVideoSelect}
-          className="hidden"
-        />
       </div>
     </PageTransition>
+  );
+}
+
+// Extracted for reuse between Mobile/Desktop views to avoid code duplication in render
+function DynamicControls({
+  layoutMode,
+  circular,
+  setCircular,
+  pipScale,
+  setPipScale,
+  sideBySideLayout,
+  setSideBySideLayout,
+  splitRatio,
+  setSplitRatio,
+  smoothBorder,
+  setSmoothBorder,
+  overlayMode,
+  setOverlayMode,
+}: any) {
+  if (layoutMode === "pip") {
+    return (
+      <div className="space-y-4 animate-in fade-in">
+        <div>
+          <div className="flex justify-between items-center">
+            <label className="text-sm font-medium">Mode Lingkaran</label>
+            <Switch
+              size="sm"
+              isSelected={circular}
+              onValueChange={setCircular}
+              aria-label="Circular Mode"
+            />
+          </div>
+          <p className="text-[10px] text-foreground/50">
+            Ubah bentuk video reaction menjadi lingkaran.
+          </p>
+        </div>
+
+        <div>
+          <div className="flex justify-between items-center mb-1">
+            <label className="text-sm font-medium">Ukuran (Scale)</label>
+            <span className="text-xs font-mono bg-default-200 px-2 py-0.5 rounded text-foreground/70">
+              {Math.round(pipScale * 100)}%
+            </span>
+          </div>
+          <Slider
+            size="sm"
+            step={0.01}
+            minValue={0.15}
+            maxValue={0.5}
+            value={pipScale}
+            onChange={(v) => setPipScale(v as number)}
+            className="max-w-md"
+            aria-label="PIP Scale"
+          />
+        </div>
+        <p className="text-xs text-foreground/50 mt-1 italic">
+          *Tip: Ubah posisi video reaction dengan menggeser kotak preview di
+          kiri.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4 animate-in fade-in">
+      <div>
+        <label className="text-sm font-medium mb-3 block flex items-center gap-2">
+          <Grid size={14} className="text-secondary" />
+          Arah Grid
+        </label>
+        <div className="flex gap-2">
+          <Button
+            size="md"
+            variant={sideBySideLayout === "horizontal" ? "solid" : "flat"}
+            color="secondary"
+            className="flex-1"
+            onPress={() => setSideBySideLayout("horizontal")}
+          >
+            <div className="flex flex-col">
+              <p>Horizontal</p>
+              <p className="text-xs">Kanan-Kiri</p>
+            </div>
+          </Button>
+          <Button
+            size="md"
+            variant={sideBySideLayout === "vertical" ? "solid" : "flat"}
+            color="secondary"
+            className="flex-1"
+            onPress={() => setSideBySideLayout("vertical")}
+          >
+            <div className="flex flex-col">
+              <p>Vertical</p>
+              <p className="text-xs">Atas-Bawah</p>
+            </div>
+          </Button>
+        </div>
+      </div>
+
+      <div>
+        <div className="flex justify-between items-center mb-1">
+          <label className="text-sm font-medium">Split Ratio</label>
+          <span className="text-xs font-mono bg-default-200 px-2 py-0.5 rounded text-foreground/70">
+            {Math.round(splitRatio * 100)}% /{" "}
+            {Math.round((1 - splitRatio) * 100)}%
+          </span>
+        </div>
+        <Slider
+          size="sm"
+          step={0.05}
+          minValue={0.5}
+          maxValue={0.7}
+          value={splitRatio}
+          onChange={(v) => setSplitRatio(v as number)}
+          aria-label="Split Ratio"
+        />
+        <p className="text-[10px] text-foreground/40 mt-1">
+          Default ratio 50/50, geser kekanan untuk merubah.
+        </p>
+      </div>
+
+      <div className="space-y-3 pt-2 bg-default-100/50 p-2 rounded-lg">
+        <div className="flex justify-between items-start gap-2">
+          <div className="flex-1">
+            <label className="text-xs font-medium block">
+              Gradient Blending
+            </label>
+            <p className="text-[10px] text-foreground/50 leading-tight">
+              Membuat batas antar video menjadi halus (seamless) dengan gradasi.
+            </p>
+          </div>
+          <Switch
+            size="sm"
+            isSelected={smoothBorder}
+            onValueChange={setSmoothBorder}
+            aria-label="Smooth Border"
+          />
+        </div>
+        <div className="flex justify-between items-start gap-2">
+          <div className="flex-1">
+            <label className="text-xs font-medium block">
+              Overlay Background
+            </label>
+            <p className="text-[10px] text-foreground/50 leading-tight">
+              Menambahkan background blur di area kosong agar terlihat smooth.
+            </p>
+          </div>
+          <Switch
+            size="sm"
+            isSelected={overlayMode}
+            onValueChange={setOverlayMode}
+            aria-label="Overlay Mode"
+          />
+        </div>
+        <p className="text-[10px] text-foreground/50">
+          Aktifkan keduanya untuk smooth faded border antar video utama dan
+          reaction.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function AudioControls({
+  mainVolume,
+  setMainVolume,
+  reactionVolume,
+  setReactionVolume,
+}: any) {
+  return (
+    <>
+      <div>
+        <div className="flex justify-between items-center mb-1">
+          <label className="text-xs font-semibold text-foreground/70">
+            Main Audio
+          </label>
+          <span className="text-[10px] font-mono bg-success/10 text-success px-1.5 py-0.5 rounded">
+            {Math.round(mainVolume * 100)}%
+          </span>
+        </div>
+        <Slider
+          size="sm"
+          color="success"
+          step={0.1}
+          minValue={0}
+          maxValue={2}
+          value={mainVolume}
+          onChange={(v) => setMainVolume(v as number)}
+          aria-label="Main Volume"
+        />
+      </div>
+
+      <div>
+        <div className="flex justify-between items-center mb-1">
+          <label className="text-xs font-semibold text-foreground/70">
+            Reaction Audio
+          </label>
+          <span className="text-[10px] font-mono bg-secondary/10 text-secondary px-1.5 py-0.5 rounded">
+            {Math.round(reactionVolume * 100)}%
+          </span>
+        </div>
+        <Slider
+          size="sm"
+          color="secondary"
+          step={0.1}
+          minValue={0}
+          maxValue={2}
+          value={reactionVolume}
+          onChange={(v) => setReactionVolume(v as number)}
+          aria-label="Reaction Volume"
+        />
+      </div>
+    </>
   );
 }

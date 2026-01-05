@@ -10,17 +10,29 @@ import {
   ModalFooter,
   useDisclosure,
 } from "@heroui/react";
-import { useMemo } from "react";
-import { Wand2, Music, Layers, AlertTriangle, Loader2 } from "lucide-react";
+import { useMemo, useState } from "react";
+import {
+  Wand2,
+  Music,
+  Layers,
+  AlertTriangle,
+  Loader2,
+  CheckCircle2,
+  AlertCircle,
+} from "lucide-react";
 import { useStoryStore } from "@/stores/story-store";
 import { useNavigate } from "react-router-dom";
 import { useEditorStore } from "@/stores/editor-store";
-import { toast } from "react-hot-toast";
 
 import { PreviewPlayer } from "./PreviewPlayer";
 import { compileStoryToTimeline } from "@/utils/story-compiler";
 import { useJobPolling } from "@/hooks/use-job-polling";
 import { api } from "@/services/api";
+
+interface FeedbackMessage {
+  type: "success" | "error";
+  text: string;
+}
 
 export function DirectorPanel() {
   const {
@@ -32,22 +44,23 @@ export function DirectorPanel() {
   const { initProject } = useEditorStore();
   const navigate = useNavigate();
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
+  const [feedback, setFeedback] = useState<FeedbackMessage | null>(null);
 
   // Async Job Polling for AI Generation
   const { startJob, isPolling } = useJobPolling(null, {
     pollInterval: 2000,
     onComplete: (data) => {
-      toast.success("Story Generated Successfully!");
+      setFeedback({ type: "success", text: "Story Generated Successfully!" });
       applyAiGeneratedStory(data);
     },
     onError: (err) => {
-      toast.error("Generation Failed: " + err);
+      setFeedback({ type: "error", text: "Generation Failed: " + err });
     },
   });
 
   const handleAiGenerate = async () => {
+    setFeedback(null);
     try {
-      toast("Starting AI Generation...", { icon: "✨" });
       const res = await api.post<{ jobId: string }>(
         "/jobs/story/generate-structure",
         {
@@ -59,10 +72,10 @@ export function DirectorPanel() {
       if (res.success && res.data) {
         startJob(res.data.jobId);
       } else {
-        toast.error("Failed to start job");
+        setFeedback({ type: "error", text: "Failed to start job" });
       }
-    } catch (e) {
-      toast.error("Network error");
+    } catch {
+      setFeedback({ type: "error", text: "Network error" });
     }
   };
 
@@ -73,7 +86,7 @@ export function DirectorPanel() {
   }, [currentStory]);
 
   const handleCompileConfirm = async () => {
-    toast.success("Compiling Story to Timeline...");
+    setFeedback({ type: "success", text: "Compiling Story to Timeline..." });
 
     try {
       // 1. Fork Storage (Lock Story Mode and Save Version)
@@ -91,8 +104,8 @@ export function DirectorPanel() {
         navigate(`/editor/${currentStory.projectId}`);
       }
     } catch (error) {
-      console.error("Fork failed:", error);
-      toast.error("Failed to fork project");
+      void error;
+      setFeedback({ type: "error", text: "Failed to fork project" });
     }
   };
 

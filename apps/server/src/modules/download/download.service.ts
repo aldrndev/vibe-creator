@@ -1,13 +1,13 @@
-import { prisma } from '@/lib/prisma';
-import { logger } from '@/lib/logger';
-import { env } from '@/config/env';
-import { spawn } from 'child_process';
-import { join } from 'path';
-import { existsSync } from 'fs';
-import { mkdir, writeFile, stat } from 'fs/promises';
-import { randomUUID } from 'crypto';
+import { prisma } from "@/lib/prisma";
+import { logger } from "@/lib/logger";
+import { env } from "@/config/env";
+import { spawn } from "child_process";
+import { join, dirname, basename } from "path";
+import { existsSync, readdirSync } from "fs";
+import { mkdir, writeFile, stat, rename } from "fs/promises";
+import { randomUUID } from "crypto";
 
-const DOWNLOADS_DIR = join(process.cwd(), 'uploads', 'downloads');
+const DOWNLOADS_DIR = join(process.cwd(), "uploads", "downloads");
 
 // Ensure downloads directory exists
 async function ensureDownloadsDir() {
@@ -18,27 +18,31 @@ async function ensureDownloadsDir() {
 
 // Detect platform from URL
 function detectPlatform(url: string): string {
-  if (url.includes('youtube.com') || url.includes('youtu.be')) return 'youtube';
-  if (url.includes('tiktok.com')) return 'tiktok';
-  if (url.includes('instagram.com')) return 'instagram';
-  if (url.includes('twitter.com') || url.includes('x.com')) return 'twitter';
-  if (url.includes('facebook.com') || url.includes('fb.watch')) return 'facebook';
-  if (url.includes('vimeo.com')) return 'vimeo';
-  if (url.includes('reddit.com')) return 'reddit';
-  if (url.includes('sora.chatgpt.com')) return 'sora';
-  return 'unknown';
+  if (url.includes("youtube.com") || url.includes("youtu.be")) return "youtube";
+  if (url.includes("tiktok.com")) return "tiktok";
+  if (url.includes("instagram.com")) return "instagram";
+  if (url.includes("twitter.com") || url.includes("x.com")) return "twitter";
+  if (url.includes("facebook.com") || url.includes("fb.watch"))
+    return "facebook";
+  if (url.includes("vimeo.com")) return "vimeo";
+  if (url.includes("reddit.com")) return "reddit";
+  if (url.includes("sora.chatgpt.com")) return "sora";
+  return "unknown";
 }
 
 // Check if URL is a Sora video
 function isSoraUrl(url: string): boolean {
-  return url.includes('sora.chatgpt.com') && url.match(/(s_[0-9A-Za-z_-]{8,})/) !== null;
+  return (
+    url.includes("sora.chatgpt.com") &&
+    url.match(/(s_[0-9A-Za-z_-]{8,})/) !== null
+  );
 }
 
 // Check if URL is a direct video link
 function isDirectVideoUrl(url: string): boolean {
-  const videoExtensions = ['.mp4', '.webm', '.mov', '.avi', '.mkv', '.m4v'];
+  const videoExtensions = [".mp4", ".webm", ".mov", ".avi", ".mkv", ".m4v"];
   const urlLower = url.toLowerCase();
-  return videoExtensions.some(ext => urlLower.includes(ext));
+  return videoExtensions.some((ext) => urlLower.includes(ext));
 }
 
 interface CreateDownloadJobInput {
@@ -47,7 +51,7 @@ interface CreateDownloadJobInput {
 }
 
 interface CobaltResponse {
-  status: 'error' | 'redirect' | 'tunnel' | 'picker';
+  status: "error" | "redirect" | "tunnel" | "picker";
   url?: string;
   urls?: string[];
   text?: string;
@@ -69,13 +73,15 @@ export const downloadService = {
       where: {
         userId,
         status: {
-          in: ['PENDING', 'DOWNLOADING'],
+          in: ["PENDING", "DOWNLOADING"],
         },
       },
     });
 
     if (pendingJobs >= 5) {
-      throw new Error('Too many pending downloads. Please wait for current downloads to complete.');
+      throw new Error(
+        "Too many pending downloads. Please wait for current downloads to complete."
+      );
     }
 
     const platform = detectPlatform(sourceUrl);
@@ -85,13 +91,13 @@ export const downloadService = {
         userId,
         sourceUrl,
         platform,
-        status: 'PENDING',
+        status: "PENDING",
       },
     });
 
     // Start processing in background
-    this.processJob(job.id).catch(err => {
-      logger.error({ err, jobId: job.id }, 'Download job failed');
+    this.processJob(job.id).catch((err) => {
+      logger.error({ err, jobId: job.id }, "Download job failed");
     });
 
     return job;
@@ -109,7 +115,7 @@ export const downloadService = {
     });
 
     if (!job) {
-      throw new Error('Download job not found');
+      throw new Error("Download job not found");
     }
 
     return {
@@ -137,18 +143,21 @@ export const downloadService = {
 
     if (!job) {
       // Job already deleted or not found - treat as success
-      logger.info({ jobId }, 'Job already deleted or not found');
+      logger.info({ jobId }, "Job already deleted or not found");
       return { deleted: true };
     }
 
     // Delete file if exists
     if (job.localPath && existsSync(job.localPath)) {
-      const { unlink } = await import('fs/promises');
+      const { unlink } = await import("fs/promises");
       try {
         await unlink(job.localPath);
-        logger.info({ jobId, localPath: job.localPath }, 'Deleted download file');
+        logger.info(
+          { jobId, localPath: job.localPath },
+          "Deleted download file"
+        );
       } catch (err) {
-        logger.warn({ jobId, err }, 'Failed to delete download file');
+        logger.warn({ jobId, err }, "Failed to delete download file");
       }
     }
 
@@ -169,7 +178,7 @@ export const downloadService = {
     // Update status to downloading
     await prisma.downloadJob.update({
       where: { id: jobId },
-      data: { status: 'DOWNLOADING' },
+      data: { status: "DOWNLOADING" },
     });
 
     try {
@@ -178,7 +187,7 @@ export const downloadService = {
       });
 
       if (!job) {
-        throw new Error('Job not found');
+        throw new Error("Job not found");
       }
 
       const outputId = randomUUID();
@@ -188,25 +197,41 @@ export const downloadService = {
 
       // Check if it's a Sora video URL (prioritize Sora handler)
       if (isSoraUrl(job.sourceUrl)) {
-        logger.info({ jobId, url: job.sourceUrl }, 'Downloading Sora video via multi-CDN fallback');
+        logger.info(
+          { jobId, url: job.sourceUrl },
+          "Downloading Sora video via multi-CDN fallback"
+        );
         result = await this.downloadSoraVideo(job.sourceUrl, outputPath);
-      // Check if it's a direct video URL
+        // Check if it's a direct video URL
       } else if (isDirectVideoUrl(job.sourceUrl)) {
-        logger.info({ jobId, url: job.sourceUrl }, 'Downloading direct video URL');
+        logger.info(
+          { jobId, url: job.sourceUrl },
+          "Downloading direct video URL"
+        );
         result = await this.downloadDirectUrl(job.sourceUrl, outputPath);
       } else if (env.COBALT_API_URL) {
         // Use self-hosted Cobalt API if configured
         try {
-          logger.info({ jobId, url: job.sourceUrl, cobaltUrl: env.COBALT_API_URL }, 'Downloading with Cobalt API');
+          logger.info(
+            { jobId, url: job.sourceUrl, cobaltUrl: env.COBALT_API_URL },
+            "Downloading with Cobalt API"
+          );
           result = await this.runCobalt(job.sourceUrl, outputPath);
         } catch (cobaltError) {
           // Fallback to yt-dlp if Cobalt fails
-          logger.warn({ jobId, error: cobaltError instanceof Error ? cobaltError.message : 'Unknown' }, 'Cobalt failed, falling back to yt-dlp');
+          logger.warn(
+            {
+              jobId,
+              error:
+                cobaltError instanceof Error ? cobaltError.message : "Unknown",
+            },
+            "Cobalt failed, falling back to yt-dlp"
+          );
           result = await this.runYtDlp(job.sourceUrl, outputPath);
         }
       } else {
         // No Cobalt configured, use yt-dlp directly
-        logger.info({ jobId, url: job.sourceUrl }, 'Downloading with yt-dlp');
+        logger.info({ jobId, url: job.sourceUrl }, "Downloading with yt-dlp");
         result = await this.runYtDlp(job.sourceUrl, outputPath);
       }
 
@@ -214,7 +239,7 @@ export const downloadService = {
       await prisma.downloadJob.update({
         where: { id: jobId },
         data: {
-          status: 'COMPLETED',
+          status: "COMPLETED",
           title: result.title,
           localPath: outputPath,
           metadata: result.metadata as Record<string, string>,
@@ -222,127 +247,153 @@ export const downloadService = {
         },
       });
 
-      logger.info({ jobId, output: outputPath }, 'Download completed');
+      logger.info({ jobId, output: outputPath }, "Download completed");
     } catch (err) {
-      logger.error({ err, jobId }, 'Download processing failed');
-      
+      logger.error({ err, jobId }, "Download processing failed");
+
       // Delete the failed record - only successful downloads are kept
       await prisma.downloadJob.delete({
         where: { id: jobId },
       });
-      
-      logger.info({ jobId }, 'Deleted failed download job');
+
+      logger.info({ jobId }, "Deleted failed download job");
     }
   },
 
   /**
    * Download using Cobalt API
    */
-  async runCobalt(url: string, outputPath: string): Promise<{ title: string; metadata: Record<string, unknown> }> {
+  async runCobalt(
+    url: string,
+    outputPath: string
+  ): Promise<{ title: string; metadata: Record<string, unknown> }> {
     if (!env.COBALT_API_URL) {
-      throw new Error('Cobalt API URL not configured');
+      throw new Error("Cobalt API URL not configured");
     }
-    
-    logger.info({ cobaltUrl: env.COBALT_API_URL, videoUrl: url }, 'Calling Cobalt API');
-    
+
+    logger.info(
+      { cobaltUrl: env.COBALT_API_URL, videoUrl: url },
+      "Calling Cobalt API"
+    );
+
     const response = await fetch(env.COBALT_API_URL, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
+        Accept: "application/json",
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
         url,
-        videoQuality: '1080',
-        youtubeVideoCodec: 'h264',
-        filenameStyle: 'basic',
-        downloadMode: 'auto',
+        videoQuality: "1080",
+        youtubeVideoCodec: "h264",
+        filenameStyle: "basic",
+        downloadMode: "auto",
       }),
     });
 
     // Get response as text first to debug
     const responseText = await response.text();
-    logger.info({ status: response.status, responseLength: responseText.length }, 'Cobalt API response');
+    logger.info(
+      { status: response.status, responseLength: responseText.length },
+      "Cobalt API response"
+    );
 
     if (!response.ok) {
-      throw new Error(`Cobalt API error: ${response.status} - ${responseText.slice(0, 200)}`);
+      throw new Error(
+        `Cobalt API error: ${response.status} - ${responseText.slice(0, 200)}`
+      );
     }
 
     if (!responseText) {
-      throw new Error('Cobalt API returned empty response');
+      throw new Error("Cobalt API returned empty response");
     }
 
     let data: CobaltResponse;
     try {
       data = JSON.parse(responseText) as CobaltResponse;
     } catch {
-      throw new Error(`Cobalt API returned invalid JSON: ${responseText.slice(0, 200)}`);
+      throw new Error(
+        `Cobalt API returned invalid JSON: ${responseText.slice(0, 200)}`
+      );
     }
 
-    if (data.status === 'error') {
-      throw new Error(data.text || 'Cobalt API error');
+    if (data.status === "error") {
+      throw new Error(data.text || "Cobalt API error");
     }
 
     // Get the download URL
     let downloadUrl: string | undefined;
-    
-    if (data.status === 'redirect' || data.status === 'tunnel') {
+
+    if (data.status === "redirect" || data.status === "tunnel") {
       downloadUrl = data.url;
-    } else if (data.status === 'picker' && data.picker && data.picker.length > 0) {
+    } else if (
+      data.status === "picker" &&
+      data.picker &&
+      data.picker.length > 0
+    ) {
       // If multiple options, pick video
-      const video = data.picker.find(p => p.type === 'video') ?? data.picker[0];
+      const video =
+        data.picker.find((p) => p.type === "video") ?? data.picker[0];
       if (video) {
         downloadUrl = video.url;
       }
     }
 
     if (!downloadUrl) {
-      throw new Error('No download URL from Cobalt');
+      throw new Error("No download URL from Cobalt");
     }
 
-    logger.info({ downloadUrl }, 'Downloading file from Cobalt URL');
+    logger.info({ downloadUrl }, "Downloading file from Cobalt URL");
 
     // Download the file
     const fileResponse = await fetch(downloadUrl);
     if (!fileResponse.ok) {
-      throw new Error(`Failed to download file from Cobalt: ${fileResponse.status}`);
+      throw new Error(
+        `Failed to download file from Cobalt: ${fileResponse.status}`
+      );
     }
 
     // Use arrayBuffer for reliable download (Readable.fromWeb can fail silently)
     const arrayBuffer = await fileResponse.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
-    
+
     if (buffer.length === 0) {
-      throw new Error('Downloaded file is empty (0 bytes)');
+      throw new Error("Downloaded file is empty (0 bytes)");
     }
-    
-    logger.info({ size: buffer.length }, 'Downloaded file buffer size');
-    
+
+    logger.info({ size: buffer.length }, "Downloaded file buffer size");
+
     // Write to file
     await writeFile(outputPath, buffer);
-    
+
     // Verify file was written correctly
     const fileStats = await stat(outputPath);
     if (fileStats.size === 0) {
-      throw new Error('File written but size is 0 bytes');
+      throw new Error("File written but size is 0 bytes");
     }
-    
-    logger.info({ outputPath, fileSize: fileStats.size }, 'File saved successfully');
+
+    logger.info(
+      { outputPath, fileSize: fileStats.size },
+      "File saved successfully"
+    );
 
     // Extract title from URL or use default
-    const urlParts = url.split('/');
-    const title = urlParts[urlParts.length - 1] || 'Downloaded Video';
+    const urlParts = url.split("/");
+    const title = urlParts[urlParts.length - 1] || "Downloaded Video";
 
     return {
-      title: title.replace(/[?#].*$/, ''), // Remove query params
-      metadata: { source: 'cobalt', size: fileStats.size },
+      title: title.replace(/[?#].*$/, ""), // Remove query params
+      metadata: { source: "cobalt", size: fileStats.size },
     };
   },
 
   /**
    * Download direct video URL
    */
-  async downloadDirectUrl(url: string, outputPath: string): Promise<{ title: string; metadata: Record<string, unknown> }> {
+  async downloadDirectUrl(
+    url: string,
+    outputPath: string
+  ): Promise<{ title: string; metadata: Record<string, unknown> }> {
     const response = await fetch(url);
     if (!response.ok) {
       throw new Error(`Failed to download direct URL: ${response.status}`);
@@ -351,129 +402,208 @@ export const downloadService = {
     // Use arrayBuffer for reliable download
     const arrayBuffer = await response.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
-    
+
     if (buffer.length === 0) {
-      throw new Error('Downloaded file is empty (0 bytes)');
+      throw new Error("Downloaded file is empty (0 bytes)");
     }
-    
+
     await writeFile(outputPath, buffer);
-    
+
     // Verify
     const fileStats = await stat(outputPath);
     if (fileStats.size === 0) {
-      throw new Error('File written but size is 0 bytes');
+      throw new Error("File written but size is 0 bytes");
     }
 
-    const urlParts = url.split('/');
-    const filename = urlParts[urlParts.length - 1] || 'Downloaded Video';
+    const urlParts = url.split("/");
+    const filename = urlParts[urlParts.length - 1] || "Downloaded Video";
 
     return {
-      title: filename.replace(/[?#].*$/, ''),
-      metadata: { source: 'direct', size: fileStats.size },
+      title: filename.replace(/[?#].*$/, ""),
+      metadata: { source: "direct", size: fileStats.size },
     };
   },
 
   /**
    * Run yt-dlp command (fallback)
    */
-  async runYtDlp(url: string, outputPath: string): Promise<{ title: string; metadata: Record<string, unknown> }> {
+  async runYtDlp(
+    url: string,
+    outputPath: string
+  ): Promise<{ title: string; metadata: Record<string, unknown> }> {
     return new Promise((resolve, reject) => {
-      let title = 'Downloaded Video';
+      let title = "Downloaded Video";
       let metadata: Record<string, unknown> = {};
 
       // First get video info with bypass options
-      const infoProcess = spawn('yt-dlp', [
-        '--print', '%(title)s',
-        '--print', '%(duration)s',
-        '--skip-download',
-        '--no-check-certificates',
-        '--extractor-args', 'youtube:player_client=android',
+      const infoProcess = spawn("yt-dlp", [
+        "--print",
+        "%(title)s",
+        "--print",
+        "%(duration)s",
+        "--skip-download",
+        "--no-check-certificates",
+        "--extractor-args",
+        "youtube:player_client=android",
         url,
       ]);
 
-      let infoOutput = '';
-      infoProcess.stdout.on('data', (data) => {
+      let infoOutput = "";
+      infoProcess.stdout.on("data", (data) => {
         infoOutput += data.toString();
       });
 
-      infoProcess.on('close', (infoCode) => {
+      infoProcess.on("close", (infoCode) => {
         if (infoCode === 0) {
-          const lines = infoOutput.trim().split('\n');
-          title = lines[0] || 'Downloaded Video';
-          metadata = { duration: lines[1] || '0', source: 'yt-dlp' };
+          const lines = infoOutput.trim().split("\n");
+          title = lines[0] || "Downloaded Video";
+          metadata = { duration: lines[1] || "0", source: "yt-dlp" };
         }
 
         // Then download with bypass options
-        const downloadProcess = spawn('yt-dlp', [
-          '-f', 'best[ext=mp4]/best',
-          '--no-check-certificates',
-          '--no-playlist',
-          '--extractor-args', 'youtube:player_client=android',
-          '-o', outputPath,
+        const downloadProcess = spawn("yt-dlp", [
+          "-f",
+          "best[ext=mp4]/best",
+          "--no-check-certificates",
+          "--no-playlist",
+          "--extractor-args",
+          "youtube:player_client=android",
+          "-o",
+          outputPath,
           url,
         ]);
 
-        let errorOutput = '';
-        downloadProcess.stderr.on('data', (data) => {
+        let errorOutput = "";
+        downloadProcess.stderr.on("data", (data) => {
           errorOutput += data.toString();
-          logger.debug({ data: data.toString() }, 'yt-dlp stderr');
+          logger.debug({ data: data.toString() }, "yt-dlp stderr");
         });
 
-        downloadProcess.stdout.on('data', (data) => {
-          logger.debug({ data: data.toString() }, 'yt-dlp stdout');
+        downloadProcess.stdout.on("data", (data) => {
+          logger.debug({ data: data.toString() }, "yt-dlp stdout");
         });
 
-        downloadProcess.on('close', (code) => {
+        downloadProcess.on("close", async (code) => {
           if (code === 0) {
-            resolve({ title, metadata });
+            // yt-dlp may save with different filename - find and rename
+            try {
+              const finalPath = await this.findAndRenameDownload(outputPath);
+              if (finalPath !== outputPath) {
+                logger.info(
+                  { expected: outputPath, actual: finalPath },
+                  "Renamed yt-dlp output"
+                );
+              }
+              resolve({ title, metadata });
+            } catch (renameErr) {
+              reject(renameErr);
+            }
           } else {
-            reject(new Error(`yt-dlp failed with code ${code}: ${errorOutput}`));
+            reject(
+              new Error(`yt-dlp failed with code ${code}: ${errorOutput}`)
+            );
           }
         });
 
-        downloadProcess.on('error', () => {
-          reject(new Error(`yt-dlp not found. Install with: brew install yt-dlp`));
+        downloadProcess.on("error", () => {
+          reject(
+            new Error(`yt-dlp not found. Install with: brew install yt-dlp`)
+          );
         });
       });
 
-      infoProcess.on('error', () => {
+      infoProcess.on("error", () => {
         // If info fails, try to download anyway
-        const downloadProcess = spawn('yt-dlp', [
-          '-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
-          '--merge-output-format', 'mp4',
-          '-o', outputPath,
+        const downloadProcess = spawn("yt-dlp", [
+          "-f",
+          "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+          "--merge-output-format",
+          "mp4",
+          "-o",
+          outputPath,
           url,
         ]);
 
-        downloadProcess.on('close', (code) => {
+        downloadProcess.on("close", async (code) => {
           if (code === 0) {
-            resolve({ title, metadata });
+            try {
+              await this.findAndRenameDownload(outputPath);
+              resolve({ title, metadata });
+            } catch (renameErr) {
+              reject(renameErr);
+            }
           } else {
-            reject(new Error('yt-dlp failed'));
+            reject(new Error("yt-dlp failed"));
           }
         });
 
-        downloadProcess.on('error', () => {
-          reject(new Error('yt-dlp not found. Install with: brew install yt-dlp'));
+        downloadProcess.on("error", () => {
+          reject(
+            new Error("yt-dlp not found. Install with: brew install yt-dlp")
+          );
         });
       });
     });
   },
 
   /**
+   * Find actual downloaded file and rename to expected path
+   * yt-dlp sometimes adds extensions or changes filename
+   */
+  async findAndRenameDownload(expectedPath: string): Promise<string> {
+    // If exact file exists, we're good
+    if (existsSync(expectedPath)) {
+      return expectedPath;
+    }
+
+    const dir = dirname(expectedPath);
+    const baseWithoutExt = basename(expectedPath, ".mp4");
+
+    // Look for files that start with our UUID
+    const files = readdirSync(dir);
+    const candidates = files.filter(
+      (f) =>
+        f.startsWith(baseWithoutExt) &&
+        (f.endsWith(".mp4") || f.endsWith(".webm") || f.endsWith(".mkv"))
+    );
+
+    if (candidates.length === 0) {
+      throw new Error(`Downloaded file not found. Expected: ${expectedPath}`);
+    }
+
+    // Use the first matching file
+    const actualPath = join(dir, candidates[0]);
+
+    if (actualPath !== expectedPath) {
+      await rename(actualPath, expectedPath);
+      logger.info(
+        { from: actualPath, to: expectedPath },
+        "Renamed download file"
+      );
+    }
+
+    return expectedPath;
+  },
+
+  /**
    * Download Sora video using SoraPure's multi-CDN fallback approach
    * Based on: https://github.com/bakhtiersizhaev/sorapure
    */
-  async downloadSoraVideo(url: string, outputPath: string): Promise<{ title: string; metadata: Record<string, unknown> }> {
+  async downloadSoraVideo(
+    url: string,
+    outputPath: string
+  ): Promise<{ title: string; metadata: Record<string, unknown> }> {
     // Extract video ID from URL (s_xxxxx format)
     const videoIdMatch = url.match(/(s_[0-9A-Za-z_-]{8,})/);
     const videoId = videoIdMatch?.[1];
-    
+
     if (!videoId) {
-      throw new Error('SORA_INVALID_URL: Cannot extract video ID (expected s_xxxxx format)');
+      throw new Error(
+        "SORA_INVALID_URL: Cannot extract video ID (expected s_xxxxx format)"
+      );
     }
 
-    logger.info({ videoId }, 'Downloading Sora video via multi-CDN fallback');
+    logger.info({ videoId }, "Downloading Sora video via multi-CDN fallback");
 
     // CDN endpoints (decoded from sorapure)
     const CDN_ENDPOINTS = {
@@ -482,61 +612,79 @@ export const downloadService = {
       OPENAI_CDN: `https://cdn.openai.com/MP4/${videoId}.mp4`,
     };
 
-    const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36';
+    const USER_AGENT =
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36";
 
     // Try each CDN in order
     const cdnAttempts = [
-      { name: 'CDN_DIRECT', url: CDN_ENDPOINTS.CDN_DIRECT },
-      { name: 'CDN_PROXY', url: CDN_ENDPOINTS.CDN_PROXY },
-      { name: 'OPENAI_CDN', url: CDN_ENDPOINTS.OPENAI_CDN },
+      { name: "CDN_DIRECT", url: CDN_ENDPOINTS.CDN_DIRECT },
+      { name: "CDN_PROXY", url: CDN_ENDPOINTS.CDN_PROXY },
+      { name: "OPENAI_CDN", url: CDN_ENDPOINTS.OPENAI_CDN },
     ];
 
     let videoBuffer: Buffer | null = null;
-    let sourceUsed = '';
+    let sourceUsed = "";
 
     for (const cdn of cdnAttempts) {
       logger.info({ source: cdn.name, videoId }, `Attempting ${cdn.name}...`);
-      
+
       try {
         const response = await fetch(cdn.url, {
-          method: 'GET',
-          headers: { 'User-Agent': USER_AGENT },
+          method: "GET",
+          headers: { "User-Agent": USER_AGENT },
           signal: AbortSignal.timeout(120000), // 2 minutes timeout
         });
 
         if (response.ok) {
-          const contentType = response.headers.get('content-type') || '';
-          if (contentType.includes('video') || contentType.includes('octet-stream')) {
-            logger.info({ source: cdn.name, contentType }, `SUCCESS: ${cdn.name} found video`);
-            
+          const contentType = response.headers.get("content-type") || "";
+          if (
+            contentType.includes("video") ||
+            contentType.includes("octet-stream")
+          ) {
+            logger.info(
+              { source: cdn.name, contentType },
+              `SUCCESS: ${cdn.name} found video`
+            );
+
             const arrayBuffer = await response.arrayBuffer();
             videoBuffer = Buffer.from(arrayBuffer);
             sourceUsed = cdn.name;
             break;
           } else {
-            logger.warn({ source: cdn.name, contentType }, `${cdn.name} returned non-video content`);
+            logger.warn(
+              { source: cdn.name, contentType },
+              `${cdn.name} returned non-video content`
+            );
           }
         } else {
-          logger.warn({ source: cdn.name, status: response.status }, `${cdn.name} failed`);
+          logger.warn(
+            { source: cdn.name, status: response.status },
+            `${cdn.name} failed`
+          );
         }
       } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : 'Unknown error';
-        logger.warn({ source: cdn.name, error: errorMsg }, `${cdn.name} failed`);
+        const errorMsg = err instanceof Error ? err.message : "Unknown error";
+        logger.warn(
+          { source: cdn.name, error: errorMsg },
+          `${cdn.name} failed`
+        );
       }
     }
 
     if (!videoBuffer) {
-      throw new Error('SORA_ALL_CDN_FAILED: All CDN sources failed. Video may not be publicly available.');
+      throw new Error(
+        "SORA_ALL_CDN_FAILED: All CDN sources failed. Video may not be publicly available."
+      );
     }
 
     // Validate file size
     const MAX_SIZE = 500 * 1024 * 1024; // 500MB
     if (videoBuffer.length > MAX_SIZE) {
-      throw new Error('SORA_FILE_TOO_LARGE');
+      throw new Error("SORA_FILE_TOO_LARGE");
     }
 
     if (videoBuffer.length === 0) {
-      throw new Error('SORA_FILE_EMPTY');
+      throw new Error("SORA_FILE_EMPTY");
     }
 
     // Write to file
@@ -545,19 +693,22 @@ export const downloadService = {
     // Verify
     const fileStats = await stat(outputPath);
     if (fileStats.size === 0) {
-      throw new Error('SORA_FILE_WRITE_FAILED');
+      throw new Error("SORA_FILE_WRITE_FAILED");
     }
 
-    logger.info({ 
-      fileSize: fileStats.size, 
-      videoId, 
-      source: sourceUsed,
-    }, 'Sora video downloaded successfully');
+    logger.info(
+      {
+        fileSize: fileStats.size,
+        videoId,
+        source: sourceUsed,
+      },
+      "Sora video downloaded successfully"
+    );
 
     return {
       title: `Sora ${videoId}`,
-      metadata: { 
-        source: sourceUsed, 
+      metadata: {
+        source: sourceUsed,
         videoId,
         fileSize: fileStats.size,
       },
@@ -569,11 +720,11 @@ export const downloadService = {
    */
   async getHistory(userId: string, limit = 10) {
     return prisma.downloadJob.findMany({
-      where: { 
+      where: {
         userId,
-        status: 'COMPLETED', // Only show completed downloads
+        status: "COMPLETED", // Only show completed downloads
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
       take: limit,
     });
   },

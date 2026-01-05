@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { api } from "@/services/api";
-import toast from "react-hot-toast";
 
 export type JobStatus =
   | "PENDING"
@@ -9,7 +8,7 @@ export type JobStatus =
   | "FAILED"
   | "CANCELLED";
 
-export interface Job<T = any> {
+export interface Job<T = unknown> {
   id: string;
   status: JobStatus;
   progress: number;
@@ -24,7 +23,7 @@ interface UseJobPollingOptions<T> {
   pollInterval?: number;
 }
 
-export function useJobPolling<T = any>(
+export function useJobPolling<T = unknown>(
   initialJobId: string | null = null,
   options: UseJobPollingOptions<T> = {}
 ) {
@@ -65,10 +64,9 @@ export function useJobPolling<T = any>(
         const errMsg = currentJob.error || "Job failed";
         setError(errMsg);
         optionsRef.current.onError?.(errMsg);
-        toast.error(`Job failed: ${errMsg}`);
+        // Caller handles UI feedback via onError callback
       }
-    } catch (err: any) {
-      console.error("Polling error:", err);
+    } catch {
       // Don't stop polling on transient network errors
     }
   }, []);

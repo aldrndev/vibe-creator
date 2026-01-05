@@ -1,12 +1,34 @@
-import { Button, Card, CardBody, CardFooter, Chip, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, Skeleton } from '@heroui/react';
-import { useNavigate } from 'react-router-dom';
-import { FolderOpen, MoreVertical, Download as DownloadIcon, Trash2, Clock, Video } from 'lucide-react';
-import { PageTransition, StaggerContainer, StaggerItem, HoverCard } from '@/components/ui/PageTransition';
-import { EmptyState } from '@/components/ui/EmptyState';
-import { api } from '@/services/api';
-import toast from 'react-hot-toast';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useAuthStore } from '@/stores/auth-store';
+import {
+  Button,
+  Card,
+  CardBody,
+  CardFooter,
+  Chip,
+  Dropdown,
+  DropdownTrigger,
+  DropdownMenu,
+  DropdownItem,
+  Skeleton,
+} from "@heroui/react";
+import { useNavigate } from "react-router-dom";
+import {
+  FolderOpen,
+  MoreVertical,
+  Download as DownloadIcon,
+  Trash2,
+  Clock,
+  Video,
+} from "lucide-react";
+import {
+  PageTransition,
+  StaggerContainer,
+  StaggerItem,
+  HoverCard,
+} from "@/components/ui/PageTransition";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { api } from "@/services/api";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAuthStore } from "@/stores/auth-store";
 
 interface ExportItem {
   id: string;
@@ -26,10 +48,10 @@ interface ExportItem {
 // Fetch exports hook
 function useExports() {
   return useQuery({
-    queryKey: ['exports'],
+    queryKey: ["exports"],
     queryFn: async () => {
-      const response = await api.get<ExportItem[]>('/export/history');
-      if (!response.success) throw new Error('Failed to fetch exports');
+      const response = await api.get<ExportItem[]>("/export/history");
+      if (!response.success) throw new Error("Failed to fetch exports");
       return response.data ?? [];
     },
   });
@@ -43,59 +65,59 @@ export function ProjectsPage() {
 
   const getAuthenticatedUrl = (url: string | null) => {
     if (!url || !accessToken) return url;
-    const separator = url.includes('?') ? '&' : '?';
+    const separator = url.includes("?") ? "&" : "?";
     return `${url}${separator}token=${accessToken}`;
   };
 
   const deleteExport = useMutation({
     mutationFn: async (id: string) => {
       const response = await api.delete(`/export/${id}`);
-      if (!response.success) throw new Error('Failed to delete export');
+      if (!response.success) throw new Error("Failed to delete export");
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['exports'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      queryClient.invalidateQueries({ queryKey: ["exports"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
     },
   });
 
   const handleNewExport = () => {
-    navigate('/tools/editor');
+    navigate("/tools/editor");
   };
 
   const handleDeleteExport = async (id: string) => {
-    if (!confirm('Yakin ingin menghapus export ini?')) return;
-    
+    if (!confirm("Yakin ingin menghapus export ini?")) return;
+
     try {
       await deleteExport.mutateAsync(id);
-      toast.success('Export berhasil dihapus');
+      // Query invalidation + confirm dialog is sufficient feedback
     } catch {
-      toast.error('Gagal menghapus export');
+      // Error is logged by mutation
     }
   };
 
   const handleDownload = (url: string | null, filename: string) => {
     if (!url) {
-      toast.error('File tidak tersedia');
+      // No file available - button should be disabled in UI
       return;
     }
-    const link = document.createElement('a');
+    const link = document.createElement("a");
     link.href = url;
     link.download = filename;
     link.click();
   };
 
   const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString('id-ID', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
+    return new Date(dateStr).toLocaleDateString("id-ID", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
     });
   };
 
   const formatFileSize = (bytes: number | null) => {
-    if (!bytes) return '-';
+    if (!bytes) return "-";
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
@@ -103,10 +125,14 @@ export function ProjectsPage() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'COMPLETED': return 'success';
-      case 'PROCESSING': return 'warning';
-      case 'FAILED': return 'danger';
-      default: return 'default';
+      case "COMPLETED":
+        return "success";
+      case "PROCESSING":
+        return "warning";
+      case "FAILED":
+        return "danger";
+      default:
+        return "default";
     }
   };
 
@@ -127,7 +153,7 @@ export function ProjectsPage() {
           </h1>
           <p className="text-foreground/60">Video yang sudah kamu export</p>
         </div>
-        <Button 
+        <Button
           color="primary"
           startContent={<Video size={20} />}
           onPress={handleNewExport}
@@ -165,7 +191,7 @@ export function ProjectsPage() {
         <StaggerContainer className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {exports.map((item) => {
             const ToolIcon = getToolIcon(item.project?.id ?? null);
-            
+
             return (
               <StaggerItem key={item.id}>
                 <HoverCard>
@@ -173,26 +199,40 @@ export function ProjectsPage() {
                     <CardBody className="p-4">
                       {/* Video thumbnail/preview */}
                       <div className="aspect-video bg-content2 rounded-lg mb-4 flex items-center justify-center overflow-hidden relative">
-                        {item.status === 'COMPLETED' && item.downloadUrl ? (
-                          <video 
-                            src={getAuthenticatedUrl(item.downloadUrl) || undefined}
+                        {item.status === "COMPLETED" && item.downloadUrl ? (
+                          <video
+                            src={
+                              getAuthenticatedUrl(item.downloadUrl) || undefined
+                            }
                             className="w-full h-full object-cover"
                             controls
                             preload="metadata"
                           />
                         ) : (
-                          <ToolIcon size={40} className="text-foreground/20 group-hover:text-primary/40 transition-colors" />
+                          <ToolIcon
+                            size={40}
+                            className="text-foreground/20 group-hover:text-primary/40 transition-colors"
+                          />
                         )}
                       </div>
-                      
+
                       {/* Info */}
                       <div className="space-y-2">
                         <div className="flex items-start justify-between">
                           <h3 className="font-semibold line-clamp-1">
-                            {item.project?.title ?? `Export ${item.id.slice(0, 8)}`}
+                            {item.project?.title ??
+                              `Export ${item.id.slice(0, 8)}`}
                           </h3>
-                          <Chip size="sm" color={getStatusColor(item.status)} variant="flat">
-                            {item.status === 'COMPLETED' ? 'Selesai' : item.status === 'PROCESSING' ? 'Proses' : item.status}
+                          <Chip
+                            size="sm"
+                            color={getStatusColor(item.status)}
+                            variant="flat"
+                          >
+                            {item.status === "COMPLETED"
+                              ? "Selesai"
+                              : item.status === "PROCESSING"
+                              ? "Proses"
+                              : item.status}
                           </Chip>
                         </div>
                         <div className="flex items-center gap-2 text-sm text-foreground/60">
@@ -204,20 +244,25 @@ export function ProjectsPage() {
                         </div>
                       </div>
                     </CardBody>
-                    
+
                     <CardFooter className="pt-0 flex items-center justify-between">
                       <div className="flex items-center gap-1 text-xs text-foreground/50">
                         <Clock size={12} />
                         {formatDate(item.createdAt)}
                       </div>
                       <div className="flex items-center gap-1">
-                        {item.status === 'COMPLETED' && item.downloadUrl && (
-                          <Button 
-                            isIconOnly 
-                            size="sm" 
+                        {item.status === "COMPLETED" && item.downloadUrl && (
+                          <Button
+                            isIconOnly
+                            size="sm"
                             variant="light"
                             color="primary"
-                            onPress={() => handleDownload(getAuthenticatedUrl(item.downloadUrl), `export-${item.id.slice(0, 8)}.mp4`)}
+                            onPress={() =>
+                              handleDownload(
+                                getAuthenticatedUrl(item.downloadUrl),
+                                `export-${item.id.slice(0, 8)}.mp4`
+                              )
+                            }
                           >
                             <DownloadIcon size={16} />
                           </Button>
@@ -228,19 +273,24 @@ export function ProjectsPage() {
                               <MoreVertical size={16} />
                             </Button>
                           </DropdownTrigger>
-                          <DropdownMenu 
+                          <DropdownMenu
                             aria-label="Export actions"
-                            disabledKeys={!item.downloadUrl ? ['download'] : []}
+                            disabledKeys={!item.downloadUrl ? ["download"] : []}
                           >
-                            <DropdownItem 
-                              key="download" 
+                            <DropdownItem
+                              key="download"
                               startContent={<DownloadIcon size={16} />}
-                              onPress={() => handleDownload(getAuthenticatedUrl(item.downloadUrl), `export-${item.id.slice(0, 8)}.mp4`)}
+                              onPress={() =>
+                                handleDownload(
+                                  getAuthenticatedUrl(item.downloadUrl),
+                                  `export-${item.id.slice(0, 8)}.mp4`
+                                )
+                              }
                             >
                               Download
                             </DropdownItem>
-                            <DropdownItem 
-                              key="delete" 
+                            <DropdownItem
+                              key="delete"
                               startContent={<Trash2 size={16} />}
                               className="text-danger"
                               color="danger"
