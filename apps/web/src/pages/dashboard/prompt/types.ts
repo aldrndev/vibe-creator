@@ -58,6 +58,7 @@ export interface RelaxingFormData {
   environment: string;
   primarySound: string;
   secondarySounds: string;
+  ambientDetails: string;
   duration: string;
   mood: string;
   visualStyle: string;
@@ -150,6 +151,7 @@ export const defaultRelaxingForm: RelaxingFormData = {
   environment: "rain",
   primarySound: "",
   secondarySounds: "",
+  ambientDetails: "",
   duration: "1hour",
   mood: "peaceful",
   visualStyle: "",

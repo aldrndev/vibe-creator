@@ -199,9 +199,11 @@ function renderElevenLabsVoice(input: VoicePromptInput): string {
       ? `\n- Key Emphasis Areas: ${input.emphasis.join(", ")}`
       : "";
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const inputWithPauses = input as { pauses?: string[] };
   const pausePart =
-    Array.isArray((input as any).pauses) && (input as any).pauses.length > 0
-      ? `\n- Strategic Pauses: ${(input as any).pauses.join(", ")}`
+    Array.isArray(inputWithPauses.pauses) && inputWithPauses.pauses.length > 0
+      ? `\n- Strategic Pauses: ${inputWithPauses.pauses.join(", ")}`
       : "";
 
   return `*** SYSTEM ROLE ***
@@ -352,8 +354,9 @@ export function generateVideoGenPrompt(input: VideoGenPromptInput): string {
     input.style.toLowerCase().includes("realistic");
   const technicalAddons = isCinematic ? CINEMATIC_KEYWORDS.join(", ") : "";
 
-  // Dispatch based on targetModel (Cast input to any if targetModel is missing in old types, but we updated types)
-  const model = (input as any).targetModel;
+  // Dispatch based on targetModel
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const model = (input as { targetModel?: string }).targetModel;
 
   switch (model) {
     case AIModel.SORA:
@@ -375,7 +378,8 @@ export function generateImagePrompt(input: ImagePromptInput): string {
       : input.style === "landscape"
       ? PHOTOGRAPHY_TERMS.landscape
       : "";
-  const model = (input as any).targetModel;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const model = (input as { targetModel?: string }).targetModel;
 
   switch (model) {
     case AIModel.DALLE3:
@@ -435,7 +439,8 @@ You are an Expert Content Analyst... (Analysis Focus: ${(
 }
 
 export function generateTimelapsePrompt(input: TimelapsePromptInput): string {
-  const model = (input as any).targetModel;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const model = (input as { targetModel?: string }).targetModel;
   if (model === AIModel.SORA || model === AIModel.VEO) {
     return renderSoraTimelapse(input);
   }

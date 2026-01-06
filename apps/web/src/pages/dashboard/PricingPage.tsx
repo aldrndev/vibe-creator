@@ -8,14 +8,7 @@ import {
   Chip,
   Divider,
 } from "@heroui/react";
-import {
-  Check,
-  Sparkles,
-  Crown,
-  Zap,
-  ArrowLeft,
-  AlertCircle,
-} from "lucide-react";
+import { Check, Sparkles, Crown, Zap, ArrowLeft } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useAuthStore } from "@/stores/auth-store";
@@ -90,8 +83,8 @@ export function PricingPage() {
   const [searchParams] = useSearchParams();
   const { subscription } = useAuthStore();
   const [isLoading, setIsLoading] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [_error, setError] = useState<string | null>(null);
+  const [_successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const paymentStatus = searchParams.get("payment");
   const currentTier = subscription?.tier || "FREE";

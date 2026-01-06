@@ -11,15 +11,7 @@ import {
   useDisclosure,
 } from "@heroui/react";
 import { useMemo, useState } from "react";
-import {
-  Wand2,
-  Music,
-  Layers,
-  AlertTriangle,
-  Loader2,
-  CheckCircle2,
-  AlertCircle,
-} from "lucide-react";
+import { Wand2, Music, Layers, AlertTriangle, Loader2 } from "lucide-react";
 import { useStoryStore } from "@/stores/story-store";
 import { useNavigate } from "react-router-dom";
 import { useEditorStore } from "@/stores/editor-store";
@@ -44,7 +36,7 @@ export function DirectorPanel() {
   const { initProject } = useEditorStore();
   const navigate = useNavigate();
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
-  const [feedback, setFeedback] = useState<FeedbackMessage | null>(null);
+  const [_feedback, setFeedback] = useState<FeedbackMessage | null>(null);
 
   // Async Job Polling for AI Generation
   const { startJob, isPolling } = useJobPolling(null, {

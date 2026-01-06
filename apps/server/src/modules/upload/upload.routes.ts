@@ -1,13 +1,14 @@
-import { FastifyPluginAsync } from 'fastify';
-import fastifyMultipart from '@fastify/multipart';
-import { randomUUID } from 'crypto';
-import { mkdir } from 'fs/promises';
-import { existsSync } from 'fs';
-import { join } from 'path';
-import { pipeline } from 'stream/promises';
-import { createWriteStream } from 'fs';
+import { FastifyPluginAsync } from "fastify";
+import fastifyMultipart from "@fastify/multipart";
+import { randomUUID } from "crypto";
+import { mkdir } from "fs/promises";
+import { existsSync } from "fs";
+import { join } from "path";
+import { pipeline } from "stream/promises";
+import { createWriteStream } from "fs";
+import { env } from "@/config/env";
 
-const UPLOADS_DIR = join(process.cwd(), 'uploads', 'temp');
+const UPLOADS_DIR = join(env.MEDIA_INPUT_DIR, "temp");
 
 // Ensure uploads directory exists
 async function ensureUploadsDir() {
@@ -20,19 +21,19 @@ export const uploadRoutes: FastifyPluginAsync = async (fastify) => {
   // Register multipart
   await fastify.register(fastifyMultipart, {
     limits: {
-      fileSize: 1024 * 1024 * 200, // 200 MB limit
+      fileSize: 1024 * 1024 * env.MAX_UPLOAD_SIZE_MB,
     },
   });
 
   /**
    * Upload video file for processing
    */
-  fastify.post('/video', async (request, reply) => {
+  fastify.post("/video", async (request, reply) => {
     const user = request.user;
     if (!user) {
       return reply.status(401).send({
         success: false,
-        error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+        error: { code: "UNAUTHORIZED", message: "Authentication required" },
       });
     }
 
@@ -43,12 +44,12 @@ export const uploadRoutes: FastifyPluginAsync = async (fastify) => {
       if (!data) {
         return reply.status(400).send({
           success: false,
-          error: { code: 'NO_FILE', message: 'No file uploaded' },
+          error: { code: "NO_FILE", message: "No file uploaded" },
         });
       }
 
       // Generate unique filename
-      const ext = data.filename.split('.').pop() || 'mp4';
+      const ext = data.filename.split(".").pop() || "mp4";
       const filename = `${randomUUID()}.${ext}`;
       const filepath = join(UPLOADS_DIR, filename);
 
@@ -65,10 +66,10 @@ export const uploadRoutes: FastifyPluginAsync = async (fastify) => {
         },
       });
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Upload failed';
+      const message = err instanceof Error ? err.message : "Upload failed";
       return reply.status(500).send({
         success: false,
-        error: { code: 'UPLOAD_ERROR', message },
+        error: { code: "UPLOAD_ERROR", message },
       });
     }
   });

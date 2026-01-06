@@ -96,6 +96,11 @@ const ModernEditorPage = lazy(() =>
     default: m.ModernEditorPage,
   }))
 );
+const AiDirectorPage = lazy(() =>
+  import("@/pages/tools/AiDirectorPage").then((m) => ({
+    default: m.AiDirectorPage,
+  }))
+);
 
 // Loading fallback component
 function PageLoader() {
@@ -340,6 +345,14 @@ export default function App() {
             element={
               <Suspense fallback={<PageLoader />}>
                 <ModernEditorPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/tools/ai-director"
+            element={
+              <Suspense fallback={<PageLoader />}>
+                <AiDirectorPage />
               </Suspense>
             }
           />

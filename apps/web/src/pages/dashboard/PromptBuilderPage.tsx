@@ -67,37 +67,40 @@ export function PromptBuilderPage() {
       | CreativeScanFormData
       | TimelapseFormData;
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     switch (selectedType) {
       case "SCRIPT": {
-        const formData = { ...scriptForm };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const formData: any = { ...scriptForm };
         // Transform comma-separated strings to arrays
         if (typeof formData.keywords === "string") {
           formData.keywords = formData.keywords
             .split(",")
-            .map((s) => s.trim())
+            .map((s: string) => s.trim())
             .filter(Boolean);
         }
         if (typeof formData.emotionalJourney === "string") {
           formData.emotionalJourney = formData.emotionalJourney
             .split(/,|->/)
-            .map((s) => s.trim())
+            .map((s: string) => s.trim())
             .filter(Boolean);
         }
         inputData = formData;
         break;
       }
       case "VOICE": {
-        const formData = { ...voiceForm };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const formData: any = { ...voiceForm };
         if (typeof formData.emphasis === "string") {
           formData.emphasis = formData.emphasis
             .split(",")
-            .map((s) => s.trim())
+            .map((s: string) => s.trim())
             .filter(Boolean);
         }
         if (typeof formData.pauses === "string") {
           formData.pauses = formData.pauses
             .split(",")
-            .map((s) => s.trim())
+            .map((s: string) => s.trim())
             .filter(Boolean);
         }
         inputData = formData;
@@ -107,28 +110,30 @@ export function PromptBuilderPage() {
         inputData = videoGenForm;
         break;
       case "IMAGE": {
-        const formData = { ...imageForm };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const formData: any = { ...imageForm };
         if (typeof formData.colors === "string") {
           formData.colors = formData.colors
             .split(",")
-            .map((s) => s.trim())
+            .map((s: string) => s.trim())
             .filter(Boolean);
         }
         inputData = formData;
         break;
       }
       case "RELAXING": {
-        const formData = { ...relaxingForm };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const formData: any = { ...relaxingForm };
         if (typeof formData.secondarySounds === "string") {
           formData.secondarySounds = formData.secondarySounds
             .split(",")
-            .map((s) => s.trim())
+            .map((s: string) => s.trim())
             .filter(Boolean);
         }
         if (typeof formData.ambientDetails === "string") {
           formData.ambientDetails = formData.ambientDetails
             .split(",")
-            .map((s) => s.trim())
+            .map((s: string) => s.trim())
             .filter(Boolean);
         }
         inputData = formData;

@@ -3,11 +3,11 @@ import { logger } from "@/lib/logger";
 import { env } from "@/config/env";
 import { spawn } from "child_process";
 import { join, dirname, basename } from "path";
-import { existsSync, readdirSync } from "fs";
+import { existsSync, readdirSync, createWriteStream } from "fs";
 import { mkdir, writeFile, stat, rename } from "fs/promises";
 import { randomUUID } from "crypto";
 
-const DOWNLOADS_DIR = join(process.cwd(), "uploads", "downloads");
+const DOWNLOADS_DIR = join(env.MEDIA_INPUT_DIR, "downloads");
 
 // Ensure downloads directory exists
 async function ensureDownloadsDir() {
@@ -62,6 +62,55 @@ interface CobaltResponse {
  * Download service using Cobalt API (primary) with yt-dlp fallback
  */
 export const downloadService = {
+  /**
+   * Get video metadata (duration, title) without downloading
+   */
+  async getVideoMetadata(
+    url: string
+  ): Promise<{ duration: number; title: string; size?: number }> {
+    return new Promise((resolve) => {
+      const args = [
+        "-J", // Dump JSON
+        "--no-check-certificates",
+        "--extractor-args",
+        "youtube:player_client=android", // Match runYtDlp args for consistency
+        url,
+      ];
+
+      const proc = spawn("yt-dlp", args);
+      let output = "";
+      let error = "";
+
+      proc.stdout.on("data", (data) => (output += data.toString()));
+      proc.stderr.on("data", (data) => (error += data.toString()));
+
+      proc.on("close", (code) => {
+        if (code !== 0) {
+          logger.warn({ url, code, error }, "Failed to get video metadata");
+          // Resolve with defaults to allow soft-fail
+          return resolve({ duration: 0, title: "Unknown" });
+        }
+
+        try {
+          const json = JSON.parse(output);
+          resolve({
+            duration: json.duration || 0,
+            title: json.title || "Unknown",
+            size: json.filesize || 0,
+          });
+        } catch (err) {
+          logger.warn({ err }, "Failed to parse metadata JSON");
+          resolve({ duration: 0, title: "Unknown" });
+        }
+      });
+
+      proc.on("error", (err) => {
+        logger.warn({ err }, "yt-dlp process error");
+        resolve({ duration: 0, title: "Unknown" });
+      });
+    });
+  },
+
   /**
    * Create a new download job
    */
@@ -170,6 +219,55 @@ export const downloadService = {
   },
 
   /**
+   * Generic video download method
+   */
+  async downloadVideo(
+    url: string,
+    outputPath: string,
+    onProgress?: (percent: number) => void
+  ): Promise<{ title: string; metadata: Record<string, unknown> }> {
+    // Check if it's a Sora video URL (prioritize Sora handler)
+    if (isSoraUrl(url)) {
+      logger.info({ url }, "Downloading Sora video via multi-CDN fallback");
+      if (onProgress) onProgress(10);
+      const res = await this.downloadSoraVideo(url, outputPath);
+      if (onProgress) onProgress(100);
+      return res;
+    }
+
+    // Check if it's a direct video URL
+    if (isDirectVideoUrl(url)) {
+      logger.info({ url }, "Downloading direct video URL");
+      return await this.downloadDirectUrl(url, outputPath, onProgress);
+    }
+
+    if (env.COBALT_API_URL) {
+      // Use self-hosted Cobalt API if configured
+      try {
+        logger.info(
+          { url, cobaltUrl: env.COBALT_API_URL },
+          "Downloading with Cobalt API"
+        );
+        return await this.runCobalt(url, outputPath, onProgress);
+      } catch (cobaltError) {
+        // Fallback to yt-dlp if Cobalt fails
+        logger.warn(
+          {
+            error:
+              cobaltError instanceof Error ? cobaltError.message : "Unknown",
+          },
+          "Cobalt failed, falling back to yt-dlp"
+        );
+        return await this.runYtDlp(url, outputPath, onProgress);
+      }
+    }
+
+    // No Cobalt configured, use yt-dlp directly
+    logger.info({ url }, "Downloading with yt-dlp");
+    return await this.runYtDlp(url, outputPath, onProgress);
+  },
+
+  /**
    * Process download job - try Cobalt first, then yt-dlp
    */
   async processJob(jobId: string) {
@@ -195,45 +293,7 @@ export const downloadService = {
 
       let result: { title: string; metadata: Record<string, unknown> };
 
-      // Check if it's a Sora video URL (prioritize Sora handler)
-      if (isSoraUrl(job.sourceUrl)) {
-        logger.info(
-          { jobId, url: job.sourceUrl },
-          "Downloading Sora video via multi-CDN fallback"
-        );
-        result = await this.downloadSoraVideo(job.sourceUrl, outputPath);
-        // Check if it's a direct video URL
-      } else if (isDirectVideoUrl(job.sourceUrl)) {
-        logger.info(
-          { jobId, url: job.sourceUrl },
-          "Downloading direct video URL"
-        );
-        result = await this.downloadDirectUrl(job.sourceUrl, outputPath);
-      } else if (env.COBALT_API_URL) {
-        // Use self-hosted Cobalt API if configured
-        try {
-          logger.info(
-            { jobId, url: job.sourceUrl, cobaltUrl: env.COBALT_API_URL },
-            "Downloading with Cobalt API"
-          );
-          result = await this.runCobalt(job.sourceUrl, outputPath);
-        } catch (cobaltError) {
-          // Fallback to yt-dlp if Cobalt fails
-          logger.warn(
-            {
-              jobId,
-              error:
-                cobaltError instanceof Error ? cobaltError.message : "Unknown",
-            },
-            "Cobalt failed, falling back to yt-dlp"
-          );
-          result = await this.runYtDlp(job.sourceUrl, outputPath);
-        }
-      } else {
-        // No Cobalt configured, use yt-dlp directly
-        logger.info({ jobId, url: job.sourceUrl }, "Downloading with yt-dlp");
-        result = await this.runYtDlp(job.sourceUrl, outputPath);
-      }
+      result = await this.downloadVideo(job.sourceUrl, outputPath);
 
       // Mark as completed
       await prisma.downloadJob.update({
@@ -265,7 +325,8 @@ export const downloadService = {
    */
   async runCobalt(
     url: string,
-    outputPath: string
+    outputPath: string,
+    onProgress?: (percent: number) => void
   ): Promise<{ title: string; metadata: Record<string, unknown> }> {
     if (!env.COBALT_API_URL) {
       throw new Error("Cobalt API URL not configured");
@@ -353,18 +414,48 @@ export const downloadService = {
       );
     }
 
-    // Use arrayBuffer for reliable download (Readable.fromWeb can fail silently)
-    const arrayBuffer = await fileResponse.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
+    const contentLength = fileResponse.headers.get("content-length");
+    const total = contentLength ? parseInt(contentLength, 10) : 0;
 
-    if (buffer.length === 0) {
-      throw new Error("Downloaded file is empty (0 bytes)");
+    // If we can't track progress or response.body is null, fallback to buffer
+    if (!fileResponse.body || total === 0) {
+      if (onProgress) onProgress(50); // Indicate Cobalt processing is done, now downloading
+      const arrayBuffer = await fileResponse.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      if (buffer.length === 0) {
+        throw new Error("Downloaded file is empty (0 bytes)");
+      }
+      await writeFile(outputPath, buffer);
+      if (onProgress) onProgress(100);
+    } else {
+      // Stream with progress
+      const fileStream = createWriteStream(outputPath);
+      const reader = fileResponse.body.getReader();
+      let loaded = 0;
+
+      if (onProgress) onProgress(50); // Indicate Cobalt processing is done, now streaming download
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        loaded += value.length;
+        if (onProgress && total > 0) {
+          // Progress from 50% to 99% for the actual download
+          onProgress(50 + Math.min((loaded / total) * 50, 49));
+        }
+
+        // Write chunk
+        if (!fileStream.write(value)) {
+          await new Promise((resolve) => fileStream.once("drain", resolve));
+        }
+      }
+
+      fileStream.end();
+      await new Promise((resolve) => fileStream.on("finish", resolve));
+
+      if (onProgress) onProgress(100);
     }
-
-    logger.info({ size: buffer.length }, "Downloaded file buffer size");
-
-    // Write to file
-    await writeFile(outputPath, buffer);
 
     // Verify file was written correctly
     const fileStats = await stat(outputPath);
@@ -392,29 +483,62 @@ export const downloadService = {
    */
   async downloadDirectUrl(
     url: string,
-    outputPath: string
+    outputPath: string,
+    onProgress?: (percent: number) => void
   ): Promise<{ title: string; metadata: Record<string, unknown> }> {
     const response = await fetch(url);
     if (!response.ok) {
       throw new Error(`Failed to download direct URL: ${response.status}`);
     }
 
-    // Use arrayBuffer for reliable download
-    const arrayBuffer = await response.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
+    const contentLength = response.headers.get("content-length");
+    const total = contentLength ? parseInt(contentLength, 10) : 0;
 
-    if (buffer.length === 0) {
-      throw new Error("Downloaded file is empty (0 bytes)");
+    // If we can't track progress or response.body is null, fallback to buffer
+    if (!response.body || total === 0) {
+      if (onProgress) onProgress(10);
+      const arrayBuffer = await response.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      if (buffer.length === 0) throw new Error("Downloaded file is empty");
+      await writeFile(outputPath, buffer);
+      if (onProgress) onProgress(100);
+
+      const fileStats = await stat(outputPath);
+      const urlParts = url.split("/");
+      const filename = urlParts[urlParts.length - 1] || "Downloaded Video";
+
+      return {
+        title: filename.replace(/[?#].*$/, ""),
+        metadata: { source: "direct", size: fileStats.size },
+      };
     }
 
-    await writeFile(outputPath, buffer);
+    // Stream with progress
+    const fileStream = createWriteStream(outputPath);
+    const reader = response.body.getReader();
+    let loaded = 0;
 
-    // Verify
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      loaded += value.length;
+      if (onProgress && total > 0) {
+        onProgress(Math.min((loaded / total) * 100, 99));
+      }
+
+      // Write chunk
+      if (!fileStream.write(value)) {
+        await new Promise((resolve) => fileStream.once("drain", resolve));
+      }
+    }
+
+    fileStream.end();
+    await new Promise((resolve) => fileStream.on("finish", resolve));
+
+    if (onProgress) onProgress(100);
+
     const fileStats = await stat(outputPath);
-    if (fileStats.size === 0) {
-      throw new Error("File written but size is 0 bytes");
-    }
-
     const urlParts = url.split("/");
     const filename = urlParts[urlParts.length - 1] || "Downloaded Video";
 
@@ -429,7 +553,8 @@ export const downloadService = {
    */
   async runYtDlp(
     url: string,
-    outputPath: string
+    outputPath: string,
+    onProgress?: (percent: number) => void
   ): Promise<{ title: string; metadata: Record<string, unknown> }> {
     return new Promise((resolve, reject) => {
       let title = "Downloaded Video";
@@ -460,11 +585,12 @@ export const downloadService = {
           metadata = { duration: lines[1] || "0", source: "yt-dlp" };
         }
 
-        // Then download with bypass options
+        // Then download with bypass options and PROGRESS
         const downloadProcess = spawn("yt-dlp", [
           "-f",
           "best[ext=mp4]/best",
           "--no-check-certificates",
+          "--newline", // Crucial for parsing progress line by line
           "--no-playlist",
           "--extractor-args",
           "youtube:player_client=android",
@@ -476,17 +602,22 @@ export const downloadService = {
         let errorOutput = "";
         downloadProcess.stderr.on("data", (data) => {
           errorOutput += data.toString();
-          logger.debug({ data: data.toString() }, "yt-dlp stderr");
         });
 
         downloadProcess.stdout.on("data", (data) => {
-          logger.debug({ data: data.toString() }, "yt-dlp stdout");
+          const line = data.toString();
+          // yt-dlp standard output: "[download]  45.0% of 10.00MiB at 2.00MiB/s ETA 00:05"
+          const match = line.match(/\[download\]\s+(\d+\.\d+)%/);
+          if (match && match[1]) {
+            const percent = parseFloat(match[1]);
+            if (onProgress) onProgress(percent);
+          }
         });
 
         downloadProcess.on("close", async (code) => {
           if (code === 0) {
-            // yt-dlp may save with different filename - find and rename
             try {
+              if (onProgress) onProgress(100);
               const finalPath = await this.findAndRenameDownload(outputPath);
               if (finalPath !== outputPath) {
                 logger.info(
@@ -513,19 +644,30 @@ export const downloadService = {
       });
 
       infoProcess.on("error", () => {
-        // If info fails, try to download anyway
+        // Fallback flow (omitted for brevity in this specific patch logic, using same pattern)
+        // For robustness, let's just trigger the original fallback logic if info fails
         const downloadProcess = spawn("yt-dlp", [
           "-f",
           "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
           "--merge-output-format",
           "mp4",
+          "--newline",
           "-o",
           outputPath,
           url,
         ]);
 
+        downloadProcess.stdout.on("data", (data) => {
+          const line = data.toString();
+          const match = line.match(/\[download\]\s+(\d+\.\d+)%/);
+          if (match && match[1]) {
+            if (onProgress) onProgress(parseFloat(match[1]));
+          }
+        });
+
         downloadProcess.on("close", async (code) => {
           if (code === 0) {
+            if (onProgress) onProgress(100);
             try {
               await this.findAndRenameDownload(outputPath);
               resolve({ title, metadata });
@@ -572,7 +714,11 @@ export const downloadService = {
     }
 
     // Use the first matching file
-    const actualPath = join(dir, candidates[0]);
+    const firstCandidate = candidates[0];
+    if (!firstCandidate) {
+      throw new Error(`Downloaded file not found. Expected: ${expectedPath}`);
+    }
+    const actualPath = join(dir, firstCandidate);
 
     if (actualPath !== expectedPath) {
       await rename(actualPath, expectedPath);

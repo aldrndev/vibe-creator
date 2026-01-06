@@ -26,6 +26,17 @@ import { adminRoutes } from "@/modules/admin/admin.routes";
 import { projectRoutes } from "@/modules/project/project.routes";
 import { billingRoutes } from "@/modules/billing/billing.routes";
 import { jobRoutes } from "@/modules/story/job.routes";
+import { directorRoutes } from "@/modules/director/director.routes";
+
+import { cleanupCron } from "@/modules/cron/cleanup.cron";
+
+import { startWorkers } from "./workers";
+
+// Handle BigInt serialization for Prisma
+// @ts-expect-error BigInt does not have toJSON method by default
+BigInt.prototype.toJSON = function () {
+  return this.toString();
+};
 
 async function main(): Promise<void> {
   const fastify = Fastify({
@@ -88,6 +99,7 @@ async function main(): Promise<void> {
       await api.register(projectRoutes, { prefix: "/projects" });
       await api.register(billingRoutes, { prefix: "/billing" });
       await api.register(jobRoutes, { prefix: "/jobs" });
+      await api.register(directorRoutes, { prefix: "/director" });
     },
     { prefix: "/api/v1" }
   );
@@ -110,6 +122,12 @@ async function main(): Promise<void> {
 
   // Start server
   try {
+    // Start background workers
+    await startWorkers();
+
+    // Start cleanup cron
+    cleanupCron.start();
+
     await fastify.listen({ port: env.PORT, host: "0.0.0.0" });
     logger.info(`🚀 Server running on http://localhost:${env.PORT}`);
     logger.info(`📚 API available at http://localhost:${env.PORT}/api/v1`);

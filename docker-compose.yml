@@ -33,21 +33,34 @@ services:
     build:
       context: .
       dockerfile: apps/server/Dockerfile
+      target: development
     container_name: vibe-creator-server
     ports:
       - "3000:3000"
     environment:
-      NODE_ENV: production
+      NODE_ENV: development
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/vibe_creator
       REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-at-least-32-characters-long}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-your-super-secret-refresh-key-32-chars}
       # FFmpeg config
+      FFMPEG_PATH: /usr/bin/ffmpeg
       MEDIA_INPUT_DIR: /app/uploads
-      MEDIA_TEMP_DIR: /app/uploads/temp
-      MEDIA_OUTPUT_DIR: /app/uploads/exports
+      TEMP_DIR: /app/uploads/temp
+      OUTPUT_DIR: /app/uploads/exports
+      COBALT_API_URL: http://cobalt:9000
     volumes:
       - server_uploads:/app/uploads
+      # HOT RELOAD MAPPINGS
+      - ./apps/server/src:/app/apps/server/src
+      - ./apps/server/tsconfig.json:/app/apps/server/tsconfig.json
+      - ./apps/server/package.json:/app/apps/server/package.json
+      - ./packages/shared/src:/app/packages/shared/src
+      # Prevent host node_modules from breaking container
+      - /app/apps/server/node_modules
+      - /app/node_modules
+    # Command defined in Dockerfile dev stage, but we can keep it explicit or remove
+    # Default is: CMD ["pnpm", "--filter", "@vibe-creator/server", "dev"]
     depends_on:
       postgres:
         condition: service_healthy
@@ -64,13 +77,11 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '4.0'
+          cpus: "4.0"
           memory: 4G
         reservations:
-          cpus: '1.0'
+          cpus: "1.0"
           memory: 512M
-    # Prevent fork bomb attacks
-    pids_limit: 100
 
   # Self-hosted Cobalt API for YouTube/TikTok/Instagram video downloads
   cobalt:

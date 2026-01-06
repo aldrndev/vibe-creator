@@ -8,7 +8,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Button, Tooltip } from "@heroui/react";
 import {
-  ArrowLeft,
   Undo2,
   Redo2,
   Download,
@@ -18,7 +17,6 @@ import {
   MonitorPlay,
   SlidersHorizontal,
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
 import { useModernEditorStore } from "@/stores/modern-editor-store";
 // Hook for modern export logic
 import { useModernExport } from "@/hooks/use-modern-export";
@@ -31,7 +29,6 @@ import {
 } from "@/components/modern-editor";
 
 export function ModernEditorPage() {
-  const navigate = useNavigate();
   const {
     initProject,
     projectTitle,

@@ -1,8 +1,14 @@
-import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { mkdir, writeFile, unlink, access } from 'fs/promises';
-import { join } from 'path';
-import { logger } from './logger';
+import {
+  S3Client,
+  PutObjectCommand,
+  DeleteObjectCommand,
+  GetObjectCommand,
+} from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { mkdir, writeFile, unlink, access } from "fs/promises";
+import { join } from "path";
+import { logger } from "./logger";
+import { env } from "@/config/env";
 
 // Storage driver interface
 interface StorageDriver {
@@ -17,19 +23,23 @@ class LocalStorageDriver implements StorageDriver {
   private publicUrl: string;
 
   constructor() {
-    this.baseDir = join(process.cwd(), 'uploads');
-    this.publicUrl = process.env.API_URL ?? 'http://localhost:3000';
+    this.baseDir = env.MEDIA_INPUT_DIR;
+    this.publicUrl = process.env.API_URL ?? "http://localhost:3000";
   }
 
-  async upload(key: string, buffer: Buffer, _contentType: string): Promise<string> {
+  async upload(
+    key: string,
+    buffer: Buffer,
+    _contentType: string
+  ): Promise<string> {
     // Ensure directory exists
-    const dir = join(this.baseDir, key.split('/').slice(0, -1).join('/'));
+    const dir = join(this.baseDir, key.split("/").slice(0, -1).join("/"));
     await mkdir(dir, { recursive: true });
 
     const filePath = join(this.baseDir, key);
     await writeFile(filePath, buffer);
 
-    logger.info({ key, size: buffer.length }, 'File uploaded to local storage');
+    logger.info({ key, size: buffer.length }, "File uploaded to local storage");
     return `${this.publicUrl}/uploads/${key}`;
   }
 
@@ -38,9 +48,9 @@ class LocalStorageDriver implements StorageDriver {
     try {
       await access(filePath);
       await unlink(filePath);
-      logger.info({ key }, 'File deleted from local storage');
+      logger.info({ key }, "File deleted from local storage");
     } catch {
-      logger.warn({ key }, 'File not found for deletion');
+      logger.warn({ key }, "File not found for deletion");
     }
   }
 
@@ -62,11 +72,11 @@ class R2StorageDriver implements StorageDriver {
     const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
 
     if (!accountId || !accessKeyId || !secretAccessKey) {
-      throw new Error('R2 credentials not configured');
+      throw new Error("R2 credentials not configured");
     }
 
     this.client = new S3Client({
-      region: 'auto',
+      region: "auto",
       endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
       credentials: {
         accessKeyId,
@@ -74,11 +84,15 @@ class R2StorageDriver implements StorageDriver {
       },
     });
 
-    this.bucket = process.env.R2_BUCKET_NAME ?? 'contencreative';
-    this.publicUrl = process.env.R2_PUBLIC_URL ?? '';
+    this.bucket = process.env.R2_BUCKET_NAME ?? "contencreative";
+    this.publicUrl = process.env.R2_PUBLIC_URL ?? "";
   }
 
-  async upload(key: string, buffer: Buffer, contentType: string): Promise<string> {
+  async upload(
+    key: string,
+    buffer: Buffer,
+    contentType: string
+  ): Promise<string> {
     const command = new PutObjectCommand({
       Bucket: this.bucket,
       Key: key,
@@ -87,7 +101,10 @@ class R2StorageDriver implements StorageDriver {
     });
 
     await this.client.send(command);
-    logger.info({ key, size: buffer.length, bucket: this.bucket }, 'File uploaded to R2');
+    logger.info(
+      { key, size: buffer.length, bucket: this.bucket },
+      "File uploaded to R2"
+    );
 
     // Return public URL if configured, otherwise signed URL
     if (this.publicUrl) {
@@ -103,7 +120,7 @@ class R2StorageDriver implements StorageDriver {
     });
 
     await this.client.send(command);
-    logger.info({ key, bucket: this.bucket }, 'File deleted from R2');
+    logger.info({ key, bucket: this.bucket }, "File deleted from R2");
   }
 
   async getSignedUrl(key: string, expiresIn = 3600): Promise<string> {
@@ -121,14 +138,14 @@ class StorageService {
   private driver: StorageDriver;
 
   constructor() {
-    const driverType = process.env.STORAGE_DRIVER ?? 'local';
+    const driverType = process.env.STORAGE_DRIVER ?? "local";
 
-    if (driverType === 'r2') {
+    if (driverType === "r2") {
       this.driver = new R2StorageDriver();
-      logger.info('Using R2 storage driver');
+      logger.info("Using R2 storage driver");
     } else {
       this.driver = new LocalStorageDriver();
-      logger.info('Using local storage driver');
+      logger.info("Using local storage driver");
     }
   }
 
@@ -136,7 +153,7 @@ class StorageService {
     userId: string,
     filename: string,
     buffer: Buffer,
-    contentType = 'video/mp4'
+    contentType = "video/mp4"
   ): Promise<{ key: string; url: string }> {
     const timestamp = Date.now();
     const key = `exports/${userId}/${timestamp}-${filename}`;

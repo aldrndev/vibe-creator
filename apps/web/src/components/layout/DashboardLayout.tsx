@@ -38,9 +38,9 @@ import { FEATURES } from "@/lib/feature-flags";
 
 // Build Tools children based on feature flags
 const toolsChildren = [
-  FEATURES.STORY_DIRECTOR && {
+  {
     name: "AI Director",
-    href: "/tools/story-director",
+    href: "/tools/ai-director",
     icon: Sparkles,
   },
   FEATURES.MODERN_EDITOR && {

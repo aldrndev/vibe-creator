@@ -3,6 +3,7 @@ import { z } from "zod";
 import { loopService } from "./loop.service";
 import { createReadStream, existsSync, statSync } from "fs";
 import path from "path";
+import { env } from "@/config/env";
 
 const createLoopSchema = z.object({
   inputPath: z.string(),
@@ -181,7 +182,7 @@ export const loopRoutes: FastifyPluginAsync = async (fastify) => {
         });
       }
 
-      const uploadsDir = path.resolve(process.cwd(), "uploads", "loops");
+      const uploadsDir = path.resolve(env.MEDIA_INPUT_DIR, "loops");
       const filePath = path.join(uploadsDir, sanitizedFilename);
 
       // Security: Verify resolved path is within allowed directory

@@ -3,87 +3,112 @@
 # Includes FFmpeg and yt-dlp for video processing
 # ============================================
 
-# Build stage
-FROM node:20-alpine AS builder
+# 1. Base Stage (Common Setup)
+FROM node:20-slim AS base
+WORKDIR /app
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+RUN corepack enable
 
+# Install system dependencies (ffmpeg, python, openssl)
+RUN apt-get update && apt-get install -y \
+    ffmpeg \
+    python3 \
+    python3-pip \
+    python3-venv \
+    wget \
+    openssl \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies globally
+RUN pip3 install --no-cache-dir --break-system-packages yt-dlp faster-whisper
+
+# 2. Development Stage (Hot Reload)
+FROM base AS development
 WORKDIR /app
 
-# Install pnpm
-RUN npm install -g pnpm
+# Copy package files
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY packages ./packages
+COPY apps/server/package.json ./apps/server/
 
-# Copy workspace files
+# Install ALL dependencies (including dev)
+RUN pnpm install --frozen-lockfile
+
+# Generate Prisma Client
+WORKDIR /app/apps/server
+COPY apps/server/prisma ./prisma
+RUN pnpm prisma generate
+
+# Go back to root for dev command context
+WORKDIR /app
+
+# Environment
+ENV NODE_ENV=development
+ENV PORT=3000
+
+EXPOSE 3000
+CMD ["pnpm", "--filter", "@vibe-creator/server", "dev"]
+
+
+# 3. Builder Stage (Compiling for Prod)
+FROM base AS builder
+WORKDIR /app
+
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 COPY packages ./packages
 COPY apps/server ./apps/server
 
-# Install all dependencies (including dev for prisma)
+# Install full dependencies for build
 RUN pnpm install --frozen-lockfile
 
-# Build shared package first
+# Build shared
 WORKDIR /app/packages/shared
 RUN pnpm build
-# Patch shared package.json to use dist/ for production runtime
+# Patch package.json for dist usage
 RUN sed -i 's|./src/index.ts|./dist/index.js|g' package.json
 
-# Generate Prisma client
+# Build Server
 WORKDIR /app/apps/server
 RUN pnpm prisma generate
-
-# Build server
 RUN pnpm build
 
-# Production stage
-FROM node:20-alpine AS runner
 
+# 4. Production Runner Stage
+FROM base AS runner
 WORKDIR /app
 
-# Install FFmpeg, yt-dlp, and Python (required by yt-dlp)
-RUN apk add --no-cache \
-    ffmpeg \
-    python3 \
-    py3-pip \
-    && pip3 install --no-cache-dir --break-system-packages yt-dlp
-
-# Install pnpm
-RUN npm install -g pnpm
-
-# Copy package files for pnpm install
+# Copy package files again for clean install
 COPY --from=builder /app/package.json /app/pnpm-lock.yaml /app/pnpm-workspace.yaml ./
 COPY --from=builder /app/packages ./packages
 COPY --from=builder /app/apps/server/package.json ./apps/server/
 
-# Install production dependencies only
-WORKDIR /app
+# Install PROD dependencies only
 RUN pnpm install --prod --frozen-lockfile
 
-# Copy built app
+# Copy built artifacts
 WORKDIR /app/apps/server
 COPY --from=builder /app/apps/server/dist ./dist
 COPY --from=builder /app/apps/server/prisma ./prisma
 
-# Copy pre-generated Prisma client from builder (pnpm hoisted structure)
+# Copy Prisma Engine
 COPY --from=builder /app/node_modules/.pnpm/@prisma+client*/node_modules/.prisma /app/node_modules/.prisma
 COPY --from=builder /app/node_modules/.pnpm/@prisma+client*/node_modules/@prisma /app/node_modules/@prisma
 
-# Create upload directories
-RUN mkdir -p uploads/temp uploads/exports uploads/downloads
+# Create upload directories & permissions
+RUN mkdir -p uploads/temp uploads/exports uploads/downloads uploads/cache/huggingface
+RUN chown -R node:node /app
 
-# Set environment
+USER node
+
 ENV NODE_ENV=production
 ENV PORT=3000
+ENV HF_HOME=/app/uploads/cache/huggingface
 
-# Expose port
 EXPOSE 3000
 
-# Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1
-
-# Run as non-root user
-RUN addgroup --system --gid 1001 nodejs && \
-    adduser --system --uid 1001 fastify && \
-    chown -R fastify:nodejs /app
-
-USER fastify
 
 CMD ["node", "dist/index.js"]

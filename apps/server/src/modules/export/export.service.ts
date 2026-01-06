@@ -1,14 +1,15 @@
-import { prisma } from '@/lib/prisma';
-import { ffmpegProcessor } from './ffmpeg.processor';
-import { logger } from '@/lib/logger';
-import { join } from 'path';
-import { unlink, mkdir, copyFile } from 'fs/promises';
-import { existsSync } from 'fs';
-import { randomUUID } from 'crypto';
-import { cancelExportJob } from './export-cancel';
+import { prisma } from "@/lib/prisma";
+import { ffmpegProcessor } from "./ffmpeg.processor";
+import { logger } from "@/lib/logger";
+import { join } from "path";
+import { unlink, mkdir, copyFile } from "fs/promises";
+import { existsSync } from "fs";
+import { randomUUID } from "crypto";
+import { cancelExportJob } from "./export-cancel";
+import { env } from "@/config/env";
 
-const EXPORTS_DIR = join(process.cwd(), 'uploads', 'exports');
-const TEMP_DIR = join(process.cwd(), 'uploads', 'temp');
+const EXPORTS_DIR = join(env.MEDIA_INPUT_DIR, "exports");
+const TEMP_DIR = join(env.MEDIA_INPUT_DIR, "temp");
 
 // Ensure directories exist
 async function ensureDirectories() {
@@ -69,8 +70,8 @@ interface CreateExportJobInput {
   userId: string;
   projectId?: string | null; // Optional - allows exports without saved project
   timelineData: TimelineData;
-  format?: 'MP4' | 'WEBM' | 'MOV';
-  resolution?: 'SD' | 'HD' | 'UHD';
+  format?: "MP4" | "WEBM" | "MOV";
+  resolution?: "SD" | "HD" | "UHD";
   addWatermark?: boolean;
 }
 
@@ -82,37 +83,48 @@ export const exportService = {
    * Create a new export job
    */
   async createJob(input: CreateExportJobInput) {
-    const { userId, projectId, timelineData, format = 'MP4', resolution = 'HD', addWatermark = true } = input;
+    const {
+      userId,
+      projectId,
+      timelineData,
+      format = "MP4",
+      resolution = "HD",
+      addWatermark = true,
+    } = input;
 
     // Check rate limit (max 3 pending jobs per user)
     const pendingJobs = await prisma.exportHistory.count({
       where: {
         userId,
         status: {
-          in: ['QUEUED', 'PROCESSING'],
+          in: ["QUEUED", "PROCESSING"],
         },
       },
     });
 
     if (pendingJobs >= 3) {
-      throw new Error('Too many pending export jobs. Please wait for current exports to complete.');
+      throw new Error(
+        "Too many pending export jobs. Please wait for current exports to complete."
+      );
     }
 
     const job = await prisma.exportHistory.create({
       data: {
         userId,
-        projectId: (projectId && projectId !== 'default' ? projectId : undefined) as any,
+        projectId: (projectId && projectId !== "default"
+          ? projectId
+          : undefined) as any,
         format,
         resolution,
-        status: 'QUEUED',
+        status: "QUEUED",
         timelineData: JSON.parse(JSON.stringify(timelineData)),
         expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
       },
     });
 
     // Start processing in background (don't await)
-    this.processJob(job.id, addWatermark).catch(err => {
-      logger.error({ err, jobId: job.id }, 'Export job failed');
+    this.processJob(job.id, addWatermark).catch((err) => {
+      logger.error({ err, jobId: job.id }, "Export job failed");
     });
 
     return job;
@@ -130,7 +142,7 @@ export const exportService = {
     });
 
     if (!job) {
-      throw new Error('Export job not found');
+      throw new Error("Export job not found");
     }
 
     return {
@@ -155,7 +167,7 @@ export const exportService = {
     await prisma.exportHistory.update({
       where: { id: jobId },
       data: {
-        status: 'PROCESSING',
+        status: "PROCESSING",
         startedAt: new Date(),
         attempts: { increment: 1 },
       },
@@ -167,7 +179,7 @@ export const exportService = {
       });
 
       if (!job || !job.timelineData) {
-        throw new Error('Job not found or missing timeline data');
+        throw new Error("Job not found or missing timeline data");
       }
 
       const timelineData = job.timelineData as unknown as TimelineData;
@@ -175,7 +187,7 @@ export const exportService = {
       const outputId = randomUUID();
 
       // Step 1: Trim and apply effects to each clip
-      logger.info({ jobId }, 'Starting clip trimming and effects');
+      logger.info({ jobId }, "Starting clip trimming and effects");
       for (let i = 0; i < timelineData.clips.length; i++) {
         const clip = timelineData.clips[i];
         if (!clip) continue;
@@ -189,25 +201,25 @@ export const exportService = {
         });
 
         // Apply transforms/effects if present
-        const hasTransforms = clip.transforms && (
-          clip.transforms.x !== 0 ||
-          clip.transforms.y !== 0 ||
-          clip.transforms.scale !== 1 ||
-          clip.transforms.rotation !== 0 ||
-          clip.transforms.opacity !== 1
-        );
-        const hasEffects = clip.effects && (
-          clip.effects.speed !== 1 ||
-          clip.effects.volume !== 1 ||
-          clip.effects.fadeIn > 0 ||
-          clip.effects.fadeOut > 0 ||
-          (clip.effects.filters && clip.effects.filters.length > 0)
-        );
+        const hasTransforms =
+          clip.transforms &&
+          (clip.transforms.x !== 0 ||
+            clip.transforms.y !== 0 ||
+            clip.transforms.scale !== 1 ||
+            clip.transforms.rotation !== 0 ||
+            clip.transforms.opacity !== 1);
+        const hasEffects =
+          clip.effects &&
+          (clip.effects.speed !== 1 ||
+            clip.effects.volume !== 1 ||
+            clip.effects.fadeIn > 0 ||
+            clip.effects.fadeOut > 0 ||
+            (clip.effects.filters && clip.effects.filters.length > 0));
 
         if (hasTransforms || hasEffects) {
           const effectsPath = join(TEMP_DIR, `${outputId}_effects_${i}.mp4`);
           const clipDurationMs = (clip.endTime - clip.startTime) * 1000;
-          
+
           await ffmpegProcessor.applyEffects({
             inputPath: trimmedPath,
             outputPath: effectsPath,
@@ -217,7 +229,7 @@ export const exportService = {
             outputHeight: timelineData.settings.height,
             durationMs: clipDurationMs,
           });
-          
+
           // Replace trimmed with effects version
           await unlink(trimmedPath);
           tempFiles.push(effectsPath);
@@ -234,9 +246,9 @@ export const exportService = {
       }
 
       // Step 2: Concatenate clips
-      logger.info({ jobId }, 'Starting concatenation');
+      logger.info({ jobId }, "Starting concatenation");
       let outputPath = join(TEMP_DIR, `${outputId}_concat.mp4`);
-      
+
       if (tempFiles.length > 1) {
         await ffmpegProcessor.concat({
           inputPaths: tempFiles,
@@ -254,19 +266,24 @@ export const exportService = {
 
       // Step 2.5: Apply text overlays if any
       if (timelineData.textOverlays && timelineData.textOverlays.length > 0) {
-        logger.info({ jobId, textOverlayCount: timelineData.textOverlays.length }, 'Applying text overlays');
-        
+        logger.info(
+          { jobId, textOverlayCount: timelineData.textOverlays.length },
+          "Applying text overlays"
+        );
+
         // Build filter chain for all text overlays
         const drawtextFilters: string[] = [];
-        
+
         for (const overlay of timelineData.textOverlays) {
-          const escapedText = overlay.content.replace(/[:\\\\]/g, '\\$&').replace(/'/g, "\\'");
-          const color = overlay.color.replace('#', '0x');
-          
+          const escapedText = overlay.content
+            .replace(/[:\\\\]/g, "\\$&")
+            .replace(/'/g, "\\'");
+          const color = overlay.color.replace("#", "0x");
+
           // Each drawtext filter with enable condition for timing
           const startSec = overlay.startMs / 1000;
           const endSec = overlay.endMs / 1000;
-          
+
           // Calculate position based on percentage (0-100) and center anchor
           // x = (width * x_pct / 100) - (text_w / 2) -> centers horizontally at x_pct
           // y = (height * y_pct / 100) - (text_h / 2) -> centers vertically at y_pct
@@ -275,40 +292,50 @@ export const exportService = {
           filter += `:fontsize=${overlay.fontSize}`;
           filter += `:fontcolor=${color}`;
           filter += `:enable='between(t\\,${startSec}\\,${endSec})'`;
-          
+
           if (overlay.backgroundColor) {
-            const bgColor = overlay.backgroundColor.replace('#', '0x');
+            const bgColor = overlay.backgroundColor.replace("#", "0x");
             filter += `:box=1:boxcolor=${bgColor}@0.7:boxborderw=10`;
           }
-          
+
           drawtextFilters.push(filter);
         }
-        
+
         if (drawtextFilters.length > 0) {
           const textOverlayPath = join(TEMP_DIR, `${outputId}_text.mp4`);
-          const filterChain = drawtextFilters.join(',');
-          
-          const { runFFmpeg, validateInputPath, validateOutputPath } = await import('./ffmpeg/index');
-          
+          const filterChain = drawtextFilters.join(",");
+
+          const { runFFmpeg, validateInputPath, validateOutputPath } =
+            await import("./ffmpeg/index");
+
           const validInput = validateInputPath(outputPath);
           const validOutput = validateOutputPath(textOverlayPath);
-          
+
           await runFFmpeg({
             args: [
-              '-nostdin', '-hide_banner', '-loglevel', 'error',
-              '-progress', 'pipe:1',
-              '-i', validInput,
-              '-vf', filterChain,
-              '-c:v', 'libx264',
-              '-c:a', 'copy',
-              '-preset', 'fast',
+              "-nostdin",
+              "-hide_banner",
+              "-loglevel",
+              "error",
+              "-progress",
+              "pipe:1",
+              "-i",
+              validInput,
+              "-vf",
+              filterChain,
+              "-c:v",
+              "libx264",
+              "-c:a",
+              "copy",
+              "-preset",
+              "fast",
               validOutput,
             ],
-            tempDir: '',
+            tempDir: "",
             totalDurationMs: 120000,
             timeoutMs: 180000,
           });
-          
+
           // Replace concat output with text overlay version
           if (outputPath !== tempFiles[0]) {
             await unlink(outputPath);
@@ -325,9 +352,9 @@ export const exportService = {
 
       // Step 3: Add watermark (for free tier)
       let finalPath = join(EXPORTS_DIR, `${outputId}_final.mp4`);
-      
+
       if (addWatermark) {
-        logger.info({ jobId }, 'Adding watermark');
+        logger.info({ jobId }, "Adding watermark");
         await ffmpegProcessor.addWatermark({
           inputPath: outputPath,
           outputPath: finalPath,
@@ -361,11 +388,11 @@ export const exportService = {
       // Mark as completed with download URL
       const downloadUrl = `/api/v1/export/${jobId}/download`;
       const urlExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
-      
+
       await prisma.exportHistory.update({
         where: { id: jobId },
         data: {
-          status: 'COMPLETED',
+          status: "COMPLETED",
           progress: 100,
           localPath: finalPath,
           downloadUrl,
@@ -374,14 +401,14 @@ export const exportService = {
         },
       });
 
-      logger.info({ jobId, outputPath: finalPath }, 'Export completed');
+      logger.info({ jobId, outputPath: finalPath }, "Export completed");
     } catch (err) {
-      logger.error({ err, jobId }, 'Export processing failed');
+      logger.error({ err, jobId }, "Export processing failed");
       await prisma.exportHistory.update({
         where: { id: jobId },
         data: {
-          status: 'FAILED',
-          errorMessage: err instanceof Error ? err.message : 'Unknown error',
+          status: "FAILED",
+          errorMessage: err instanceof Error ? err.message : "Unknown error",
         },
       });
     }
@@ -393,15 +420,15 @@ export const exportService = {
    */
   async cancelJob(jobId: string, userId: string) {
     const result = await cancelExportJob(jobId, userId);
-    
-    if (!result.success && result.status === 'NOT_FOUND') {
-      throw new Error('Export job not found');
+
+    if (!result.success && result.status === "NOT_FOUND") {
+      throw new Error("Export job not found");
     }
-    
-    if (!result.success && result.status === 'ALREADY_COMPLETED') {
-      throw new Error('Cannot cancel completed job');
+
+    if (!result.success && result.status === "ALREADY_COMPLETED") {
+      throw new Error("Cannot cancel completed job");
     }
-    
+
     return {
       success: result.success,
       previousStatus: result.status,
@@ -415,7 +442,7 @@ export const exportService = {
   async getHistory(userId: string, limit = 10) {
     return prisma.exportHistory.findMany({
       where: { userId },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
       take: limit,
     });
   },
