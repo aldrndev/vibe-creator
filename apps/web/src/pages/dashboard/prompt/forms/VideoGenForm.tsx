@@ -17,7 +17,10 @@ interface VideoGenFormProps {
 }
 
 export function VideoGenForm({ data, onChange }: VideoGenFormProps) {
-  const handleChange = (key: keyof VideoGenFormData, value: any) => {
+  const handleChange = (
+    key: keyof VideoGenFormData,
+    value: VideoGenFormData[keyof VideoGenFormData]
+  ) => {
     onChange({ ...data, [key]: value });
   };
 

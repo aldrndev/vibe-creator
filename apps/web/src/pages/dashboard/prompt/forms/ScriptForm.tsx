@@ -27,7 +27,10 @@ interface ScriptFormProps {
 }
 
 export function ScriptForm({ data, onChange }: ScriptFormProps) {
-  const handleChange = (key: keyof ScriptFormData, value: any) => {
+  const handleChange = (
+    key: keyof ScriptFormData,
+    value: ScriptFormData[keyof ScriptFormData]
+  ) => {
     onChange({ ...data, [key]: value });
   };
 

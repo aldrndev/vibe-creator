@@ -17,7 +17,10 @@ interface RelaxingFormProps {
 }
 
 export function RelaxingForm({ data, onChange }: RelaxingFormProps) {
-  const handleChange = (key: keyof RelaxingFormData, value: any) => {
+  const handleChange = (
+    key: keyof RelaxingFormData,
+    value: RelaxingFormData[keyof RelaxingFormData]
+  ) => {
     onChange({ ...data, [key]: value });
   };
 

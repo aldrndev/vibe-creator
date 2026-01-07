@@ -43,7 +43,20 @@ export function DirectorPanel() {
     pollInterval: 2000,
     onComplete: (data) => {
       setFeedback({ type: "success", text: "Story Generated Successfully!" });
-      applyAiGeneratedStory(data);
+      // Cast data to expected structure - the job returns the AI-generated story structure
+      applyAiGeneratedStory(
+        data as {
+          structure?: {
+            scenes?: Array<{
+              id?: string;
+              type?: string;
+              title?: string;
+              description?: string;
+              durationMs?: number;
+            }>;
+          };
+        }
+      );
     },
     onError: (err) => {
       setFeedback({ type: "error", text: "Generation Failed: " + err });

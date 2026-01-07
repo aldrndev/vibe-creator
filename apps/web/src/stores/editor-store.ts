@@ -557,7 +557,6 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
           ...t,
           clips: t.clips.map((c) => {
             if (c.linkId === linkId) {
-              // eslint-disable-next-line @typescript-eslint/no-unused-vars
               const { linkId: _, ...clipWithoutLink } = c;
               return clipWithoutLink as typeof c;
             }

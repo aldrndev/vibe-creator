@@ -2,7 +2,7 @@ import { Queue, Worker, Job as BullJob } from "bullmq";
 import IORedis from "ioredis";
 import { prisma } from "./prisma";
 import { logger } from "./logger";
-import { JobType, JobStatus } from "@prisma/client";
+import { JobType, JobStatus, Prisma } from "@prisma/client";
 
 const REDIS_URL = process.env.REDIS_URL || "redis://localhost:6379";
 
@@ -18,14 +18,14 @@ type JobData = {
   userId: string;
   projectId?: string;
   type: JobType;
-  input: any;
+  input: Record<string, unknown>;
 };
 
 // Map BullMQ events to Prisma updates
 async function updateJobStatus(
   jobId: string,
   status: JobStatus,
-  output?: any,
+  output?: Record<string, unknown>,
   error?: string
 ) {
   try {
@@ -33,7 +33,7 @@ async function updateJobStatus(
       where: { id: jobId },
       data: {
         status,
-        output: output || undefined,
+        output: output as Prisma.InputJsonValue | undefined,
         error: error || undefined,
         progress: status === "COMPLETED" ? 100 : undefined,
         completedAt:
@@ -48,14 +48,17 @@ async function updateJobStatus(
 }
 
 // ---- MOCK AI SERVICE ----
-async function mockStoryGeneration(input: any) {
+async function mockStoryGeneration(input: Record<string, unknown>) {
   logger.info({ input }, "MOCK AI: Generating Story...");
   await new Promise((resolve) => setTimeout(resolve, 3000)); // Simulate 3s latency
+
+  const prompt =
+    typeof input.prompt === "string" ? input.prompt : "A futuristic journey.";
 
   return {
     structure: {
       title: "The Neon Horizon",
-      premise: input.prompt || "A futuristic journey.",
+      premise: prompt,
       scenes: [
         {
           id: crypto.randomUUID(),
@@ -86,7 +89,7 @@ async function mockStoryGeneration(input: any) {
 // -------------------------
 
 // Worker Processor
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+
 export const worker = new Worker<JobData>(
   "story-generation",
   async (job: BullJob<JobData>) => {
@@ -112,16 +115,17 @@ export const worker = new Worker<JobData>(
       // 3. Sync Status to COMPLETED
       await updateJobStatus(job.data.jobId, "COMPLETED", result);
       return result;
-    } catch (error: any) {
-      logger.error({ jobId: job.data.jobId, error }, "Job execution failed");
-      await updateJobStatus(job.data.jobId, "FAILED", undefined, error.message);
-      throw error;
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : "Unknown error";
+      logger.error({ jobId: job.data.jobId, err }, "Job execution failed");
+      await updateJobStatus(job.data.jobId, "FAILED", undefined, errorMessage);
+      throw err;
     }
   },
   { connection }
 );
 
-async function processSceneGeneration(_input: any) {
+async function processSceneGeneration(_input: Record<string, unknown>) {
   // TODO: Call Image/Video Gen models
   await new Promise((resolve) => setTimeout(resolve, 3000));
   return { assetUrl: "https://placeholder.co/video.mp4" };
@@ -131,7 +135,7 @@ async function processSceneGeneration(_input: any) {
 export async function enqueueJob(
   userId: string,
   type: JobType,
-  input: any,
+  input: Record<string, unknown>,
   projectId?: string
 ) {
   // 1. Create DB Record (Source of Truth)
@@ -141,7 +145,7 @@ export async function enqueueJob(
       projectId,
       type,
       status: "PENDING",
-      input,
+      input: input as Prisma.InputJsonValue,
     },
   });
 

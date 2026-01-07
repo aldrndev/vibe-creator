@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyReply } from "fastify";
+import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { sendSuccess, sendError, sendCreated } from "@/utils/response";
@@ -13,6 +13,22 @@ import { requireAuth } from "@/plugins/auth";
 import { ERROR_CODES } from "@vibe-creator/shared";
 import { logger } from "@/lib/logger";
 
+import {
+  createSession,
+  ACCESS_TOKEN_DURATION_MINUTES,
+  REFRESH_TOKEN_DURATION_DAYS,
+} from "./auth.session";
+import {
+  setRefreshTokenCookie,
+  clearRefreshTokenCookie,
+  REFRESH_TOKEN_COOKIE,
+} from "./auth.cookies";
+import {
+  registerRateLimit,
+  loginRateLimit,
+  refreshRateLimit,
+} from "./auth.ratelimit";
+
 const registerSchema = z.object({
   email: z.string().email("Email tidak valid"),
   password: z.string().min(8, "Password minimal 8 karakter"),
@@ -26,157 +42,11 @@ const loginSchema = z.object({
   turnstileToken: z.string().min(1, "Captcha diperlukan"),
 });
 
-// Token durations
-const ACCESS_TOKEN_DURATION_MINUTES = 60; // 1 hour - balance between security and UX
-const REFRESH_TOKEN_DURATION_DAYS = 30; // Long-lived
-
-// Cookie name for refresh token
-const REFRESH_TOKEN_COOKIE = "vibe_refresh_token";
-
-/**
- * Set refresh token as HttpOnly cookie
- */
-function setRefreshTokenCookie(
-  reply: FastifyReply,
-  refreshToken: string,
-  expiresAt: Date
-) {
-  const isProduction = process.env.NODE_ENV === "production";
-
-  reply.setCookie(REFRESH_TOKEN_COOKIE, refreshToken, {
-    httpOnly: true,
-    secure: isProduction, // HTTPS only in production
-    sameSite: "lax",
-    path: "/",
-    expires: expiresAt,
-  });
-}
-
-/**
- * Clear refresh token cookie
- * Must include same attributes as when setting for browser to clear it
- */
-function clearRefreshTokenCookie(reply: FastifyReply) {
-  const isProduction = process.env.NODE_ENV === "production";
-
-  reply.clearCookie(REFRESH_TOKEN_COOKIE, {
-    httpOnly: true,
-    secure: isProduction,
-    sameSite: "lax",
-    path: "/",
-  });
-}
-
-/**
- * Create tokens for a user session
- */
-async function createSession(
-  userId: string,
-  userAgent: string | null,
-  ipAddress: string
-) {
-  // Single session enforcement: invalidate all existing sessions
-  await prisma.userSession.deleteMany({
-    where: { userId },
-  });
-
-  const accessToken = generateToken();
-  const refreshToken = generateToken(64);
-
-  // Security: Store hashed refresh token in DB
-  const hashedRefreshToken = hashToken(refreshToken);
-
-  const accessExpiresAt = new Date();
-  accessExpiresAt.setMinutes(
-    accessExpiresAt.getMinutes() + ACCESS_TOKEN_DURATION_MINUTES
-  );
-
-  const refreshExpiresAt = new Date();
-  refreshExpiresAt.setDate(
-    refreshExpiresAt.getDate() + REFRESH_TOKEN_DURATION_DAYS
-  );
-
-  await prisma.userSession.create({
-    data: {
-      userId,
-      token: accessToken,
-      refreshToken: hashedRefreshToken, // Store hashed
-      userAgent,
-      ipAddress,
-      expiresAt: accessExpiresAt,
-      refreshExpiresAt,
-    },
-  });
-
-  return {
-    accessToken,
-    refreshToken, // Return plain token to client
-    accessExpiresAt,
-    refreshExpiresAt,
-  };
-}
-
 export async function authRoutes(fastify: FastifyInstance): Promise<void> {
-  // Rate limit configs for auth endpoints
-  const registerRateLimit = {
-    config: {
-      rateLimit: {
-        max: 3,
-        timeWindow: "1 hour",
-        keyGenerator: (request: { ip: string }) => `register:${request.ip}`,
-        errorResponseBuilder: () => ({
-          success: false,
-          error: {
-            code: ERROR_CODES.RATE_LIMIT_EXCEEDED,
-            message:
-              "Terlalu banyak percobaan daftar. Silakan coba lagi dalam 1 jam.",
-          },
-        }),
-      },
-    },
-  };
-
-  const loginRateLimit = {
-    config: {
-      rateLimit: {
-        max: 5,
-        timeWindow: "15 minutes",
-        keyGenerator: (request: { ip: string }) => `login:${request.ip}`,
-        errorResponseBuilder: () => ({
-          success: false,
-          error: {
-            code: ERROR_CODES.RATE_LIMIT_EXCEEDED,
-            message:
-              "Terlalu banyak percobaan masuk. Silakan coba lagi dalam 15 menit.",
-          },
-        }),
-      },
-    },
-  };
-
-  const refreshRateLimit = {
-    config: {
-      rateLimit: {
-        max: 10,
-        timeWindow: "1 minute",
-        keyGenerator: (request: { ip: string }) => `refresh:${request.ip}`,
-        errorResponseBuilder: () => ({
-          success: false,
-          error: {
-            code: ERROR_CODES.RATE_LIMIT_EXCEEDED,
-            message:
-              "Terlalu banyak permintaan refresh token. Mohon tunggu sebentar.",
-          },
-        }),
-      },
-    },
-  };
-
   // Register with stricter rate limit
   fastify.post("/register", registerRateLimit, async (request, reply) => {
     const body = registerSchema.parse(request.body);
 
-    // Verify Turnstile token
     const isValidCaptcha = await verifyTurnstileToken(
       body.turnstileToken,
       request.ip
@@ -194,8 +64,6 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
       where: { email: body.email },
     });
 
-    // Security: Generic error message to prevent user enumeration
-    // Log actual reason internally for debugging
     if (existingUser) {
       logger.info(
         { email: body.email },
@@ -240,10 +108,8 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
       request.ip
     );
 
-    // Set refresh token as HttpOnly cookie
     setRefreshTokenCookie(reply, tokens.refreshToken, tokens.refreshExpiresAt);
 
-    // Only return access token in response body
     return sendCreated(reply, {
       user,
       accessToken: tokens.accessToken,
@@ -255,7 +121,6 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.post("/login", loginRateLimit, async (request, reply) => {
     const body = loginSchema.parse(request.body);
 
-    // Verify Turnstile token
     const isValidCaptcha = await verifyTurnstileToken(
       body.turnstileToken,
       request.ip
@@ -299,15 +164,12 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
       request.ip
     );
 
-    // Set refresh token as HttpOnly cookie
     setRefreshTokenCookie(reply, tokens.refreshToken, tokens.refreshExpiresAt);
 
-    // Fetch subscription for consistent tier display
     const subscription = await prisma.subscription.findUnique({
       where: { userId: user.id },
     });
 
-    // Only return access token in response body
     return sendSuccess(reply, {
       user: {
         id: user.id,
@@ -333,7 +195,6 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
   // Refresh Token - reads from HttpOnly cookie with rate limit
   fastify.post("/refresh", refreshRateLimit, async (request, reply) => {
     try {
-      // Get refresh token from cookie
       const refreshToken = request.cookies[REFRESH_TOKEN_COOKIE];
 
       if (!refreshToken) {
@@ -345,7 +206,6 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
         );
       }
 
-      // Security: Hash the incoming token to match stored hash
       const hashedRefreshToken = hashToken(refreshToken);
 
       const session = await prisma.userSession.findFirst({
@@ -367,16 +227,12 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
       });
 
       if (!session) {
-        // Security: Potential token reuse attack detected
-        // Check if this token was previously valid (indicates stolen token)
         const expiredSession = await prisma.userSession.findFirst({
           where: { refreshToken: hashedRefreshToken },
           select: { userId: true },
         });
 
         if (expiredSession) {
-          // Token was valid before but already rotated - possible theft!
-          // Revoke ALL sessions for this user as a security measure
           logger.warn(
             { userId: expiredSession.userId, ip: request.ip },
             "Refresh token reuse detected - revoking all sessions"
@@ -386,7 +242,6 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
           });
         }
 
-        // Clear invalid cookie
         clearRefreshTokenCookie(reply);
         return sendError(
           reply,
@@ -396,7 +251,6 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
         );
       }
 
-      // Generate new tokens (ROTATION: new refresh token for security)
       const newAccessToken = generateToken();
       const newRefreshToken = generateToken(64);
       const hashedNewRefreshToken = hashToken(newRefreshToken);
@@ -415,13 +269,12 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
         where: { id: session.id },
         data: {
           token: newAccessToken,
-          refreshToken: hashedNewRefreshToken, // Store new hashed token
+          refreshToken: hashedNewRefreshToken,
           expiresAt: newAccessExpiresAt,
           refreshExpiresAt: newRefreshExpiresAt,
         },
       });
 
-      // Set new refresh token cookie (rotation)
       setRefreshTokenCookie(reply, newRefreshToken, newRefreshExpiresAt);
 
       const subscription = await prisma.subscription.findUnique({
@@ -442,20 +295,21 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
         accessToken: newAccessToken,
         expiresAt: newAccessExpiresAt,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
       logger.error({ err: error }, "Refresh token error");
       return sendError(
         reply,
         ERROR_CODES.INTERNAL_ERROR,
-        `Refresh failed: ${error.message}`,
+        `Refresh failed: ${errorMessage}`,
         500
       );
     }
   });
 
-  // Logout - doesn't require valid auth, always clears cookie
+  // Logout
   fastify.post("/logout", async (request, reply) => {
-    // Try to delete session if we have a valid token (best effort)
     const authHeader = request.headers.authorization;
     if (authHeader?.startsWith("Bearer ")) {
       const token = authHeader.slice(7);
@@ -464,11 +318,10 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
           where: { token },
         });
       } catch {
-        // Ignore errors - session might already be deleted
+        // Ignore errors
       }
     }
 
-    // Also try to delete session using refresh token from cookie
     const refreshToken = request.cookies[REFRESH_TOKEN_COOKIE];
     if (refreshToken) {
       try {
@@ -481,9 +334,7 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
       }
     }
 
-    // ALWAYS clear refresh token cookie
     clearRefreshTokenCookie(reply);
-
     return sendSuccess(reply, { message: "Berhasil logout" });
   });
 

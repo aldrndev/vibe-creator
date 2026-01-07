@@ -51,7 +51,7 @@ export const cleanupCron = {
             count++;
             freedBytes += stats.size;
           }
-        } catch (err) {
+        } catch {
           // Ignore file access errors
         }
       }
@@ -66,7 +66,7 @@ export const cleanupCron = {
           "Cleaned up old files"
         );
       }
-    } catch (err) {
+    } catch {
       // Directory might not exist or other error
       // logger.debug({ dir: dirPath, err }, "Cleanup skip (dir presumably empty/missing)");
     }

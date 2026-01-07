@@ -1,6 +1,7 @@
 import { spawn } from "child_process";
 import path from "path";
 import { fileURLToPath } from "url";
+import { logger } from "@/lib/logger";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -43,8 +44,10 @@ export class WhisperRunner {
 
       pythonProcess.on("close", (code) => {
         if (code !== 0) {
-          console.error(`Whisper process exited with code ${code}`);
-          console.error(`Stderr: ${stderrData}`);
+          logger.error(
+            { code, stderr: stderrData },
+            "Whisper process exited with error"
+          );
           return resolve({
             success: false,
             error: `Process exited with code ${code}. Stderr: ${stderrData}`,
@@ -54,8 +57,11 @@ export class WhisperRunner {
         try {
           const result = JSON.parse(stdoutData) as WhisperResult;
           resolve(result);
-        } catch (error) {
-          console.error("Failed to parse Whisper output:", stdoutData);
+        } catch {
+          logger.error(
+            { output: stdoutData.slice(0, 500) },
+            "Failed to parse Whisper output"
+          );
           resolve({
             success: false,
             error: "Failed to parse JSON output from Whisper script.",
@@ -64,7 +70,7 @@ export class WhisperRunner {
       });
 
       pythonProcess.on("error", (err) => {
-        console.error("Failed to spawn python process:", err);
+        logger.error({ err }, "Failed to spawn python process");
         reject(err);
       });
     });

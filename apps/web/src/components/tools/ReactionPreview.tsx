@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useMemo, useRef } from "react";
 import { motion } from "framer-motion";
 import { GripVertical } from "lucide-react";
 import { clsx, type ClassValue } from "clsx";
@@ -45,11 +45,10 @@ export function ReactionPreview({
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const pipRef = useRef<HTMLDivElement>(null);
-  const [ratio, setRatio] = useState(16 / 9);
-
-  useEffect(() => {
-    setRatio(ASPECT_RATIOS[aspectRatio] || 16 / 9);
-  }, [aspectRatio]);
+  const ratio = useMemo(
+    () => ASPECT_RATIOS[aspectRatio] || 16 / 9,
+    [aspectRatio]
+  );
 
   const handleDragEnd = () => {
     if (!containerRef.current || !pipRef.current) return;

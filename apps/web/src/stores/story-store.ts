@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { StoryProject, StoryScene } from "@vibe-creator/shared";
 import { STORY_SCHEMA_VERSION } from "@vibe-creator/shared";
+import { logger } from "@/lib/logger";
 
 interface StoryState {
   currentStory: StoryProject | null;
@@ -25,7 +26,17 @@ interface StoryState {
   forkToTimeline: (compiledTimeline: unknown) => Promise<void>;
 
   // AI Actions
-  applyAiGeneratedStory: (aiResult: any) => void;
+  applyAiGeneratedStory: (aiResult: {
+    structure?: {
+      scenes?: Array<{
+        id?: string;
+        type?: string;
+        title?: string;
+        description?: string;
+        durationMs?: number;
+      }>;
+    };
+  }) => void;
 }
 
 const DEFAULT_GLOBAL_VIBE: StoryProject["globalVibe"] = {
@@ -35,7 +46,8 @@ const DEFAULT_GLOBAL_VIBE: StoryProject["globalVibe"] = {
 import { api } from "@/services/api";
 
 // Debounce helper
-const debounce = <T extends (...args: any[]) => any>(fn: T, ms: number) => {
+type DebouncedFunction = (...args: unknown[]) => void;
+const debounce = <T extends DebouncedFunction>(fn: T, ms: number) => {
   let timeoutId: NodeJS.Timeout;
   return (...args: Parameters<T>) => {
     clearTimeout(timeoutId);
@@ -83,7 +95,7 @@ export const useStoryStore = create<StoryState>()(
             get().initStory(projectId);
           }
         } catch (error) {
-          console.error("Failed to load story:", error);
+          logger.error("Failed to load story", error);
           get().initStory(projectId); // Fallback
         } finally {
           set({ isLoading: false });
@@ -134,7 +146,7 @@ export const useStoryStore = create<StoryState>()(
             });
           }
         } catch (error) {
-          console.error("Failed to save story:", error);
+          logger.error("Failed to save story", error);
         } finally {
           set({ isSaving: false });
         }
@@ -246,7 +258,7 @@ export const useStoryStore = create<StoryState>()(
               });
             }
           } catch (error) {
-            console.error("Failed to fork project:", error);
+            logger.error("Failed to fork project", error);
             // Revert frozen state?
             set((state) => ({
               currentStory: state.currentStory
@@ -257,16 +269,16 @@ export const useStoryStore = create<StoryState>()(
           }
         }
       },
-      applyAiGeneratedStory: (aiResult: any) => {
+      applyAiGeneratedStory: (aiResult) => {
         set((state) => {
           if (!state.currentStory || state.currentStory.isFrozen) return state;
 
           // Map AI result (Mock or Real) to StoryScenes
           // Expecting aiResult.structure.scenes
-          const newScenes =
-            aiResult.structure?.scenes?.map((s: any) => ({
+          const newScenes: StoryScene[] =
+            aiResult.structure?.scenes?.map((s) => ({
               id: s.id || crypto.randomUUID(),
-              type: s.type || "content",
+              type: (s.type || "content") as StoryScene["type"],
               title: s.title || "AI Scene",
               description: s.description || "",
               targetDurationMs: s.durationMs || 5000,

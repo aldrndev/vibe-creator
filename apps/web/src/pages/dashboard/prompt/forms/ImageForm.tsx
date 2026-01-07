@@ -18,7 +18,10 @@ interface ImageFormProps {
 }
 
 export function ImageForm({ data, onChange }: ImageFormProps) {
-  const handleChange = (key: keyof ImageFormData, value: any) => {
+  const handleChange = (
+    key: keyof ImageFormData,
+    value: ImageFormData[keyof ImageFormData]
+  ) => {
     onChange({ ...data, [key]: value });
   };
 

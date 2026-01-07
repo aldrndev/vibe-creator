@@ -27,7 +27,10 @@ interface TimelapseFormProps {
 }
 
 export function TimelapseForm({ data, onChange }: TimelapseFormProps) {
-  const handleChange = (key: keyof TimelapseFormData, value: any) => {
+  const handleChange = (
+    key: keyof TimelapseFormData,
+    value: TimelapseFormData[keyof TimelapseFormData]
+  ) => {
     onChange({ ...data, [key]: value });
   };
 

@@ -29,7 +29,8 @@ export const transcribeService = {
     }
 
     const { session, candidate, trimStartMs, trimEndMs } = selectedClip;
-    const { storageKey } = session.asset as any;
+    const assetData = session.asset as { storageKey: string };
+    const { storageKey } = assetData;
 
     // Determine effective time range
     // If user trimmed, use trim times relative to candidate
@@ -116,12 +117,12 @@ export const transcribeService = {
           status: "COMPLETED",
           engine: "WHISPER_LOCAL",
           language: result.language,
-          segments: normalizedSegments as any, // Prisma Json compatibility
+          segments: normalizedSegments as object[],
           completedAt: new Date(),
         },
         update: {
           status: "COMPLETED",
-          segments: normalizedSegments as any,
+          segments: normalizedSegments as object[],
           language: result.language,
           errorMessage: null,
           completedAt: new Date(),
@@ -159,7 +160,7 @@ export const transcribeService = {
       if (audioProxyPath) {
         try {
           await fs.unlink(audioProxyPath);
-        } catch (e) {
+        } catch {
           // ignore
         }
       }

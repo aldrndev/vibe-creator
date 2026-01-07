@@ -7,14 +7,14 @@ const createProjectSchema = z.object({
   title: z.string().min(1).max(255),
   description: z.string().optional(),
   mode: z.enum(["STORY", "TIMELINE"]).optional(),
-  storyData: z.record(z.any()).optional(),
+  storyData: z.object({}).passthrough().optional(),
 });
 
 const updateProjectSchema = z.object({
   title: z.string().min(1).max(255).optional(),
   description: z.string().optional(),
   mode: z.enum(["STORY", "TIMELINE"]).optional(),
-  storyData: z.record(z.any()).optional(),
+  storyData: z.object({}).passthrough().optional(),
 });
 
 export async function projectRoutes(fastify: FastifyInstance): Promise<void> {

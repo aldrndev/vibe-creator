@@ -18,7 +18,7 @@ type MockPrismaClient = {
   [K in keyof PrismaClient]: K extends `$${string}`
     ? PrismaClient[K]
     : {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         [M in keyof PrismaClient[K]]: ReturnType<typeof vi.fn>;
       };
 };

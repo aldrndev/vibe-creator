@@ -10,7 +10,10 @@ interface CreativeScanFormProps {
 }
 
 export function CreativeScanForm({ data, onChange }: CreativeScanFormProps) {
-  const handleChange = (key: keyof CreativeScanFormData, value: any) => {
+  const handleChange = (
+    key: keyof CreativeScanFormData,
+    value: CreativeScanFormData[keyof CreativeScanFormData]
+  ) => {
     onChange({ ...data, [key]: value });
   };
 

@@ -18,7 +18,10 @@ interface VoiceFormProps {
 }
 
 export function VoiceForm({ data, onChange }: VoiceFormProps) {
-  const handleChange = (key: keyof VoiceFormData, value: any) => {
+  const handleChange = (
+    key: keyof VoiceFormData,
+    value: VoiceFormData[keyof VoiceFormData]
+  ) => {
     onChange({ ...data, [key]: value });
   };
 

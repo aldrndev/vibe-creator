@@ -27,7 +27,7 @@ export async function jobRoutes(app: FastifyInstance) {
     },
     async (req, reply) => {
       // Manual Zod parsing
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const body = generateStructureSchema.parse(req.body);
       const { prompt, vibe, projectId } = body;
       const userId = req.user!.id;

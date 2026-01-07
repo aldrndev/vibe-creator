@@ -1,48 +1,26 @@
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { env } from "@/config/env";
-import { spawn } from "child_process";
-import { join, dirname, basename } from "path";
-import { existsSync, readdirSync, createWriteStream } from "fs";
-import { mkdir, writeFile, stat, rename } from "fs/promises";
+import { join } from "path";
+import { existsSync, mkdir } from "fs";
+import { promisify } from "util";
 import { randomUUID } from "crypto";
 
+import { detectPlatform, isDirectVideoUrl, isSoraUrl } from "./download.utils";
+import { downloadMetadataService } from "./services/download.metadata.service";
+import { downloadCobaltService } from "./services/download.cobalt.service";
+import { downloadYtDlpService } from "./services/download.ytdlp.service";
+import { downloadDirectService } from "./services/download.direct.service";
+import { downloadSoraService } from "./services/download.sora.service";
+
+const mkdirAsync = promisify(mkdir);
 const DOWNLOADS_DIR = join(env.MEDIA_INPUT_DIR, "downloads");
 
 // Ensure downloads directory exists
 async function ensureDownloadsDir() {
   if (!existsSync(DOWNLOADS_DIR)) {
-    await mkdir(DOWNLOADS_DIR, { recursive: true });
+    await mkdirAsync(DOWNLOADS_DIR, { recursive: true });
   }
-}
-
-// Detect platform from URL
-function detectPlatform(url: string): string {
-  if (url.includes("youtube.com") || url.includes("youtu.be")) return "youtube";
-  if (url.includes("tiktok.com")) return "tiktok";
-  if (url.includes("instagram.com")) return "instagram";
-  if (url.includes("twitter.com") || url.includes("x.com")) return "twitter";
-  if (url.includes("facebook.com") || url.includes("fb.watch"))
-    return "facebook";
-  if (url.includes("vimeo.com")) return "vimeo";
-  if (url.includes("reddit.com")) return "reddit";
-  if (url.includes("sora.chatgpt.com")) return "sora";
-  return "unknown";
-}
-
-// Check if URL is a Sora video
-function isSoraUrl(url: string): boolean {
-  return (
-    url.includes("sora.chatgpt.com") &&
-    url.match(/(s_[0-9A-Za-z_-]{8,})/) !== null
-  );
-}
-
-// Check if URL is a direct video link
-function isDirectVideoUrl(url: string): boolean {
-  const videoExtensions = [".mp4", ".webm", ".mov", ".avi", ".mkv", ".m4v"];
-  const urlLower = url.toLowerCase();
-  return videoExtensions.some((ext) => urlLower.includes(ext));
 }
 
 interface CreateDownloadJobInput {
@@ -50,16 +28,9 @@ interface CreateDownloadJobInput {
   sourceUrl: string;
 }
 
-interface CobaltResponse {
-  status: "error" | "redirect" | "tunnel" | "picker";
-  url?: string;
-  urls?: string[];
-  text?: string;
-  picker?: Array<{ url: string; type: string }>;
-}
-
 /**
- * Download service using Cobalt API (primary) with yt-dlp fallback
+ * Download service facade
+ * Orchestrates fetching metadata and downloading content via specialized providers
  */
 export const downloadService = {
   /**
@@ -68,47 +39,7 @@ export const downloadService = {
   async getVideoMetadata(
     url: string
   ): Promise<{ duration: number; title: string; size?: number }> {
-    return new Promise((resolve) => {
-      const args = [
-        "-J", // Dump JSON
-        "--no-check-certificates",
-        "--extractor-args",
-        "youtube:player_client=android", // Match runYtDlp args for consistency
-        url,
-      ];
-
-      const proc = spawn("yt-dlp", args);
-      let output = "";
-      let error = "";
-
-      proc.stdout.on("data", (data) => (output += data.toString()));
-      proc.stderr.on("data", (data) => (error += data.toString()));
-
-      proc.on("close", (code) => {
-        if (code !== 0) {
-          logger.warn({ url, code, error }, "Failed to get video metadata");
-          // Resolve with defaults to allow soft-fail
-          return resolve({ duration: 0, title: "Unknown" });
-        }
-
-        try {
-          const json = JSON.parse(output);
-          resolve({
-            duration: json.duration || 0,
-            title: json.title || "Unknown",
-            size: json.filesize || 0,
-          });
-        } catch (err) {
-          logger.warn({ err }, "Failed to parse metadata JSON");
-          resolve({ duration: 0, title: "Unknown" });
-        }
-      });
-
-      proc.on("error", (err) => {
-        logger.warn({ err }, "yt-dlp process error");
-        resolve({ duration: 0, title: "Unknown" });
-      });
-    });
+    return downloadMetadataService.getVideoMetadata(url);
   },
 
   /**
@@ -230,7 +161,7 @@ export const downloadService = {
     if (isSoraUrl(url)) {
       logger.info({ url }, "Downloading Sora video via multi-CDN fallback");
       if (onProgress) onProgress(10);
-      const res = await this.downloadSoraVideo(url, outputPath);
+      const res = await downloadSoraService.downloadSoraVideo(url, outputPath);
       if (onProgress) onProgress(100);
       return res;
     }
@@ -238,7 +169,11 @@ export const downloadService = {
     // Check if it's a direct video URL
     if (isDirectVideoUrl(url)) {
       logger.info({ url }, "Downloading direct video URL");
-      return await this.downloadDirectUrl(url, outputPath, onProgress);
+      return await downloadDirectService.downloadDirectUrl(
+        url,
+        outputPath,
+        onProgress
+      );
     }
 
     if (env.COBALT_API_URL) {
@@ -248,7 +183,11 @@ export const downloadService = {
           { url, cobaltUrl: env.COBALT_API_URL },
           "Downloading with Cobalt API"
         );
-        return await this.runCobalt(url, outputPath, onProgress);
+        return await downloadCobaltService.runCobalt(
+          url,
+          outputPath,
+          onProgress
+        );
       } catch (cobaltError) {
         // Fallback to yt-dlp if Cobalt fails
         logger.warn(
@@ -258,13 +197,13 @@ export const downloadService = {
           },
           "Cobalt failed, falling back to yt-dlp"
         );
-        return await this.runYtDlp(url, outputPath, onProgress);
+        return await downloadYtDlpService.runYtDlp(url, outputPath, onProgress);
       }
     }
 
     // No Cobalt configured, use yt-dlp directly
     logger.info({ url }, "Downloading with yt-dlp");
-    return await this.runYtDlp(url, outputPath, onProgress);
+    return await downloadYtDlpService.runYtDlp(url, outputPath, onProgress);
   },
 
   /**
@@ -321,571 +260,23 @@ export const downloadService = {
   },
 
   /**
-   * Download using Cobalt API
+   * Get download history for a user
    */
-  async runCobalt(
-    url: string,
-    outputPath: string,
-    onProgress?: (percent: number) => void
-  ): Promise<{ title: string; metadata: Record<string, unknown> }> {
-    if (!env.COBALT_API_URL) {
-      throw new Error("Cobalt API URL not configured");
-    }
-
-    logger.info(
-      { cobaltUrl: env.COBALT_API_URL, videoUrl: url },
-      "Calling Cobalt API"
-    );
-
-    const response = await fetch(env.COBALT_API_URL, {
-      method: "POST",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        url,
-        videoQuality: "1080",
-        youtubeVideoCodec: "h264",
-        filenameStyle: "basic",
-        downloadMode: "auto",
-      }),
-    });
-
-    // Get response as text first to debug
-    const responseText = await response.text();
-    logger.info(
-      { status: response.status, responseLength: responseText.length },
-      "Cobalt API response"
-    );
-
-    if (!response.ok) {
-      throw new Error(
-        `Cobalt API error: ${response.status} - ${responseText.slice(0, 200)}`
-      );
-    }
-
-    if (!responseText) {
-      throw new Error("Cobalt API returned empty response");
-    }
-
-    let data: CobaltResponse;
-    try {
-      data = JSON.parse(responseText) as CobaltResponse;
-    } catch {
-      throw new Error(
-        `Cobalt API returned invalid JSON: ${responseText.slice(0, 200)}`
-      );
-    }
-
-    if (data.status === "error") {
-      throw new Error(data.text || "Cobalt API error");
-    }
-
-    // Get the download URL
-    let downloadUrl: string | undefined;
-
-    if (data.status === "redirect" || data.status === "tunnel") {
-      downloadUrl = data.url;
-    } else if (
-      data.status === "picker" &&
-      data.picker &&
-      data.picker.length > 0
-    ) {
-      // If multiple options, pick video
-      const video =
-        data.picker.find((p) => p.type === "video") ?? data.picker[0];
-      if (video) {
-        downloadUrl = video.url;
-      }
-    }
-
-    if (!downloadUrl) {
-      throw new Error("No download URL from Cobalt");
-    }
-
-    logger.info({ downloadUrl }, "Downloading file from Cobalt URL");
-
-    // Download the file
-    const fileResponse = await fetch(downloadUrl);
-    if (!fileResponse.ok) {
-      throw new Error(
-        `Failed to download file from Cobalt: ${fileResponse.status}`
-      );
-    }
-
-    const contentLength = fileResponse.headers.get("content-length");
-    const total = contentLength ? parseInt(contentLength, 10) : 0;
-
-    // If we can't track progress or response.body is null, fallback to buffer
-    if (!fileResponse.body || total === 0) {
-      if (onProgress) onProgress(50); // Indicate Cobalt processing is done, now downloading
-      const arrayBuffer = await fileResponse.arrayBuffer();
-      const buffer = Buffer.from(arrayBuffer);
-      if (buffer.length === 0) {
-        throw new Error("Downloaded file is empty (0 bytes)");
-      }
-      await writeFile(outputPath, buffer);
-      if (onProgress) onProgress(100);
-    } else {
-      // Stream with progress
-      const fileStream = createWriteStream(outputPath);
-      const reader = fileResponse.body.getReader();
-      let loaded = 0;
-
-      if (onProgress) onProgress(50); // Indicate Cobalt processing is done, now streaming download
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        loaded += value.length;
-        if (onProgress && total > 0) {
-          // Progress from 50% to 99% for the actual download
-          onProgress(50 + Math.min((loaded / total) * 50, 49));
-        }
-
-        // Write chunk
-        if (!fileStream.write(value)) {
-          await new Promise((resolve) => fileStream.once("drain", resolve));
-        }
-      }
-
-      fileStream.end();
-      await new Promise((resolve) => fileStream.on("finish", resolve));
-
-      if (onProgress) onProgress(100);
-    }
-
-    // Verify file was written correctly
-    const fileStats = await stat(outputPath);
-    if (fileStats.size === 0) {
-      throw new Error("File written but size is 0 bytes");
-    }
-
-    logger.info(
-      { outputPath, fileSize: fileStats.size },
-      "File saved successfully"
-    );
-
-    // Extract title from URL or use default
-    const urlParts = url.split("/");
-    const title = urlParts[urlParts.length - 1] || "Downloaded Video";
-
-    return {
-      title: title.replace(/[?#].*$/, ""), // Remove query params
-      metadata: { source: "cobalt", size: fileStats.size },
-    };
-  },
-
-  /**
-   * Download direct video URL
-   */
-  async downloadDirectUrl(
-    url: string,
-    outputPath: string,
-    onProgress?: (percent: number) => void
-  ): Promise<{ title: string; metadata: Record<string, unknown> }> {
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`Failed to download direct URL: ${response.status}`);
-    }
-
-    const contentLength = response.headers.get("content-length");
-    const total = contentLength ? parseInt(contentLength, 10) : 0;
-
-    // If we can't track progress or response.body is null, fallback to buffer
-    if (!response.body || total === 0) {
-      if (onProgress) onProgress(10);
-      const arrayBuffer = await response.arrayBuffer();
-      const buffer = Buffer.from(arrayBuffer);
-      if (buffer.length === 0) throw new Error("Downloaded file is empty");
-      await writeFile(outputPath, buffer);
-      if (onProgress) onProgress(100);
-
-      const fileStats = await stat(outputPath);
-      const urlParts = url.split("/");
-      const filename = urlParts[urlParts.length - 1] || "Downloaded Video";
-
-      return {
-        title: filename.replace(/[?#].*$/, ""),
-        metadata: { source: "direct", size: fileStats.size },
-      };
-    }
-
-    // Stream with progress
-    const fileStream = createWriteStream(outputPath);
-    const reader = response.body.getReader();
-    let loaded = 0;
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      loaded += value.length;
-      if (onProgress && total > 0) {
-        onProgress(Math.min((loaded / total) * 100, 99));
-      }
-
-      // Write chunk
-      if (!fileStream.write(value)) {
-        await new Promise((resolve) => fileStream.once("drain", resolve));
-      }
-    }
-
-    fileStream.end();
-    await new Promise((resolve) => fileStream.on("finish", resolve));
-
-    if (onProgress) onProgress(100);
-
-    const fileStats = await stat(outputPath);
-    const urlParts = url.split("/");
-    const filename = urlParts[urlParts.length - 1] || "Downloaded Video";
-
-    return {
-      title: filename.replace(/[?#].*$/, ""),
-      metadata: { source: "direct", size: fileStats.size },
-    };
-  },
-
-  /**
-   * Run yt-dlp command (fallback)
-   */
-  async runYtDlp(
-    url: string,
-    outputPath: string,
-    onProgress?: (percent: number) => void
-  ): Promise<{ title: string; metadata: Record<string, unknown> }> {
-    return new Promise((resolve, reject) => {
-      let title = "Downloaded Video";
-      let metadata: Record<string, unknown> = {};
-
-      // First get video info with bypass options
-      const infoProcess = spawn("yt-dlp", [
-        "--print",
-        "%(title)s",
-        "--print",
-        "%(duration)s",
-        "--skip-download",
-        "--no-check-certificates",
-        "--extractor-args",
-        "youtube:player_client=android",
-        url,
-      ]);
-
-      let infoOutput = "";
-      infoProcess.stdout.on("data", (data) => {
-        infoOutput += data.toString();
-      });
-
-      infoProcess.on("close", (infoCode) => {
-        if (infoCode === 0) {
-          const lines = infoOutput.trim().split("\n");
-          title = lines[0] || "Downloaded Video";
-          metadata = { duration: lines[1] || "0", source: "yt-dlp" };
-        }
-
-        // Then download with bypass options and PROGRESS
-        const downloadProcess = spawn("yt-dlp", [
-          "-f",
-          "best[ext=mp4]/best",
-          "--no-check-certificates",
-          "--newline", // Crucial for parsing progress line by line
-          "--no-playlist",
-          "--extractor-args",
-          "youtube:player_client=android",
-          "-o",
-          outputPath,
-          url,
-        ]);
-
-        let errorOutput = "";
-        downloadProcess.stderr.on("data", (data) => {
-          errorOutput += data.toString();
-        });
-
-        const parseProgress = (data: Buffer | string) => {
-          const lines = data.toString().split("\n");
-          for (const line of lines) {
-            // Match decimal (45.5%) or integer (100%)
-            const match = line.match(/\[download\]\s+(\d+(?:\.\d+)?)%/);
-            if (match && match[1]) {
-              const percent = parseFloat(match[1]);
-              if (onProgress) {
-                // Log only significant changes to avoid spamming logs too much, but enough for debug
-                if (Math.round(percent) % 10 === 0 || percent >= 99) {
-                  logger.info(
-                    { percent, line: line.trim() },
-                    "Matched download progress"
-                  );
-                }
-                onProgress(percent);
-              }
-            }
-          }
-        };
-
-        downloadProcess.stdout.on("data", parseProgress);
-        downloadProcess.stderr.on("data", parseProgress); // Some versions use stderr
-
-        downloadProcess.on("close", async (code) => {
-          if (code === 0) {
-            try {
-              if (onProgress) onProgress(100);
-              const finalPath = await this.findAndRenameDownload(outputPath);
-              if (finalPath !== outputPath) {
-                logger.info(
-                  { expected: outputPath, actual: finalPath },
-                  "Renamed yt-dlp output"
-                );
-              }
-              resolve({ title, metadata });
-            } catch (renameErr) {
-              reject(renameErr);
-            }
-          } else {
-            reject(
-              new Error(`yt-dlp failed with code ${code}: ${errorOutput}`)
-            );
-          }
-        });
-
-        downloadProcess.on("error", () => {
-          reject(
-            new Error(`yt-dlp not found. Install with: brew install yt-dlp`)
-          );
-        });
-      });
-
-      infoProcess.on("error", () => {
-        // Fallback flow (omitted for brevity in this specific patch logic, using same pattern)
-        // For robustness, let's just trigger the original fallback logic if info fails
-        const downloadProcess = spawn("yt-dlp", [
-          "-f",
-          "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
-          "--merge-output-format",
-          "mp4",
-          "--newline",
-          "-o",
-          outputPath,
-          url,
-        ]);
-
-        downloadProcess.stdout.on("data", (data) => {
-          const line = data.toString();
-          const match = line.match(/\[download\]\s+(\d+\.\d+)%/);
-          if (match && match[1]) {
-            if (onProgress) onProgress(parseFloat(match[1]));
-          }
-        });
-
-        downloadProcess.on("close", async (code) => {
-          if (code === 0) {
-            if (onProgress) onProgress(100);
-            try {
-              await this.findAndRenameDownload(outputPath);
-              resolve({ title, metadata });
-            } catch (renameErr) {
-              reject(renameErr);
-            }
-          } else {
-            reject(new Error("yt-dlp failed"));
-          }
-        });
-
-        downloadProcess.on("error", () => {
-          reject(
-            new Error("yt-dlp not found. Install with: brew install yt-dlp")
-          );
-        });
-      });
-    });
-  },
-
-  /**
-   * Find actual downloaded file and rename to expected path
-   * yt-dlp sometimes adds extensions or changes filename
-   */
-  async findAndRenameDownload(expectedPath: string): Promise<string> {
-    // If exact file exists, we're good
-    if (existsSync(expectedPath)) {
-      return expectedPath;
-    }
-
-    const dir = dirname(expectedPath);
-    const baseWithoutExt = basename(expectedPath, ".mp4");
-
-    // Look for files that start with our UUID
-    const files = readdirSync(dir);
-    const candidates = files.filter(
-      (f) =>
-        f.startsWith(baseWithoutExt) &&
-        (f.endsWith(".mp4") || f.endsWith(".webm") || f.endsWith(".mkv"))
-    );
-
-    if (candidates.length === 0) {
-      throw new Error(`Downloaded file not found. Expected: ${expectedPath}`);
-    }
-
-    // Use the first matching file
-    const firstCandidate = candidates[0];
-    if (!firstCandidate) {
-      throw new Error(`Downloaded file not found. Expected: ${expectedPath}`);
-    }
-    const actualPath = join(dir, firstCandidate);
-
-    if (actualPath !== expectedPath) {
-      await rename(actualPath, expectedPath);
-      logger.info(
-        { from: actualPath, to: expectedPath },
-        "Renamed download file"
-      );
-    }
-
-    return expectedPath;
-  },
-
-  /**
-   * Download Sora video using SoraPure's multi-CDN fallback approach
-   * Based on: https://github.com/bakhtiersizhaev/sorapure
-   */
-  async downloadSoraVideo(
-    url: string,
-    outputPath: string
-  ): Promise<{ title: string; metadata: Record<string, unknown> }> {
-    // Extract video ID from URL (s_xxxxx format)
-    const videoIdMatch = url.match(/(s_[0-9A-Za-z_-]{8,})/);
-    const videoId = videoIdMatch?.[1];
-
-    if (!videoId) {
-      throw new Error(
-        "SORA_INVALID_URL: Cannot extract video ID (expected s_xxxxx format)"
-      );
-    }
-
-    logger.info({ videoId }, "Downloading Sora video via multi-CDN fallback");
-
-    // CDN endpoints (decoded from sorapure)
-    const CDN_ENDPOINTS = {
-      CDN_DIRECT: `https://oscdn2.dyysy.com/MP4/${videoId}.mp4`,
-      CDN_PROXY: `https://api.soracdn.workers.dev/download-proxy?id=${videoId}`,
-      OPENAI_CDN: `https://cdn.openai.com/MP4/${videoId}.mp4`,
-    };
-
-    const USER_AGENT =
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36";
-
-    // Try each CDN in order
-    const cdnAttempts = [
-      { name: "CDN_DIRECT", url: CDN_ENDPOINTS.CDN_DIRECT },
-      { name: "CDN_PROXY", url: CDN_ENDPOINTS.CDN_PROXY },
-      { name: "OPENAI_CDN", url: CDN_ENDPOINTS.OPENAI_CDN },
-    ];
-
-    let videoBuffer: Buffer | null = null;
-    let sourceUsed = "";
-
-    for (const cdn of cdnAttempts) {
-      logger.info({ source: cdn.name, videoId }, `Attempting ${cdn.name}...`);
-
-      try {
-        const response = await fetch(cdn.url, {
-          method: "GET",
-          headers: { "User-Agent": USER_AGENT },
-          signal: AbortSignal.timeout(120000), // 2 minutes timeout
-        });
-
-        if (response.ok) {
-          const contentType = response.headers.get("content-type") || "";
-          if (
-            contentType.includes("video") ||
-            contentType.includes("octet-stream")
-          ) {
-            logger.info(
-              { source: cdn.name, contentType },
-              `SUCCESS: ${cdn.name} found video`
-            );
-
-            const arrayBuffer = await response.arrayBuffer();
-            videoBuffer = Buffer.from(arrayBuffer);
-            sourceUsed = cdn.name;
-            break;
-          } else {
-            logger.warn(
-              { source: cdn.name, contentType },
-              `${cdn.name} returned non-video content`
-            );
-          }
-        } else {
-          logger.warn(
-            { source: cdn.name, status: response.status },
-            `${cdn.name} failed`
-          );
-        }
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : "Unknown error";
-        logger.warn(
-          { source: cdn.name, error: errorMsg },
-          `${cdn.name} failed`
-        );
-      }
-    }
-
-    if (!videoBuffer) {
-      throw new Error(
-        "SORA_ALL_CDN_FAILED: All CDN sources failed. Video may not be publicly available."
-      );
-    }
-
-    // Validate file size
-    const MAX_SIZE = 500 * 1024 * 1024; // 500MB
-    if (videoBuffer.length > MAX_SIZE) {
-      throw new Error("SORA_FILE_TOO_LARGE");
-    }
-
-    if (videoBuffer.length === 0) {
-      throw new Error("SORA_FILE_EMPTY");
-    }
-
-    // Write to file
-    await writeFile(outputPath, videoBuffer);
-
-    // Verify
-    const fileStats = await stat(outputPath);
-    if (fileStats.size === 0) {
-      throw new Error("SORA_FILE_WRITE_FAILED");
-    }
-
-    logger.info(
-      {
-        fileSize: fileStats.size,
-        videoId,
-        source: sourceUsed,
-      },
-      "Sora video downloaded successfully"
-    );
-
-    return {
-      title: `Sora ${videoId}`,
-      metadata: {
-        source: sourceUsed,
-        videoId,
-        fileSize: fileStats.size,
-      },
-    };
-  },
-
-  /**
-   * Get user's download history (only completed downloads)
-   */
-  async getHistory(userId: string, limit = 10) {
-    return prisma.downloadJob.findMany({
-      where: {
-        userId,
-        status: "COMPLETED", // Only show completed downloads
-      },
+  async getHistory(userId: string) {
+    const jobs = await prisma.downloadJob.findMany({
+      where: { userId },
       orderBy: { createdAt: "desc" },
-      take: limit,
+      take: 20, // Limit to last 20 downloads
     });
+
+    return jobs.map((job) => ({
+      id: job.id,
+      status: job.status,
+      platform: job.platform,
+      title: job.title,
+      sourceUrl: job.sourceUrl,
+      createdAt: job.createdAt,
+      completedAt: job.completedAt,
+    }));
   },
 };

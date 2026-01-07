@@ -67,7 +67,6 @@ export function PromptBuilderPage() {
       | CreativeScanFormData
       | TimelapseFormData;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     switch (selectedType) {
       case "SCRIPT": {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any

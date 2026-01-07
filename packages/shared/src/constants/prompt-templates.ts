@@ -199,7 +199,7 @@ function renderElevenLabsVoice(input: VoicePromptInput): string {
       ? `\n- Key Emphasis Areas: ${input.emphasis.join(", ")}`
       : "";
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const inputWithPauses = input as { pauses?: string[] };
   const pausePart =
     Array.isArray(inputWithPauses.pauses) && inputWithPauses.pauses.length > 0
@@ -355,7 +355,7 @@ export function generateVideoGenPrompt(input: VideoGenPromptInput): string {
   const technicalAddons = isCinematic ? CINEMATIC_KEYWORDS.join(", ") : "";
 
   // Dispatch based on targetModel
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const model = (input as { targetModel?: string }).targetModel;
 
   switch (model) {
@@ -378,7 +378,7 @@ export function generateImagePrompt(input: ImagePromptInput): string {
       : input.style === "landscape"
       ? PHOTOGRAPHY_TERMS.landscape
       : "";
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const model = (input as { targetModel?: string }).targetModel;
 
   switch (model) {
@@ -439,7 +439,7 @@ You are an Expert Content Analyst... (Analysis Focus: ${(
 }
 
 export function generateTimelapsePrompt(input: TimelapsePromptInput): string {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const model = (input as { targetModel?: string }).targetModel;
   if (model === AIModel.SORA || model === AIModel.VEO) {
     return renderSoraTimelapse(input);

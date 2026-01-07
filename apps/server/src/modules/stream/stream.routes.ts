@@ -1,14 +1,22 @@
-import { FastifyPluginAsync } from 'fastify';
-import { z } from 'zod';
-import { streamService } from './stream.service';
+import { FastifyPluginAsync } from "fastify";
+import { z } from "zod";
+import { streamService } from "./stream.service";
+import { logger } from "@/lib/logger";
 
 const startStreamSchema = z.object({
   inputPath: z.string(),
   config: z.object({
-    platform: z.enum(['youtube', 'tiktok', 'twitch', 'facebook', 'instagram', 'custom']),
+    platform: z.enum([
+      "youtube",
+      "tiktok",
+      "twitch",
+      "facebook",
+      "instagram",
+      "custom",
+    ]),
     rtmpUrl: z.string().optional(),
     streamKey: z.string(),
-    quality: z.enum(['720p', '1080p']).default('720p'),
+    quality: z.enum(["720p", "1080p"]).default("720p"),
     bitrateKbps: z.number().optional(),
     durationMinutes: z.number().min(1).max(1440).default(60), // Max 24 hours
   }),
@@ -22,24 +30,24 @@ export const streamRoutes: FastifyPluginAsync = async (fastify) => {
   /**
    * Start streaming
    */
-  fastify.post('/start', async (request, reply) => {
+  fastify.post("/start", async (request, reply) => {
     const user = request.user;
     if (!user) {
       return reply.status(401).send({
         success: false,
-        error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+        error: { code: "UNAUTHORIZED", message: "Authentication required" },
       });
     }
 
     try {
-      console.log('Stream Start Body:', JSON.stringify(request.body, null, 2));
+      logger.debug({ body: request.body }, "Stream Start request");
       const body = startStreamSchema.parse(request.body);
       const result = await streamService.startStream({
         userId: user.id,
         inputPath: body.inputPath,
         config: {
           platform: body.config.platform,
-          rtmpUrl: body.config.rtmpUrl || '',
+          rtmpUrl: body.config.rtmpUrl || "",
           streamKey: body.config.streamKey,
           quality: body.config.quality,
           bitrateKbps: body.config.bitrateKbps,
@@ -53,17 +61,18 @@ export const streamRoutes: FastifyPluginAsync = async (fastify) => {
       });
     } catch (err) {
       if (err instanceof z.ZodError) {
-        console.log('Validation Error:', JSON.stringify(err.errors, null, 2));
+        logger.debug({ errors: err.errors }, "Validation Error");
         return reply.status(400).send({
           success: false,
-          error: { code: 'VALIDATION_ERROR', message: err.errors[0]?.message },
+          error: { code: "VALIDATION_ERROR", message: err.errors[0]?.message },
         });
       }
-      
-      const message = err instanceof Error ? err.message : 'Stream start failed';
+
+      const message =
+        err instanceof Error ? err.message : "Stream start failed";
       return reply.status(500).send({
         success: false,
-        error: { code: 'STREAM_ERROR', message },
+        error: { code: "STREAM_ERROR", message },
       });
     }
   });
@@ -71,12 +80,12 @@ export const streamRoutes: FastifyPluginAsync = async (fastify) => {
   /**
    * Stop streaming
    */
-  fastify.post('/stop', async (request, reply) => {
+  fastify.post("/stop", async (request, reply) => {
     const user = request.user;
     if (!user) {
       return reply.status(401).send({
         success: false,
-        error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+        error: { code: "UNAUTHORIZED", message: "Authentication required" },
       });
     }
 
@@ -86,20 +95,20 @@ export const streamRoutes: FastifyPluginAsync = async (fastify) => {
 
       return reply.send({
         success: true,
-        data: { message: 'Stream stopped' },
+        data: { message: "Stream stopped" },
       });
     } catch (err) {
       if (err instanceof z.ZodError) {
         return reply.status(400).send({
           success: false,
-          error: { code: 'VALIDATION_ERROR', message: err.errors[0]?.message },
+          error: { code: "VALIDATION_ERROR", message: err.errors[0]?.message },
         });
       }
-      
-      const message = err instanceof Error ? err.message : 'Stream stop failed';
+
+      const message = err instanceof Error ? err.message : "Stream stop failed";
       return reply.status(500).send({
         success: false,
-        error: { code: 'STREAM_ERROR', message },
+        error: { code: "STREAM_ERROR", message },
       });
     }
   });
@@ -107,40 +116,47 @@ export const streamRoutes: FastifyPluginAsync = async (fastify) => {
   /**
    * Get stream status
    */
-  fastify.get<{ Params: { streamId: string } }>('/:streamId/status', async (request, reply) => {
-    const user = request.user;
-    if (!user) {
-      return reply.status(401).send({
-        success: false,
-        error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
-      });
-    }
+  fastify.get<{ Params: { streamId: string } }>(
+    "/:streamId/status",
+    async (request, reply) => {
+      const user = request.user;
+      if (!user) {
+        return reply.status(401).send({
+          success: false,
+          error: { code: "UNAUTHORIZED", message: "Authentication required" },
+        });
+      }
 
-    try {
-      const status = await streamService.getStreamStatus(request.params.streamId, user.id);
+      try {
+        const status = await streamService.getStreamStatus(
+          request.params.streamId,
+          user.id
+        );
 
-      return reply.send({
-        success: true,
-        data: status,
-      });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to get stream status';
-      return reply.status(500).send({
-        success: false,
-        error: { code: 'STREAM_ERROR', message },
-      });
+        return reply.send({
+          success: true,
+          data: status,
+        });
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : "Failed to get stream status";
+        return reply.status(500).send({
+          success: false,
+          error: { code: "STREAM_ERROR", message },
+        });
+      }
     }
-  });
+  );
 
   /**
    * Get active streams
    */
-  fastify.get('/active', async (request, reply) => {
+  fastify.get("/active", async (request, reply) => {
     const user = request.user;
     if (!user) {
       return reply.status(401).send({
         success: false,
-        error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+        error: { code: "UNAUTHORIZED", message: "Authentication required" },
       });
     }
 
@@ -152,10 +168,11 @@ export const streamRoutes: FastifyPluginAsync = async (fastify) => {
         data: { streams },
       });
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to get active streams';
+      const message =
+        err instanceof Error ? err.message : "Failed to get active streams";
       return reply.status(500).send({
         success: false,
-        error: { code: 'STREAM_ERROR', message },
+        error: { code: "STREAM_ERROR", message },
       });
     }
   });
@@ -163,12 +180,12 @@ export const streamRoutes: FastifyPluginAsync = async (fastify) => {
   /**
    * Get stream history
    */
-  fastify.get('/history', async (request, reply) => {
+  fastify.get("/history", async (request, reply) => {
     const user = request.user;
     if (!user) {
       return reply.status(401).send({
         success: false,
-        error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+        error: { code: "UNAUTHORIZED", message: "Authentication required" },
       });
     }
 
@@ -180,10 +197,11 @@ export const streamRoutes: FastifyPluginAsync = async (fastify) => {
         data: { streams },
       });
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to get stream history';
+      const message =
+        err instanceof Error ? err.message : "Failed to get stream history";
       return reply.status(500).send({
         success: false,
-        error: { code: 'STREAM_ERROR', message },
+        error: { code: "STREAM_ERROR", message },
       });
     }
   });
