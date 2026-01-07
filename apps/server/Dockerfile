@@ -19,6 +19,7 @@ RUN apt-get update && apt-get install -y \
     wget \
     openssl \
     ca-certificates \
+    fonts-liberation \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies globally
@@ -95,6 +96,10 @@ COPY --from=builder /app/apps/server/prisma ./prisma
 # Copy Prisma Engine
 COPY --from=builder /app/node_modules/.pnpm/@prisma+client*/node_modules/.prisma /app/node_modules/.prisma
 COPY --from=builder /app/node_modules/.pnpm/@prisma+client*/node_modules/@prisma /app/node_modules/@prisma
+
+# Copy Python Scripts for Transcription
+COPY --from=builder /app/apps/server/src/modules/transcribe/run_whisper.py ./dist/modules/transcribe/
+
 
 # Create upload directories & permissions
 RUN mkdir -p uploads/temp uploads/exports uploads/downloads uploads/cache/huggingface

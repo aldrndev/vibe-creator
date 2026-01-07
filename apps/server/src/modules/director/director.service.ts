@@ -554,23 +554,56 @@ export const directorService = {
       throw new Error("No clips selected");
     }
 
-    // Return existing job if exists
+    let job;
+
+    // Check existing job
     if (session.transcribeJob) {
-      return session.transcribeJob;
+      const status = session.transcribeJob.status;
+
+      // If active or completed, return existing
+      if (
+        status === DirectorJobStatus.PENDING ||
+        status === DirectorJobStatus.PROCESSING ||
+        status === DirectorJobStatus.COMPLETED
+      ) {
+        return session.transcribeJob;
+      }
+
+      // If FAILED, reset and retry
+      if (status === DirectorJobStatus.FAILED) {
+        logger.info(
+          { sessionId, jobId: session.transcribeJob.id },
+          "Retrying failed transcribe job"
+        );
+        job = await prisma.directorTranscribeJob.update({
+          where: { id: session.transcribeJob.id },
+          data: { status: DirectorJobStatus.PENDING, errorMessage: null },
+        });
+      } else {
+        // Should not happen, but safe fallback
+        job = session.transcribeJob;
+      }
+    } else {
+      // Create new job if none exists
+      const idempotencyKey = `${sessionId}:transcribe:${Date.now()}`;
+      job = await prisma.directorTranscribeJob.create({
+        data: {
+          sessionId,
+          idempotencyKey,
+          status: DirectorJobStatus.PENDING,
+          engine: "WHISPER_LOCAL",
+        },
+      });
     }
 
-    const idempotencyKey = `${sessionId}:transcribe:v1`;
+    // Queue BullMQ job using DB Job ID as unique identifier for this attempt
+    // We append timestamp if it's a retry to ensure a fresh queue ID if needed,
+    // but usually unique is better. Let's use `director:transcribe:${job.id}`
+    // If we are reusing the DB job, we might need a suffix if the header job stuck.
+    // But `removeOnComplete` is true. `removeOnFail` default false.
+    // So if failed, it stays. We should probably use a unique suffix for the QUEUE job ID.
+    const queueJobId = `director:transcribe:${job.id}:${Date.now()}`;
 
-    const job = await prisma.directorTranscribeJob.create({
-      data: {
-        sessionId,
-        idempotencyKey,
-        status: DirectorJobStatus.PENDING,
-        engine: "WHISPER_LOCAL",
-      },
-    });
-
-    // Queue BullMQ job for session transcription
     await directorQueue.add(
       "transcribe_session",
       {
@@ -579,13 +612,13 @@ export const directorService = {
         userId,
       },
       {
-        jobId: `director:transcribe:${sessionId}`,
+        jobId: queueJobId,
         removeOnComplete: true,
       }
     );
 
     logger.info(
-      { sessionId, jobId: job.id },
+      { sessionId, jobId: job.id, queueJobId },
       "Director transcribe job created and queued"
     );
 

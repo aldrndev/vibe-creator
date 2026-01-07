@@ -98,7 +98,7 @@ export const directorRoutes: FastifyPluginAsync = async (fastify) => {
   // Root: /uploads/director (mapped via MEDIA_INPUT_DIR)
   fastify.register(fastifyStatic, {
     root: join(env.MEDIA_INPUT_DIR, "director"),
-    prefix: "/director/static-assets/",
+    prefix: "/static-assets/",
     decorateReply: true,
   });
 
@@ -158,7 +158,9 @@ export const directorRoutes: FastifyPluginAsync = async (fastify) => {
 
         const errorKey = `director:asset:${id}:error`;
         const redisError = await redis.get(errorKey);
-        if (redisError) errorMessage = redisError;
+        if (redisError) {
+          errorMessage = redisError;
+        }
       } else if (asset.ingestStatus === "READY") {
         progress = 100;
       }

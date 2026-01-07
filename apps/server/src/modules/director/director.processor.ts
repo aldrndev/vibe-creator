@@ -732,7 +732,7 @@ export const directorProcessor = {
           .replace(/\\/g, "/")
           .replace(/:/g, "\\:");
         vfFilters.push(
-          `subtitles='${escapedPath}':force_style='Fontname=Arial,FontSize=24,PrimaryColour=&H00FFFFFF,BackColour=&H80000000,BorderStyle=3,Outline=1,Shadow=0,MarginV=60'`
+          `subtitles='${escapedPath}':force_style='Fontname=Sans,FontSize=24,PrimaryColour=&H00FFFFFF,BackColour=&H80000000,BorderStyle=3,Outline=1,Shadow=0,MarginV=60'`
         );
       }
 

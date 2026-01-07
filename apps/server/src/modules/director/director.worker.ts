@@ -244,6 +244,43 @@ async function processTranscribeClipJob(
   logger.info({ selectedClipId }, "Processing transcribe clip job");
 
   await transcribeService.transcribeSelectedClip(selectedClipId);
+
+  // Check if all clips for this session are done
+  const clip = await prisma.directorSelectedClip.findUnique({
+    where: { id: selectedClipId },
+    select: { sessionId: true },
+  });
+
+  if (clip) {
+    const { sessionId } = clip;
+    const totalClips = await prisma.directorSelectedClip.count({
+      where: { sessionId },
+    });
+    const completedTranscripts = await prisma.directorClipTranscript.count({
+      where: {
+        sessionId,
+        status: { in: ["COMPLETED", "FAILED"] },
+      },
+    });
+
+    if (completedTranscripts >= totalClips) {
+      const session = await prisma.directorSession.findUnique({
+        where: { id: sessionId },
+        include: { transcribeJob: true },
+      });
+
+      if (session?.transcribeJob) {
+        await prisma.directorTranscribeJob.update({
+          where: { id: session.transcribeJob.id },
+          data: { status: "COMPLETED" },
+        });
+        logger.info(
+          { sessionId },
+          "All clips transcribed - marked job COMPLETED"
+        );
+      }
+    }
+  }
 }
 
 /**
@@ -251,10 +288,12 @@ async function processTranscribeClipJob(
  */
 async function processExportJob(job: Job<DirectorExportJobData>) {
   const { sessionId, options } = job.data;
-  logger.info({ sessionId }, "Processing export job");
+  const logCtx = { jobId: job.id, sessionId, type: "EXPORT" };
+  logger.info(logCtx, "Processing export job");
 
   await job.updateProgress(10);
 
+  // Get Prisma record to update
   const session = await prisma.directorSession.findUnique({
     where: { id: sessionId },
     include: {
@@ -265,58 +304,97 @@ async function processExportJob(job: Job<DirectorExportJobData>) {
         } as any,
         orderBy: { orderIndex: "asc" },
       },
+      exportJob: true,
     },
   });
 
-  if (!session) {
-    throw new Error("Session not found");
+  if (!session || !session.exportJob) {
+    throw new Error("Session or export job not found");
   }
 
-  // Fetch assets to get file paths
-  // We assume all clips belong to the session's assets
-  // Fetch session asset
-  const asset = await prisma.directorAsset.findUnique({
-    where: { sessionId },
-  });
+  const exportJobId = session.exportJob.id;
 
-  if (!asset) {
-    throw new Error("Session asset not found");
-  }
-
-  const fileName = asset.storageKey.split("/").pop()!;
-  const sourcePath = join(env.MEDIA_INPUT_DIR, "director", fileName);
-
-  if (!existsSync(sourcePath)) {
-    throw new Error(`Asset file missing: ${sourcePath}`);
-  }
-
-  const clipsToExport = [];
-  const startExportClips = (session as any).selectedClips;
-
-  for (const clip of startExportClips) {
-    clipsToExport.push({
-      sourcePath,
-      start: clip.startMs / 1000,
-      end: clip.endMs / 1000,
-      transcript: clip.transcript,
+  try {
+    // 1. Mark PROCESSING
+    await prisma.directorExportJob.update({
+      where: { id: exportJobId },
+      data: { status: "PROCESSING" },
     });
+
+    // Fetch assets to get file paths
+    const asset = await prisma.directorAsset.findUnique({
+      where: { sessionId },
+    });
+
+    if (!asset) {
+      throw new Error("Session asset not found");
+    }
+
+    const fileName = asset.storageKey.split("/").pop()!;
+    const sourcePath = join(env.MEDIA_INPUT_DIR, "director", fileName);
+
+    if (!existsSync(sourcePath)) {
+      throw new Error(`Asset file missing: ${sourcePath}`);
+    }
+
+    const clipsToExport = [];
+    const startExportClips = (session as any).selectedClips;
+
+    for (const clip of startExportClips) {
+      // Determine actual start/end based on candidate + trim settings
+      // If user didn't trim, trimStartMs/trimEndMs are 0
+      const startMs = clip.candidate.startMs + (clip.trimStartMs || 0);
+      const endMs = clip.candidate.endMs - (clip.trimEndMs || 0);
+
+      clipsToExport.push({
+        sourcePath,
+        start: startMs / 1000,
+        end: endMs / 1000,
+        transcript: clip.transcript,
+      });
+    }
+
+    await job.updateProgress(30);
+
+    const outputDir = join(env.MEDIA_INPUT_DIR, "director", "exports");
+    if (!existsSync(outputDir)) {
+      await mkdir(outputDir, { recursive: true });
+    }
+
+    // Run Export Processor
+    const finalFile = await directorProcessor.exportVideo(
+      clipsToExport,
+      outputDir,
+      options
+    );
+
+    await job.updateProgress(100);
+
+    // 2. Mark COMPLETED
+    const outputStorageKey = `director/exports/${finalFile}`;
+    await prisma.directorExportJob.update({
+      where: { id: exportJobId },
+      data: {
+        status: "COMPLETED",
+        outputStorageKey,
+      },
+    });
+
+    logger.info({ ...logCtx, finalFile }, "Export job completed");
+    return { output: finalFile };
+  } catch (err) {
+    logger.error({ ...logCtx, err }, "Export job failed");
+
+    // 3. Mark FAILED
+    await prisma.directorExportJob.update({
+      where: { id: exportJobId },
+      data: {
+        status: "FAILED",
+        errorMessage: err instanceof Error ? err.message : "Unknown error",
+      },
+    });
+    throw err;
   }
-
-  await job.updateProgress(30);
-
-  const outputDir = join(env.MEDIA_INPUT_DIR, "director", "exports");
-  if (!existsSync(outputDir)) {
-    await mkdir(outputDir, { recursive: true });
-  }
-
-  const finalFile = await directorProcessor.exportVideo(
-    clipsToExport,
-    outputDir,
-    options
-  );
-
-  await job.updateProgress(100);
-  return { output: finalFile };
 }
 
 /**

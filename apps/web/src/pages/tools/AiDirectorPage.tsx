@@ -37,11 +37,12 @@ interface DirectorSession {
     origin: "UPLOAD" | "URL_IMPORT";
     sourceUrlNormalized?: string;
     ingestStatus: "UPLOADING" | "READY" | "FAILED";
+    storageKey: string;
   };
 }
 
 export function AiDirectorPage() {
-  const { accessToken } = useAuthStore();
+  const {} = useAuthStore();
   const [step, setStep] = useState<DirectorStep>("IMPORT");
   const [activeSession, setActiveSession] = useState<DirectorSession | null>(
     null
@@ -190,7 +191,6 @@ export function AiDirectorPage() {
   // UX STATE
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [analysisLogs, setAnalysisLogs] = useState<string[]>([]);
-  const logsEndRef = useRef<HTMLDivElement>(null);
 
   // POLLING EFFECT
   useEffect(() => {
@@ -257,13 +257,14 @@ export function AiDirectorPage() {
 
     // 2. POLLING FOR IMPORT (Download Progress)
     // We check either isWaitingForAsset flag OR if session tells us the asset is uploading
+    const asset = activeSession?.asset;
     const isUploading =
-      activeSession?.asset?.ingestStatus === "UPLOADING" || isWaitingForAsset;
+      asset?.ingestStatus === "UPLOADING" || isWaitingForAsset;
 
-    if (step === "IMPORT" && isUploading && activeSession?.asset?.id) {
+    if (step === "IMPORT" && isUploading && asset?.id) {
       interval = setInterval(async () => {
         try {
-          const assetId = activeSession.asset!.id;
+          const assetId = asset.id;
           const res = await authFetch(
             `/api/v1/director/assets/${assetId}/status`
           );
@@ -278,14 +279,16 @@ export function AiDirectorPage() {
               setIsWaitingForAsset(false); // Clear local flag
 
               // Refresh session to sync state
-              const sessRes = await authFetch(
-                `/api/v1/director/sessions/${activeSession.id}`
-              );
-              const sessData = await sessRes.json();
-              if (sessData.success) setActiveSession(sessData.data);
+              if (activeSession) {
+                const sessRes = await authFetch(
+                  `/api/v1/director/sessions/${activeSession.id}`
+                );
+                const sessData = await sessRes.json();
+                if (sessData.success) setActiveSession(sessData.data);
 
-              // Start analysis automatically
-              await startAnalysis(activeSession.id);
+                // Start analysis automatically
+                await startAnalysis(activeSession.id);
+              }
             } else if (status === "FAILED") {
               setError(errorMessage || "Download failed");
               setIsLoading(false);
@@ -391,24 +394,39 @@ export function AiDirectorPage() {
     if (
       step === "EXPORTING" &&
       activeSession &&
-      exportJob?.status === "PENDING"
+      !["COMPLETED", "FAILED"].includes(exportJob?.status || "")
     ) {
       interval = setInterval(async () => {
         try {
-          // In a real app we would have a specific endpoint for the job status
-          // For MVP we might just poll the export endpoint or similar
-          // Simulating completion for MVP after 3 seconds
-          if (Date.now() - new Date(exportJob.createdAt).getTime() > 3000) {
-            setExportJob((prev: any) => ({
-              ...prev,
-              status: "COMPLETED",
-              outputUrl: "https://example.com/video.mp4",
-            }));
+          const res = await authFetch(
+            `/api/v1/director/sessions/${activeSession.id}/export`
+          );
+          const data = await res.json();
+
+          if (data.success && data.data) {
+            const job = data.data;
+            const isCompleted = job.status === "COMPLETED";
+            const isFailed = job.status === "FAILED";
+
+            setExportJob({
+              ...job,
+              outputUrl:
+                isCompleted && job.outputStorageKey
+                  ? `/api/v1/director/static-assets/${job.outputStorageKey.replace(
+                      /^director\//,
+                      ""
+                    )}`
+                  : null,
+            });
+
+            if (isCompleted || isFailed) {
+              clearInterval(interval);
+            }
           }
         } catch (err) {
-          console.error(err);
+          console.error("Poll export error", err);
         }
-      }, 1000);
+      }, 2000);
     }
     return () => clearInterval(interval);
   }, [step, activeSession, exportJob]);
@@ -423,10 +441,13 @@ export function AiDirectorPage() {
             `/api/v1/director/sessions/${activeSession.id}`
           );
           const data = await res.json();
-          if (data.success && data.data?.asset?.ingestStatus === "READY") {
+          const remoteAsset = data.data?.asset;
+
+          if (data.success && remoteAsset?.ingestStatus === "READY") {
+            setActiveSession(data.data);
             setIsWaitingForAsset(false);
             await startAnalysis(data.data.id);
-          } else if (data.data?.asset?.ingestStatus === "FAILED") {
+          } else if (remoteAsset?.ingestStatus === "FAILED") {
             setIsWaitingForAsset(false);
             setIsLoading(false);
             setError("Failed to download video");
@@ -503,17 +524,21 @@ export function AiDirectorPage() {
       if (!data.success)
         throw new Error(data.error?.message || "Import failed");
 
-      // Update session with new asset info (contains UPLOADING status)
-      // Note: Backend endpoint for /import might return Asset, not Session?
-      // Check director.service.ts importAsset returns Asset.
-      // But we need to update activeSession?
-      // Actually we just use activeSession.id
+      // Update session with new asset info
+      const newAsset = { ...data.data, ingestStatus: "UPLOADING" };
+
+      // Update local state so polling starts
+      if (session) {
+        setActiveSession({
+          ...session,
+          asset: newAsset,
+        });
+      }
 
       if (data.data.ingestStatus === "READY") {
         await startAnalysis(session.id);
       } else {
         setIsWaitingForAsset(true);
-        // Keep isLoading true while waiting
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Import failed");
@@ -564,6 +589,9 @@ export function AiDirectorPage() {
       const importData = await importRes.json();
       if (!importData.success)
         throw new Error(importData.error?.message || "Import failed");
+
+      // Update session with new asset info
+      const newAsset = { ...importData.data, ingestStatus: "READY" };
 
       // 3. Start analysis
       await startAnalysis(session.id);
@@ -941,7 +969,12 @@ export function AiDirectorPage() {
                 {isPlaying ? (
                   <div className="relative w-full h-full">
                     <video
-                      src={`/api/v1/director/sessions/${activeSession?.id}/asset/stream?token=${accessToken}`}
+                      src={(() => {
+                        const asset = activeSession?.asset;
+                        if (!asset?.storageKey) return undefined;
+                        const filename = asset.storageKey.split("/").pop();
+                        return `/api/v1/director/static-assets/${filename}`;
+                      })()}
                       className="w-full h-full object-cover bg-black"
                       autoPlay
                       playsInline

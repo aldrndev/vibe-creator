@@ -604,15 +604,29 @@ export const downloadService = {
           errorOutput += data.toString();
         });
 
-        downloadProcess.stdout.on("data", (data) => {
-          const line = data.toString();
-          // yt-dlp standard output: "[download]  45.0% of 10.00MiB at 2.00MiB/s ETA 00:05"
-          const match = line.match(/\[download\]\s+(\d+\.\d+)%/);
-          if (match && match[1]) {
-            const percent = parseFloat(match[1]);
-            if (onProgress) onProgress(percent);
+        const parseProgress = (data: Buffer | string) => {
+          const lines = data.toString().split("\n");
+          for (const line of lines) {
+            // Match decimal (45.5%) or integer (100%)
+            const match = line.match(/\[download\]\s+(\d+(?:\.\d+)?)%/);
+            if (match && match[1]) {
+              const percent = parseFloat(match[1]);
+              if (onProgress) {
+                // Log only significant changes to avoid spamming logs too much, but enough for debug
+                if (Math.round(percent) % 10 === 0 || percent >= 99) {
+                  logger.info(
+                    { percent, line: line.trim() },
+                    "Matched download progress"
+                  );
+                }
+                onProgress(percent);
+              }
+            }
           }
-        });
+        };
+
+        downloadProcess.stdout.on("data", parseProgress);
+        downloadProcess.stderr.on("data", parseProgress); // Some versions use stderr
 
         downloadProcess.on("close", async (code) => {
           if (code === 0) {
