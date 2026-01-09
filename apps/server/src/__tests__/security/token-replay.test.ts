@@ -61,7 +61,7 @@ describe("Refresh Token Replay Detection", () => {
     });
 
     // Create T2
-    const _session2 = await prisma.userSession.create({
+    await prisma.userSession.create({
       data: {
         id: nanoid(),
         userId,
@@ -147,7 +147,8 @@ describe("Refresh Token Replay Detection", () => {
     });
 
     expect(sessions).toHaveLength(1);
-    expect(sessions[0].refreshToken).toBe(hashToken(refreshToken2));
+    expect(sessions.length).toBeGreaterThan(0);
+    expect(sessions[0]!.refreshToken).toBe(hashToken(refreshToken2));
   });
 
   it("should detect replay within TTL window", async () => {

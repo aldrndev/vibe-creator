@@ -138,6 +138,12 @@ export async function verifyAuditChain(): Promise<boolean> {
       const prev = entries[i - 1];
       const current = entries[i];
 
+      // Safety checks
+      if (!prev || !current) {
+        logger.warn({ index: i }, "Missing entry in audit chain");
+        return false;
+      }
+
       const expectedHash = crypto
         .createHash("sha256")
         .update(

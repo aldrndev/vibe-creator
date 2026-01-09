@@ -38,7 +38,6 @@ describe("Non-Leak Rule - NotFound Masking", () => {
     projectA = await prisma.project.create({
       data: {
         userId: userA.id,
-        name: "Project A",
       },
     });
   });
