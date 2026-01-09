@@ -112,7 +112,7 @@ export function createCircuitBreaker<
     logger.debug({ service: options.serviceName }, "Circuit breaker success");
   });
 
-  return breaker;
+  return breaker as CircuitBreaker<Parameters<T>, ReturnType<T>>;
 }
 
 /**
