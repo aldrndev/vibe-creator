@@ -8,11 +8,22 @@ const envSchema = z.object({
   // Redis
   REDIS_URL: z.string().url(),
 
-  // JWT
+  // JWT (Required - NO DEFAULTS for secrets)
   JWT_SECRET: z.string().min(32),
-  JWT_EXPIRES_IN: z.string().default("7d"),
+  JWT_REFRESH_SECRET: z.string().min(32),
+  JWT_ISSUER: z.string().default("vibe-creator-api"),
+  JWT_AUDIENCE: z.string().default("vibe-creator-web"),
+  JWT_ACCESS_EXPIRY: z.string().default("15m"),
+  JWT_REFRESH_EXPIRY: z.string().default("7d"),
 
-  // Session
+  // JWT Key Ring (for cryptographic signing)
+  JWT_SIGNING_KEY_ID: z.string().optional(),
+  JWT_SIGNING_KEY: z.union([z.string(), z.record(z.unknown())]).optional(),
+  JWT_VERIFY_KEYS: z
+    .union([z.string(), z.array(z.record(z.unknown()))])
+    .optional(),
+
+  // Session (legacy, kept for backward compatibility during migration)
   SESSION_DURATION_DAYS: z.coerce.number().default(7),
 
   // Cloudflare R2
@@ -53,6 +64,12 @@ const envSchema = z.object({
 
   // AI Keys
   OPENAI_API_KEY: z.string().min(1).optional(),
+
+  // Testing - disable rate limiting for E2E tests
+  DISABLE_RATE_LIMIT: z
+    .enum(["true", "false", "1", "0"])
+    .optional()
+    .transform((val) => val === "true" || val === "1"),
 });
 
 const parsed = envSchema.safeParse(process.env);

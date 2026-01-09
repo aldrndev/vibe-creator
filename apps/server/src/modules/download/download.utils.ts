@@ -14,6 +14,7 @@ export function detectPlatform(url: string): string {
   if (url.includes("vimeo.com")) return "vimeo";
   if (url.includes("reddit.com")) return "reddit";
   if (url.includes("sora.chatgpt.com")) return "sora";
+  if (url.startsWith("http://") || url.startsWith("https://")) return "generic";
   return "unknown";
 }
 

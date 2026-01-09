@@ -37,12 +37,14 @@ services:
     container_name: vibe-creator-server
     ports:
       - "3000:3000"
+    env_file:
+      - apps/server/.env
     environment:
       NODE_ENV: development
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/vibe_creator
       REDIS_URL: redis://redis:6379
-      JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-at-least-32-characters-long}
-      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-your-super-secret-refresh-key-32-chars}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
       # FFmpeg config
       FFMPEG_PATH: /usr/bin/ffmpeg
       MEDIA_INPUT_DIR: /app/uploads

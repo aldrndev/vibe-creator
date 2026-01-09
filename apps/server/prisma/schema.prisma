@@ -39,21 +39,28 @@ model User {
 }
 
 model UserSession {
-  id               String   @id @default(cuid())
+  id               String    @id @default(cuid())
   userId           String
-  token            String   @unique
-  refreshToken     String   @unique
+  token            String    @unique
+  refreshToken     String    @unique
   userAgent        String?
   ipAddress        String?
   expiresAt        DateTime
   refreshExpiresAt DateTime
-  createdAt        DateTime @default(now())
+  createdAt        DateTime  @default(now())
+  
+  // Token family model for refresh replay detection
+  tokenFamily      String?   // Family identifier for tracking related tokens
+  parentTokenId    String?   // ID of parent token that was rotated
+  consumedAt       DateTime? // Timestamp when token was used (single-use)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([token])
   @@index([refreshToken])
+  @@index([tokenFamily])
+  @@index([parentTokenId])
   @@map("user_sessions")
 }
 

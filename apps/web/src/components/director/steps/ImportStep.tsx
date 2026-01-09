@@ -1,8 +1,15 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { useDirectorStore } from "@/stores/director-store";
 import { authFetch } from "@/services/api";
 import { Card, CardBody, Input, Button, Chip, cn } from "@heroui/react";
-import { Wand2, FileVideo, Link as LinkIcon, AlertCircle } from "lucide-react";
+import {
+  Wand2,
+  FileVideo,
+  Link as LinkIcon,
+  AlertCircle,
+  Plus,
+} from "lucide-react";
+import { SupportedSourcesModal } from "./SupportedSourcesModal";
 
 export const ImportStep = () => {
   const {
@@ -20,6 +27,7 @@ export const ImportStep = () => {
     setWaitingForAsset,
   } = useDirectorStore();
 
+  const [isSourcesModalOpen, setIsSourcesModalOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleCreateSession = async () => {
@@ -198,10 +206,10 @@ export const ImportStep = () => {
               </div>
               <div>
                 <p className="font-semibold text-zinc-200 group-hover:text-white">
-                  Upload File
+                  Upload Video
                 </p>
                 <p className="text-xs text-zinc-500 mt-1">
-                  MP4, MOV up to 200MB
+                  MP4, MOV hingga 200MB
                 </p>
               </div>
               <input
@@ -220,7 +228,7 @@ export const ImportStep = () => {
                 <div className="absolute inset-0 z-10 bg-zinc-900/90 backdrop-blur-sm flex flex-col items-center justify-center p-6 gap-4">
                   <div className="w-full">
                     <div className="flex justify-between text-xs text-zinc-400 mb-2">
-                      <span>Downloading asset...</span>
+                      <span>Sedang mengunduh...</span>
                       <span>{Math.round(downloadProgress)}%</span>
                     </div>
                     <div className="w-full h-2 bg-zinc-800 rounded-full overflow-hidden">
@@ -231,7 +239,7 @@ export const ImportStep = () => {
                     </div>
                   </div>
                   <p className="text-xs text-zinc-500 animate-pulse">
-                    Please wait, fetching high-quality video...
+                    Mohon tunggu, mengambil video kualitas tinggi...
                   </p>
                 </div>
               ) : null}
@@ -240,12 +248,12 @@ export const ImportStep = () => {
                 <div className="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center">
                   <LinkIcon className="w-6 h-6 text-zinc-400" />
                 </div>
-                <p className="font-semibold text-zinc-200">Import URL</p>
+                <p className="font-semibold text-zinc-200">Impor URL</p>
               </div>
 
               <div className="space-y-2">
                 <Input
-                  placeholder="Paste YouTube, TikTok URL..."
+                  placeholder="Tempel URL YouTube, TikTok..."
                   size="sm"
                   classNames={{
                     inputWrapper: "bg-zinc-800 border-zinc-700",
@@ -263,7 +271,7 @@ export const ImportStep = () => {
                   isLoading={isLoading && !isWaitingForAsset}
                   onPress={handleUrlImport}
                 >
-                  Import
+                  Impor
                 </Button>
               </div>
             </div>
@@ -275,14 +283,37 @@ export const ImportStep = () => {
                 key={platform}
                 size="sm"
                 variant="flat"
-                className="bg-zinc-800 text-zinc-400"
+                className="bg-zinc-800 text-zinc-400 cursor-pointer hover:bg-zinc-700 transition-colors"
+                onClick={() => {
+                  // If just a visual helper, maybe prefill input?
+                  // For now, keep as visual indicator or focus input
+                }}
               >
                 {platform}
               </Chip>
             ))}
+            <Chip
+              size="sm"
+              variant="flat"
+              className="bg-primary/10 text-primary cursor-pointer hover:bg-primary/20 transition-colors border border-primary/20"
+              startContent={<Plus size={12} />}
+              onClick={() => setIsSourcesModalOpen(true)}
+            >
+              Lainnya
+            </Chip>
           </div>
         </CardBody>
       </Card>
+
+      <SupportedSourcesModal
+        isOpen={isSourcesModalOpen}
+        onOpenChange={setIsSourcesModalOpen}
+        onSelectPlatform={(platform) => {
+          // Optional: Prefill or just focus.
+          // Since user has to paste URL anyway, maybe just focus input?
+          // Let's just log or no-op for now unless we want to filter validation logic.
+        }}
+      />
     </div>
   );
 };

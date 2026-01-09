@@ -3,6 +3,7 @@ import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
 import cookie from "@fastify/cookie";
+import csrf from "@fastify/csrf-protection";
 
 import { env } from "@/config/env";
 import { logger } from "@/lib/logger";
@@ -46,8 +47,17 @@ async function main(): Promise<void> {
   });
 
   // Register plugins
+
+  // Security headers (Digitesia Standard - § Security Hardening)
   await fastify.register(helmet, {
-    contentSecurityPolicy: false,
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        frameAncestors: ["'none'"],
+        scriptSrc: ["'self'", "'unsafe-inline'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+      },
+    },
   });
 
   await fastify.register(cors, {
@@ -56,12 +66,23 @@ async function main(): Promise<void> {
   });
 
   await fastify.register(rateLimit, {
-    max: 100,
-    timeWindow: "1 minute",
+    max: env.DISABLE_RATE_LIMIT ? Number.MAX_SAFE_INTEGER : 100,
+    timeWindow: "15 minutes",
     redis,
   });
 
-  await fastify.register(cookie);
+  await fastify.register(cookie, {
+    secret: env.JWT_SECRET,
+  });
+
+  // CSRF protection for cookie-based endpoints (Digitesia Standard M3)
+  await fastify.register(csrf, {
+    cookieOpts: {
+      httpOnly: true,
+      secure: env.NODE_ENV === "production",
+      sameSite: "strict",
+    },
+  });
 
   // Custom plugins (global scope)
   await fastify.register(errorHandlerPlugin);
