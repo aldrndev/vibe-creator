@@ -789,3 +789,42 @@ model DirectorClipTranscript {
   @@index([sessionId])
   @@map("director_clip_transcripts")
 }
+
+// ============================================================================
+// AUDIT LOGGING
+// ============================================================================
+
+/// Immutable audit log for security events
+model AuditLog {
+  id String @id @default(cuid())
+
+  // Correlation
+  requestId String
+  jobId     String?
+
+  // Identity
+  userId   String?
+  tenantId String?
+
+  // Event details
+  action       String
+  resourceType String?
+  resourceId   String?
+  metadata     Json    @default("{}")
+
+  // Request context
+  ipAddress String?
+  userAgent String?
+
+  // Tamper detection
+  prevHash String? @db.VarChar(64)
+
+  // Timestamp
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+  @@index([requestId])
+  @@map("audit_logs")
+}
