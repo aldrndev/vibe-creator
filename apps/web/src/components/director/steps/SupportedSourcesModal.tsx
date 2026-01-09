@@ -8,7 +8,14 @@ import {
   Chip,
   ScrollShadow,
 } from "@heroui/react";
-import { Instagram, Twitter, Video, Music, Globe, Tv } from "lucide-react";
+import {
+  Smartphone,
+  MessageCircle,
+  Video,
+  Music,
+  Globe,
+  Tv,
+} from "lucide-react";
 
 interface SupportedSourcesModalProps {
   isOpen: boolean;
@@ -32,7 +39,7 @@ const CATEGORIES = [
   },
   {
     name: "Video Pendek",
-    icon: Instagram,
+    icon: Smartphone,
     platforms: [
       "TikTok",
       "Instagram Reels",
@@ -45,7 +52,7 @@ const CATEGORIES = [
   },
   {
     name: "Media Sosial",
-    icon: Twitter,
+    icon: MessageCircle,
     platforms: [
       "Twitter / X",
       "Reddit",

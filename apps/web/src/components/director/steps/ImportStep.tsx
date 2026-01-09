@@ -308,7 +308,7 @@ export const ImportStep = () => {
       <SupportedSourcesModal
         isOpen={isSourcesModalOpen}
         onOpenChange={setIsSourcesModalOpen}
-        onSelectPlatform={(platform) => {
+        onSelectPlatform={(_platform) => {
           // Optional: Prefill or just focus.
           // Since user has to paste URL anyway, maybe just focus input?
           // Let's just log or no-op for now unless we want to filter validation logic.
