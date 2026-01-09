@@ -1,4 +1,5 @@
 import { prisma } from "../../lib/prisma";
+import type { Prisma } from "@prisma/client";
 import { logger } from "../../lib/logger";
 import crypto from "crypto";
 import { Xendit } from "xendit-node";
@@ -233,7 +234,7 @@ export const billingService = {
    */
   async applyTopUp(purchaseId: string) {
     // Transactional apply
-    return await prisma.$transaction(async (tx) => {
+    return await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const purchase = await tx.streamTopupPurchase.findUnique({
         where: { id: purchaseId },
       });

@@ -269,7 +269,7 @@ export const downloadService = {
       take: 20, // Limit to last 20 downloads
     });
 
-    return jobs.map((job) => ({
+    return jobs.map((job: (typeof jobs)[number]) => ({
       id: job.id,
       status: job.status,
       platform: job.platform,

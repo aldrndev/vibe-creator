@@ -105,62 +105,64 @@ export async function processAnalysisJob(job: Job<DirectorAnalysisJobData>) {
       "Analysis complete"
     );
 
-    await prisma.$transaction(async (tx) => {
-      if (dbJob) {
-        await tx.directorAnalysisJob.update({
-          where: { id: dbJob.id },
-          data: {
-            status: "COMPLETED",
-            completedAt: new Date(),
-          },
-        });
-      }
+    await prisma.$transaction(
+      async (tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0]) => {
+        if (dbJob) {
+          await tx.directorAnalysisJob.update({
+            where: { id: dbJob.id },
+            data: {
+              status: "COMPLETED",
+              completedAt: new Date(),
+            },
+          });
+        }
 
-      if (candidates.length > 0 && dbJob) {
-        const candidatesWithPreviews = await Promise.all(
-          candidates.map(async (c, i) => {
-            const midPointMs = ((c.start + c.end) / 2) * 1000;
-            let previewKey: string | null = null;
+        if (candidates.length > 0 && dbJob) {
+          const candidatesWithPreviews = await Promise.all(
+            candidates.map(async (c, i) => {
+              const midPointMs = ((c.start + c.end) / 2) * 1000;
+              let previewKey: string | null = null;
 
-            try {
-              const previewFile = await directorProcessor.generateClipPreview(
-                filePath,
-                join(env.MEDIA_INPUT_DIR, "director", "previews"),
-                midPointMs
-              );
+              try {
+                const previewFile = await directorProcessor.generateClipPreview(
+                  filePath,
+                  join(env.MEDIA_INPUT_DIR, "director", "previews"),
+                  midPointMs
+                );
 
-              if (previewFile) {
-                previewKey = `director/previews/${previewFile}`;
+                if (previewFile) {
+                  previewKey = `director/previews/${previewFile}`;
+                }
+              } catch (err) {
+                logger.warn(
+                  { err, candidateIndex: i },
+                  "Failed to generate thumbnail preview"
+                );
               }
-            } catch (err) {
-              logger.warn(
-                { err, candidateIndex: i },
-                "Failed to generate thumbnail preview"
-              );
-            }
 
-            return {
-              analysisJobId: dbJob!.id,
-              startMs: Math.round(c.start * 1000),
-              endMs: Math.round(c.end * 1000),
-              score: c.score,
-              rank: i + 1,
-              tags: c.tags && c.tags.length > 0 ? c.tags : ["highlight"],
-              previewStorageKey: previewKey,
-            };
-          })
-        );
+              return {
+                analysisJobId: dbJob!.id,
+                startMs: Math.round(c.start * 1000),
+                endMs: Math.round(c.end * 1000),
+                score: c.score,
+                rank: i + 1,
+                tags: c.tags && c.tags.length > 0 ? c.tags : ["highlight"],
+                previewStorageKey: previewKey,
+              };
+            })
+          );
 
-        await tx.directorClipCandidate.createMany({
-          data: candidatesWithPreviews,
+          await tx.directorClipCandidate.createMany({
+            data: candidatesWithPreviews,
+          });
+        }
+
+        await tx.directorSession.update({
+          where: { id: sessionId },
+          data: { step: "PICKING" },
         });
       }
-
-      await tx.directorSession.update({
-        where: { id: sessionId },
-        data: { step: "PICKING" },
-      });
-    });
+    );
   } catch (err) {
     logger.error({ ...logCtx, err }, "Analysis job failed");
 

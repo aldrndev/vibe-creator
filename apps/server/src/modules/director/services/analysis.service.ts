@@ -126,7 +126,9 @@ export const directorAnalysisService = {
     }
 
     // Validate candidate IDs
-    const validCandidateIds = session.analysisJob.candidates.map((c) => c.id);
+    const validCandidateIds = session.analysisJob.candidates.map(
+      (c: (typeof session.analysisJob.candidates)[number]) => c.id
+    );
     const invalidIds = candidateIds.filter(
       (id) => !validCandidateIds.includes(id)
     );
@@ -169,7 +171,9 @@ export const directorAnalysisService = {
       {
         sessionId,
         clipCount: session.selectedClips.length,
-        hasTranscript: session.selectedClips.some((c) => !!c.transcript),
+        hasTranscript: session.selectedClips.some(
+          (c: (typeof session.selectedClips)[number]) => !!c.transcript
+        ),
       },
       "getSelectedClips: Returning clips"
     );

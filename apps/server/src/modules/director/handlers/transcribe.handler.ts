@@ -46,23 +46,25 @@ export async function processTranscribeSessionJob(
     data: { status: "PROCESSING" },
   });
 
-  const clipJobs = session.selectedClips.map((clip) => {
-    const jobData: DirectorTranscribeClipJobData = {
-      type: "TRANSCRIBE_CLIP",
-      sessionId,
-      selectedClipId: clip.id,
-      userId: job.data.userId,
-    };
+  const clipJobs = session.selectedClips.map(
+    (clip: (typeof session.selectedClips)[number]) => {
+      const jobData: DirectorTranscribeClipJobData = {
+        type: "TRANSCRIBE_CLIP",
+        sessionId,
+        selectedClipId: clip.id,
+        userId: job.data.userId,
+      };
 
-    return {
-      name: "transcribe_clip" as const,
-      data: jobData,
-      opts: {
-        removeOnComplete: true,
-        jobId: `director:transcribe:clip:${clip.id}`,
-      },
-    };
-  });
+      return {
+        name: "transcribe_clip" as const,
+        data: jobData,
+        opts: {
+          removeOnComplete: true,
+          jobId: `director:transcribe:clip:${clip.id}`,
+        },
+      };
+    }
+  );
 
   await directorQueue.addBulk(clipJobs);
 

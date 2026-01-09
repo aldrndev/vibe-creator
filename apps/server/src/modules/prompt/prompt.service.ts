@@ -72,15 +72,17 @@ export const promptService = {
       prisma.prompt.count({ where }),
     ]);
 
-    const formattedPrompts = prompts.map((prompt) => ({
-      id: prompt.id,
-      type: prompt.type,
-      title: prompt.title,
-      currentVersion: prompt.versions[0]?.version ?? 0,
-      lastGeneratedPrompt: prompt.versions[0]?.generatedPrompt ?? null,
-      createdAt: prompt.createdAt,
-      updatedAt: prompt.updatedAt,
-    }));
+    const formattedPrompts = prompts.map(
+      (prompt: (typeof prompts)[number]) => ({
+        id: prompt.id,
+        type: prompt.type,
+        title: prompt.title,
+        currentVersion: prompt.versions[0]?.version ?? 0,
+        lastGeneratedPrompt: prompt.versions[0]?.generatedPrompt ?? null,
+        createdAt: prompt.createdAt,
+        updatedAt: prompt.updatedAt,
+      })
+    );
 
     return { data: formattedPrompts, total };
   },
