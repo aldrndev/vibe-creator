@@ -111,6 +111,9 @@ importers:
       '@types/node':
         specifier: 22.10.2
         version: 22.10.2
+      '@types/opossum':
+        specifier: ^8.1.9
+        version: 8.1.9
       '@vitest/coverage-v8':
         specifier: ^4.0.16
         version: 4.0.16(vitest@4.0.16(@types/node@22.10.2)(jiti@1.21.7)(tsx@4.19.2)(yaml@2.8.2))
@@ -2531,6 +2534,9 @@ packages:
 
   '@types/node@22.10.2':
     resolution: {integrity: sha512-Xxr6BBRCAOQixvonOye19wnzyDiUtTeqldOOmj3CkeblonbccA12PFwlufvRdrpjXxqnmUaeiU5EOA+7s5diUQ==}
+
+  '@types/opossum@8.1.9':
+    resolution: {integrity: sha512-Jm/tYxuJFefiwRYs+/EOsUP3ktk0c8siMgAHPLnA4PXF4wKghzcjqf88dY+Xii5jId5Txw4JV0FMKTpjbd7KJA==}
 
   '@types/react-dom@19.0.2':
     resolution: {integrity: sha512-c1s+7TKFaDRRxr1TxccIX2u7sfCnc3RxkVyBIUA2lCpyqCF+QoAwQ/CBg7bsMdVwP120HEH143VQezKtef5nCg==}
@@ -7783,6 +7789,10 @@ snapshots:
   '@types/node@22.10.2':
     dependencies:
       undici-types: 6.20.0
+
+  '@types/opossum@8.1.9':
+    dependencies:
+      '@types/node': 22.10.2
 
   '@types/react-dom@19.0.2(@types/react@19.0.2)':
     dependencies:

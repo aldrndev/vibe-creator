@@ -94,21 +94,21 @@ export function createCircuitBreaker<
     );
   });
 
-  breaker.on("fallback", (result) => {
+  breaker.on("fallback", (_result: unknown) => {
     logger.info(
       { service: options.serviceName },
       "Circuit breaker fallback executed"
     );
   });
 
-  breaker.on("failure", (err) => {
+  breaker.on("failure", (err: Error) => {
     logger.error(
       { service: options.serviceName, err: err.message },
       "Circuit breaker failure"
     );
   });
 
-  breaker.on("success", (result) => {
+  breaker.on("success", (_result: unknown) => {
     logger.debug({ service: options.serviceName }, "Circuit breaker success");
   });
 
