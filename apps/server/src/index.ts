@@ -29,6 +29,9 @@ import { billingRoutes } from "@/modules/billing/billing.routes";
 import { jobRoutes } from "@/modules/story/job.routes";
 import { directorRoutes } from "@/modules/director/director.routes";
 
+// JWT key ring initialization (Digitesia Standard C1)
+import { initializeKeyRing } from "@/lib/jwt";
+
 import { cleanupCron } from "@/modules/cron/cleanup.cron";
 
 import { startWorkers } from "./workers";
@@ -143,6 +146,11 @@ async function main(): Promise<void> {
 
   // Start server
   try {
+    // Initialize JWT key ring (Digitesia Standard C1)
+    logger.info("Initializing JWT key ring...");
+    await initializeKeyRing();
+    logger.info("JWT key ring initialized successfully");
+
     // Start background workers
     await startWorkers();
 
