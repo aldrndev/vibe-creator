@@ -11,14 +11,14 @@
 import { describe, it, expect } from "vitest";
 
 // Define export job states
-const EXPORT_STATES = {
+const _EXPORT_STATES = {
   PENDING: "PENDING",
   PROCESSING: "PROCESSING",
   COMPLETED: "COMPLETED",
   FAILED: "FAILED",
 } as const;
 
-type ExportState = (typeof EXPORT_STATES)[keyof typeof EXPORT_STATES];
+type ExportState = (typeof _EXPORT_STATES)[keyof typeof _EXPORT_STATES];
 
 // State transition rules
 const VALID_TRANSITIONS: Record<ExportState, ExportState[]> = {

@@ -33,7 +33,7 @@ export const prisma =
 
 // Log slow queries in development
 if (env.NODE_ENV === "development") {
-  prisma.$on("query" as never, (e: any) => {
+  prisma.$on("query" as never, (e: { query: string; duration: number }) => {
     if (e.duration > 1000) {
       // Warn about queries > 1s
       logger.warn(

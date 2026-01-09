@@ -104,7 +104,7 @@ describe("Non-Leak Rule - NotFound Masking", () => {
         code: string;
         message: string;
       };
-      data?: any;
+      data?: unknown;
     };
 
     const getProject = async (

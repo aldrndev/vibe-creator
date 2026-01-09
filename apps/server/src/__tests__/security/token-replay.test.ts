@@ -61,7 +61,7 @@ describe("Refresh Token Replay Detection", () => {
     });
 
     // Create T2
-    const session2 = await prisma.userSession.create({
+    const _session2 = await prisma.userSession.create({
       data: {
         id: nanoid(),
         userId,
