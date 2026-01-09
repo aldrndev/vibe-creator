@@ -85,7 +85,7 @@ export async function audit(params: AuditParams): Promise<void> {
         action: params.action,
         resourceType: params.resourceType,
         resourceId: params.resourceId,
-        metadata: params.metadata || {},
+        metadata: (params.metadata as any) || {},
         ipAddress: params.ipAddress,
         userAgent: params.userAgent,
         prevHash,
@@ -128,7 +128,7 @@ export async function verifyAuditChain(): Promise<boolean> {
     if (entries.length === 0) return true;
 
     // First entry should have no previous hash
-    if (entries[0].prevHash !== null) {
+    if (entries[0]?.prevHash !== null) {
       logger.warn("First audit log entry has prevHash - chain compromised");
       return false;
     }

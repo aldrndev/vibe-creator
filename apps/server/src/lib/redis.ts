@@ -55,6 +55,6 @@ redis.on("ready", () => {
   logger.info("Redis ready to accept commands");
 });
 
-redis.on("reconnecting", (delay) => {
+redis.on("reconnecting", (delay: number) => {
   logger.warn({ delay }, "Redis reconnecting");
 });
