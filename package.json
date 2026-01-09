@@ -4,16 +4,17 @@
   "private": true,
   "description": "Platform all-in-one untuk daily content creation",
   "scripts": {
-    "dev": "turbo dev",
-    "build": "turbo build",
-    "lint": "turbo lint",
-    "typecheck": "turbo typecheck",
-    "test": "turbo test",
+    "dev": "pnpm -r dev",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
     "server": "pnpm --filter @vibe-creator/server dev",
     "web": "pnpm --filter @vibe-creator/web dev",
     "db:migrate": "pnpm --filter @vibe-creator/server db:migrate",
     "db:generate": "pnpm --filter @vibe-creator/server db:generate",
-    "db:studio": "pnpm --filter @vibe-creator/server db:studio"
+    "db:studio": "pnpm --filter @vibe-creator/server db:studio",
+    "clean": "rm -rf node_modules **/*/node_modules **/*/dist **/*/build"
   },
   "keywords": [
     "content-creator",
