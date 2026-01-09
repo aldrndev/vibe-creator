@@ -1,4 +1,4 @@
-import { FastifyPluginAsync } from "fastify";
+import { FastifyPluginAsync, FastifyRequest, FastifyReply } from "fastify";
 import { z } from "zod";
 import { directorService } from "../director.service";
 
@@ -18,7 +18,10 @@ export const transcribeRoutes: FastifyPluginAsync = async (fastify) => {
    */
   fastify.post<{ Params: { id: string } }>(
     "/sessions/:id/transcribe",
-    async (request, reply) => {
+    async (
+      request: FastifyRequest<{ Params: { id: string } }>,
+      reply: FastifyReply
+    ) => {
       const user = request.user;
       if (!user) {
         return reply.status(401).send({
@@ -52,7 +55,10 @@ export const transcribeRoutes: FastifyPluginAsync = async (fastify) => {
    */
   fastify.get<{ Params: { id: string } }>(
     "/sessions/:id/transcribe",
-    async (request, reply) => {
+    async (
+      request: FastifyRequest<{ Params: { id: string } }>,
+      reply: FastifyReply
+    ) => {
       const user = request.user;
       if (!user) {
         return reply.status(401).send({
@@ -86,7 +92,10 @@ export const transcribeRoutes: FastifyPluginAsync = async (fastify) => {
    */
   fastify.patch<{ Params: { id: string; clipId: string } }>(
     "/sessions/:id/clips/:clipId/transcript",
-    async (request, reply) => {
+    async (
+      request: FastifyRequest<{ Params: { id: string; clipId: string } }>,
+      reply: FastifyReply
+    ) => {
       const user = request.user;
       if (!user) {
         return reply.status(401).send({
@@ -113,7 +122,7 @@ export const transcribeRoutes: FastifyPluginAsync = async (fastify) => {
             success: false,
             error: {
               code: "VALIDATION_ERROR",
-              message: err.errors[0]?.message,
+              message: err.issues[0]?.message,
             },
           });
         }

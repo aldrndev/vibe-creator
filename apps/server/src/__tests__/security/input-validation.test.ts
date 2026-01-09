@@ -13,7 +13,7 @@ import { z } from "zod";
 
 describe("Input Validation Security", () => {
   describe("Email Validation", () => {
-    const emailSchema = z.string().email();
+    const emailSchema = z.email();
 
     it("should accept valid email", () => {
       expect(() => emailSchema.parse("user@example.com")).not.toThrow();
@@ -40,12 +40,9 @@ describe("Input Validation Security", () => {
 
   describe("URL Validation", () => {
     // Strict URL schema that only allows http/https
-    const strictUrlSchema = z
-      .string()
-      .url()
-      .refine((url) => /^https?:\/\//.test(url), {
-        message: "URL must use http or https protocol",
-      });
+    const strictUrlSchema = z.url().refine((url) => /^https?:\/\//.test(url), {
+      message: "URL must use http or https protocol",
+    });
 
     it("should accept valid HTTPS URL", () => {
       expect(() => strictUrlSchema.parse("https://example.com")).not.toThrow();
@@ -69,7 +66,7 @@ describe("Input Validation Security", () => {
   });
 
   describe("ID Validation", () => {
-    const uuidSchema = z.string().uuid();
+    const uuidSchema = z.uuid();
 
     it("should accept valid UUID", () => {
       expect(() =>

@@ -1,5 +1,5 @@
 import { Worker, Job } from "bullmq";
-import { redis } from "@/lib/redis";
+import { redisOptions } from "@/lib/redis";
 import { logger } from "@/lib/logger";
 import {
   DIRECTOR_QUEUE_NAME,
@@ -52,7 +52,7 @@ export const directorWorker = new Worker<DirectorJobData>(
   DIRECTOR_QUEUE_NAME,
   jobProcessor,
   {
-    connection: redis,
+    connection: redisOptions,
     concurrency: 5,
     limiter: {
       max: 10,

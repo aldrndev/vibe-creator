@@ -14,16 +14,16 @@ import { z } from "zod";
 // Simulate user update schema with allowlist
 const userUpdateSchema = z.object({
   name: z.string().min(2).max(100).optional(),
-  avatarUrl: z.string().url().optional(),
+  avatarUrl: z.url().optional(),
   // Note: role and email are NOT in schema (protected)
 });
 
 // Simulate admin-only schema
 const adminUserUpdateSchema = z.object({
   name: z.string().min(2).max(100).optional(),
-  avatarUrl: z.string().url().optional(),
+  avatarUrl: z.url().optional(),
   role: z.enum(["USER", "ADMIN"]).optional(),
-  email: z.string().email().optional(),
+  email: z.email().optional(),
 });
 
 describe("Mass Assignment Protection", () => {

@@ -10,7 +10,7 @@ import fastifyStatic from "@fastify/static";
 const importAssetSchema = z
   .object({
     type: z.enum(["url", "file"]),
-    url: z.string().url().optional(),
+    url: z.url().optional(),
     filePath: z.string().optional(),
   })
   .refine(
@@ -150,7 +150,7 @@ export const assetRoutes: FastifyPluginAsync = async (fastify) => {
             success: false,
             error: {
               code: "VALIDATION_ERROR",
-              message: err.errors[0]?.message,
+              message: err.issues[0]?.message,
             },
           });
         }

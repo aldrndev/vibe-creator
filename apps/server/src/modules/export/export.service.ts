@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
+import { ExportResolution } from "@prisma/client";
 import { cancelExportJob } from "./export-cancel";
 import { processExportJob } from "./processors/export.processor";
 
@@ -93,7 +94,7 @@ export const exportService = {
         userId,
         projectId: projectId && projectId !== "default" ? projectId : undefined,
         format,
-        resolution,
+        resolution: resolution as ExportResolution,
         status: "QUEUED",
         timelineData: JSON.parse(JSON.stringify(timelineData)),
         expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),

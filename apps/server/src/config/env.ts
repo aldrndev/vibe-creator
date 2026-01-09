@@ -3,10 +3,10 @@ import "dotenv/config";
 
 const envSchema = z.object({
   // Database
-  DATABASE_URL: z.string().url(),
+  DATABASE_URL: z.url(),
 
   // Redis
-  REDIS_URL: z.string().url(),
+  REDIS_URL: z.url(),
 
   // JWT (Required - NO DEFAULTS for secrets)
   JWT_SECRET: z.string().min(32),
@@ -18,9 +18,11 @@ const envSchema = z.object({
 
   // JWT Key Ring (for cryptographic signing)
   JWT_SIGNING_KEY_ID: z.string().optional(),
-  JWT_SIGNING_KEY: z.union([z.string(), z.record(z.unknown())]).optional(),
+  JWT_SIGNING_KEY: z
+    .union([z.string(), z.record(z.string(), z.unknown())])
+    .optional(),
   JWT_VERIFY_KEYS: z
-    .union([z.string(), z.array(z.record(z.unknown()))])
+    .union([z.string(), z.array(z.record(z.string(), z.unknown()))])
     .optional(),
 
   // Session (legacy, kept for backward compatibility during migration)
@@ -57,7 +59,7 @@ const envSchema = z.object({
   MEDIA_INPUT_DIR: z.string().default("./uploads"),
 
   // Video Download (Cobalt API)
-  COBALT_API_URL: z.string().url().optional(), // Self-hosted Cobalt API URL
+  COBALT_API_URL: z.url().optional(), // Self-hosted Cobalt API URL
 
   // SaveSora API for downloading Sora videos
   SAVESORA_API_KEY: z.string().optional(),
@@ -77,7 +79,7 @@ const parsed = envSchema.safeParse(process.env);
 if (!parsed.success) {
   // Fail fast per Digitesia Standard (console forbidden, but env validation is critical)
   process.stderr.write("❌ Invalid environment variables:\n");
-  process.stderr.write(JSON.stringify(parsed.error.format(), null, 2) + "\n");
+  process.stderr.write(JSON.stringify(parsed.error.issues, null, 2) + "\n");
   process.exit(1);
 }
 

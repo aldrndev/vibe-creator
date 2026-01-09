@@ -1,4 +1,4 @@
-import { FastifyPluginAsync } from "fastify";
+import { FastifyPluginAsync, FastifyRequest, FastifyReply } from "fastify";
 import { z } from "zod";
 import { directorService } from "../director.service";
 
@@ -15,37 +15,43 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
   /**
    * Create new director session
    */
-  fastify.post("/sessions", async (request, reply) => {
-    const user = request.user;
-    if (!user) {
-      return reply.status(401).send({
-        success: false,
-        error: { code: "UNAUTHORIZED", message: "Authentication required" },
-      });
-    }
+  fastify.post(
+    "/sessions",
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const user = request.user;
+      if (!user) {
+        return reply.status(401).send({
+          success: false,
+          error: { code: "UNAUTHORIZED", message: "Authentication required" },
+        });
+      }
 
-    try {
-      const session = await directorService.createSession(user.id);
-      return reply.status(201).send({
-        success: true,
-        data: session,
-      });
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Failed to create session";
-      return reply.status(400).send({
-        success: false,
-        error: { code: "CREATE_FAILED", message },
-      });
+      try {
+        const session = await directorService.createSession(user.id);
+        return reply.status(201).send({
+          success: true,
+          data: session,
+        });
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : "Failed to create session";
+        return reply.status(400).send({
+          success: false,
+          error: { code: "CREATE_FAILED", message },
+        });
+      }
     }
-  });
+  );
 
   /**
    * Get session details
    */
   fastify.get<{ Params: { id: string } }>(
     "/sessions/:id",
-    async (request, reply) => {
+    async (
+      request: FastifyRequest<{ Params: { id: string } }>,
+      reply: FastifyReply
+    ) => {
       const user = request.user;
       if (!user) {
         return reply.status(401).send({
@@ -80,7 +86,10 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
    */
   fastify.delete<{ Params: { id: string } }>(
     "/sessions/:id",
-    async (request, reply) => {
+    async (
+      request: FastifyRequest<{ Params: { id: string } }>,
+      reply: FastifyReply
+    ) => {
       const user = request.user;
       if (!user) {
         return reply.status(401).send({
@@ -110,7 +119,10 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
    */
   fastify.patch<{ Params: { id: string } }>(
     "/sessions/:id/subtitle",
-    async (request, reply) => {
+    async (
+      request: FastifyRequest<{ Params: { id: string } }>,
+      reply: FastifyReply
+    ) => {
       const user = request.user;
       if (!user) {
         return reply.status(401).send({
@@ -136,7 +148,7 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
             success: false,
             error: {
               code: "VALIDATION_ERROR",
-              message: err.errors[0]?.message,
+              message: err.issues[0]?.message,
             },
           });
         }

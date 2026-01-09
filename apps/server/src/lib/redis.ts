@@ -10,7 +10,16 @@ import { logger } from "@/lib/logger";
  * - Command timeout: 5 seconds
  * - Bounded retries: Max 3 attempts with exponential backoff
  */
+// Shared Redis Options for BullMQ compatibility
+export const redisOptions = {
+  host: new URL(env.REDIS_URL).hostname || "localhost",
+  port: parseInt(new URL(env.REDIS_URL).port || "6379"),
+  password: new URL(env.REDIS_URL).password || undefined,
+  maxRetriesPerRequest: null, // Required for BullMQ workers
+};
+
 export const redis = new Redis(env.REDIS_URL, {
+  ...redisOptions,
   // Timeout configuration
   connectTimeout: 5000, // 5s to establish connection
   commandTimeout: 5000, // 5s per command

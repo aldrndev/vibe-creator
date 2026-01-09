@@ -1,12 +1,29 @@
+# =============================================================================
+# Vibe Creator - Docker Compose (Local Development)
+# =============================================================================
+# Digitesia Standard v3.6.7 Compliant
+#
+# REQUIRED FILES:
+#   - .env.docker.infra    (Infrastructure secrets - postgres, redis)
+#   - apps/server/.env.docker (Application secrets - JWT, etc.)
+#
+# Both files are gitignored. Copy from .env.example templates.
+# =============================================================================
+
 services:
+  # ---------------------------------------------------------------------------
+  # PostgreSQL Database
+  # ---------------------------------------------------------------------------
   postgres:
-    image: postgres:16-alpine
+    # Pinned to exact version with digest for determinism
+    image: postgres@sha256:5660c2cbfea50c7a9127d17dc4e48543eedd3d7a41a595a2dfa572471e37e64c
     container_name: vibe-creator-db
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: vibe_creator
+    # Secrets from dedicated infrastructure env file
+    env_file:
+      - .env.docker.infra
     ports:
+      # Exposed for local dev tools (DBeaver, pgAdmin)
+      # Production: Remove or restrict
       - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -16,10 +33,16 @@ services:
       timeout: 5s
       retries: 5
 
+  # ---------------------------------------------------------------------------
+  # Redis Cache
+  # ---------------------------------------------------------------------------
   redis:
-    image: redis:7-alpine
+    # Pinned to exact version with digest for determinism
+    image: redis@sha256:ee64a64eaab618d88051c3ade8f6352d11531fcf79d9a4818b9b183d8c1d18ba
     container_name: vibe-creator-redis
     ports:
+      # Exposed for local dev tools (RedisInsight)
+      # Production: Remove or restrict
       - "6379:6379"
     volumes:
       - redis_data:/data
@@ -29,6 +52,9 @@ services:
       timeout: 5s
       retries: 5
 
+  # ---------------------------------------------------------------------------
+  # Application Server
+  # ---------------------------------------------------------------------------
   server:
     build:
       context: .
@@ -37,15 +63,13 @@ services:
     container_name: vibe-creator-server
     ports:
       - "3000:3000"
+    # App secrets from dedicated env file
     env_file:
-      - apps/server/.env
+      - apps/server/.env.docker
     environment:
+      # Non-secret configuration overrides
       NODE_ENV: development
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/vibe_creator
-      REDIS_URL: redis://redis:6379
-      JWT_SECRET: ${JWT_SECRET}
-      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
-      # FFmpeg config
+      # FFmpeg paths (container-specific)
       FFMPEG_PATH: /usr/bin/ffmpeg
       MEDIA_INPUT_DIR: /app/uploads
       TEMP_DIR: /app/uploads/temp
@@ -53,7 +77,7 @@ services:
       COBALT_API_URL: http://cobalt:9000
     volumes:
       - server_uploads:/app/uploads
-      # HOT RELOAD MAPPINGS
+      # Hot reload mappings
       - ./apps/server/src:/app/apps/server/src
       - ./apps/server/tsconfig.json:/app/apps/server/tsconfig.json
       - ./apps/server/package.json:/app/apps/server/package.json
@@ -61,8 +85,6 @@ services:
       # Prevent host node_modules from breaking container
       - /app/apps/server/node_modules
       - /app/node_modules
-    # Command defined in Dockerfile dev stage, but we can keep it explicit or remove
-    # Default is: CMD ["pnpm", "--filter", "@vibe-creator/server", "dev"]
     depends_on:
       postgres:
         condition: service_healthy
@@ -85,21 +107,21 @@ services:
           cpus: "1.0"
           memory: 512M
 
-  # Self-hosted Cobalt API for YouTube/TikTok/Instagram video downloads
+  # ---------------------------------------------------------------------------
+  # Cobalt API (Video Downloads)
+  # ---------------------------------------------------------------------------
   cobalt:
+    # Using major version tag - acceptable for third-party service
+    # TODO: Pin to digest when stability is confirmed
     image: ghcr.io/imputnet/cobalt:10
     container_name: vibe-creator-cobalt
     restart: unless-stopped
     ports:
       - "9000:9000"
     environment:
-      # API mode (api only, no web interface)
       API_URL: "http://localhost:9000"
-      # Disable authentication for internal use
       API_AUTH_REQUIRED: "0"
-      # Quality settings
       QUALITY: "1080"
-      # Enable all services
       YOUTUBE_ENABLED: "1"
       TIKTOK_ENABLED: "1"
       TWITTER_ENABLED: "1"
@@ -110,6 +132,9 @@ services:
       timeout: 10s
       retries: 3
 
+# =============================================================================
+# Volumes
+# =============================================================================
 volumes:
   postgres_data:
   redis_data:

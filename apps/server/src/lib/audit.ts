@@ -10,8 +10,9 @@
 
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
-import type { InputJsonValue } from "@prisma/client/runtime/library";
-import crypto from "crypto";
+// import { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
+import crypto from "node:crypto";
 
 export enum AuditAction {
   // Authentication
@@ -86,7 +87,7 @@ export async function audit(params: AuditParams): Promise<void> {
         action: params.action,
         resourceType: params.resourceType,
         resourceId: params.resourceId,
-        metadata: (params.metadata || {}) as InputJsonValue,
+        metadata: (params.metadata || {}) as Prisma.InputJsonValue,
         ipAddress: params.ipAddress,
         userAgent: params.userAgent,
         prevHash,

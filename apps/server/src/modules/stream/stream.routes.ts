@@ -61,10 +61,10 @@ export const streamRoutes: FastifyPluginAsync = async (fastify) => {
       });
     } catch (err) {
       if (err instanceof z.ZodError) {
-        logger.debug({ errors: err.errors }, "Validation Error");
+        logger.debug({ errors: err.issues }, "Validation Error");
         return reply.status(400).send({
           success: false,
-          error: { code: "VALIDATION_ERROR", message: err.errors[0]?.message },
+          error: { code: "VALIDATION_ERROR", message: err.issues[0]?.message },
         });
       }
 
@@ -101,7 +101,7 @@ export const streamRoutes: FastifyPluginAsync = async (fastify) => {
       if (err instanceof z.ZodError) {
         return reply.status(400).send({
           success: false,
-          error: { code: "VALIDATION_ERROR", message: err.errors[0]?.message },
+          error: { code: "VALIDATION_ERROR", message: err.issues[0]?.message },
         });
       }
 

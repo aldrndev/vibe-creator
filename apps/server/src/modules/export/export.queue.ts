@@ -1,5 +1,5 @@
 import { Queue, Worker, Job } from "bullmq";
-import { redis } from "@/lib/redis";
+import { redisOptions } from "@/lib/redis";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { ffmpegProcessor } from "./ffmpeg.processor";
@@ -32,23 +32,26 @@ async function ensureDirectories() {
 /**
  * Export job queue
  */
-export const exportQueue = new Queue<ExportJobData>(QUEUE_NAME, {
-  connection: redis,
-  defaultJobOptions: {
-    attempts: 3,
-    backoff: {
-      type: "exponential",
-      delay: 5000, // 5s, 25s, 125s
+export const exportQueue = new Queue<ExportJobData, unknown, string>(
+  QUEUE_NAME,
+  {
+    connection: redisOptions,
+    defaultJobOptions: {
+      attempts: 3,
+      backoff: {
+        type: "exponential",
+        delay: 5000, // 5s, 25s, 125s
+      },
+      removeOnComplete: {
+        age: 24 * 60 * 60, // 24 hours
+        count: 100,
+      },
+      removeOnFail: {
+        age: 7 * 24 * 60 * 60, // 7 days
+      },
     },
-    removeOnComplete: {
-      age: 24 * 60 * 60, // 24 hours
-      count: 100,
-    },
-    removeOnFail: {
-      age: 7 * 24 * 60 * 60, // 7 days
-    },
-  },
-});
+  }
+);
 
 /**
  * Update job phase in database
@@ -265,7 +268,7 @@ export const exportWorker = new Worker<ExportJobData>(
   QUEUE_NAME,
   processExportJob,
   {
-    connection: redis,
+    connection: redisOptions,
     concurrency: 2, // Process 2 jobs at a time per worker
     limiter: {
       max: 10,

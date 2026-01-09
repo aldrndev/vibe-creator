@@ -2,19 +2,20 @@ import type { FastifyInstance } from "fastify";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/plugins/auth";
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 
 const createProjectSchema = z.object({
   title: z.string().min(1).max(255),
   description: z.string().optional(),
   mode: z.enum(["STORY", "TIMELINE"]).optional(),
-  storyData: z.object({}).passthrough().optional(),
+  storyData: z.looseObject({}).optional(),
 });
 
 const updateProjectSchema = z.object({
   title: z.string().min(1).max(255).optional(),
   description: z.string().optional(),
   mode: z.enum(["STORY", "TIMELINE"]).optional(),
-  storyData: z.object({}).passthrough().optional(),
+  storyData: z.looseObject({}).optional(),
 });
 
 export async function projectRoutes(fastify: FastifyInstance): Promise<void> {
@@ -85,6 +86,7 @@ export async function projectRoutes(fastify: FastifyInstance): Promise<void> {
     const project = await prisma.project.create({
       data: {
         ...body,
+        storyData: body.storyData as Prisma.InputJsonValue,
         userId: request.user!.id,
       },
     });
@@ -113,7 +115,10 @@ export async function projectRoutes(fastify: FastifyInstance): Promise<void> {
 
       const project = await prisma.project.update({
         where: { id },
-        data: body,
+        data: {
+          ...body,
+          storyData: body.storyData as Prisma.InputJsonValue,
+        },
       });
 
       return reply.send({ success: true, data: project });

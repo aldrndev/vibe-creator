@@ -17,7 +17,11 @@ import {
   afterAll,
   beforeEach,
 } from "vitest";
-import Fastify, { FastifyInstance } from "fastify";
+import Fastify, {
+  FastifyInstance,
+  FastifyReply,
+  FastifyRequest,
+} from "fastify";
 import { z } from "zod";
 
 // Mock dependencies before importing routes
@@ -67,71 +71,79 @@ async function buildApp(): Promise<FastifyInstance> {
   });
 
   // Global error handler - hides internal errors
-  app.setErrorHandler((_error, _request, reply) => {
-    // Never expose internal error details
-    reply.status(500).send({
-      success: false,
-      error: {
-        code: "INTERNAL_ERROR",
-        message: "An unexpected error occurred",
-      },
-    });
-  });
+  app.setErrorHandler(
+    (_error: unknown, _request: FastifyRequest, reply: FastifyReply) => {
+      // Never expose internal error details
+      reply.status(500).send({
+        success: false,
+        error: {
+          code: "INTERNAL_ERROR",
+          message: "An unexpected error occurred",
+        },
+      });
+    }
+  );
 
   // Register test routes (simplified auth routes)
-  app.post("/register", async (request, reply) => {
-    const schema = z.object({
-      email: z.string().email(),
-      password: z.string().min(8),
-      name: z.string().min(2),
-      turnstileToken: z.string().min(1),
-    });
-
-    try {
-      const body = schema.parse(request.body);
-
-      // Check existing user
-      const existing = await mockPrisma.user.findUnique({
-        where: { email: body.email },
+  app.post(
+    "/register",
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const schema = z.object({
+        email: z.email(),
+        password: z.string().min(8),
+        name: z.string().min(2),
+        turnstileToken: z.string().min(1),
       });
 
-      if (existing) {
-        return reply.status(400).send({
-          success: false,
-          error: { code: "VALIDATION_ERROR", message: "User exists" },
+      try {
+        const body = schema.parse(request.body);
+
+        // Check existing user
+        const existing = await mockPrisma.user.findUnique({
+          where: { email: body.email },
         });
-      }
 
-      // Create user
-      const user = await mockPrisma.user.create({
-        data: {
-          email: body.email,
-          password: "hashed",
-          name: body.name,
-        },
-      });
+        if (existing) {
+          return reply.status(400).send({
+            success: false,
+            error: { code: "VALIDATION_ERROR", message: "User exists" },
+          });
+        }
 
-      return reply.status(201).send({
-        success: true,
-        data: {
-          user: { id: user.id, email: user.email, name: user.name },
-          accessToken: "access-token",
-        },
-      });
-    } catch (err) {
-      if (err instanceof z.ZodError) {
-        return reply.status(400).send({
-          success: false,
-          error: { code: "VALIDATION_ERROR", message: err.errors[0]?.message },
+        // Create user
+        const user = await mockPrisma.user.create({
+          data: {
+            email: body.email,
+            password: "hashed",
+            name: body.name,
+          },
         });
+
+        return reply.status(201).send({
+          success: true,
+          data: {
+            user: { id: user.id, email: user.email, name: user.name },
+            accessToken: "access-token",
+          },
+        });
+      } catch (err) {
+        if (err instanceof z.ZodError) {
+          return reply.status(400).send({
+            success: false,
+            error: {
+              code: "VALIDATION_ERROR",
+              message: err.issues[0]?.message,
+            },
+          });
+        }
+        throw err;
       }
-      throw err;
     }
-  });
+  );
 
-  app.post("/login", async (request, reply) => {
+  app.post("/login", async (request: FastifyRequest, reply: FastifyReply) => {
     const schema = z.object({
-      email: z.string().email(),
+      email: z.email(),
       password: z.string().min(1),
       turnstileToken: z.string().min(1),
     });
@@ -164,7 +176,7 @@ async function buildApp(): Promise<FastifyInstance> {
       if (err instanceof z.ZodError) {
         return reply.status(400).send({
           success: false,
-          error: { code: "VALIDATION_ERROR", message: err.errors[0]?.message },
+          error: { code: "VALIDATION_ERROR", message: err.issues[0]?.message },
         });
       }
       throw err;
@@ -223,7 +235,8 @@ describe("auth routes integration", () => {
       mockPrisma.user.findUnique.mockResolvedValue({
         id: "existing-user",
         email: validPayload.email,
-      });
+        name: "Test User",
+      }); // Fixed: existing user check returns user object not rejection
 
       const response = await app.inject({
         method: "POST",

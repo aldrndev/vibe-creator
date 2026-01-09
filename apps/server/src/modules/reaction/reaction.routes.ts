@@ -71,7 +71,7 @@ export const reactionRoutes: FastifyPluginAsync = async (fastify) => {
       if (err instanceof z.ZodError) {
         return reply.status(400).send({
           success: false,
-          error: { code: "VALIDATION_ERROR", message: err.errors[0]?.message },
+          error: { code: "VALIDATION_ERROR", message: err.issues[0]?.message },
         });
       }
 
@@ -108,7 +108,7 @@ export const reactionRoutes: FastifyPluginAsync = async (fastify) => {
       if (err instanceof z.ZodError) {
         return reply.status(400).send({
           success: false,
-          error: { code: "VALIDATION_ERROR", message: err.errors[0]?.message },
+          error: { code: "VALIDATION_ERROR", message: err.issues[0]?.message },
         });
       }
 
@@ -145,7 +145,7 @@ export const reactionRoutes: FastifyPluginAsync = async (fastify) => {
       if (err instanceof z.ZodError) {
         return reply.status(400).send({
           success: false,
-          error: { code: "VALIDATION_ERROR", message: err.errors[0]?.message },
+          error: { code: "VALIDATION_ERROR", message: err.issues[0]?.message },
         });
       }
 

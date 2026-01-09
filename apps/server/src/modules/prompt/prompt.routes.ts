@@ -30,11 +30,11 @@ const promptTypeSchema = z.enum([
 const createPromptSchema = z.object({
   type: promptTypeSchema,
   title: z.string().min(1, "Judul diperlukan").max(200),
-  inputData: z.record(z.unknown()),
+  inputData: z.record(z.string(), z.unknown()),
 });
 
 const createVersionSchema = z.object({
-  inputData: z.record(z.unknown()),
+  inputData: z.record(z.string(), z.unknown()),
   userNotes: z.string().optional(),
 });
 

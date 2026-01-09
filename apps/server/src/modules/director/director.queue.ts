@@ -1,5 +1,5 @@
 import { Queue } from "bullmq";
-import { redis } from "@/lib/redis";
+import { redisOptions } from "@/lib/redis";
 
 export const DIRECTOR_QUEUE_NAME = "director-analysis";
 
@@ -45,20 +45,23 @@ export interface DirectorExportJobData {
  * Queue for Director Analysis Jobs
  * Worker implementation is separate (see director.worker.ts)
  */
-export const directorQueue = new Queue<DirectorJobData>(DIRECTOR_QUEUE_NAME, {
-  connection: redis,
-  defaultJobOptions: {
-    attempts: 3,
-    backoff: {
-      type: "exponential",
-      delay: 1000,
+export const directorQueue = new Queue<DirectorJobData, unknown, string>(
+  DIRECTOR_QUEUE_NAME,
+  {
+    connection: redisOptions,
+    defaultJobOptions: {
+      attempts: 3,
+      backoff: {
+        type: "exponential",
+        delay: 1000,
+      },
+      removeOnComplete: {
+        age: 24 * 3600, // 24h
+        count: 100,
+      },
+      removeOnFail: {
+        age: 7 * 24 * 3600, // 7d
+      },
     },
-    removeOnComplete: {
-      age: 24 * 3600, // 24h
-      count: 100,
-    },
-    removeOnFail: {
-      age: 7 * 24 * 3600, // 7d
-    },
-  },
-});
+  }
+);

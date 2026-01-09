@@ -47,3 +47,5 @@ tmp/
 output/
 uploads/
 *.env.bak
+.env.docker
+.env.docker.infra

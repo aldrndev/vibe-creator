@@ -1,4 +1,4 @@
-import { FastifyPluginAsync } from "fastify";
+import { FastifyPluginAsync, FastifyRequest, FastifyReply } from "fastify";
 import { z } from "zod";
 import { loopService } from "./loop.service";
 import { createReadStream, existsSync, statSync } from "fs";
@@ -46,81 +46,93 @@ export const loopRoutes: FastifyPluginAsync = async (fastify) => {
   /**
    * Create looped video
    */
-  fastify.post("/create", async (request, reply) => {
-    const user = request.user;
-    if (!user) {
-      return reply.status(401).send({
-        success: false,
-        error: { code: "UNAUTHORIZED", message: "Authentication required" },
-      });
-    }
-
-    try {
-      const body = createLoopSchema.parse(request.body);
-      const outputPath = await loopService.createLoop(body);
-
-      return reply.send({
-        success: true,
-        data: { outputPath },
-      });
-    } catch (err) {
-      if (err instanceof z.ZodError) {
-        return reply.status(400).send({
+  fastify.post(
+    "/create",
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const user = request.user;
+      if (!user) {
+        return reply.status(401).send({
           success: false,
-          error: { code: "VALIDATION_ERROR", message: err.errors[0]?.message },
+          error: { code: "UNAUTHORIZED", message: "Authentication required" },
         });
       }
 
-      const message =
-        err instanceof Error ? err.message : "Loop creation failed";
-      return reply.status(500).send({
-        success: false,
-        error: { code: "LOOP_ERROR", message },
-      });
+      try {
+        const body = createLoopSchema.parse(request.body);
+        const outputPath = await loopService.createLoop(body);
+
+        return reply.send({
+          success: true,
+          data: { outputPath },
+        });
+      } catch (err) {
+        if (err instanceof z.ZodError) {
+          return reply.status(400).send({
+            success: false,
+            error: {
+              code: "VALIDATION_ERROR",
+              message: err.issues[0]?.message,
+            },
+          });
+        }
+
+        const message =
+          err instanceof Error ? err.message : "Loop creation failed";
+        return reply.status(500).send({
+          success: false,
+          error: { code: "LOOP_ERROR", message },
+        });
+      }
     }
-  });
+  );
 
   /**
    * Create boomerang effect
    */
-  fastify.post("/boomerang", async (request, reply) => {
-    const user = request.user;
-    if (!user) {
-      return reply.status(401).send({
-        success: false,
-        error: { code: "UNAUTHORIZED", message: "Authentication required" },
-      });
-    }
-
-    try {
-      const body = createBoomerangSchema.parse(request.body);
-      const outputPath = await loopService.createBoomerang(body);
-
-      return reply.send({
-        success: true,
-        data: { outputPath },
-      });
-    } catch (err) {
-      if (err instanceof z.ZodError) {
-        return reply.status(400).send({
+  fastify.post(
+    "/boomerang",
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const user = request.user;
+      if (!user) {
+        return reply.status(401).send({
           success: false,
-          error: { code: "VALIDATION_ERROR", message: err.errors[0]?.message },
+          error: { code: "UNAUTHORIZED", message: "Authentication required" },
         });
       }
 
-      const message =
-        err instanceof Error ? err.message : "Boomerang creation failed";
-      return reply.status(500).send({
-        success: false,
-        error: { code: "BOOMERANG_ERROR", message },
-      });
+      try {
+        const body = createBoomerangSchema.parse(request.body);
+        const outputPath = await loopService.createBoomerang(body);
+
+        return reply.send({
+          success: true,
+          data: { outputPath },
+        });
+      } catch (err) {
+        if (err instanceof z.ZodError) {
+          return reply.status(400).send({
+            success: false,
+            error: {
+              code: "VALIDATION_ERROR",
+              message: err.issues[0]?.message,
+            },
+          });
+        }
+
+        const message =
+          err instanceof Error ? err.message : "Boomerang creation failed";
+        return reply.status(500).send({
+          success: false,
+          error: { code: "BOOMERANG_ERROR", message },
+        });
+      }
     }
-  });
+  );
 
   /**
    * Create GIF from video
    */
-  fastify.post("/gif", async (request, reply) => {
+  fastify.post("/gif", async (request: FastifyRequest, reply: FastifyReply) => {
     const user = request.user;
     if (!user) {
       return reply.status(401).send({
@@ -141,7 +153,7 @@ export const loopRoutes: FastifyPluginAsync = async (fastify) => {
       if (err instanceof z.ZodError) {
         return reply.status(400).send({
           success: false,
-          error: { code: "VALIDATION_ERROR", message: err.errors[0]?.message },
+          error: { code: "VALIDATION_ERROR", message: err.issues[0]?.message },
         });
       }
 
@@ -159,7 +171,10 @@ export const loopRoutes: FastifyPluginAsync = async (fastify) => {
    */
   fastify.get<{ Params: { filename: string } }>(
     "/download/:filename",
-    async (request, reply) => {
+    async (
+      request: FastifyRequest<{ Params: { filename: string } }>,
+      reply: FastifyReply
+    ) => {
       const user = request.user;
       if (!user) {
         return reply.status(401).send({

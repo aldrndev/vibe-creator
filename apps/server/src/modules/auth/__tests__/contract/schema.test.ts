@@ -11,14 +11,14 @@ import { z } from "zod";
 
 // Define auth schemas (mirroring auth.routes.ts)
 const registerSchema = z.object({
-  email: z.string().email("Email tidak valid"),
+  email: z.email("Email tidak valid"),
   password: z.string().min(8, "Password minimal 8 karakter"),
   name: z.string().min(2, "Nama minimal 2 karakter"),
   turnstileToken: z.string().min(1, "Captcha diperlukan"),
 });
 
 const loginSchema = z.object({
-  email: z.string().email("Email tidak valid"),
+  email: z.email("Email tidak valid"),
   password: z.string().min(1, "Password diperlukan"),
   turnstileToken: z.string().min(1, "Captcha diperlukan"),
 });
@@ -112,7 +112,7 @@ describe("auth.schema contracts", () => {
       expiresIn: z.number().positive(),
       user: z.object({
         id: z.string(),
-        email: z.string().email(),
+        email: z.email(),
         name: z.string(),
         role: z.enum(["USER", "ADMIN"]),
       }),

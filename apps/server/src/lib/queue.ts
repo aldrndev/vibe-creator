@@ -1,17 +1,15 @@
 import { Queue, Worker, Job as BullJob } from "bullmq";
-import IORedis from "ioredis";
+
 import { prisma } from "./prisma";
 import { logger } from "./logger";
 import { JobType, JobStatus, Prisma } from "@prisma/client";
 
-const REDIS_URL = process.env.REDIS_URL || "redis://localhost:6379";
+// Use shared options from redis lib
+import { redisOptions } from "./redis";
 
-// Shared Redis connection
-const connection = new IORedis(REDIS_URL, {
-  maxRetriesPerRequest: null,
+export const storyQueue = new Queue("story-generation", {
+  connection: redisOptions,
 });
-
-export const storyQueue = new Queue("story-generation", { connection });
 
 type JobData = {
   jobId: string; // Postgres ID
@@ -122,7 +120,7 @@ export const worker = new Worker<JobData>(
       throw err;
     }
   },
-  { connection }
+  { connection: redisOptions }
 );
 
 async function processSceneGeneration(_input: Record<string, unknown>) {
