@@ -46,7 +46,7 @@ export interface CircuitBreakerOptions {
  * ```
  */
 export function createCircuitBreaker<
-  T extends (...args: any[]) => Promise<any>
+  T extends (...args: unknown[]) => Promise<unknown>
 >(
   fn: T,
   options: CircuitBreakerOptions
@@ -126,8 +126,8 @@ export function createCircuitBreaker<
  * @returns Result of wrapped function
  */
 export async function executeWithCircuitBreaker<T>(
-  breaker: CircuitBreaker<any[], T>,
-  args: any[],
+  breaker: CircuitBreaker<unknown[], T>,
+  args: unknown[],
   isIdempotent: boolean = false
 ): Promise<T> {
   try {
@@ -150,7 +150,9 @@ export async function executeWithCircuitBreaker<T>(
 /**
  * Get circuit breaker health status
  */
-export function getCircuitBreakerStats(breaker: CircuitBreaker<any[], any>) {
+export function getCircuitBreakerStats(
+  breaker: CircuitBreaker<unknown[], unknown>
+) {
   const stats = breaker.stats;
   return {
     name: breaker.name,
