@@ -16,6 +16,13 @@ import {
   loginRateLimit,
   refreshRateLimit,
 } from "./auth.ratelimit";
+import {
+  loginRouteSchema,
+  registerRouteSchema,
+  refreshRouteSchema,
+  logoutRouteSchema,
+  meRouteSchema,
+} from "./auth.schemas";
 
 export async function authRoutes(fastify: FastifyInstance): Promise<void> {
   // Rate limit check hook
@@ -27,17 +34,51 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
   });
 
   // Register with stricter rate limit
-  fastify.post("/register", registerRateLimit, registerHandler);
+  fastify.post(
+    "/register",
+    {
+      ...registerRateLimit,
+      schema: registerRouteSchema,
+    },
+    registerHandler
+  );
 
   // Login with stricter rate limit
-  fastify.post("/login", loginRateLimit, loginHandler);
+  fastify.post(
+    "/login",
+    {
+      ...loginRateLimit,
+      schema: loginRouteSchema,
+    },
+    loginHandler
+  );
 
   // Refresh token with rate limit
-  fastify.post("/refresh", refreshRateLimit, refreshHandler);
+  fastify.post(
+    "/refresh",
+    {
+      ...refreshRateLimit,
+      schema: refreshRouteSchema,
+    },
+    refreshHandler
+  );
 
   // Logout
-  fastify.post("/logout", logoutHandler);
+  fastify.post(
+    "/logout",
+    {
+      schema: logoutRouteSchema,
+    },
+    logoutHandler
+  );
 
   // Get current user
-  fastify.get("/me", { preHandler: requireAuth }, meHandler);
+  fastify.get(
+    "/me",
+    {
+      preHandler: requireAuth,
+      schema: meRouteSchema,
+    },
+    meHandler
+  );
 }
