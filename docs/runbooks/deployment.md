@@ -3,146 +3,127 @@
 ## Prerequisites
 
 - Docker & Docker Compose installed
-- Access to production server (SSH)
-- Environment variables configured
-- Database credentials ready
+- Node.js 20+ & pnpm 10+ installed
+- SSH access to VPS
 
-## Quick Deploy (Docker)
+## Quick Deploy (VPS Single-Node)
 
 ### 1. Clone & Setup
 
 ```bash
-git clone <repo-url>
-cd contencreative
+# SSH ke VPS
+ssh user@your-vps-ip
+
+# Clone repo
+git clone https://github.com/aldrndev/vibe-creator.git
+cd vibe-creator
+
+# Install dependencies
+pnpm install
 ```
 
 ### 2. Configure Environment
 
 ```bash
-# Copy example files
+# Copy dan edit env untuk Docker infra
 cp infra/compose/.env.docker.infra.example infra/compose/.env.docker.infra
-cp infra/compose/apps/api/.env.docker.example infra/compose/apps/api/.env.docker
-
-# Edit with production values
 nano infra/compose/.env.docker.infra
+
+# Copy dan edit env untuk API
+cp infra/compose/apps/api/.env.docker.example infra/compose/apps/api/.env.docker
 nano infra/compose/apps/api/.env.docker
 ```
 
-**Required Environment Variables:**
+**Required Variables di `.env.docker.infra`:**
+| Variable | Keterangan |
+|----------|------------|
+| `POSTGRES_PASSWORD` | Password kuat 32+ char |
 
-- `DATABASE_URL` - PostgreSQL connection string
-- `REDIS_URL` - Redis connection string
-- `JWT_SECRET` - Min 32 chars, cryptographically random
-- `JWT_SIGNING_KEY` - ES256 JWK private key
-- `XENDIT_SECRET_KEY` - Production Xendit key
-- `R2_*` - Cloudflare R2 credentials
+**Required Variables di `apps/api/.env.docker`:**
+| Variable | Keterangan |
+|----------|------------|
+| `DATABASE_URL` | Sesuaikan password dengan .env.docker.infra |
+| `JWT_SECRET` | 64 char random |
+| `JWT_REFRESH_SECRET` | 64 char random |
+| `JWT_SIGNING_KEY` | ES256 JWK private key |
+| `CORS_ORIGIN` | Domain production |
+| `NODE_ENV` | `production` |
 
-### 3. Build & Deploy
-
-```bash
-# Production single-node deployment
-docker compose -f infra/compose/docker-compose.prod.single-node.yml up -d --build
-
-# Check status
-docker ps
-docker logs vibe-creator-server
-```
-
-### 4. Run Migrations
+### 3. Start Infrastructure
 
 ```bash
-docker exec -it vibe-creator-server pnpm prisma migrate deploy
+# Start PostgreSQL + Redis
+pnpm docker:prod:up
+
+# Cek status
+pnpm docker:prod:ps
 ```
 
-### 5. Verify Health
+### 4. Setup Database
+
+```bash
+# Generate Prisma client
+pnpm db:generate
+
+# Push schema ke database
+cd apps/api && npx prisma db push
+cd ..
+```
+
+### 5. Build & Start
+
+```bash
+# Build
+pnpm build
+
+# Start dengan PM2 (recommended)
+cd apps/api && pm2 start dist/index.js --name vibe-api
+```
+
+### 6. Verify
 
 ```bash
 curl http://localhost:3000/health
-# Expected: {"status":"ok"}
 ```
 
-## Rollback Procedure
+## Script Reference
 
-### Quick Rollback
+| Command                    | Fungsi                |
+| -------------------------- | --------------------- |
+| `pnpm docker:prod:up`      | Start prod containers |
+| `pnpm docker:prod:down`    | Stop prod containers  |
+| `pnpm docker:prod:logs`    | Lihat logs            |
+| `pnpm docker:prod:restart` | Restart               |
 
-```bash
-# Stop current version
-docker compose -f infra/compose/docker-compose.prod.single-node.yml down
-
-# Deploy previous version
-git checkout <previous-tag>
-docker compose -f infra/compose/docker-compose.prod.single-node.yml up -d --build
-```
-
-### Database Rollback
-
-```bash
-# Check migration history
-docker exec -it vibe-creator-server pnpm prisma migrate status
-
-# Rollback last migration (manual)
-docker exec -it vibe-creator-db psql -U postgres -d vibe_creator
-```
-
-## Maintenance Tasks
-
-### Update Application
+## Update Application
 
 ```bash
 git pull origin main
-docker compose -f infra/compose/docker-compose.prod.single-node.yml up -d --build
-docker exec -it vibe-creator-server pnpm prisma migrate deploy
+pnpm install
+pnpm build
+cd apps/api && npx prisma db push && cd ..
+pm2 restart vibe-api
 ```
 
-### View Logs
+## Rollback
 
 ```bash
-# All services
-docker compose -f infra/compose/docker-compose.prod.single-node.yml logs -f
-
-# API only
-docker logs -f vibe-creator-server
-
-# Last 100 lines
-docker logs --tail 100 vibe-creator-server
-```
-
-### Restart Services
-
-```bash
-# Single service
-docker restart vibe-creator-server
-
-# All services
-docker compose -f infra/compose/docker-compose.prod.single-node.yml restart
+git checkout <previous-tag>
+pnpm install && pnpm build
+pm2 restart vibe-api
 ```
 
 ## Health Checks
 
-| Endpoint             | Expected                |
-| -------------------- | ----------------------- |
-| `GET /health`        | `{"status":"ok"}`       |
-| `GET /api/v1/health` | `{"status":"ok"}`       |
-| PostgreSQL           | `pg_isready` success    |
-| Redis                | `redis-cli ping` → PONG |
+| Service    | Command                                              |
+| ---------- | ---------------------------------------------------- |
+| API        | `curl http://localhost:3000/health`                  |
+| PostgreSQL | `docker exec vibe-creator-db-prod pg_isready`        |
+| Redis      | `docker exec vibe-creator-redis-prod redis-cli ping` |
 
-## Troubleshooting
+## Security Checklist
 
-### API Not Starting
-
-1. Check logs: `docker logs vibe-creator-server`
-2. Verify env vars are set
-3. Check database connectivity
-4. Ensure migrations are applied
-
-### Database Connection Failed
-
-1. Check `DATABASE_URL` format
-2. Verify PostgreSQL is running
-3. Check network connectivity between containers
-
-### Redis Connection Failed
-
-1. Verify Redis container is healthy
-2. Check `REDIS_URL` configuration
-3. Ensure Redis port is not blocked
+- [ ] `.env` files permissions: `chmod 600`
+- [ ] Firewall: only 80, 443, SSH open
+- [ ] Strong passwords (32+ chars)
+- [ ] HTTPS via nginx/caddy

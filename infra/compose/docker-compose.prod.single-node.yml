@@ -47,7 +47,7 @@ services:
     ports:
       - "3000:3000"
     env_file:
-      - apps/server/.env.docker
+      - apps/api/.env.docker
     environment:
       NODE_ENV: production
       FFMPEG_PATH: /usr/bin/ffmpeg
