@@ -1,0 +1,27 @@
+[Unit]
+Description=Vibe Creator API
+After=network.target docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+User=app
+WorkingDirectory=/home/app/vibe-creator/apps/api
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/node dist/index.js
+Restart=always
+RestartSec=10
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=vibe-api
+
+# Security
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/app/vibe-creator/apps/api/uploads
+
+[Install]
+WantedBy=multi-user.target
