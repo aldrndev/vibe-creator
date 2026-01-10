@@ -10,6 +10,31 @@ jobs:
   quality-gates:
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -48,7 +73,10 @@ jobs:
           JWT_SECRET: test-jwt-secret-at-least-32-characters-long
           JWT_REFRESH_SECRET: test-refresh-secret-at-least-32-chars
           NODE_ENV: test
-        run: pnpm test
+        run: |
+          cd apps/api && npx prisma db push --accept-data-loss
+          cd ../..
+          pnpm test
 
       - name: Layout check
         run: pnpm layout:check
