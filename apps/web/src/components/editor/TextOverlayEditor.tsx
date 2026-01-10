@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -87,27 +87,46 @@ export function TextOverlayEditor({
 }: TextOverlayEditorProps) {
   const { timeline, addTextOverlay, updateTextOverlay } = useEditorStore();
 
-  // Form state
-  const [text, setText] = useState("");
-  const [fontFamily, setFontFamily] = useState("Inter");
-  const [fontSize, setFontSize] = useState(48);
-  const [fontWeight, setFontWeight] = useState<"normal" | "bold">("bold");
-  const [fontStyle, setFontStyle] = useState<"normal" | "italic">("normal");
-  const [color, setColor] = useState("#FFFFFF");
-  const [backgroundColor, setBackgroundColor] = useState("");
-  const [x, setX] = useState(50);
-  const [y, setY] = useState(50);
+  // Create a key for resetting form state when switching between editing modes
+  const overlayKey = editingOverlay?.id ?? (isOpen ? "new" : "closed");
+
+  // Form state - initialized from editingOverlay or defaults
+  const [text, setText] = useState(() => editingOverlay?.text ?? "");
+  const [fontFamily, setFontFamily] = useState(
+    () => editingOverlay?.fontFamily ?? "Inter"
+  );
+  const [fontSize, setFontSize] = useState(
+    () => editingOverlay?.fontSize ?? 48
+  );
+  const [fontWeight, setFontWeight] = useState<"normal" | "bold">(
+    () => editingOverlay?.fontWeight ?? "bold"
+  );
+  const [fontStyle, setFontStyle] = useState<"normal" | "italic">(
+    () => editingOverlay?.fontStyle ?? "normal"
+  );
+  const [color, setColor] = useState(() => editingOverlay?.color ?? "#FFFFFF");
+  const [backgroundColor, setBackgroundColor] = useState(
+    () => editingOverlay?.backgroundColor ?? ""
+  );
+  const [x, setX] = useState(() => editingOverlay?.x ?? 50);
+  const [y, setY] = useState(() => editingOverlay?.y ?? 50);
   const [textAlign, setTextAlign] = useState<"left" | "center" | "right">(
-    "center"
+    () => editingOverlay?.textAlign ?? "center"
   );
   const [animation, setAnimation] = useState<
     "none" | "fade" | "slide-up" | "slide-down" | "typewriter"
-  >("fade");
-  const [startMs, setStartMs] = useState(0);
-  const [endMs, setEndMs] = useState(5000);
+  >(() => editingOverlay?.animation ?? "fade");
+  const [startMs, setStartMs] = useState(() => editingOverlay?.startMs ?? 0);
+  const [endMs, setEndMs] = useState(
+    () => editingOverlay?.endMs ?? Math.min(5000, timeline.durationMs || 5000)
+  );
 
-  // Initialize form when editing
-  useEffect(() => {
+  // Track last overlay key to detect changes and reset form
+  const [lastOverlayKey, setLastOverlayKey] = useState(overlayKey);
+
+  // Reset form when switching between editing modes (without useEffect cascading)
+  if (overlayKey !== lastOverlayKey) {
+    setLastOverlayKey(overlayKey);
     if (editingOverlay) {
       setText(editingOverlay.text);
       setFontFamily(editingOverlay.fontFamily);
@@ -123,7 +142,6 @@ export function TextOverlayEditor({
       setStartMs(editingOverlay.startMs);
       setEndMs(editingOverlay.endMs);
     } else {
-      // Reset to defaults
       setText("");
       setFontFamily("Inter");
       setFontSize(48);
@@ -138,7 +156,7 @@ export function TextOverlayEditor({
       setStartMs(0);
       setEndMs(Math.min(5000, timeline.durationMs || 5000));
     }
-  }, [editingOverlay, isOpen, timeline.durationMs]);
+  }
 
   const handleSave = () => {
     if (!text.trim()) return;

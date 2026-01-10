@@ -1,14 +1,38 @@
-import { describe, it, expect, vi, beforeEach, beforeAll, afterAll } from "vitest";
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeEach,
+  beforeAll,
+  afterAll,
+} from "vitest";
 import Fastify, { FastifyInstance } from "fastify";
 import rawBody from "fastify-raw-body";
 
-const redisMock = {
-  status: "ready",
-  set: vi.fn(),
-};
+// Use vi.hoisted to ensure mocks are defined before vi.mock factory executes
+const { redisMock, mockEnv } = vi.hoisted(() => ({
+  redisMock: {
+    status: "ready",
+    set: vi.fn(),
+  },
+  mockEnv: {
+    XENDIT_WEBHOOK_TOKEN: "test-webhook-token",
+    NODE_ENV: "test",
+  } as Record<string, string | undefined>,
+}));
 
 vi.mock("@/lib/redis", () => ({
   redis: redisMock,
+}));
+
+vi.mock("@/config/env", () => ({
+  env: mockEnv,
+}));
+
+// Mock rate-limiter to always pass
+vi.mock("@/lib/rate-limit", () => ({
+  requireRateLimitReady: () => undefined, // Pass through
 }));
 
 vi.mock("@/modules/payment/payment.service", () => ({
@@ -18,7 +42,14 @@ vi.mock("@/modules/payment/payment.service", () => ({
   },
 }));
 
-vi.stubEnv("XENDIT_WEBHOOK_TOKEN", "test-webhook-token");
+vi.mock("@/lib/audit", () => ({
+  audit: vi.fn(),
+  AuditAction: {
+    PAYMENT_CREATED: "PAYMENT_CREATED",
+    PAYMENT_UPDATED: "PAYMENT_UPDATED",
+    SUBSCRIPTION_CHANGED: "SUBSCRIPTION_CHANGED",
+  },
+}));
 
 import { paymentRoutes } from "@/modules/payment/payment.routes";
 
@@ -52,7 +83,11 @@ describe("payment webhook", () => {
   });
 
   it("should reject invalid signatures", async () => {
-    const payload = JSON.stringify({ id: "inv_1", external_id: "ext", status: "PAID" });
+    const payload = JSON.stringify({
+      id: "inv_1",
+      external_id: "ext",
+      status: "PAID",
+    });
     const response = await app.inject({
       method: "POST",
       url: "/payment/webhook",
@@ -69,7 +104,11 @@ describe("payment webhook", () => {
   });
 
   it("should reject stale timestamps", async () => {
-    const payload = JSON.stringify({ id: "inv_2", external_id: "ext", status: "PAID" });
+    const payload = JSON.stringify({
+      id: "inv_2",
+      external_id: "ext",
+      status: "PAID",
+    });
     const timestamp = "100";
     const signature = "deadbeef";
     const response = await app.inject({
@@ -88,7 +127,11 @@ describe("payment webhook", () => {
   });
 
   it("should reject replayed payloads", async () => {
-    const payload = JSON.stringify({ id: "inv_3", external_id: "ext", status: "PAID" });
+    const payload = JSON.stringify({
+      id: "inv_3",
+      external_id: "ext",
+      status: "PAID",
+    });
     const timestamp = Math.floor(Date.now() / 1000).toString();
     const crypto = await import("node:crypto");
     const signature = crypto

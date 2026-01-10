@@ -3,7 +3,7 @@
  * Runs before all tests
  */
 
-import { beforeEach, vi } from 'vitest';
+import { beforeEach, vi } from "vitest";
 
 // Reset all mocks between tests
 beforeEach(() => {
@@ -12,11 +12,11 @@ beforeEach(() => {
 });
 
 // Mock environment variables for tests
+// NOTE: DATABASE_URL is NOT stubbed - integration tests use real .env values
 vi.stubEnv("NODE_ENV", "development");
-vi.stubEnv("DATABASE_URL", "postgresql://test:test@localhost:5432/test");
 vi.stubEnv("REDIS_URL", "redis://localhost:6379");
-vi.stubEnv('JWT_SECRET', 'test-jwt-secret-32-chars-minimum');
-vi.stubEnv('JWT_REFRESH_SECRET', 'test-refresh-secret-32-chars-min');
+vi.stubEnv("JWT_SECRET", "test-jwt-secret-32-chars-minimum");
+vi.stubEnv("JWT_REFRESH_SECRET", "test-refresh-secret-32-chars-min");
 vi.stubEnv("FRONTEND_URL", "http://localhost:5173");
 vi.stubEnv(
   "JWT_SIGNING_KEY",

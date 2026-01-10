@@ -78,35 +78,36 @@ const envSchema = z.object({
   SWAGGER_ALLOWED_IPS: z.string().optional(),
 });
 
-const parsed = envSchema.superRefine((data, ctx) => {
-  if (data.NODE_ENV !== "development" && !data.TURNSTILE_SECRET_KEY) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: "TURNSTILE_SECRET_KEY is required outside development",
-      path: ["TURNSTILE_SECRET_KEY"],
-    });
-  }
-
-  if (data.NODE_ENV !== "development" && !data.XENDIT_WEBHOOK_TOKEN) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: "XENDIT_WEBHOOK_TOKEN is required outside development",
-      path: ["XENDIT_WEBHOOK_TOKEN"],
-    });
-  }
-
-  if (data.NODE_ENV === "production" && data.ENABLE_SWAGGER) {
-    if (!data.SWAGGER_ALLOWED_IPS) {
+const parsed = envSchema
+  .superRefine((data, ctx) => {
+    if (data.NODE_ENV !== "development" && !data.TURNSTILE_SECRET_KEY) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "SWAGGER_ALLOWED_IPS is required when ENABLE_SWAGGER is true",
-        path: ["SWAGGER_ALLOWED_IPS"],
+        code: "custom",
+        message: "TURNSTILE_SECRET_KEY is required outside development",
+        path: ["TURNSTILE_SECRET_KEY"],
       });
     }
-  }
 
-  return data;
-}).safeParse(process.env);
+    if (data.NODE_ENV !== "development" && !data.XENDIT_WEBHOOK_TOKEN) {
+      ctx.addIssue({
+        code: "custom",
+        message: "XENDIT_WEBHOOK_TOKEN is required outside development",
+        path: ["XENDIT_WEBHOOK_TOKEN"],
+      });
+    }
+
+    if (data.NODE_ENV === "production" && data.ENABLE_SWAGGER) {
+      if (!data.SWAGGER_ALLOWED_IPS) {
+        ctx.addIssue({
+          code: "custom",
+          message:
+            "SWAGGER_ALLOWED_IPS is required when ENABLE_SWAGGER is true",
+          path: ["SWAGGER_ALLOWED_IPS"],
+        });
+      }
+    }
+  })
+  .safeParse(process.env);
 
 if (!parsed.success) {
   // Fail fast per Digitesia Standard (console forbidden, but env validation is critical)

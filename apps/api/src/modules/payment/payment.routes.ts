@@ -131,7 +131,10 @@ export const paymentRoutes: FastifyPluginAsync = async (fastify) => {
           payload: rawBody,
         });
       } catch (err) {
-        if (err instanceof Error && err.message === "Replay protection unavailable") {
+        if (
+          err instanceof Error &&
+          err.message === "Replay protection unavailable"
+        ) {
           return sendError(
             reply,
             ERROR_CODES.SERVICE_UNAVAILABLE,
@@ -190,7 +193,7 @@ export const paymentRoutes: FastifyPluginAsync = async (fastify) => {
           success: true,
           data: { message: "Webhook processed" },
         });
-      } catch (err) {
+      } catch (_err) {
         return sendError(
           reply,
           ERROR_CODES.INTERNAL_ERROR,

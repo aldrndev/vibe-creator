@@ -15,7 +15,7 @@ import { createSession } from "../auth.session";
 import { setRefreshTokenCookie } from "../auth.cookies";
 
 const loginSchema = z.object({
-  email: z.string().email("Email tidak valid"),
+  email: z.email("Email tidak valid"),
   password: z.string().min(1, "Password diperlukan"),
   turnstileToken: z.string().min(1, "Captcha diperlukan"),
 });

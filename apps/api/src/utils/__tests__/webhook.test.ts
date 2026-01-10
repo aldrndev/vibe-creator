@@ -1,10 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import crypto from "node:crypto";
 
-const redisMock = {
-  status: "ready",
-  set: vi.fn(),
-};
+// Use vi.hoisted to ensure mock is defined before vi.mock factory executes
+const { redisMock } = vi.hoisted(() => ({
+  redisMock: {
+    status: "ready",
+    set: vi.fn(),
+  },
+}));
 
 vi.mock("@/lib/redis", () => ({
   redis: redisMock,
@@ -14,7 +17,7 @@ import { assertValidWebhook } from "@/utils/webhook";
 
 describe("assertValidWebhook", () => {
   const secret = "secret-key";
-  const payload = "{\"id\":\"evt_1\"}";
+  const payload = '{"id":"evt_1"}';
 
   beforeEach(() => {
     redisMock.status = "ready";

@@ -12,7 +12,7 @@ import { z } from "zod";
 /**
  * Success response wrapper
  */
-export const successResponseSchema = <T extends z.ZodTypeAny>(dataSchema: T) =>
+export const successResponseSchema = <T extends z.ZodType>(dataSchema: T) =>
   z.object({
     success: z.literal(true),
     data: dataSchema,
@@ -32,9 +32,7 @@ export const errorResponseSchema = z.object({
 /**
  * Paginated response wrapper
  */
-export const paginatedResponseSchema = <T extends z.ZodTypeAny>(
-  itemSchema: T
-) =>
+export const paginatedResponseSchema = <T extends z.ZodType>(itemSchema: T) =>
   z.object({
     success: z.literal(true),
     data: z.object({
@@ -49,7 +47,7 @@ export const paginatedResponseSchema = <T extends z.ZodTypeAny>(
 /**
  * Cursor-paginated response wrapper
  */
-export const cursorPaginatedSchema = <T extends z.ZodTypeAny>(itemSchema: T) =>
+export const cursorPaginatedSchema = <T extends z.ZodType>(itemSchema: T) =>
   z.object({
     success: z.literal(true),
     data: z.object({
@@ -65,7 +63,7 @@ export const cursorPaginatedSchema = <T extends z.ZodTypeAny>(itemSchema: T) =>
 
 export const userSchema = z.object({
   id: z.string(),
-  email: z.string().email(),
+  email: z.email(),
   name: z.string(),
   avatarUrl: z.string().nullable(),
   role: z.enum(["USER", "ADMIN"]),

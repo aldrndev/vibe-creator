@@ -6,18 +6,25 @@
 import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 
+// Stop reason type - matches stream.service.ts stopStream signature
+type StopReason = "USER_REQUEST" | "AUTO_STOP" | "ADMIN" | "ERROR";
+
 // Forward declaration - will be set by stream.service.ts
 let stopStreamFn: (
   streamId: string,
   userId: string,
-  reason: string
+  reason: StopReason
 ) => Promise<void>;
 
 /**
  * Set the stop stream function (called by stream.service.ts to avoid circular deps)
  */
 export function setStopStreamHandler(
-  handler: (streamId: string, userId: string, reason: string) => Promise<void>
+  handler: (
+    streamId: string,
+    userId: string,
+    reason: StopReason
+  ) => Promise<void>
 ) {
   stopStreamFn = handler;
 }

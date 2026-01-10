@@ -40,8 +40,8 @@ async function updateJobStatus(
             : undefined,
       },
     });
-  } catch (err) {
-    logger.error({ jobId, err }, "Failed to sync job status to DB");
+  } catch (_err) {
+    logger.error({ jobId, _err }, "Failed to sync job status to DB");
   }
 }
 
