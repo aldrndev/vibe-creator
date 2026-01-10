@@ -4,11 +4,12 @@ import {
   Card,
   CardBody,
   Tabs,
-  Tab,
-  Chip,
+  TabsList,
+  TabsTrigger,
+  Badge,
   Skeleton,
   Pagination,
-} from "@heroui/react";
+} from "@/components/ui";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
@@ -46,22 +47,16 @@ const promptTypeLabels: Record<
   string,
   {
     label: string;
-    color:
-      | "primary"
-      | "secondary"
-      | "success"
-      | "warning"
-      | "danger"
-      | "default";
+    variant: "default" | "secondary" | "warning" | "destructive";
   }
 > = {
-  SCRIPT: { label: "Script", color: "primary" },
-  VOICE: { label: "Voice", color: "secondary" },
-  VIDEO_GEN: { label: "Video", color: "success" },
-  IMAGE: { label: "Image", color: "warning" },
-  RELAXING: { label: "Relaxing", color: "default" },
-  CREATIVE_SCAN: { label: "Scan", color: "danger" },
-  TIMELAPSE: { label: "Timelapse", color: "secondary" },
+  SCRIPT: { label: "Script", variant: "default" },
+  VOICE: { label: "Voice", variant: "secondary" },
+  VIDEO_GEN: { label: "Video", variant: "default" },
+  IMAGE: { label: "Image", variant: "warning" },
+  RELAXING: { label: "Relaxing", variant: "secondary" },
+  CREATIVE_SCAN: { label: "Scan", variant: "destructive" },
+  TIMELAPSE: { label: "Timelapse", variant: "secondary" },
 };
 
 export function PromptsPage() {
@@ -84,8 +79,8 @@ export function PromptsPage() {
     navigate(`/dashboard/prompts/${promptId}`);
   };
 
-  const handleTypeChange = (key: PromptType | "all") => {
-    setSelectedType(key);
+  const handleTypeChange = (key: string) => {
+    setSelectedType(key as PromptType | "all");
     setPage(1); // Reset page on filter change
   };
 
@@ -95,47 +90,33 @@ export function PromptsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Prompt Builder</h1>
-          <p className="text-foreground/60">
+          <p className="text-muted-foreground">
             Buat dan kelola prompt untuk konten kamu
           </p>
         </div>
-        <Button
-          as={Link}
-          to="/dashboard/prompts/new"
-          color="primary"
-          startContent={<Plus size={20} />}
-        >
-          Prompt Baru
+        <Button asChild>
+          <Link to="/dashboard/prompts/new">
+            <Plus size={20} />
+            Prompt Baru
+          </Link>
         </Button>
       </div>
 
       {/* Tabs - Responsive Container */}
       <div className="w-full overflow-x-auto pb-2 -mb-2 scrollbar-hide">
-        <Tabs
-          aria-label="Prompt types"
-          color="primary"
-          variant="underlined"
-          selectedKey={selectedType}
-          onSelectionChange={(key) =>
-            handleTypeChange(key as PromptType | "all")
-          }
-          classNames={{
-            tabList: "gap-6 w-max", // w-max ensures tabs don't shrink
-            cursor: "w-full",
-            tab: "px-0 h-12",
-          }}
-        >
-          {promptTypes.map((type) => (
-            <Tab
-              key={type.key}
-              title={
-                <div className="flex items-center gap-2 px-2">
-                  <type.icon size={16} />
-                  <span>{type.label}</span>
-                </div>
-              }
-            />
-          ))}
+        <Tabs value={selectedType} onValueChange={handleTypeChange}>
+          <TabsList className="w-max">
+            {promptTypes.map((type) => (
+              <TabsTrigger
+                key={type.key}
+                value={type.key}
+                className="flex items-center gap-2 px-4"
+              >
+                <type.icon size={16} />
+                <span>{type.label}</span>
+              </TabsTrigger>
+            ))}
+          </TabsList>
         </Tabs>
       </div>
 
@@ -169,35 +150,21 @@ export function PromptsPage() {
               {prompts.map((prompt) => {
                 const typeConfig = promptTypeLabels[prompt.type] || {
                   label: prompt.type,
-                  color: "default" as const,
+                  variant: "secondary" as const,
                 };
                 const TypeIcon =
                   promptTypes.find((t) => t.key === prompt.type)?.icon ||
                   Sparkles;
 
-                const colorMap: Record<string, string> = {
-                  primary: "bg-primary/10 text-primary",
-                  secondary: "bg-secondary/10 text-secondary",
-                  success: "bg-success/10 text-success",
-                  warning: "bg-warning/10 text-warning",
-                  danger: "bg-danger/10 text-danger",
-                  default: "bg-default/10 text-default-600",
-                };
-
                 return (
                   <Card
                     key={prompt.id}
-                    isPressable
-                    onPress={() => handlePromptClick(prompt.id)}
-                    className="group hover:bg-content2/50 transition-all border border-default-100 hover:border-default-300 shadow-sm hover:shadow-md"
+                    className="group hover:bg-accent/50 transition-all border hover:border-primary/30 shadow-sm hover:shadow-md cursor-pointer"
+                    onClick={() => handlePromptClick(prompt.id)}
                   >
                     <CardBody className="p-4">
                       <div className="flex items-center gap-4">
-                        <div
-                          className={`w-12 h-12 rounded-xl flex items-center justify-center transition-colors ${
-                            colorMap[typeConfig.color] || colorMap.default
-                          }`}
-                        >
+                        <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-primary/10 text-primary">
                           <TypeIcon size={24} strokeWidth={1.5} />
                         </div>
                         <div className="flex-1 min-w-0 text-left">
@@ -205,20 +172,12 @@ export function PromptsPage() {
                             <h3 className="font-semibold text-medium truncate">
                               {prompt.title}
                             </h3>
-                            <Chip
-                              size="sm"
-                              variant="flat"
-                              color={typeConfig.color}
-                              classNames={{
-                                content:
-                                  "font-medium text-[10px] uppercase tracking-wider",
-                              }}
-                            >
+                            <Badge variant={typeConfig.variant}>
                               {typeConfig.label}
-                            </Chip>
+                            </Badge>
                           </div>
-                          <div className="flex items-center gap-4 text-xs text-foreground/50">
-                            <span className="font-medium bg-default-100 px-2 py-0.5 rounded-md">
+                          <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                            <span className="font-medium bg-accent px-2 py-0.5 rounded-md">
                               v{prompt.currentVersion}
                             </span>
                             <span className="flex items-center gap-1.5">
@@ -238,7 +197,7 @@ export function PromptsPage() {
                         </div>
                         <ChevronRight
                           size={20}
-                          className="text-foreground/30 group-hover:text-foreground/60 transition-colors group-hover:translate-x-0.5"
+                          className="text-muted-foreground/30 group-hover:text-muted-foreground transition-colors group-hover:translate-x-0.5"
                         />
                       </div>
                     </CardBody>
@@ -249,16 +208,12 @@ export function PromptsPage() {
 
             {/* Pagination */}
             {totalPages > 1 && (
-              <div className="flex justify-center mt-6">
-                <Pagination
-                  total={totalPages}
-                  page={page}
-                  onChange={setPage}
-                  color="primary"
-                  showControls
-                  variant="light"
-                />
-              </div>
+              <Pagination
+                total={totalPages}
+                page={page}
+                onChange={setPage}
+                className="mt-6"
+              />
             )}
           </>
         ) : (
@@ -267,13 +222,13 @@ export function PromptsPage() {
               {selectedType === "all" ? (
                 <>
                   <Sparkles
-                    className="mx-auto mb-4 text-foreground/40"
+                    className="mx-auto mb-4 text-muted-foreground"
                     size={64}
                   />
                   <h2 className="text-xl font-semibold mb-2">
                     Belum ada prompt
                   </h2>
-                  <p className="text-foreground/60 mb-6 max-w-md mx-auto">
+                  <p className="text-muted-foreground mb-6 max-w-md mx-auto">
                     Buat prompt pertama kamu untuk mulai generate konten
                     berkualitas.
                   </p>
@@ -286,7 +241,7 @@ export function PromptsPage() {
                       Sparkles;
                     return (
                       <TypeIcon
-                        className="mx-auto mb-4 text-foreground/40"
+                        className="mx-auto mb-4 text-muted-foreground"
                         size={64}
                       />
                     );
@@ -294,7 +249,7 @@ export function PromptsPage() {
                   <h2 className="text-xl font-semibold mb-2">
                     Belum ada prompt {promptTypeLabels[selectedType]?.label}
                   </h2>
-                  <p className="text-foreground/60 mb-6 max-w-md mx-auto">
+                  <p className="text-muted-foreground mb-6 max-w-md mx-auto">
                     {selectedType === "SCRIPT" &&
                       "Buat prompt untuk generate script dan storytelling yang menarik."}
                     {selectedType === "VOICE" &&
@@ -312,14 +267,11 @@ export function PromptsPage() {
                   </p>
                 </>
               )}
-              <Button
-                as={Link}
-                to="/dashboard/prompts/new"
-                color="primary"
-                size="lg"
-                startContent={<Plus size={20} />}
-              >
-                Buat Prompt Pertama
+              <Button size="lg" asChild>
+                <Link to="/dashboard/prompts/new">
+                  <Plus size={20} />
+                  Buat Prompt Pertama
+                </Link>
               </Button>
             </CardBody>
           </Card>

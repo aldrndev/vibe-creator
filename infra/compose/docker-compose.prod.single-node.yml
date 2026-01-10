@@ -1,0 +1,79 @@
+services:
+  postgres:
+    image: postgres:16-alpine@sha256:23e88eb049fd5d54894d70100df61d38a49ed97909263f79d4ff4c30a5d5fca2
+    container_name: vibe-creator-db-prod
+    env_file:
+      - .env.docker.infra
+    volumes:
+      - postgres_data_prod:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2G
+        reservations:
+          cpus: "0.5"
+          memory: 512M
+
+  redis:
+    image: redis:7-alpine@sha256:ee64a64eaab618d88051c3ade8f6352d11531fcf79d9a4818b9b183d8c1d18ba
+    container_name: vibe-creator-redis-prod
+    volumes:
+      - redis_data_prod:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+        reservations:
+          cpus: "0.25"
+          memory: 256M
+
+  server:
+    image: vibe-creator-server:${SERVER_IMAGE_TAG}
+    container_name: vibe-creator-server-prod
+    ports:
+      - "3000:3000"
+    env_file:
+      - apps/server/.env.docker
+    environment:
+      NODE_ENV: production
+      FFMPEG_PATH: /usr/bin/ffmpeg
+      MEDIA_INPUT_DIR: /app/uploads
+      TEMP_DIR: /app/uploads/temp
+      OUTPUT_DIR: /app/uploads/exports
+    volumes:
+      - server_uploads_prod:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/health"]
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: "4.0"
+          memory: 4G
+        reservations:
+          cpus: "1.0"
+          memory: 512M
+
+volumes:
+  postgres_data_prod:
+  redis_data_prod:
+  server_uploads_prod:

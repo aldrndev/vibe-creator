@@ -1,7 +1,6 @@
 import { useEffect, useCallback, useRef, useState } from "react";
 import { logger } from "@/lib/logger";
 import { useParams } from "react-router-dom";
-import { useDisclosure } from "@heroui/react";
 import { useEditorStore } from "@/stores/editor-store";
 import { Timeline } from "@/components/editor/Timeline";
 import { useFFmpeg } from "@/hooks/use-ffmpeg";
@@ -19,21 +18,9 @@ export function EditorPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Modals state
-  const {
-    isOpen: isUrlModalOpen,
-    onOpen: openUrlModal,
-    onClose: closeUrlModal,
-  } = useDisclosure();
-  const {
-    isOpen: isVoiceModalOpen,
-    onOpen: openVoiceModal,
-    onClose: closeVoiceModal,
-  } = useDisclosure();
-  const {
-    isOpen: isTextModalOpen,
-    onOpen: openTextModal,
-    onClose: closeTextModal,
-  } = useDisclosure();
+  const [isUrlModalOpen, setIsUrlModalOpen] = useState(false);
+  const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
+  const [isTextModalOpen, setIsTextModalOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
   // Hooks
@@ -83,7 +70,7 @@ export function EditorPage() {
       return lastClip?.endMs || 0;
     },
     onClose: () => {
-      closeUrlModal();
+      setIsUrlModalOpen(false);
       resetDownload();
     },
   });
@@ -413,16 +400,16 @@ export function EditorPage() {
         onUndo={undo}
         onRedo={redo}
         onEmulateImport={() => fileInputRef.current?.click()}
-        onImportUrl={openUrlModal}
-        onRecord={openVoiceModal}
-        onAddText={openTextModal}
+        onImportUrl={() => setIsUrlModalOpen(true)}
+        onRecord={() => setIsVoiceModalOpen(true)}
+        onAddText={() => setIsTextModalOpen(true)}
         onExport={onExportClick}
         onCancelExport={handleCancelExport}
       />
 
       <EditorMainArea />
 
-      <div className="h-48 border-t border-divider flex-shrink-0">
+      <div className="h-48 border-t border-border flex-shrink-0">
         <Timeline />
       </div>
 
@@ -437,17 +424,17 @@ export function EditorPage() {
 
       <EditorModals
         isUrlModalOpen={isUrlModalOpen}
-        closeUrlModal={closeUrlModal}
+        closeUrlModal={() => setIsUrlModalOpen(false)}
         urlInput={urlInput}
         setUrlInput={setUrlInput}
         isDownloading={isDownloading}
         downloadStep={downloadStep}
         handleUrlDownload={handleUrlDownload}
         isVoiceModalOpen={isVoiceModalOpen}
-        closeVoiceModal={closeVoiceModal}
+        closeVoiceModal={() => setIsVoiceModalOpen(false)}
         handleVoiceSave={handleVoiceSave}
         isTextModalOpen={isTextModalOpen}
-        closeTextModal={closeTextModal}
+        closeTextModal={() => setIsTextModalOpen(false)}
         isExportModalOpen={isExportModalOpen}
         setIsExportModalOpen={setIsExportModalOpen}
         handleExportConfirm={handleExportConfirm}

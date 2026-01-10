@@ -1,95 +1,99 @@
-import { Link } from 'react-router-dom';
-import { Button } from '@heroui/react';
-import { motion } from 'framer-motion';
-import { 
-  Sparkles, 
-  Video, 
-  Mic, 
-  Download, 
-  BarChart3, 
+import { Link } from "react-router-dom";
+import { Button } from "@/components/ui";
+import { motion } from "framer-motion";
+import {
+  Sparkles,
+  Video,
+  Mic,
+  Download,
+  BarChart3,
   Radio,
   ArrowRight,
-  Check
-} from 'lucide-react';
-import { useThemeStore } from '@/stores/theme-store';
-import { Moon, Sun } from 'lucide-react';
+  Check,
+} from "lucide-react";
+import { useThemeStore } from "@/stores/theme-store";
+import { Moon, Sun } from "lucide-react";
 
 const features = [
   {
     icon: Sparkles,
-    title: 'Prompt Builder',
-    description: 'Generate script, voice, video, dan image prompt yang detail dan siap pakai.',
+    title: "Prompt Builder",
+    description:
+      "Generate script, voice, video, dan image prompt yang detail dan siap pakai.",
   },
   {
     icon: Video,
-    title: 'Video Editor',
-    description: 'Edit video dengan mudah - cut, trim, dan tambahkan voice over.',
+    title: "Video Editor",
+    description:
+      "Edit video dengan mudah - cut, trim, dan tambahkan voice over.",
   },
   {
     icon: Mic,
-    title: 'Voice Recording',
-    description: 'Rekam suara langsung atau import audio untuk dubbing.',
+    title: "Voice Recording",
+    description: "Rekam suara langsung atau import audio untuk dubbing.",
   },
   {
     icon: Download,
-    title: 'URL Import',
-    description: 'Download video dari YouTube, TikTok, Instagram, dan Facebook.',
+    title: "URL Import",
+    description:
+      "Download video dari YouTube, TikTok, Instagram, dan Facebook.",
   },
   {
     icon: BarChart3,
-    title: 'Creative Scan',
-    description: 'Analisis video kompetitor dan dapatkan insight untuk konten lebih baik.',
+    title: "Creative Scan",
+    description:
+      "Analisis video kompetitor dan dapatkan insight untuk konten lebih baik.",
   },
   {
     icon: Radio,
-    title: 'Live Streaming',
-    description: 'Setup live streaming ke multiple platform sekaligus.',
+    title: "Live Streaming",
+    description: "Setup live streaming ke multiple platform sekaligus.",
   },
 ];
 
 const pricingPlans = [
   {
-    name: 'Gratis',
-    price: 'Rp 0',
-    description: 'Untuk mencoba fitur dasar',
+    name: "Gratis",
+    price: "Rp 0",
+    description: "Untuk mencoba fitur dasar",
     features: [
-      'Preview penuh',
-      'Prompt Builder lengkap',
-      'Edit video',
-      'URL Import',
-      'Rekam suara',
+      "Preview penuh",
+      "Prompt Builder lengkap",
+      "Edit video",
+      "URL Import",
+      "Rekam suara",
     ],
-    cta: 'Mulai Gratis',
+    cta: "Mulai Gratis",
     popular: false,
   },
   {
-    name: 'Creator',
-    price: 'Rp 99.000',
-    period: '/bulan',
-    description: 'Untuk content creator aktif',
+    name: "Creator",
+    price: "Rp 99.000",
+    period: "/bulan",
+    description: "Untuk content creator aktif",
     features: [
-      'Semua fitur Gratis',
-      'Export 720p-1080p',
-      '20 export/bulan',
-      'Tanpa watermark',
-      'Priority support',
+      "Semua fitur Gratis",
+      "Export 720p-1080p",
+      "20 export/bulan",
+      "Tanpa watermark",
+      "Priority support",
     ],
-    cta: 'Mulai Creator',
+    cta: "Mulai Creator",
     popular: true,
   },
   {
-    name: 'Pro',
-    price: 'Rp 249.000',
-    period: '/bulan',
-    description: 'Untuk professional & agency',
+    name: "Pro",
+    price: "Rp 249.000",
+    period: "/bulan",
+    description: "Untuk professional & agency",
     features: [
-      'Semua fitur Creator',
-      'Export hingga 4K',
-      'Unlimited export',
-      'Priority queue',
-      'Live streaming',
+      "Semua fitur Creator",
+      "Export hingga 4K",
+      "Unlimited export",
+      "Priority queue",
+      "Live streaming",
     ],
-    cta: 'Mulai Pro',
+    cta: "Mulai Pro",
     popular: false,
   },
 ];
@@ -100,33 +104,39 @@ export function LandingPage() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="sticky top-0 z-50 border-b border-divider bg-background/80 backdrop-blur-md">
+      <header className="sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur-md">
         <div className="container mx-auto flex h-16 items-center justify-between px-4">
           <span className="text-xl font-bold gradient-text">Vibe Creator</span>
-          
+
           <nav className="hidden md:flex items-center gap-8">
-            <a href="#features" className="text-sm text-foreground/70 hover:text-foreground transition-colors">
+            <a
+              href="#features"
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
               Fitur
             </a>
-            <a href="#pricing" className="text-sm text-foreground/70 hover:text-foreground transition-colors">
+            <a
+              href="#pricing"
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
               Harga
             </a>
           </nav>
 
           <div className="flex items-center gap-2">
             <Button
-              isIconOnly
-              variant="light"
-              onPress={toggleTheme}
+              variant="ghost"
+              size="icon"
+              onClick={toggleTheme}
               aria-label="Toggle theme"
             >
-              {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+              {theme === "dark" ? <Sun size={20} /> : <Moon size={20} />}
             </Button>
-            <Button as={Link} to="/login" variant="light">
-              Masuk
+            <Button variant="ghost" asChild>
+              <Link to="/login">Masuk</Link>
             </Button>
-            <Button as={Link} to="/register" color="primary">
-              Daftar
+            <Button asChild>
+              <Link to="/register">Daftar</Link>
             </Button>
           </div>
         </div>
@@ -142,36 +152,28 @@ export function LandingPage() {
           <span className="inline-block px-4 py-1.5 mb-6 text-sm font-medium text-primary bg-primary/10 rounded-full">
             ✨ Platform All-in-One untuk Content Creator
           </span>
-          
+
           <h1 className="text-4xl md:text-6xl font-bold mb-6 leading-tight">
             Buat Konten Luar Biasa,
             <br />
             <span className="gradient-text">Dari Ide Hingga Export</span>
           </h1>
-          
-          <p className="text-lg text-foreground/70 max-w-2xl mx-auto mb-8">
-            Vibe Creator adalah platform all-in-one yang mengakomodasi segala kebutuhan 
-            daily content creative. Prompt builder, video editor, voice recording, 
-            dan banyak lagi dalam satu tempat.
+
+          <p className="text-lg text-muted-foreground max-w-2xl mx-auto mb-8">
+            Vibe Creator adalah platform all-in-one yang mengakomodasi segala
+            kebutuhan daily content creative. Prompt builder, video editor,
+            voice recording, dan banyak lagi dalam satu tempat.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Button 
-              as={Link} 
-              to="/register" 
-              color="primary" 
-              size="lg"
-              endContent={<ArrowRight size={20} />}
-            >
-              Mulai Gratis
+            <Button size="lg" asChild>
+              <Link to="/register">
+                Mulai Gratis
+                <ArrowRight size={20} />
+              </Link>
             </Button>
-            <Button 
-              as={Link} 
-              to="#features" 
-              variant="bordered" 
-              size="lg"
-            >
-              Lihat Fitur
+            <Button variant="outline" size="lg" asChild>
+              <a href="#features">Lihat Fitur</a>
             </Button>
           </div>
         </motion.div>
@@ -183,8 +185,9 @@ export function LandingPage() {
           <h2 className="text-3xl md:text-4xl font-bold mb-4">
             Semua yang Kamu Butuhkan
           </h2>
-          <p className="text-foreground/70 max-w-2xl mx-auto">
-            Fitur lengkap untuk membantu kamu membuat konten yang menarik dan berkualitas.
+          <p className="text-muted-foreground max-w-2xl mx-auto">
+            Fitur lengkap untuk membantu kamu membuat konten yang menarik dan
+            berkualitas.
           </p>
         </div>
 
@@ -196,13 +199,15 @@ export function LandingPage() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.5, delay: index * 0.1 }}
-              className="p-6 rounded-xl border border-divider bg-content1 hover:border-primary/50 transition-colors"
+              className="p-6 rounded-xl border border-border bg-card hover:border-primary/50 transition-colors"
             >
               <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
                 <feature.icon className="text-primary" size={24} />
               </div>
               <h3 className="text-lg font-semibold mb-2">{feature.title}</h3>
-              <p className="text-foreground/70 text-sm">{feature.description}</p>
+              <p className="text-muted-foreground text-sm">
+                {feature.description}
+              </p>
             </motion.div>
           ))}
         </div>
@@ -214,8 +219,9 @@ export function LandingPage() {
           <h2 className="text-3xl md:text-4xl font-bold mb-4">
             Harga Sederhana & Transparan
           </h2>
-          <p className="text-foreground/70 max-w-2xl mx-auto">
-            Pilih plan yang sesuai dengan kebutuhanmu. Upgrade atau downgrade kapan saja.
+          <p className="text-muted-foreground max-w-2xl mx-auto">
+            Pilih plan yang sesuai dengan kebutuhanmu. Upgrade atau downgrade
+            kapan saja.
           </p>
         </div>
 
@@ -228,9 +234,9 @@ export function LandingPage() {
               viewport={{ once: true }}
               transition={{ duration: 0.5, delay: index * 0.1 }}
               className={`p-6 rounded-xl border ${
-                plan.popular 
-                  ? 'border-primary bg-primary/5 ring-2 ring-primary' 
-                  : 'border-divider bg-content1'
+                plan.popular
+                  ? "border-primary bg-primary/5 ring-2 ring-primary"
+                  : "border-border bg-card"
               }`}
             >
               {plan.popular && (
@@ -242,11 +248,13 @@ export function LandingPage() {
               <div className="mb-4">
                 <span className="text-3xl font-bold">{plan.price}</span>
                 {plan.period && (
-                  <span className="text-foreground/60">{plan.period}</span>
+                  <span className="text-muted-foreground">{plan.period}</span>
                 )}
               </div>
-              <p className="text-foreground/70 text-sm mb-6">{plan.description}</p>
-              
+              <p className="text-muted-foreground text-sm mb-6">
+                {plan.description}
+              </p>
+
               <ul className="space-y-3 mb-6">
                 {plan.features.map((feature) => (
                   <li key={feature} className="flex items-center gap-2 text-sm">
@@ -257,13 +265,11 @@ export function LandingPage() {
               </ul>
 
               <Button
-                as={Link}
-                to="/register"
-                color={plan.popular ? 'primary' : 'default'}
-                variant={plan.popular ? 'solid' : 'bordered'}
-                fullWidth
+                variant={plan.popular ? "default" : "outline"}
+                className="w-full"
+                asChild
               >
-                {plan.cta}
+                <Link to="/register">{plan.cta}</Link>
               </Button>
             </motion.div>
           ))}
@@ -272,27 +278,23 @@ export function LandingPage() {
 
       {/* CTA */}
       <section className="container mx-auto px-4 py-24">
-        <div className="text-center p-12 rounded-2xl bg-gradient-to-r from-primary-500 to-secondary-500">
-          <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
+        <div className="text-center p-12 rounded-2xl bg-gradient-to-r from-primary/80 to-primary">
+          <h2 className="text-3xl md:text-4xl font-bold text-primary-foreground mb-4">
             Siap Membuat Konten Luar Biasa?
           </h2>
-          <p className="text-white/80 max-w-2xl mx-auto mb-8">
-            Bergabung dengan ribuan content creator yang sudah menggunakan Vibe Creator.
+          <p className="text-primary-foreground/80 max-w-2xl mx-auto mb-8">
+            Bergabung dengan ribuan content creator yang sudah menggunakan Vibe
+            Creator.
           </p>
-          <Button 
-            as={Link} 
-            to="/register" 
-            size="lg"
-            className="bg-white text-primary font-semibold"
-          >
-            Mulai Gratis Sekarang
+          <Button size="lg" variant="secondary" asChild>
+            <Link to="/register">Mulai Gratis Sekarang</Link>
           </Button>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-divider py-8">
-        <div className="container mx-auto px-4 text-center text-sm text-foreground/60">
+      <footer className="border-t border-border py-8">
+        <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
           <p>© 2024 Vibe Creator. All rights reserved.</p>
         </div>
       </footer>

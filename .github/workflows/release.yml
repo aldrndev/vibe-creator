@@ -1,0 +1,65 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 10.26.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma Client
+        working-directory: apps/api
+        run: npx prisma generate
+
+      - name: Build
+        run: pnpm build
+
+      - name: Run tests
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test
+          REDIS_URL: redis://localhost:6379
+          JWT_SECRET: test-jwt-secret-at-least-32-characters-long
+          JWT_REFRESH_SECRET: test-refresh-secret-at-least-32-chars
+          NODE_ENV: test
+        run: pnpm test
+
+      - name: Build Docker image
+        run: |
+          docker build -t vibe-creator-api:${{ github.ref_name }} -f apps/api/Dockerfile .
+          docker tag vibe-creator-api:${{ github.ref_name }} vibe-creator-api:${{ github.sha }}
+
+      - name: Generate SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          image: vibe-creator-api:${{ github.ref_name }}
+          artifact-name: sbom-${{ github.ref_name }}.spdx.json
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          generate_release_notes: true
+          files: |
+            sbom-${{ github.ref_name }}.spdx.json

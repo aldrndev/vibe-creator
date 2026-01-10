@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useAuthStore } from "@/stores/auth-store";
 import { useThemeStore } from "@/stores/theme-store";
 import { useEffect, lazy, Suspense } from "react";
+import { ErrorBoundary } from "@/components/ui";
 
 // Layouts (keep synchronous for layout stability)
 import { AuthLayout } from "@/components/layout/AuthLayout";
@@ -166,223 +167,225 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <Routes>
-        {/* Public routes */}
-        <Route path="/" element={<LandingPage />} />
+      <ErrorBoundary>
+        <Routes>
+          {/* Public routes */}
+          <Route path="/" element={<LandingPage />} />
 
-        {/* Auth routes - English */}
-        <Route
-          path="/login"
-          element={
-            <PublicRoute>
-              <AuthLayout>
-                <LoginPage />
-              </AuthLayout>
-            </PublicRoute>
-          }
-        />
-        <Route
-          path="/register"
-          element={
-            <PublicRoute>
-              <AuthLayout>
-                <RegisterPage />
-              </AuthLayout>
-            </PublicRoute>
-          }
-        />
-
-        {/* Protected dashboard routes - English */}
-        {/* Protected Dashboard Layout (Includes Dashboard & Tools) */}
-        <Route
-          element={
-            <ProtectedRoute>
-              <DashboardLayout />
-            </ProtectedRoute>
-          }
-        >
-          {/* Dashboard Routes */}
+          {/* Auth routes - English */}
           <Route
-            path="/dashboard"
+            path="/login"
             element={
-              <Suspense fallback={<PageLoader />}>
-                <DashboardPage />
-              </Suspense>
+              <PublicRoute>
+                <AuthLayout>
+                  <LoginPage />
+                </AuthLayout>
+              </PublicRoute>
             }
           />
           <Route
-            path="/dashboard/projects"
+            path="/register"
             element={
-              <Suspense fallback={<PageLoader />}>
-                <ProjectsPage />
-              </Suspense>
-            }
-          />
-          <Route
-            path="/dashboard/exports"
-            element={
-              <Suspense fallback={<PageLoader />}>
-                <ProjectsPage />
-              </Suspense>
-            }
-          />
-          <Route
-            path="/dashboard/prompts"
-            element={
-              <Suspense fallback={<PageLoader />}>
-                <PromptsPage />
-              </Suspense>
-            }
-          />
-          <Route
-            path="/dashboard/prompts/new"
-            element={
-              <Suspense fallback={<PageLoader />}>
-                <PromptBuilderPage />
-              </Suspense>
-            }
-          />
-          <Route
-            path="/dashboard/prompts/:id"
-            element={
-              <Suspense fallback={<PageLoader />}>
-                <PromptDetailPage />
-              </Suspense>
-            }
-          />
-          <Route
-            path="/dashboard/downloads"
-            element={
-              <Suspense fallback={<PageLoader />}>
-                <DownloadsPage />
-              </Suspense>
-            }
-          />
-          <Route
-            path="/dashboard/settings"
-            element={
-              <Suspense fallback={<PageLoader />}>
-                <SettingsPage />
-              </Suspense>
-            }
-          />
-          <Route
-            path="/dashboard/pricing"
-            element={
-              <Suspense fallback={<PageLoader />}>
-                <PricingPage />
-              </Suspense>
-            }
-          />
-          <Route
-            path="/dashboard/community"
-            element={
-              <Suspense fallback={<PageLoader />}>
-                <CommunityPage />
-              </Suspense>
-            }
-          />
-          <Route
-            path="/dashboard/admin"
-            element={
-              <Suspense fallback={<PageLoader />}>
-                <AdminPage />
-              </Suspense>
+              <PublicRoute>
+                <AuthLayout>
+                  <RegisterPage />
+                </AuthLayout>
+              </PublicRoute>
             }
           />
 
-          {/* Tools Routes (Now inside Dashboard Layout) */}
+          {/* Protected dashboard routes - English */}
+          {/* Protected Dashboard Layout (Includes Dashboard & Tools) */}
           <Route
-            path="/tools/loop-creator"
             element={
-              <Suspense fallback={<PageLoader />}>
-                <LoopCreatorPage />
-              </Suspense>
+              <ProtectedRoute>
+                <DashboardLayout />
+              </ProtectedRoute>
             }
-          />
-          <Route
-            path="/tools/reaction-creator"
-            element={
-              <Suspense fallback={<PageLoader />}>
-                <ReactionCreatorPage />
-              </Suspense>
-            }
-          />
-          <Route
-            path="/tools/live-stream"
-            element={
-              <Suspense fallback={<PageLoader />}>
-                <LiveStreamPage />
-              </Suspense>
-            }
-          />
-          <Route
-            path="/tools/live-stream-history"
-            element={
-              <Suspense fallback={<PageLoader />}>
-                <LiveStreamHistoryPage />
-              </Suspense>
-            }
-          />
-          <Route
-            path="/tools/story-director"
-            element={
-              <Suspense fallback={<PageLoader />}>
-                <StoryDirectorPage />
-              </Suspense>
-            }
-          />
-          <Route
-            path="/tools/story-director/:projectId"
-            element={
-              <Suspense fallback={<PageLoader />}>
-                <StoryDirectorPage />
-              </Suspense>
-            }
-          />
-          <Route
-            path="/tools/modern-editor"
-            element={
-              <Suspense fallback={<PageLoader />}>
-                <ModernEditorPage />
-              </Suspense>
-            }
-          />
-          <Route
-            path="/tools/ai-director"
-            element={
-              <Suspense fallback={<PageLoader />}>
-                <AiDirectorPage />
-              </Suspense>
-            }
-          />
-        </Route>
+          >
+            {/* Dashboard Routes */}
+            <Route
+              path="/dashboard"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <DashboardPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/dashboard/projects"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <ProjectsPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/dashboard/exports"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <ProjectsPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/dashboard/prompts"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <PromptsPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/dashboard/prompts/new"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <PromptBuilderPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/dashboard/prompts/:id"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <PromptDetailPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/dashboard/downloads"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <DownloadsPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/dashboard/settings"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <SettingsPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/dashboard/pricing"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <PricingPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/dashboard/community"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <CommunityPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/dashboard/admin"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <AdminPage />
+                </Suspense>
+              }
+            />
 
-        {/* Editor routes (full screen, no dashboard layout) */}
-        <Route
-          path="/tools/editor"
-          element={
-            <ProtectedRoute>
-              <Suspense fallback={<PageLoader />}>
-                <EditorPage />
-              </Suspense>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/editor/:projectId"
-          element={
-            <ProtectedRoute>
-              <Suspense fallback={<PageLoader />}>
-                <EditorPage />
-              </Suspense>
-            </ProtectedRoute>
-          }
-        />
+            {/* Tools Routes (Now inside Dashboard Layout) */}
+            <Route
+              path="/tools/loop-creator"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <LoopCreatorPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/tools/reaction-creator"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <ReactionCreatorPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/tools/live-stream"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <LiveStreamPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/tools/live-stream-history"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <LiveStreamHistoryPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/tools/story-director"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <StoryDirectorPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/tools/story-director/:projectId"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <StoryDirectorPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/tools/modern-editor"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <ModernEditorPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/tools/ai-director"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <AiDirectorPage />
+                </Suspense>
+              }
+            />
+          </Route>
 
-        {/* Catch all - redirect to dashboard if authenticated, otherwise landing */}
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+          {/* Editor routes (full screen, no dashboard layout) */}
+          <Route
+            path="/tools/editor"
+            element={
+              <ProtectedRoute>
+                <Suspense fallback={<PageLoader />}>
+                  <EditorPage />
+                </Suspense>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/editor/:projectId"
+            element={
+              <ProtectedRoute>
+                <Suspense fallback={<PageLoader />}>
+                  <EditorPage />
+                </Suspense>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Catch all - redirect to dashboard if authenticated, otherwise landing */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </ErrorBoundary>
     </BrowserRouter>
   );
 }

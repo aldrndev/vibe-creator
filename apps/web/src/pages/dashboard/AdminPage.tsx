@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Tabs, Tab } from "@heroui/react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui";
 import { Users, Megaphone } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "@/stores/auth-store";
@@ -54,15 +54,20 @@ export function AdminPage() {
       <SystemStats stats={stats} />
 
       {/* Tabs for Users and Announcements */}
-      <Tabs aria-label="Admin sections" color="primary" variant="underlined">
-        <Tab
-          key="users"
-          title={
-            <div className="flex items-center gap-2">
-              <Users size={16} /> Users
-            </div>
-          }
-        >
+      <Tabs defaultValue="users" className="w-full">
+        <TabsList>
+          <TabsTrigger value="users" className="flex items-center gap-2">
+            <Users size={16} /> Users
+          </TabsTrigger>
+          <TabsTrigger
+            value="announcements"
+            className="flex items-center gap-2"
+          >
+            <Megaphone size={16} /> Pengumuman
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="users" className="mt-4">
           <UsersTable
             users={users}
             isLoading={isLoading}
@@ -74,16 +79,9 @@ export function AdminPage() {
               editModal.onOpen();
             }}
           />
-        </Tab>
+        </TabsContent>
 
-        <Tab
-          key="announcements"
-          title={
-            <div className="flex items-center gap-2">
-              <Megaphone size={16} /> Pengumuman
-            </div>
-          }
-        >
+        <TabsContent value="announcements" className="mt-4">
           <AnnouncementsPanel
             announcements={announcements}
             isLoading={announcementsLoading}
@@ -91,7 +89,7 @@ export function AdminPage() {
             onUpdate={updateAnnouncement}
             onDelete={deleteAnnouncement}
           />
-        </Tab>
+        </TabsContent>
       </Tabs>
 
       <EditSubscriptionModal

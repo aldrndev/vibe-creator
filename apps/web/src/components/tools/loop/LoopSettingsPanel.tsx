@@ -7,10 +7,13 @@ import {
   Input,
   Progress,
   Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
   SelectItem,
   Slider,
   Switch,
-} from "@heroui/react";
+} from "@/components/ui";
 import { AlertCircle, Download, Sparkles } from "lucide-react";
 import { HoverCard } from "@/components/ui/PageTransition";
 import { LoopMode } from "@/hooks/useLoopCreator";
@@ -74,7 +77,7 @@ export function LoopSettingsPanel({
     <Card>
       <CardHeader className="flex items-center gap-2">
         <div className="w-8 h-8 rounded-lg bg-secondary/10 flex items-center justify-center">
-          <Sparkles size={16} className="text-secondary" />
+          <Sparkles size={16} className="text-secondary-foreground" />
         </div>
         <h2 className="text-lg font-semibold">Pengaturan</h2>
       </CardHeader>
@@ -86,22 +89,19 @@ export function LoopSettingsPanel({
             {loopModes.map((mode) => (
               <HoverCard key={mode.id}>
                 <Card
-                  isPressable
-                  onPress={() => setLoopMode(mode.id)}
-                  className={`border-2 transition-colors ${
+                  className={`cursor-pointer border-2 transition-colors ${
                     loopMode === mode.id
-                      ? `border-${mode.color} bg-${mode.color}/10`
-                      : "border-transparent hover:border-divider"
+                      ? `border-primary bg-primary/10`
+                      : "border-transparent hover:border-border"
                   }`}
+                  onClick={() => setLoopMode(mode.id)}
                 >
                   <CardBody className="p-3 text-center">
-                    <div
-                      className={`w-10 h-10 rounded-lg bg-${mode.color}/20 flex items-center justify-center mx-auto mb-2`}
-                    >
-                      <mode.icon size={20} className={`text-${mode.color}`} />
+                    <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center mx-auto mb-2">
+                      <mode.icon size={20} className="text-primary" />
                     </div>
                     <p className="font-medium text-sm">{mode.name}</p>
-                    <p className="text-xs text-foreground/50 mt-0.5">
+                    <p className="text-xs text-muted-foreground mt-0.5">
                       {mode.description}
                     </p>
                   </CardBody>
@@ -112,23 +112,26 @@ export function LoopSettingsPanel({
         </div>
 
         <div className="relative">
-          <div className={"transition-all space-y-6"}>
+          <div className="transition-all space-y-6">
             <Divider />
 
-            <div className="mt-4">
-              <Select
-                label="Format Output (Canvas)"
-                placeholder="Pilih Rasio"
-                selectedKeys={aspectRatio ? [aspectRatio] : []}
-                onChange={(e) => setAspectRatio(e.target.value)}
-                className="max-w-full"
-                size="sm"
-              >
-                <SelectItem key="">Original (Tanpa Crop)</SelectItem>
-                <SelectItem key="16:9">16:9 (YouTube, FB Video)</SelectItem>
-                <SelectItem key="9:16">9:16 (TikTok/Reels/Shorts)</SelectItem>
-                <SelectItem key="1:1">1:1 (IG/FB Feed)</SelectItem>
-                <SelectItem key="4:5">4:5 (IG/FB Portrait)</SelectItem>
+            <div className="mt-4 space-y-2">
+              <label className="text-sm font-medium">
+                Format Output (Canvas)
+              </label>
+              <Select value={aspectRatio} onValueChange={setAspectRatio}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Pilih Rasio" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Original (Tanpa Crop)</SelectItem>
+                  <SelectItem value="16:9">16:9 (YouTube, FB Video)</SelectItem>
+                  <SelectItem value="9:16">
+                    9:16 (TikTok/Reels/Shorts)
+                  </SelectItem>
+                  <SelectItem value="1:1">1:1 (IG/FB Feed)</SelectItem>
+                  <SelectItem value="4:5">4:5 (IG/FB Portrait)</SelectItem>
+                </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground mt-1">
                 *Otomatis menambahkan background blur jika rasio tidak sesuai
@@ -138,42 +141,40 @@ export function LoopSettingsPanel({
             <Divider className="my-4" />
 
             {/* Trim Controls */}
-            <div>
-              <label className="text-sm font-medium mb-2 block">
+            <div className="space-y-4">
+              <label className="text-sm font-medium block">
                 Rentang: {(startMs / 1000).toFixed(1)}s -{" "}
                 {(endMs / 1000).toFixed(1)}s
               </label>
               <div className="flex gap-4">
-                <Slider
-                  label="Mulai"
-                  step={100}
-                  minValue={0}
-                  maxValue={endMs - 500}
-                  value={startMs}
-                  onChange={(v) => setStartMs(v as number)}
-                  getValue={(v) => `${((v as number) / 1000).toFixed(1)}s`}
-                  className="flex-1"
-                  color="primary"
-                />
-                <Slider
-                  label="Akhir"
-                  step={100}
-                  minValue={startMs + 500}
-                  maxValue={maxDuration}
-                  value={endMs}
-                  onChange={(v) => setEndMs(v as number)}
-                  getValue={(v) => `${((v as number) / 1000).toFixed(1)}s`}
-                  className="flex-1"
-                  color="primary"
-                />
+                <div className="flex-1 space-y-2">
+                  <label className="text-xs text-muted-foreground">Mulai</label>
+                  <Slider
+                    min={0}
+                    max={endMs - 500}
+                    step={100}
+                    value={[startMs]}
+                    onValueChange={(v: number[]) => setStartMs(v[0] ?? 0)}
+                  />
+                </div>
+                <div className="flex-1 space-y-2">
+                  <label className="text-xs text-muted-foreground">Akhir</label>
+                  <Slider
+                    min={startMs + 500}
+                    max={maxDuration}
+                    step={100}
+                    value={[endMs]}
+                    onValueChange={(v: number[]) => setEndMs(v[0] ?? 5000)}
+                  />
+                </div>
               </div>
             </div>
 
             {/* GIF Duration Warning */}
             {loopMode === "gif" && endMs - startMs > 10000 && (
-              <div className="mt-3 p-2 bg-warning/10 border border-warning/20 rounded-md flex items-center gap-2">
-                <AlertCircle size={14} className="text-warning" />
-                <p className="text-xs text-warning-700">
+              <div className="mt-3 p-2 bg-yellow-500/10 border border-yellow-500/20 rounded-md flex items-center gap-2">
+                <AlertCircle size={14} className="text-yellow-500" />
+                <p className="text-xs text-yellow-600">
                   Durasi GIF {((endMs - startMs) / 1000).toFixed(1)}s cukup
                   panjang. Ukuran file mungkin sangat besar.
                 </p>
@@ -190,15 +191,15 @@ export function LoopSettingsPanel({
                       <label className="text-sm font-medium">
                         Target Output
                       </label>
-                      <Switch
-                        size="sm"
-                        isSelected={useDurationMode}
-                        onValueChange={setUseDurationMode}
-                      >
+                      <div className="flex items-center gap-2">
                         <span className="text-xs">
                           {useDurationMode ? "Durasi" : "Jumlah Putar"}
                         </span>
-                      </Switch>
+                        <Switch
+                          checked={useDurationMode}
+                          onCheckedChange={setUseDurationMode}
+                        />
+                      </div>
                     </div>
                   )}
 
@@ -221,7 +222,10 @@ export function LoopSettingsPanel({
                             label="Durasi Target (Menit)"
                             placeholder={`Maks: ${uiMaxMinutes} menit`}
                             value={targetMinutes.toString()}
-                            onValueChange={(v) => {
+                            onChange={(
+                              e: React.ChangeEvent<HTMLInputElement>
+                            ) => {
+                              const v = e.target.value;
                               setTargetMinutes(Number(v));
                               const targetMs = Number(v) * 60 * 1000;
                               const calcLoops = Math.ceil(targetMs / unitMs);
@@ -229,22 +233,11 @@ export function LoopSettingsPanel({
                             }}
                             min={1}
                             max={uiMaxMinutes}
-                            classNames={{
-                              input:
-                                "[&::-webkit-inner-spin-button]:appearance-none",
-                            }}
-                            description={`Maksimal input: ${uiMaxMinutes} menit (berdasarkan batas 5000x putaran).`}
-                            isInvalid={loopCount > 5000}
-                            errorMessage={
-                              loopCount > 5000
-                                ? `Durasi ini membutuhkan ${loopCount}x putaran (Melebihi batas 5000x). Harap kurangi durasi.`
-                                : ""
-                            }
                           />
                           <p
                             className={`text-xs ${
                               loopCount > 5000
-                                ? "text-danger"
+                                ? "text-destructive"
                                 : "text-muted-foreground"
                             }`}
                           >
@@ -280,19 +273,17 @@ export function LoopSettingsPanel({
                         </span>
                       </div>
                       <Slider
-                        aria-label="Loop Count"
-                        step={1}
-                        minValue={1}
-                        maxValue={(() => {
+                        min={1}
+                        max={(() => {
                           if (loopMode === "boomerang") {
                             const unitMs = (endMs - startMs) * 2;
                             return Math.max(1, Math.floor(60000 / unitMs));
                           }
                           return 50;
                         })()}
-                        value={loopCount}
-                        onChange={(v) => setLoopCount(v as number)}
-                        className="flex-1"
+                        step={1}
+                        value={[loopCount]}
+                        onValueChange={(v: number[]) => setLoopCount(v[0] ?? 1)}
                       />
                       {loopMode === "boomerang" && (
                         <p className="text-xs text-muted-foreground mt-1">
@@ -316,13 +307,8 @@ export function LoopSettingsPanel({
         {/* Processing Status */}
         {isProcessing && (
           <div className="space-y-2 p-3 rounded-lg bg-primary/5">
-            <Progress
-              isIndeterminate
-              size="sm"
-              color="primary"
-              aria-label="Sedang memproses"
-            />
-            <p className="text-sm text-center text-foreground/60">
+            <Progress value={undefined} className="animate-pulse" />
+            <p className="text-sm text-center text-muted-foreground">
               {processingStatus}
             </p>
           </div>
@@ -331,22 +317,15 @@ export function LoopSettingsPanel({
         {/* Action Buttons */}
         <div className="flex gap-3">
           <Button
-            color={
-              currentModeConfig.color as
-                | "primary"
-                | "secondary"
-                | "warning"
-                | "default"
-            }
             className="flex-1"
-            isDisabled={
+            disabled={
               !hasVideo || isProcessing || (loopCount > 5000 && useDurationMode)
             }
             isLoading={isProcessing}
-            onPress={onProcess}
-            startContent={!isProcessing && <currentModeConfig.icon size={18} />}
+            onClick={onProcess}
             size="lg"
           >
+            {!isProcessing && <currentModeConfig.icon size={18} />}
             {loopMode === "gif"
               ? "Buat GIF"
               : loopMode === "boomerang"
@@ -355,15 +334,11 @@ export function LoopSettingsPanel({
           </Button>
 
           {resultUrl && (
-            <Button
-              as="a"
-              href={resultUrl}
-              download
-              color="success"
-              size="lg"
-              startContent={<Download size={18} />}
-            >
-              Download
+            <Button asChild variant="secondary" size="lg">
+              <a href={resultUrl} download>
+                <Download size={18} />
+                Download
+              </a>
             </Button>
           )}
         </div>

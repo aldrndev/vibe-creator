@@ -1,7 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { HeroUIProvider } from "@heroui/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { TooltipProvider } from "@/components/ui";
 import App from "./App";
 import "./index.css";
 
@@ -26,9 +26,9 @@ if (!rootElement) {
 createRoot(rootElement).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <HeroUIProvider>
+      <TooltipProvider>
         <App />
-      </HeroUIProvider>
+      </TooltipProvider>
     </QueryClientProvider>
   </StrictMode>
 );

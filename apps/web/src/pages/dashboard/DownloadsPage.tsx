@@ -4,15 +4,14 @@ import {
   Card,
   CardBody,
   Button,
-  Chip,
+  Badge,
   Progress,
-  Modal,
-  ModalContent,
-  ModalHeader,
-  ModalBody,
-  ModalFooter,
-  useDisclosure,
-} from "@heroui/react";
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui";
 import {
   Download,
   FileVideo,
@@ -32,7 +31,6 @@ import { useDownloads, useRefreshDownloads } from "@/hooks/use-downloads";
 import { downloadApi } from "@/services/download-api";
 import { authFetch } from "@/services/api";
 
-// Platform colors and icons
 const PLATFORM_CONFIG: Record<string, { color: string; bgClass: string }> = {
   tiktok: { color: "text-cyan-400", bgClass: "bg-cyan-500/20" },
   youtube: { color: "text-red-400", bgClass: "bg-red-500/20" },
@@ -41,10 +39,9 @@ const PLATFORM_CONFIG: Record<string, { color: string; bgClass: string }> = {
   facebook: { color: "text-blue-500", bgClass: "bg-blue-600/20" },
   vimeo: { color: "text-cyan-300", bgClass: "bg-cyan-400/20" },
   reddit: { color: "text-orange-400", bgClass: "bg-orange-500/20" },
-  unknown: { color: "text-foreground/40", bgClass: "bg-content2" },
+  unknown: { color: "text-muted-foreground", bgClass: "bg-muted" },
 };
 
-// Shorten URL for display
 function shortenUrl(url: string): string {
   try {
     const u = new URL(url);
@@ -61,20 +58,12 @@ export function DownloadsPage() {
   const refreshDownloads = useRefreshDownloads();
 
   // Delete modal
-  const {
-    isOpen: isDeleteOpen,
-    onOpen: onDeleteOpen,
-    onClose: onDeleteClose,
-  } = useDisclosure();
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
   // Video preview modal
-  const {
-    isOpen: isVideoOpen,
-    onOpen: onVideoOpen,
-    onClose: onVideoClose,
-  } = useDisclosure();
+  const [isVideoOpen, setIsVideoOpen] = useState(false);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [videoTitle, setVideoTitle] = useState<string>("");
   const [isLoadingVideo, setIsLoadingVideo] = useState(false);
@@ -92,17 +81,17 @@ export function DownloadsPage() {
     });
   };
 
-  const getStatusColor = (status: string) => {
+  const getStatusVariant = (status: string) => {
     switch (status) {
       case "COMPLETED":
-        return "success";
+        return "default";
       case "PROCESSING":
       case "DOWNLOADING":
-        return "primary";
+        return "secondary";
       case "PENDING":
-        return "warning";
+        return "outline";
       default:
-        return "default";
+        return "secondary";
     }
   };
 
@@ -122,7 +111,7 @@ export function DownloadsPage() {
 
   const handleDeleteClick = (id: string) => {
     setDeleteTarget(id);
-    onDeleteOpen();
+    setIsDeleteOpen(true);
   };
 
   const handleDeleteConfirm = async () => {
@@ -131,14 +120,13 @@ export function DownloadsPage() {
     setIsDeleting(true);
     try {
       await downloadApi.deleteDownload(deleteTarget);
-      // Modal closing + list refresh is sufficient feedback
       refetch();
     } catch (e) {
       logger.error("Delete download failed", e);
     } finally {
       setIsDeleting(false);
       setDeleteTarget(null);
-      onDeleteClose();
+      setIsDeleteOpen(false);
     }
   };
 
@@ -156,10 +144,9 @@ export function DownloadsPage() {
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       setVideoUrl(url);
-      onVideoOpen();
+      setIsVideoOpen(true);
     } catch (e) {
       logger.error("Load video failed", e);
-      // No toast - user sees that modal didn't open
     } finally {
       setIsLoadingVideo(false);
     }
@@ -171,7 +158,7 @@ export function DownloadsPage() {
       setVideoUrl(null);
     }
     setVideoTitle("");
-    onVideoClose();
+    setIsVideoOpen(false);
   };
 
   const getPlatformConfig = (
@@ -179,7 +166,7 @@ export function DownloadsPage() {
   ): { color: string; bgClass: string } => {
     const key = platform?.toLowerCase() || "unknown";
     const config = PLATFORM_CONFIG[key];
-    return config || { color: "text-foreground/40", bgClass: "bg-content2" };
+    return config || { color: "text-muted-foreground", bgClass: "bg-muted" };
   };
 
   return (
@@ -191,14 +178,14 @@ export function DownloadsPage() {
             <Download size={24} className="text-primary" />
             Unduhan
           </h1>
-          <p className="text-foreground/60">Download audio/video dari URL</p>
+          <p className="text-muted-foreground">Download audio/video dari URL</p>
         </div>
         <Button
-          variant="flat"
-          startContent={<RefreshCw size={16} />}
-          onPress={handleRefresh}
+          variant="secondary"
+          onClick={handleRefresh}
           isLoading={isLoading}
         >
+          <RefreshCw size={16} />
           Refresh
         </Button>
       </div>
@@ -214,7 +201,7 @@ export function DownloadsPage() {
         />
       )}
 
-      {/* Downloads list - only COMPLETED downloads are shown */}
+      {/* Downloads list */}
       {!isLoading && downloads.length > 0 && (
         <StaggerContainer className="space-y-3">
           {downloads.map((download) => {
@@ -253,23 +240,18 @@ export function DownloadsPage() {
                           <h3 className="font-medium truncate">
                             {download.title || shortenUrl(download.sourceUrl)}
                           </h3>
-                          <Chip
-                            size="sm"
-                            variant="flat"
-                            color={getStatusColor(download.status)}
-                          >
+                          <Badge variant={getStatusVariant(download.status)}>
                             {getStatusLabel(download.status)}
-                          </Chip>
+                          </Badge>
                         </div>
 
-                        <div className="flex items-center gap-4 text-sm text-foreground/60">
-                          <Chip
-                            size="sm"
-                            variant="dot"
+                        <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                          <Badge
+                            variant="outline"
                             className={platformConfig.color}
                           >
                             {(download.platform || "video").toUpperCase()}
-                          </Chip>
+                          </Badge>
                           <span className="flex items-center gap-1">
                             <Clock size={12} />
                             {formatDate(download.createdAt)}
@@ -279,11 +261,8 @@ export function DownloadsPage() {
                         {/* Progress bar for processing */}
                         {isProcessing && (
                           <Progress
-                            isIndeterminate
-                            size="sm"
-                            color="primary"
-                            className="mt-2 max-w-xs"
-                            aria-label="Download sedang diproses"
+                            value={50}
+                            className="mt-2 max-w-xs animate-pulse"
                           />
                         )}
                       </div>
@@ -294,29 +273,25 @@ export function DownloadsPage() {
                         {isCompleted && download.localPath && (
                           <Button
                             size="sm"
-                            color="primary"
-                            variant="flat"
-                            startContent={<Play size={14} />}
+                            variant="secondary"
                             isLoading={isLoadingVideo}
-                            onPress={() =>
+                            onClick={() =>
                               handleOpenVideo(
                                 download.id,
                                 download.title || "Video"
                               )
                             }
                           >
+                            <Play size={14} />
                             Putar
                           </Button>
                         )}
 
                         {/* Delete button */}
                         <Button
-                          size="sm"
-                          variant="light"
-                          color="danger"
-                          isIconOnly
-                          aria-label="Hapus download"
-                          onPress={() => handleDeleteClick(download.id)}
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => handleDeleteClick(download.id)}
                         >
                           <Trash2 size={16} />
                         </Button>
@@ -331,39 +306,36 @@ export function DownloadsPage() {
       )}
 
       {/* Delete confirmation modal */}
-      <Modal isOpen={isDeleteOpen} onClose={onDeleteClose}>
-        <ModalContent>
-          <ModalHeader>Hapus Download?</ModalHeader>
-          <ModalBody>
-            <p>Download ini akan dihapus permanen beserta file-nya.</p>
-          </ModalBody>
-          <ModalFooter>
-            <Button variant="flat" onPress={onDeleteClose}>
+      <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Hapus Download?</DialogTitle>
+          </DialogHeader>
+          <p className="text-muted-foreground">
+            Download ini akan dihapus permanen beserta file-nya.
+          </p>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setIsDeleteOpen(false)}>
               Batal
             </Button>
             <Button
-              color="danger"
-              onPress={handleDeleteConfirm}
+              variant="destructive"
+              onClick={handleDeleteConfirm}
               isLoading={isDeleting}
             >
               Hapus
             </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Video preview modal */}
-      <Modal
-        isOpen={isVideoOpen}
-        onClose={handleCloseVideo}
-        size="3xl"
-        classNames={{
-          body: "p-0",
-        }}
-      >
-        <ModalContent>
-          <ModalHeader>{videoTitle}</ModalHeader>
-          <ModalBody>
+      <Dialog open={isVideoOpen} onOpenChange={handleCloseVideo}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>{videoTitle}</DialogTitle>
+          </DialogHeader>
+          <div className="p-0">
             {videoUrl && (
               <video
                 src={videoUrl}
@@ -374,9 +346,9 @@ export function DownloadsPage() {
                 Browser tidak mendukung video tag.
               </video>
             )}
-          </ModalBody>
-        </ModalContent>
-      </Modal>
+          </div>
+        </DialogContent>
+      </Dialog>
     </PageTransition>
   );
 }

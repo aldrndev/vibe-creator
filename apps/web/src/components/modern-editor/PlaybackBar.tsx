@@ -4,7 +4,7 @@
  * Video playback controls with scrubber, play/pause, and time display.
  */
 
-import { Button, Slider } from "@heroui/react";
+import { Button, Slider } from "@/components/ui";
 import { Play, Pause, SkipBack, SkipForward } from "lucide-react";
 import { useModernEditorStore } from "@/stores/modern-editor-store";
 import { clsx } from "clsx";
@@ -43,8 +43,8 @@ export function PlaybackBar({ className }: PlaybackBarProps) {
     setCurrentTime(Math.min(duration, currentTimeMs + 5000));
   };
 
-  const handleScrub = (value: number | number[]) => {
-    const newTime = Array.isArray(value) ? value[0] : value;
+  const handleScrub = (value: number[]) => {
+    const newTime = value[0];
     if (newTime !== undefined) {
       setCurrentTime(newTime);
       if (isPlaying) {
@@ -55,37 +55,23 @@ export function PlaybackBar({ className }: PlaybackBarProps) {
 
   return (
     <div
-      className={clsx(
-        "bg-content1 border-t border-divider px-4 py-3",
-        className
-      )}
+      className={clsx("bg-card border-t border-border px-4 py-3", className)}
     >
       <div className="flex items-center gap-4">
         {/* Time Display */}
-        <div className="text-sm font-mono text-foreground/70 w-24">
+        <div className="text-sm font-mono text-muted-foreground w-24">
           {formatTime(currentTimeMs)}
         </div>
 
         {/* Playback Controls */}
         <div className="flex items-center gap-1">
-          <Button isIconOnly size="sm" variant="light" onPress={handleSkipBack}>
+          <Button size="icon" variant="ghost" onClick={handleSkipBack}>
             <SkipBack size={16} />
           </Button>
-          <Button
-            isIconOnly
-            size="sm"
-            variant="solid"
-            color="primary"
-            onPress={togglePlayback}
-          >
+          <Button size="icon" variant="default" onClick={togglePlayback}>
             {isPlaying ? <Pause size={16} /> : <Play size={16} />}
           </Button>
-          <Button
-            isIconOnly
-            size="sm"
-            variant="light"
-            onPress={handleSkipForward}
-          >
+          <Button size="icon" variant="ghost" onClick={handleSkipForward}>
             <SkipForward size={16} />
           </Button>
         </div>
@@ -93,18 +79,16 @@ export function PlaybackBar({ className }: PlaybackBarProps) {
         {/* Scrubber */}
         <div className="flex-1">
           <Slider
-            size="sm"
-            minValue={0}
-            maxValue={duration}
-            value={currentTimeMs}
-            onChange={handleScrub}
+            min={0}
+            max={duration}
+            value={[currentTimeMs]}
+            onValueChange={handleScrub}
             className="w-full"
-            aria-label="Playback position"
           />
         </div>
 
         {/* Duration Display */}
-        <div className="text-sm font-mono text-foreground/70 w-24 text-right">
+        <div className="text-sm font-mono text-muted-foreground w-24 text-right">
           {formatTime(duration)}
         </div>
       </div>

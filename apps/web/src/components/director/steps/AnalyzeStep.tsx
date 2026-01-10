@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { useDirectorStore } from "@/stores/director-store";
 import { authFetch } from "@/services/api";
 import { logger } from "@/lib/logger";
-import { Card, CardBody } from "@heroui/react";
+import { Card, CardBody } from "@/components/ui";
 import { Sparkles, Loader2 } from "lucide-react";
 
 export const AnalyzeStep = () => {
@@ -57,7 +57,6 @@ export const AnalyzeStep = () => {
             if (job.candidates) {
               setCandidates(job.candidates);
             }
-            // Transition to picking
             setStep("PICKING");
             setLoading(false);
           } else if (job.status === "FAILED") {
@@ -88,7 +87,7 @@ export const AnalyzeStep = () => {
       <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur-md">
         <CardBody className="p-8 flex flex-col items-center text-center gap-6">
           <div className="w-20 h-20 rounded-full bg-secondary/10 flex items-center justify-center mb-2 animate-pulse">
-            <Sparkles className="w-10 h-10 text-secondary" />
+            <Sparkles className="w-10 h-10 text-secondary-foreground" />
           </div>
 
           <div>

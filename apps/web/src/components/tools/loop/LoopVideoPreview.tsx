@@ -1,4 +1,4 @@
-import { Button, Card, CardBody, CardHeader } from "@heroui/react";
+import { Button, Card, CardBody, CardHeader } from "@/components/ui";
 import { Upload } from "lucide-react";
 import { RefObject } from "react";
 
@@ -28,16 +28,16 @@ export function LoopVideoPreview({
       <CardBody className="space-y-4">
         {!videoUrl ? (
           <div
-            className="aspect-video bg-content2 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:bg-content3 transition-colors border-2 border-dashed border-divider hover:border-primary/50"
+            className="aspect-video bg-muted rounded-xl flex flex-col items-center justify-center cursor-pointer hover:bg-muted/80 transition-colors border-2 border-dashed border-border hover:border-primary/50"
             onClick={() => fileInputRef.current?.click()}
           >
             <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
               <Upload size={32} className="text-primary" />
             </div>
-            <p className="text-foreground/60 font-medium">
+            <p className="text-muted-foreground font-medium">
               Klik untuk upload video
             </p>
-            <p className="text-foreground/40 text-sm mt-1">
+            <p className="text-muted-foreground/60 text-sm mt-1">
               MP4, MOV, WebM • Max 200MB, 5 Min
             </p>
           </div>
@@ -53,11 +53,11 @@ export function LoopVideoPreview({
             />
             <div className="flex items-center justify-center">
               <Button
-                variant="flat"
+                variant="secondary"
                 size="sm"
-                onPress={() => fileInputRef.current?.click()}
-                startContent={<Upload size={14} />}
+                onClick={() => fileInputRef.current?.click()}
               >
+                <Upload size={14} />
                 Ganti Video
               </Button>
             </div>

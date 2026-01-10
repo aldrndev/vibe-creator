@@ -2,13 +2,11 @@
 trigger: always_on
 ---
 
-# Digitesia Engineering Standard — v3.6.7
-
-This standard is LAW. Violations are INVALID.
+# Digitesia Engineering Standard — v3.6.7 (CORE)
 
 ## PURPOSE (NON-NEGOTIABLE)
 
-Override human/AI defaults that optimize for speed/shortcuts/happy-path.
+Override human/AI defaults: speed/shortcuts/happy-path.
 
 Priority order (strict):
 
@@ -23,9 +21,9 @@ Tradeoffs that violate this order are FORBIDDEN.
 
 ## OUTPUT CONTRACT (ABSOLUTE)
 
-- OUTPUT ONLY: .ts, .tsx, .json, .yaml, .sql, .md
-- NO explanations / conversational text / emojis
-- PRODUCTION-READY ONLY
+- OUTPUT ONLY: .ts .tsx .json .yaml .sql .md
+- NO explanations/chat/emojis
+- PRODUCTION-READY
 - If unclear → FAIL FAST:
   // TODO: requirements unclear
 
@@ -35,7 +33,7 @@ AI MUST:
 
 - Treat this doc as hard constraints
 - Prefer explicit, boring, reversible designs
-- Reject shortcuts even if functional
+- Reject shortcuts even if they work
 - STOP when requirements are incomplete
 
 AI MUST NOT:
@@ -44,16 +42,14 @@ AI MUST NOT:
 - Fill gaps with assumptions
 - Optimize for speed/brevity
 
-## CONTEXT PRIORITY RULE
+## CONTEXT PRIORITY RULE (ABSOLUTE)
 
 When context is limited, read in this order:
 
-1. Types / Interfaces / Schemas
-2. Config / Env Validation
-3. Services (core logic)
-4. Controllers / UI
-
-Violation invalidates output.
+1. Types/Schemas
+2. Config/Env
+3. Services
+4. Controllers/UI
 
 ## CODE QUALITY (ABSOLUTE)
 
@@ -92,6 +88,31 @@ Violation invalidates output.
 - Unmaintained deps FORBIDDEN unless Exception Protocol
 - Unverified/transitive-only deps FORBIDDEN
 
+### Dependency Install (AUTHORITATIVE)
+
+- `pnpm add <pkg>@<exact-version>` REQUIRED
+- `pnpm add -D <pkg>@<exact-version>` REQUIRED
+- No-version install FORBIDDEN:
+  - pnpm add <pkg>
+  - pnpm add <pkg>@latest
+- package.json MUST contain exact versions only
+- pnpm-lock.yaml MUST be committed in the same PR
+
+### Audit & Outdated (AUTHORITATIVE)
+
+- CI MUST run `pnpm audit` (or equivalent)
+- CI MUST fail on critical vulnerabilities unless Exception Protocol
+- Fixes MUST be pinned upgrades only (`pnpm add <pkg>@X.Y.Z`)
+- `pnpm outdated` MUST be reviewed on a repo-defined cadence
+- Major upgrades MUST be isolated PRs with migration notes + tests
+
+### Transitive Vulnerability Overrides (AUTHORITATIVE)
+
+- pnpm.overrides allowed ONLY for security remediation
+- MUST pin exact version
+- MUST have ADR with expiry date
+- MUST be removed when upstream fix is available
+
 ## VALIDATION (ABSOLUTE)
 
 Zod REQUIRED for:
@@ -102,7 +123,7 @@ Zod REQUIRED for:
 
 Implicit trust in client data FORBIDDEN.
 
-## NAMING & MODULE BOUNDARIES
+## NAMING & MODULE BOUNDARIES (ABSOLUTE)
 
 - Files/dirs: kebab-case
 - Vars/functions: camelCase
@@ -116,7 +137,7 @@ Implicit trust in client data FORBIDDEN.
 - Cross-feature imports FORBIDDEN
 - Shared logic ONLY in explicit shared packages
 - Feature access ONLY via public barrel exports
-- Boundary enforcement REQUIRED (ESLint + TS refs)
+- Boundary enforcement REQUIRED (ESLint + TS references)
 
 ## CONTINUOUS INTEGRATION (AUTHORITATIVE)
 
@@ -130,21 +151,25 @@ CI MUST run on every push & PR:
 
 Merge to main/master FORBIDDEN if CI fails.
 
+### Dependency Drift Gate (AUTHORITATIVE)
+
+- CI MUST fail if package.json contains ^ or ~ or \* or latest
+- CI MUST fail if lockfile missing or not updated when deps change
+
 ## RULE — TEST CO-CHANGE (AUTHORITATIVE)
 
-- Production code changes MUST include corresponding tests in the same PR.
-- For every feature/bug fix:
-  - Unit tests MUST be added/updated immediately after implementation.
-  - Negative tests REQUIRED for high-risk paths.
-- High-risk domains MUST always have tests:
+- Production code changes MUST include corresponding tests in the same PR
+- Negative tests REQUIRED for high-risk paths
+- High-risk domains MUST have tests:
   - authorization (deny-by-default)
   - tenant isolation (repo layer)
   - job idempotency
   - webhook verification + replay protection (if applicable)
   - token rotation + replay detection
-- PR is INVALID if production logic changes without tests.
 
-### Commit Convention
+PR is INVALID if production logic changes without tests.
+
+### Commit Convention (AUTHORITATIVE)
 
 - Conventional Commits REQUIRED: feat, fix, chore, docs, refactor, perf, test, ci
 - Breaking changes explicitly marked in footer
@@ -154,10 +179,9 @@ Merge to main/master FORBIDDEN if CI fails.
 
 - Short-lived feature branches REQUIRED (deleted after merge)
 - Long-lived dev/staging branches FORBIDDEN
-- Rebase preferred for feature branches (over merge commits)
+- Rebase preferred for feature branches
 - main/master history rewrite FORBIDDEN
-- Branch naming: type/short-description
-  - Types: feat, fix, chore, refactor, docs, perf, test, ci
+- Branch naming: type/short-description (feat|fix|chore|refactor|docs|perf|test|ci)
 
 ## DOCUMENTATION ENTRYPOINT (README) (ABSOLUTE)
 
@@ -179,18 +203,8 @@ External wiki as “Getting Started” FORBIDDEN.
 - Global error handler REQUIRED
 - requestId REQUIRED
 - Correlation REQUIRED: requestId → jobId
-
-Required fields:
-
-- service, env, version
-- requestId, jobId
-- tenantId, userId (pseudonymous)
-- route, latencyMs
-
-Redaction REQUIRED:
-
-- secrets/tokens/credentials/full PII
-- webhook payloads (store hash/ids only)
+- Required fields: service, env, version, requestId, jobId, tenantId, userId (pseudonymous), route, latencyMs
+- Redaction REQUIRED: secrets/tokens/credentials/full PII; webhook payloads (store hash/ids only)
 
 ### Tracing
 
@@ -201,21 +215,8 @@ Redaction REQUIRED:
 
 ### Metrics & Alerts
 
-Metrics REQUIRED:
-
-- API latency p95/p99
-- Error rate
-- Queue depth
-- Job duration p95/p99
-- Worker CPU/RAM
-- Disk usage
-
-Alerts REQUIRED:
-
-- Queue stuck
-- Failure spike
-- Disk below threshold
-- Redis memory high
+Metrics REQUIRED: latency p95/p99, error rate, queue depth, job duration p95/p99, worker CPU/RAM, disk
+Alerts REQUIRED: queue stuck, failure spike, disk below threshold, redis memory high
 
 ## SECURITY (ABSOLUTE)
 
@@ -236,7 +237,7 @@ Alerts REQUIRED:
 
 ### Access Token
 
-- Stateless JWT, signed using jose
+- Stateless JWT signed using jose
 - Short-lived (MAX 15m)
 - Mandatory claims: iss, aud, sub, tid, iat, exp, nbf
 - Algorithm allowlist REQUIRED; alg=none FORBIDDEN
@@ -269,9 +270,7 @@ Alerts REQUIRED:
 - Zero-trust: attacker may be authenticated
 - Server-side authorization on EVERY request
 - Central policy model REQUIRED (deny-by-default)
-- Tenant isolation REQUIRED:
-  - tenantId enforced at repository layer
-  - unscoped queries FORBIDDEN
+- Tenant isolation REQUIRED: tenantId enforced at repository layer; unscoped queries FORBIDDEN
 - IDOR protection REQUIRED
 - Sequential/guessable IDs FORBIDDEN (UUID/opaque)
 
@@ -281,7 +280,7 @@ Alerts REQUIRED:
 - Resource existence MUST NOT be inferable
 - Denied attempts audited
 
-## SECURITY HARDENING
+## SECURITY HARDENING (AUTHORITATIVE)
 
 - Mass assignment FORBIDDEN (explicit allowlist REQUIRED)
 - Errors MUST NOT reveal: existence/authz logic/internal identifiers
@@ -310,28 +309,14 @@ Alerts REQUIRED:
 
 ## ENVIRONMENT VARIABLES & CONFIGURATION (AUTHORITATIVE)
 
-### Environment Levels
-
-- NODE_ENV MUST be: development | staging | production
-- Default NODE_ENV FORBIDDEN
-- APP_ENV OPTIONAL but same value set
-
-### Validation
-
-- Env consumed by an app MUST be Zod-validated at startup
-- Missing required env MUST fail fast
+- NODE_ENV MUST be: development | staging | production; default FORBIDDEN
+- Env MUST be Zod-validated at startup; missing required env MUST fail fast
 - Silent secret fallbacks FORBIDDEN
+- Secrets: no defaults; not baked into images; not logged; not in client bundles
 
-### Secrets
+### Monorepo .env
 
-- Secrets MUST NOT have defaults
-- Secrets MUST NOT be baked into images
-- Secrets MUST NOT be logged
-- Secrets MUST NOT be present in client bundles
-
-### .env Files (Monorepo)
-
-- Root .env allowed ONLY for shared infra + compose-level NON-secret vars in local dev
+- Root .env allowed ONLY for shared infra + compose-level NON-secret vars (local dev)
 - Root .env MUST NOT contain app secrets
 - App-scoped env REQUIRED:
   - apps/api/.env
@@ -353,7 +338,6 @@ Alerts REQUIRED:
 
 ## DOCKER (AUTHORITATIVE)
 
-- Dockerfile + docker-compose REQUIRED
 - Multi-stage builds REQUIRED
 - Non-root containers REQUIRED
 - Pinned image versions (NO latest)
@@ -362,62 +346,41 @@ Alerts REQUIRED:
 - Build ARG MUST NOT contain secrets
 - Runtime secrets injected at container start
 
-### docker-compose Rules
+### docker-compose
 
 - Allowed for local dev and CI
 - Production orchestrator FORBIDDEN unless Exception Protocol
 - Compose MUST NOT contain secrets
 - App services MUST use app-scoped env_file (no root secrets)
-
-### Compose Default Values Policy
-
-- Non-secret defaults (${VAR:-default}) allowed
-- Secret defaults FORBIDDEN
-- Missing secrets MUST fail container startup
+- Non-secret defaults (${VAR:-default}) allowed; secret defaults FORBIDDEN; missing secrets MUST fail startup
 
 ## CONTINUOUS DELIVERY (AUTHORITATIVE)
 
-- Production deployments automated from main/master only
-- Deploy MUST NOT run if CI not green
-- Immutable artifacts REQUIRED:
-  - Docker image tagged with git SHA
-  - Mutable tags (latest) FORBIDDEN
-- Pipeline MUST include:
-  - pre-deploy: pull artifact + verify digest
-  - deploy: update service to new image
-  - post-deploy: healthcheck gate with bounded timeout
-  - rollback: auto rollback to last-known-good if gate fails
-- Deploy MUST be auditable:
-  - git SHA, operator, timestamp, environment
+- Deployments automated from main/master only; blocked if CI not green
+- Immutable artifacts REQUIRED: Docker image tagged with git SHA; mutable tags FORBIDDEN
+- Pipeline MUST: verify digest → deploy → healthcheck gate (bounded) → auto rollback on failure
+- Deploy audit record REQUIRED: git SHA, operator, timestamp, environment
 
 ## SUPPLY-CHAIN DEPLOY GATE (AUTHORITATIVE)
 
-- Artifact digest MUST be verified before rollout
-- Deploy MUST fail on digest mismatch
-- Deploy MUST fail on critical vuln scan unless Exception Protocol
-- SBOM MUST be generated for every release artifact
+- Artifact digest MUST be verified; mismatch fails deploy
+- Critical vuln scan fails deploy unless Exception Protocol
+- SBOM REQUIRED for every release artifact
 
 ## RELEASE ARTIFACTS (AUTHORITATIVE)
 
-- Every release MUST produce:
-  - pinned Docker image (git SHA tag)
-  - SBOM for the image
+- Every release MUST produce: pinned Docker image (git SHA) + SBOM
 - Secrets MUST NOT be baked into images
-- Runtime config injected at container start (env/secret store)
+- Runtime config injected at container start
 
-## MONOREPO (IF APPLICABLE)
+## MONOREPO (IF APPLICABLE) (AUTHORITATIVE)
 
 - pnpm workspaces REQUIRED
-- Root scripts REQUIRED:
-  - pnpm server
-  - pnpm web
-  - pnpm mobile
-  - pnpm dev
+- Root scripts MUST be consistent org-wide (see Blueprint Rules)
 
-## TESTING
+## TESTING (AUTHORITATIVE)
 
-- Deterministic tests ONLY
-- Snapshot tests FORBIDDEN
+- Deterministic tests ONLY; snapshot FORBIDDEN
 - Negative tests REQUIRED
 - Minimum high-risk coverage:
   - authorization policies
@@ -426,13 +389,13 @@ Alerts REQUIRED:
   - webhook verification
   - token spend concurrency
 
-## HA / DR / SLO (PRODUCTION)
+## HA / DR / SLO (PRODUCTION) (AUTHORITATIVE)
 
 - SLOs REQUIRED
 - Multi-instance, multi-AZ REQUIRED
 - Backups + restore drills REQUIRED
 - Canary deploy + automated rollback REQUIRED
-- Single-node VPS MUST record “no multi-AZ” limitation + migration plan
+- Single-node VPS MUST record “no multi-AZ” + migration plan
 
 ## DEPLOYMENT SAFETY (AUTHORITATIVE)
 
@@ -444,7 +407,7 @@ Alerts REQUIRED:
 
 Hard-to-rollback, bug-hiding, undocumented-behavior reliance is FORBIDDEN.
 
-## FORBIDDEN SHORTCUTS
+## FORBIDDEN SHORTCUTS (ABSOLUTE)
 
 - any for speed
 - console.log
@@ -465,3 +428,4 @@ Rule violations ONLY with:
 - Time limit
 - Rollback plan
 - Explicit approver
+- Temporary pnpm.overrides allowed ONLY for transitive vulnerability remediation; MUST include expiry date + removal plan

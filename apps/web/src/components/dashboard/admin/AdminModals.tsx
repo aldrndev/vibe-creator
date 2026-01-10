@@ -1,15 +1,18 @@
 import {
-  Modal,
-  ModalContent,
-  ModalHeader,
-  ModalBody,
-  ModalFooter,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
   Button,
   Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
   SelectItem,
   Input,
   Textarea,
-} from "@heroui/react";
+} from "@/components/ui";
 import { UserData } from "@/hooks/useAdminData";
 import { useState } from "react";
 
@@ -31,40 +34,42 @@ export function EditSubscriptionModal({
   onUpdate,
 }: EditSubscriptionModalProps) {
   return (
-    <Modal isOpen={isOpen} onClose={onClose}>
-      <ModalContent>
-        <ModalHeader>Edit Subscription</ModalHeader>
-        <ModalBody>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Edit Subscription</DialogTitle>
+        </DialogHeader>
+        <div className="py-4">
           {user && (
             <div className="space-y-4">
               <div>
                 <p className="font-medium">{user.name}</p>
-                <p className="text-sm text-foreground/60">{user.email}</p>
+                <p className="text-sm text-muted-foreground">{user.email}</p>
               </div>
-              <Select
-                label="Subscription Tier"
-                selectedKeys={selectedTier ? [selectedTier] : []}
-                onSelectionChange={(keys) =>
-                  onSelectionChange(Array.from(keys)[0] as string)
-                }
-              >
-                <SelectItem key="FREE">Free</SelectItem>
-                <SelectItem key="CREATOR">Creator</SelectItem>
-                <SelectItem key="PRO">Pro</SelectItem>
-              </Select>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Subscription Tier</label>
+                <Select value={selectedTier} onValueChange={onSelectionChange}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select tier" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="FREE">Free</SelectItem>
+                    <SelectItem value="CREATOR">Creator</SelectItem>
+                    <SelectItem value="PRO">Pro</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           )}
-        </ModalBody>
-        <ModalFooter>
-          <Button variant="flat" onPress={onClose}>
+        </div>
+        <DialogFooter>
+          <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>
-          <Button color="primary" onPress={onUpdate}>
-            Update
-          </Button>
-        </ModalFooter>
-      </ModalContent>
-    </Modal>
+          <Button onClick={onUpdate}>Update</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -89,41 +94,43 @@ export function CreateAnnouncementModal({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose}>
-      <ModalContent>
-        <ModalHeader>Buat Pengumuman</ModalHeader>
-        <ModalBody>
-          <div className="space-y-4">
-            <Input
-              label="Judul"
-              placeholder="Contoh: 🎉 Fitur Baru!"
-              value={newTitle}
-              onChange={(e) => setNewTitle(e.target.value)}
-              maxLength={200}
-            />
-            <Textarea
-              label="Konten"
-              placeholder="Isi pengumuman..."
-              value={newContent}
-              onChange={(e) => setNewContent(e.target.value)}
-              maxLength={1000}
-              minRows={3}
-            />
-          </div>
-        </ModalBody>
-        <ModalFooter>
-          <Button variant="flat" onPress={onClose}>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Buat Pengumuman</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-4">
+          <Input
+            label="Judul"
+            placeholder="Contoh: 🎉 Fitur Baru!"
+            value={newTitle}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+              setNewTitle(e.target.value)
+            }
+            maxLength={200}
+          />
+          <Textarea
+            label="Konten"
+            placeholder="Isi pengumuman..."
+            value={newContent}
+            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+              setNewContent(e.target.value)
+            }
+            maxLength={1000}
+          />
+        </div>
+        <DialogFooter>
+          <Button variant="secondary" onClick={onClose}>
             Batal
           </Button>
           <Button
-            color="primary"
-            onPress={handleCreate}
-            isDisabled={!newTitle.trim() || !newContent.trim()}
+            onClick={handleCreate}
+            disabled={!newTitle.trim() || !newContent.trim()}
           >
             Buat
           </Button>
-        </ModalFooter>
-      </ModalContent>
-    </Modal>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

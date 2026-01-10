@@ -8,7 +8,7 @@ import { test, expect } from "@playwright/test";
  * - No arbitrary sleeps (use readiness signals)
  * - Bounded timeouts
  *
- * NOTE: These tests require DISABLE_RATE_LIMIT=true on the backend
+ * NOTE: These tests require RATE_LIMIT_TEST_MODE=true on the backend
  * to avoid rate limiting during repeated test runs.
  */
 

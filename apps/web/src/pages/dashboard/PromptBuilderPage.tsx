@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Button, Input, Card, CardBody } from "@heroui/react";
+import { Button, Input, Card, CardBody } from "@/components/ui";
 import { motion } from "framer-motion";
 import { ArrowLeft, Sparkles } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -71,7 +71,6 @@ export function PromptBuilderPage() {
       case "SCRIPT": {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const formData: any = { ...scriptForm };
-        // Transform comma-separated strings to arrays
         if (typeof formData.keywords === "string") {
           formData.keywords = formData.keywords
             .split(",")
@@ -152,8 +151,6 @@ export function PromptBuilderPage() {
       inputData: inputData as unknown as Record<string, unknown>,
     };
 
-    // Mutation handles success/error - result displayed in PromptResultDisplay
-    // Error state can be shown via createPrompt.isError and createPrompt.error
     createPrompt.mutate(payload);
   };
 
@@ -190,15 +187,15 @@ export function PromptBuilderPage() {
       {/* Header */}
       <div className="flex items-center gap-4">
         <Button
-          isIconOnly
-          variant="light"
-          onPress={() => navigate("/dashboard/prompts")}
+          size="icon"
+          variant="ghost"
+          onClick={() => navigate("/dashboard/prompts")}
         >
           <ArrowLeft size={20} />
         </Button>
         <div>
           <h1 className="text-2xl font-bold">Prompt Builder</h1>
-          <p className="text-foreground/60">Buat prompt untuk konten kamu</p>
+          <p className="text-muted-foreground">Buat prompt untuk konten kamu</p>
         </div>
       </div>
 
@@ -220,7 +217,9 @@ export function PromptBuilderPage() {
                 label="Judul Prompt"
                 placeholder="Contoh: Script Review iPhone 16"
                 value={title}
-                onValueChange={setTitle}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                  setTitle(e.target.value)
+                }
               />
             </CardBody>
           </Card>
@@ -228,13 +227,12 @@ export function PromptBuilderPage() {
           {renderCurrentForm()}
 
           <Button
-            color="primary"
             size="lg"
-            fullWidth
-            startContent={<Sparkles size={20} />}
-            onPress={handleGenerate}
+            className="w-full"
+            onClick={handleGenerate}
             isLoading={createPrompt.isPending}
           >
+            <Sparkles size={20} />
             Generate Prompt
           </Button>
         </motion.div>

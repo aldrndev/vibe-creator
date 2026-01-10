@@ -1,4 +1,13 @@
-import { Card, CardBody, Select, SelectItem, Textarea } from "@heroui/react";
+import {
+  Card,
+  CardBody,
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+  Textarea,
+} from "@/components/ui";
 import { SelectionGrid } from "@/components/ui/SelectionGrid";
 import { VideoGenFormData } from "../types";
 import { TargetModelSelector } from "../components/TargetModelSelector";
@@ -43,36 +52,65 @@ export function VideoGenForm({ data, onChange }: VideoGenFormProps) {
         />
 
         <div className="grid sm:grid-cols-2 gap-4">
-          <Select
-            label="Style"
-            selectedKeys={[data.style]}
-            onChange={(e) => handleChange("style", e.target.value)}
-          >
-            {videoStyles.map((s) => (
-              <SelectItem key={s.key}>{s.label}</SelectItem>
-            ))}
-          </Select>
+          <div className="space-y-2">
+            <label className="text-sm text-muted-foreground">Style</label>
+            <Select
+              value={data.style}
+              onValueChange={(v) => handleChange("style", v)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {videoStyles.map((s) => (
+                  <SelectItem key={s.key} value={s.key}>
+                    {s.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-          <Select
-            label="Aspect Ratio"
-            selectedKeys={[data.aspectRatio]}
-            onChange={(e) => handleChange("aspectRatio", e.target.value)}
-          >
-            {aspectRatios.map((a) => (
-              <SelectItem key={a.key}>{a.label}</SelectItem>
-            ))}
-          </Select>
+          <div className="space-y-2">
+            <label className="text-sm text-muted-foreground">
+              Aspect Ratio
+            </label>
+            <Select
+              value={data.aspectRatio}
+              onValueChange={(v) => handleChange("aspectRatio", v)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {aspectRatios.map((a) => (
+                  <SelectItem key={a.key} value={a.key}>
+                    {a.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
-        <Select
-          label="Durasi"
-          selectedKeys={[data.duration]}
-          onChange={(e) => handleChange("duration", e.target.value)}
-        >
-          {videoDurations.map((d) => (
-            <SelectItem key={d.key}>{d.label}</SelectItem>
-          ))}
-        </Select>
+        <div className="space-y-2">
+          <label className="text-sm text-muted-foreground">Durasi</label>
+          <Select
+            value={data.duration}
+            onValueChange={(v) => handleChange("duration", v)}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {videoDurations.map((d) => (
+                <SelectItem key={d.key} value={d.key}>
+                  {d.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
         <SelectionGrid
           label="Camera Movement"
@@ -102,7 +140,9 @@ export function VideoGenForm({ data, onChange }: VideoGenFormProps) {
           label="Detail Tambahan (opsional)"
           placeholder="Detail spesifik lainnya..."
           value={data.additionalDetails}
-          onValueChange={(v) => handleChange("additionalDetails", v)}
+          onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+            handleChange("additionalDetails", e.target.value)
+          }
         />
       </CardBody>
     </Card>

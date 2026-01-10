@@ -1,5 +1,5 @@
 import { useRef } from "react";
-import { Button, Card, CardBody, CardHeader, Chip } from "@heroui/react";
+import { Button, Card, CardBody, CardHeader, Badge } from "@/components/ui";
 import { Video, Upload } from "lucide-react";
 
 interface LiveStreamPreviewProps {
@@ -33,16 +33,16 @@ export function LiveStreamPreview({
       <CardBody className="space-y-4">
         {!videoUrl ? (
           <div
-            className="aspect-video bg-content2 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:bg-content3 transition-colors border-2 border-dashed border-divider hover:border-primary/50"
+            className="aspect-video bg-muted rounded-xl flex flex-col items-center justify-center cursor-pointer hover:bg-muted/80 transition-colors border-2 border-dashed border-border hover:border-primary/50"
             onClick={() => fileInputRef.current?.click()}
           >
             <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
               <Upload size={32} className="text-primary" />
             </div>
-            <p className="text-foreground/60 font-medium">
+            <p className="text-muted-foreground font-medium">
               Upload video untuk stream
             </p>
-            <p className="text-foreground/40 text-xs mt-1">
+            <p className="text-muted-foreground/60 text-xs mt-1">
               Video akan di-loop terus menerus
             </p>
           </div>
@@ -57,22 +57,22 @@ export function LiveStreamPreview({
               />
               {isStreaming && (
                 <div className="absolute top-3 left-3">
-                  <Chip color="danger" size="sm" className="animate-pulse">
+                  <Badge variant="destructive" className="animate-pulse">
                     <span className="flex items-center gap-1">
                       <span className="w-1.5 h-1.5 bg-white rounded-full" />
                       Streaming
                     </span>
-                  </Chip>
+                  </Badge>
                 </div>
               )}
             </div>
             {!isStreaming && (
               <Button
-                variant="flat"
+                variant="secondary"
                 size="sm"
-                onPress={() => fileInputRef.current?.click()}
-                startContent={<Upload size={14} />}
+                onClick={() => fileInputRef.current?.click()}
               >
+                <Upload size={14} />
                 Ganti Video
               </Button>
             )}

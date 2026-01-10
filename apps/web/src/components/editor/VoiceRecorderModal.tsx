@@ -1,6 +1,13 @@
-import { Button, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter } from '@heroui/react';
-import { Mic, Square, Pause, Play, Trash2, Check } from 'lucide-react';
-import { useVoiceRecorder } from '@/hooks/use-voice-recorder';
+import {
+  Button,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui";
+import { Mic, Square, Pause, Play, Trash2, Check } from "lucide-react";
+import { useVoiceRecorder } from "@/hooks/use-voice-recorder";
 
 interface VoiceRecorderModalProps {
   isOpen: boolean;
@@ -12,10 +19,16 @@ function formatDuration(ms: number): string {
   const seconds = Math.floor(ms / 1000);
   const minutes = Math.floor(seconds / 60);
   const remainingSeconds = seconds % 60;
-  return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+  return `${minutes.toString().padStart(2, "0")}:${remainingSeconds
+    .toString()
+    .padStart(2, "0")}`;
 }
 
-export function VoiceRecorderModal({ isOpen, onClose, onSave }: VoiceRecorderModalProps) {
+export function VoiceRecorderModal({
+  isOpen,
+  onClose,
+  onSave,
+}: VoiceRecorderModalProps) {
   const {
     isRecording,
     isPaused,
@@ -47,26 +60,33 @@ export function VoiceRecorderModal({ isOpen, onClose, onSave }: VoiceRecorderMod
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={handleClose} size="md">
-      <ModalContent>
-        <ModalHeader>Rekam Suara</ModalHeader>
-        <ModalBody>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Rekam Suara</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4">
           {error && (
-            <div className="bg-danger/10 text-danger p-3 rounded-lg mb-4">
+            <div className="bg-destructive/10 text-destructive p-3 rounded-lg">
               {error}
             </div>
           )}
-          
+
           {/* Timer display */}
           <div className="text-center py-8">
-            <div className="text-5xl font-mono font-bold text-foreground">
+            <div className="text-5xl font-mono font-bold">
               {formatDuration(duration)}
             </div>
             {isRecording && (
               <div className="flex items-center justify-center gap-2 mt-4">
-                <div className={`w-3 h-3 rounded-full ${isPaused ? 'bg-warning' : 'bg-danger animate-pulse'}`} />
-                <span className="text-sm text-foreground/60">
-                  {isPaused ? 'Paused' : 'Recording...'}
+                <div
+                  className={`w-3 h-3 rounded-full ${
+                    isPaused ? "bg-warning" : "bg-destructive animate-pulse"
+                  }`}
+                />
+                <span className="text-sm text-muted-foreground">
+                  {isPaused ? "Paused" : "Recording..."}
                 </span>
               </div>
             )}
@@ -83,11 +103,10 @@ export function VoiceRecorderModal({ isOpen, onClose, onSave }: VoiceRecorderMod
           <div className="flex justify-center gap-3">
             {!isRecording && !audioBlob && (
               <Button
-                color="danger"
+                variant="destructive"
                 size="lg"
-                isIconOnly
                 className="w-16 h-16 rounded-full"
-                onPress={startRecording}
+                onClick={startRecording}
               >
                 <Mic size={28} />
               </Button>
@@ -96,20 +115,18 @@ export function VoiceRecorderModal({ isOpen, onClose, onSave }: VoiceRecorderMod
             {isRecording && (
               <>
                 <Button
-                  variant="flat"
+                  variant="secondary"
                   size="lg"
-                  isIconOnly
                   className="w-14 h-14 rounded-full"
-                  onPress={isPaused ? resumeRecording : pauseRecording}
+                  onClick={isPaused ? resumeRecording : pauseRecording}
                 >
                   {isPaused ? <Play size={24} /> : <Pause size={24} />}
                 </Button>
                 <Button
-                  color="danger"
+                  variant="destructive"
                   size="lg"
-                  isIconOnly
                   className="w-14 h-14 rounded-full"
-                  onPress={stopRecording}
+                  onClick={stopRecording}
                 >
                   <Square size={24} />
                 </Button>
@@ -119,41 +136,36 @@ export function VoiceRecorderModal({ isOpen, onClose, onSave }: VoiceRecorderMod
             {audioBlob && !isRecording && (
               <>
                 <Button
-                  variant="flat"
+                  variant="secondary"
                   size="lg"
-                  isIconOnly
                   className="w-14 h-14 rounded-full"
-                  onPress={clearRecording}
+                  onClick={clearRecording}
                 >
                   <Trash2 size={24} />
                 </Button>
                 <Button
-                  color="danger"
+                  variant="destructive"
                   size="lg"
-                  isIconOnly
                   className="w-16 h-16 rounded-full"
-                  onPress={startRecording}
+                  onClick={startRecording}
                 >
                   <Mic size={28} />
                 </Button>
               </>
             )}
           </div>
-        </ModalBody>
-        <ModalFooter>
-          <Button variant="light" onPress={handleClose}>
+        </div>
+
+        <DialogFooter>
+          <Button variant="ghost" onClick={handleClose}>
             Batal
           </Button>
-          <Button 
-            color="primary" 
-            onPress={handleSave}
-            isDisabled={!audioBlob}
-            startContent={<Check size={18} />}
-          >
+          <Button onClick={handleSave} disabled={!audioBlob}>
+            <Check size={18} />
             Simpan ke Timeline
           </Button>
-        </ModalFooter>
-      </ModalContent>
-    </Modal>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

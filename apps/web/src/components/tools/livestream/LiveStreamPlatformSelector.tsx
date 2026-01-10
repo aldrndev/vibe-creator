@@ -1,4 +1,4 @@
-import { Card, CardBody } from "@heroui/react";
+import { Card, CardBody } from "@/components/ui";
 import { HoverCard } from "@/components/ui/PageTransition";
 import { StreamPlatform } from "@/hooks/useLiveStream";
 import { platformConfigs } from "./constants";
@@ -21,19 +21,17 @@ export function LiveStreamPlatformSelector({
         {Object.entries(platformConfigs).map(([key, config]) => (
           <HoverCard key={key}>
             <Card
-              isPressable
-              isDisabled={isStreaming}
-              onPress={() => setPlatform(key as StreamPlatform)}
-              className={`border-2 transition-colors ${
+              className={`cursor-pointer border-2 transition-colors ${
+                isStreaming ? "opacity-50 cursor-not-allowed" : ""
+              } ${
                 platform === key
-                  ? `border-${config.color} bg-${config.color}/10`
-                  : "border-transparent hover:border-divider"
+                  ? `border-primary bg-primary/10`
+                  : "border-transparent hover:border-border"
               }`}
+              onClick={() => !isStreaming && setPlatform(key as StreamPlatform)}
             >
               <CardBody className="p-3 text-center">
-                <div
-                  className={`w-10 h-10 rounded-lg bg-${config.color}/20 flex items-center justify-center mx-auto mb-1`}
-                >
+                <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center mx-auto mb-1">
                   {config.icon}
                 </div>
                 <p className="text-xs font-medium truncate">{config.name}</p>

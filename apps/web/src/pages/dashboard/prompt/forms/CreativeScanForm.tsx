@@ -1,4 +1,14 @@
-import { Card, CardBody, Input, Select, SelectItem, Chip } from "@heroui/react";
+import {
+  Card,
+  CardBody,
+  Input,
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+  Badge,
+} from "@/components/ui";
 import { SelectionGrid } from "@/components/ui/SelectionGrid";
 import { CreativeScanFormData } from "../types";
 import { analysisTypes, niches, focusAreas } from "../constants";
@@ -26,26 +36,35 @@ export function CreativeScanForm({ data, onChange }: CreativeScanFormProps) {
           onChange={(v) => handleChange("targetModel", v)}
         />
         <h3 className="font-medium">Detail Creative Scan</h3>
-        <Chip color="secondary" variant="flat" size="sm">
-          Analisis video kompetitor
-        </Chip>
+        <Badge variant="secondary">Analisis video kompetitor</Badge>
 
         <Input
           label="URL Video"
           placeholder="Masukkan URL YouTube/TikTok/Instagram"
           value={data.sourceUrl}
-          onValueChange={(v) => handleChange("sourceUrl", v)}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+            handleChange("sourceUrl", e.target.value)
+          }
         />
 
-        <Select
-          label="Tipe Analisis"
-          selectedKeys={[data.analysisType]}
-          onChange={(e) => handleChange("analysisType", e.target.value)}
-        >
-          {analysisTypes.map((a) => (
-            <SelectItem key={a.key}>{a.label}</SelectItem>
-          ))}
-        </Select>
+        <div className="space-y-2">
+          <label className="text-sm text-muted-foreground">Tipe Analisis</label>
+          <Select
+            value={data.analysisType}
+            onValueChange={(v) => handleChange("analysisType", v)}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {analysisTypes.map((a) => (
+                <SelectItem key={a.key} value={a.key}>
+                  {a.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
         <SelectionGrid
           label="Niche"

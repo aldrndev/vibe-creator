@@ -1,7 +1,8 @@
 import { useRef, useState } from "react";
 import { useDirectorStore } from "@/stores/director-store";
 import { authFetch } from "@/services/api";
-import { Card, CardBody, Input, Button, Chip, cn } from "@heroui/react";
+import { Card, CardBody, Input, Button, Badge } from "@/components/ui";
+import { cn } from "@/lib/utils";
 import {
   Wand2,
   FileVideo,
@@ -91,7 +92,6 @@ export const ImportStep = () => {
         throw new Error(data.error?.message || "Import failed");
 
       const newAsset = { ...data.data, ingestStatus: "UPLOADING" };
-      // Force status to uploading locally for UI feedback
       setSession({
         ...session,
         asset: newAsset,
@@ -124,7 +124,6 @@ export const ImportStep = () => {
       const formData = new FormData();
       formData.append("file", file);
 
-      // Upload to temp
       const uploadRes = await authFetch("/api/v1/upload/video", {
         method: "POST",
         body: formData,
@@ -134,7 +133,6 @@ export const ImportStep = () => {
       if (!uploadData.success)
         throw new Error(uploadData.error?.message || "Upload failed");
 
-      // Import as asset
       const importRes = await authFetch(
         `/api/v1/director/sessions/${session.id}/import`,
         {
@@ -182,7 +180,7 @@ export const ImportStep = () => {
           </div>
 
           {error && (
-            <div className="flex items-center gap-2 text-danger bg-danger/10 px-4 py-2 rounded-lg text-sm">
+            <div className="flex items-center gap-2 text-destructive bg-destructive/10 px-4 py-2 rounded-lg text-sm">
               <AlertCircle size={16} />
               {error}
             </div>
@@ -254,22 +252,19 @@ export const ImportStep = () => {
               <div className="space-y-2">
                 <Input
                   placeholder="Tempel URL YouTube, TikTok..."
-                  size="sm"
-                  classNames={{
-                    inputWrapper: "bg-zinc-800 border-zinc-700",
-                  }}
+                  className="bg-zinc-800 border-zinc-700"
                   value={importUrl}
-                  onValueChange={setImportUrl}
-                  isDisabled={isLoading || isWaitingForAsset}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                    setImportUrl(e.target.value)
+                  }
+                  disabled={isLoading || isWaitingForAsset}
                 />
                 <Button
-                  fullWidth
-                  size="sm"
-                  color="primary"
-                  variant="flat"
-                  isDisabled={!importUrl || isLoading || isWaitingForAsset}
+                  className="w-full"
+                  variant="secondary"
+                  disabled={!importUrl || isLoading || isWaitingForAsset}
                   isLoading={isLoading && !isWaitingForAsset}
-                  onPress={handleUrlImport}
+                  onClick={handleUrlImport}
                 >
                   Impor
                 </Button>
@@ -279,28 +274,22 @@ export const ImportStep = () => {
 
           <div className="flex flex-wrap justify-center gap-2 mt-2">
             {["YouTube", "TikTok", "Instagram", "Facebook"].map((platform) => (
-              <Chip
+              <Badge
                 key={platform}
-                size="sm"
-                variant="flat"
-                className="bg-zinc-800 text-zinc-400 cursor-pointer hover:bg-zinc-700 transition-colors"
-                onClick={() => {
-                  // If just a visual helper, maybe prefill input?
-                  // For now, keep as visual indicator or focus input
-                }}
+                variant="secondary"
+                className="cursor-pointer hover:bg-zinc-700 transition-colors"
               >
                 {platform}
-              </Chip>
+              </Badge>
             ))}
-            <Chip
-              size="sm"
-              variant="flat"
-              className="bg-primary/10 text-primary cursor-pointer hover:bg-primary/20 transition-colors border border-primary/20"
-              startContent={<Plus size={12} />}
+            <Badge
+              variant="default"
+              className="cursor-pointer hover:bg-primary/80 transition-colors"
               onClick={() => setIsSourcesModalOpen(true)}
             >
+              <Plus size={12} className="mr-1" />
               Lainnya
-            </Chip>
+            </Badge>
           </div>
         </CardBody>
       </Card>
@@ -308,10 +297,8 @@ export const ImportStep = () => {
       <SupportedSourcesModal
         isOpen={isSourcesModalOpen}
         onOpenChange={setIsSourcesModalOpen}
-        onSelectPlatform={(_platform) => {
-          // Optional: Prefill or just focus.
-          // Since user has to paste URL anyway, maybe just focus input?
-          // Let's just log or no-op for now unless we want to filter validation logic.
+        onSelectPlatform={(_platform: string) => {
+          // Optional: Prefill or focus input
         }}
       />
     </div>

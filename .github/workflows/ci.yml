@@ -29,7 +29,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Generate Prisma Client
-        working-directory: apps/server
+        working-directory: apps/api
         run: npx prisma generate
 
       - name: Lint
@@ -50,9 +50,11 @@ jobs:
           NODE_ENV: test
         run: pnpm test
 
+      - name: Layout check
+        run: pnpm layout:check
+
       - name: Dependency scan
-        run: pnpm audit --audit-level=moderate
-        continue-on-error: true
+        run: pnpm audit --audit-level=critical
 
       - name: Secret scan
         uses: trufflesecurity/trufflehog@main

@@ -12,7 +12,7 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
-import { ScrollShadow, Button } from "@heroui/react";
+import { ScrollArea, Button } from "@/components/ui";
 import { Plus } from "lucide-react";
 import { useStoryStore } from "@/stores/story-store";
 import { SceneCard } from "./SceneCard";
@@ -60,31 +60,33 @@ export function StoryBoard() {
       onDragEnd={handleDragEnd}
     >
       <div className="flex-1 flex flex-col gap-4 min-w-0 h-full">
-        <ScrollShadow className="flex-1 flex flex-col gap-4 pr-2 pb-20">
+        <ScrollArea className="flex-1 flex flex-col gap-4 pr-2 pb-20">
           <SortableContext
             items={currentStory.scenes.map((s) => s.id)}
             strategy={verticalListSortingStrategy}
           >
-            {currentStory.scenes.map((scene, index) => (
-              <SceneCard
-                key={scene.id}
-                scene={scene}
-                index={index}
-                onRemove={removeScene}
-                onUpdate={updateScene}
-              />
-            ))}
+            <div className="space-y-4">
+              {currentStory.scenes.map((scene, index) => (
+                <SceneCard
+                  key={scene.id}
+                  scene={scene}
+                  index={index}
+                  onRemove={removeScene}
+                  onUpdate={updateScene}
+                />
+              ))}
+            </div>
           </SortableContext>
 
           <Button
-            variant="bordered"
-            className="h-16 border-2 border-dashed border-divider/50 hover:border-primary/50 text-foreground/50 shrink-0"
-            startContent={<Plus size={20} />}
-            onPress={handleAddScene}
+            variant="outline"
+            className="h-16 border-2 border-dashed border-border/50 hover:border-primary/50 text-muted-foreground shrink-0 mt-4"
+            onClick={handleAddScene}
           >
+            <Plus size={20} />
             Add Scene
           </Button>
-        </ScrollShadow>
+        </ScrollArea>
       </div>
     </DndContext>
   );

@@ -2,14 +2,16 @@ import {
   Card,
   Button,
   Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
   SelectItem,
-  Modal,
-  ModalContent,
-  ModalHeader,
-  ModalBody,
-  ModalFooter,
-  useDisclosure,
-} from "@heroui/react";
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui";
 import { useMemo, useState } from "react";
 import { Wand2, Music, Layers, AlertTriangle, Loader2 } from "lucide-react";
 import { useStoryStore } from "@/stores/story-store";
@@ -35,7 +37,7 @@ export function DirectorPanel() {
   } = useStoryStore();
   const { initProject } = useEditorStore();
   const navigate = useNavigate();
-  const { isOpen, onOpen, onOpenChange } = useDisclosure();
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [_feedback, setFeedback] = useState<FeedbackMessage | null>(null);
 
   // Async Job Polling for AI Generation
@@ -43,7 +45,6 @@ export function DirectorPanel() {
     pollInterval: 2000,
     onComplete: (data) => {
       setFeedback({ type: "success", text: "Story Generated Successfully!" });
-      // Cast data to expected structure - the job returns the AI-generated story structure
       applyAiGeneratedStory(
         data as {
           structure?: {
@@ -69,7 +70,7 @@ export function DirectorPanel() {
       const res = await api.post<{ jobId: string }>(
         "/jobs/story/generate-structure",
         {
-          prompt: "Cyberpunk city chase", // Hardcoded for now, or add input
+          prompt: "Cyberpunk city chase",
           projectId: currentStory?.projectId,
         }
       );
@@ -94,22 +95,14 @@ export function DirectorPanel() {
     setFeedback({ type: "success", text: "Compiling Story to Timeline..." });
 
     try {
-      // 1. Fork Storage (Lock Story Mode and Save Version)
       await forkToTimeline(previewTimeline);
 
       if (currentStory && previewTimeline) {
-        // 2. Init Project in Editor Store (Client check)
         initProject(currentStory.projectId, "Story Project (Forked)");
-
-        // 3. Load Compiled Timeline (Client check)
         useEditorStore.getState().loadTimeline(previewTimeline);
-
-        // 4. Navigate to the SPECIFIC project ID
-        // This ensures that if the Editor eventually supports persistence, it loads the right project.
         navigate(`/editor/${currentStory.projectId}`);
       }
-    } catch (error) {
-      void error;
+    } catch {
       setFeedback({ type: "error", text: "Failed to fork project" });
     }
   };
@@ -125,40 +118,42 @@ export function DirectorPanel() {
         </div>
 
         {/* Global Controls */}
-        <Card className="flex-1 bg-content1 border border-divider p-4">
+        <Card className="flex-1 bg-card border border-border p-4">
           <h3 className="font-semibold mb-4 flex items-center gap-2">
             <Layers size={18} />
             Global Vibe
           </h3>
 
           <div className="flex flex-col gap-4">
-            <Select
-              label="Tempo / Pace"
-              size="sm"
-              selectedKeys={[currentStory.globalVibe.tempo]}
-              onChange={(e) =>
-                updateGlobalVibe({
-                  tempo: e.target.value as "slow" | "medium" | "fast",
-                })
-              }
-            >
-              <SelectItem key="slow" textValue="Slow & Relaxed">
-                Slow & Relaxed
-              </SelectItem>
-              <SelectItem key="medium" textValue="Medium / Standard">
-                Medium / Standard
-              </SelectItem>
-              <SelectItem key="fast" textValue="Fast & Energetic">
-                Fast & Energetic
-              </SelectItem>
-            </Select>
+            <div className="space-y-2">
+              <label className="text-xs text-muted-foreground">
+                Tempo / Pace
+              </label>
+              <Select
+                value={currentStory.globalVibe.tempo}
+                onValueChange={(v) =>
+                  updateGlobalVibe({
+                    tempo: v as "slow" | "medium" | "fast",
+                  })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="slow">Slow & Relaxed</SelectItem>
+                  <SelectItem value="medium">Medium / Standard</SelectItem>
+                  <SelectItem value="fast">Fast & Energetic</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
             <Button
               size="sm"
-              variant="flat"
+              variant="secondary"
               className="justify-start"
-              onPress={handleAiGenerate}
-              isDisabled={isPolling}
+              onClick={handleAiGenerate}
+              disabled={isPolling}
             >
               {isPolling ? (
                 <Loader2 size={16} className="mr-2 animate-spin" />
@@ -168,20 +163,20 @@ export function DirectorPanel() {
               {isPolling ? "Dreaming..." : "Remix Story Structure"}
             </Button>
 
-            <Button size="sm" variant="flat" className="justify-start">
-              <Music size={16} className="mr-2" /> Auto-Sync Music
+            <Button size="sm" variant="secondary" className="justify-start">
+              <Music size={16} className="mr-2" />
+              Auto-Sync Music
             </Button>
 
-            <div className="my-2 border-t border-divider" />
+            <div className="my-2 border-t border-border" />
 
             <Button
-              color="primary"
               className="w-full font-semibold"
-              onPress={onOpen}
+              onClick={() => setIsModalOpen(true)}
             >
               Open in Advanced Editor
             </Button>
-            <p className="text-xs text-foreground/50 text-center px-2">
+            <p className="text-xs text-muted-foreground text-center px-2">
               Warning: Editing in advanced mode will disconnect from Story
               Director.
             </p>
@@ -189,47 +184,42 @@ export function DirectorPanel() {
         </Card>
       </div>
 
-      <Modal isOpen={isOpen} onOpenChange={onOpenChange}>
-        <ModalContent>
-          {(onClose) => (
-            <>
-              <ModalHeader className="flex flex-col gap-1">
-                Switch to Advanced Editor?
-              </ModalHeader>
-              <ModalBody>
-                <div className="flex items-center gap-4 p-4 bg-warning/10 rounded-lg border border-warning/20">
-                  <AlertTriangle className="text-warning shrink-0" size={24} />
-                  <div className="text-sm">
-                    <p className="font-bold text-warning">Point of No Return</p>
-                    <p>
-                      Story Mode features (AI vibes, scene reordering) will be
-                      disabled for this project version.
-                    </p>
-                  </div>
-                </div>
-                <p className="text-sm text-foreground/80">
-                  You are about to fork this story into a standard timeline. Any
-                  further changes here will not reflect in Story Mode.
-                </p>
-              </ModalBody>
-              <ModalFooter>
-                <Button color="danger" variant="light" onPress={onClose}>
-                  Cancel
-                </Button>
-                <Button
-                  color="primary"
-                  onPress={() => {
-                    handleCompileConfirm();
-                    onClose();
-                  }}
-                >
-                  Confirm & Open Editor
-                </Button>
-              </ModalFooter>
-            </>
-          )}
-        </ModalContent>
-      </Modal>
+      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Switch to Advanced Editor?</DialogTitle>
+          </DialogHeader>
+
+          <div className="flex items-center gap-4 p-4 bg-yellow-500/10 rounded-lg border border-yellow-500/20">
+            <AlertTriangle className="text-yellow-500 shrink-0" size={24} />
+            <div className="text-sm">
+              <p className="font-bold text-yellow-500">Point of No Return</p>
+              <p>
+                Story Mode features (AI vibes, scene reordering) will be
+                disabled for this project version.
+              </p>
+            </div>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            You are about to fork this story into a standard timeline. Any
+            further changes here will not reflect in Story Mode.
+          </p>
+
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setIsModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                handleCompileConfirm();
+                setIsModalOpen(false);
+              }}
+            >
+              Confirm & Open Editor
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

@@ -6,7 +6,7 @@ import {
   Download,
   CheckCircle2,
 } from "lucide-react";
-import { cn } from "@heroui/react";
+import { cn } from "@/lib/utils";
 import { useDirectorStore, DirectorStep } from "@/stores/director-store";
 
 export const StepIndicator = () => {

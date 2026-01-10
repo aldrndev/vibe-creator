@@ -1,6 +1,13 @@
 import { useEffect, useState } from "react";
 import { PageTransition } from "@/components/ui/PageTransition";
-import { Button, Card, CardBody, Chip, Spinner, Divider } from "@heroui/react";
+import {
+  Button,
+  Card,
+  CardBody,
+  Badge,
+  Divider,
+  Spinner,
+} from "@/components/ui";
 import { Link } from "react-router-dom";
 import {
   Radio,
@@ -40,7 +47,6 @@ export function LiveStreamHistoryPage() {
     fetchHistory();
   }, []);
 
-  // Auto-dismiss feedback after 4 seconds
   useEffect(() => {
     if (feedback) {
       const timer = setTimeout(() => setFeedback(null), 4000);
@@ -75,7 +81,7 @@ export function LiveStreamHistoryPage() {
 
       if (res.ok) {
         setFeedback({ type: "success", text: "Stream berhasil dihentikan" });
-        fetchHistory(); // Refresh list to show updated status
+        fetchHistory();
       } else {
         const data = await res.json();
         throw new Error(data.error?.message || "Gagal menghentikan stream");
@@ -87,14 +93,14 @@ export function LiveStreamHistoryPage() {
     }
   };
 
-  const statusColorMap: Record<
+  const statusVariantMap: Record<
     string,
-    "success" | "danger" | "warning" | "default"
+    "default" | "destructive" | "outline" | "secondary"
   > = {
-    LIVE: "success",
-    ENDED: "default",
-    FAILED: "danger",
-    PENDING: "warning",
+    LIVE: "default",
+    ENDED: "secondary",
+    FAILED: "destructive",
+    PENDING: "outline",
   };
 
   const formatDate = (dateString: string) => {
@@ -125,28 +131,24 @@ export function LiveStreamHistoryPage() {
               <Radio size={24} className="text-primary" />
               Live Stream History
             </h1>
-            <p className="text-foreground/60 text-sm mt-1">
+            <p className="text-muted-foreground text-sm mt-1">
               Riwayat aktivitas live streaming dan pemakaian kuota Anda.
             </p>
           </div>
 
           <div className="flex gap-3">
-            <Button
-              variant="flat"
-              color="warning"
-              startContent={<Zap size={18} />}
-              onPress={() => setShowTopup(true)}
-            >
+            <Button variant="secondary" onClick={() => setShowTopup(true)}>
+              <Zap size={18} />
               Top Up Quota
             </Button>
             <Button
-              as={Link}
-              to="/tools/live-stream"
-              color="primary"
-              startContent={<Play size={18} />}
+              asChild
               className="font-semibold shadow-lg shadow-primary/20"
             >
-              Mulai Live Baru
+              <Link to="/tools/live-stream">
+                <Play size={18} />
+                Mulai Live Baru
+              </Link>
             </Button>
           </div>
         </div>
@@ -158,8 +160,8 @@ export function LiveStreamHistoryPage() {
           <div
             className={`p-3 rounded-lg flex items-center gap-2 ${
               feedback.type === "success"
-                ? "bg-success/10 text-success border border-success/20"
-                : "bg-danger/10 text-danger border border-danger/20"
+                ? "bg-green-500/10 text-green-500 border border-green-500/20"
+                : "bg-destructive/10 text-destructive border border-destructive/20"
             }`}
           >
             {feedback.type === "success" ? (
@@ -179,30 +181,23 @@ export function LiveStreamHistoryPage() {
             </CardBody>
           </Card>
         ) : streams.length === 0 ? (
-          // Empty State
           <Card>
             <CardBody>
               <div className="flex flex-col items-center justify-center py-20 px-4 text-center space-y-4">
-                <div className="w-16 h-16 rounded-full bg-content2 flex items-center justify-center mb-2">
-                  <Radio size={32} className="text-foreground/40" />
+                <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-2">
+                  <Radio size={32} className="text-muted-foreground" />
                 </div>
                 <div>
                   <h3 className="text-lg font-semibold">
                     Belum ada riwayat stream
                   </h3>
-                  <p className="text-foreground/60 text-sm max-w-sm mx-auto">
+                  <p className="text-muted-foreground text-sm max-w-sm mx-auto">
                     Mulai streaming pertama Anda sekarang untuk menjangkau
                     audiens di berbagai platform.
                   </p>
                 </div>
-                <Button
-                  as={Link}
-                  to="/tools/live-stream"
-                  variant="flat"
-                  color="primary"
-                  className="mt-4"
-                >
-                  Buat Stream Pertama
+                <Button asChild variant="secondary" className="mt-4">
+                  <Link to="/tools/live-stream">Buat Stream Pertama</Link>
                 </Button>
               </div>
             </CardBody>
@@ -212,17 +207,13 @@ export function LiveStreamHistoryPage() {
             {streams.map((stream) => (
               <Card
                 key={stream.id}
-                className="border border-divider/50 shadow-sm hover:shadow-md transition-all"
+                className="border border-border/50 shadow-sm hover:shadow-md transition-all"
               >
                 <CardBody className="p-4 space-y-4">
                   {/* Header: Status & Platform */}
                   <div className="flex justify-between items-start">
                     <div className="flex items-center gap-2">
-                      <div
-                        className={`p-2 rounded-full bg-${
-                          statusColorMap[stream.status]
-                        }/10 text-${statusColorMap[stream.status]}`}
-                      >
+                      <div className="p-2 rounded-full bg-muted">
                         {stream.platform === "youtube" && <Video size={18} />}
                         {stream.platform === "twitch" && <Tv size={18} />}
                         {stream.platform !== "youtube" &&
@@ -232,19 +223,15 @@ export function LiveStreamHistoryPage() {
                         <h4 className="text-sm font-semibold capitalize">
                           {stream.platform}
                         </h4>
-                        <Chip
-                          color={statusColorMap[stream.status]}
-                          size="sm"
-                          variant="flat"
+                        <Badge
+                          variant={statusVariantMap[stream.status]}
                           className="h-5 text-[10px]"
-                          startContent={
-                            stream.status === "LIVE" ? (
-                              <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse ml-1" />
-                            ) : undefined
-                          }
                         >
+                          {stream.status === "LIVE" && (
+                            <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse mr-1" />
+                          )}
                           {stream.status}
-                        </Chip>
+                        </Badge>
                       </div>
                     </div>
 
@@ -252,11 +239,10 @@ export function LiveStreamHistoryPage() {
                     {stream.status === "LIVE" && (
                       <Button
                         size="sm"
-                        color="danger"
-                        variant="flat"
-                        startContent={<Square size={14} fill="currentColor" />}
-                        onPress={() => handleStopStream(stream.id)}
+                        variant="destructive"
+                        onClick={() => handleStopStream(stream.id)}
                       >
+                        <Square size={14} fill="currentColor" />
                         Stop
                       </Button>
                     )}
@@ -267,22 +253,22 @@ export function LiveStreamHistoryPage() {
                   {/* Details */}
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
-                      <span className="text-foreground/60">Waktu Mulai</span>
+                      <span className="text-muted-foreground">Waktu Mulai</span>
                       <div className="text-right">
                         <div className="font-medium">
                           {formatDate(stream.startedAt)}
                         </div>
-                        <div className="text-xs text-foreground/50">
+                        <div className="text-xs text-muted-foreground">
                           {formatTime(stream.startedAt)}
                         </div>
                       </div>
                     </div>
 
                     <div className="flex justify-between">
-                      <span className="text-foreground/60">Durasi</span>
+                      <span className="text-muted-foreground">Durasi</span>
                       <span className="font-medium">
                         {stream.status === "LIVE" ? (
-                          <span className="text-success animate-pulse">
+                          <span className="text-green-500 animate-pulse">
                             Sedang Berlangsung
                           </span>
                         ) : (
@@ -295,7 +281,7 @@ export function LiveStreamHistoryPage() {
 
                     {stream.stopReason && (
                       <div className="flex justify-between">
-                        <span className="text-foreground/60">
+                        <span className="text-muted-foreground">
                           Berhenti Karena
                         </span>
                         <span className="font-medium capitalize text-foreground/80">

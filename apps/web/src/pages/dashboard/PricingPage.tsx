@@ -5,9 +5,9 @@ import {
   CardBody,
   CardHeader,
   Button,
-  Chip,
+  Badge,
   Divider,
-} from "@heroui/react";
+} from "@/components/ui";
 import { Check, Sparkles, Crown, Zap, ArrowLeft } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
@@ -22,7 +22,7 @@ interface PricingTier {
   description: string;
   features: string[];
   icon: React.ReactNode;
-  color: "default" | "primary" | "secondary" | "success" | "warning" | "danger";
+  variant: "default" | "secondary" | "warning";
   popular?: boolean;
 }
 
@@ -41,7 +41,7 @@ const pricingTiers: PricingTier[] = [
       "Prompt builder",
     ],
     icon: <Zap size={24} />,
-    color: "default",
+    variant: "secondary",
   },
   {
     id: "CREATOR",
@@ -57,7 +57,7 @@ const pricingTiers: PricingTier[] = [
       "Priority support",
     ],
     icon: <Sparkles size={24} />,
-    color: "primary",
+    variant: "default",
     popular: true,
   },
   {
@@ -75,7 +75,7 @@ const pricingTiers: PricingTier[] = [
       "Live streaming",
     ],
     icon: <Crown size={24} />,
-    color: "warning",
+    variant: "warning",
   },
 ];
 
@@ -142,18 +142,14 @@ export function PricingPage() {
       <div className="max-w-5xl mx-auto">
         {/* Header */}
         <div className="flex items-center gap-4 mb-8">
-          <Button
-            as={Link}
-            to="/dashboard/settings"
-            isIconOnly
-            variant="light"
-            size="sm"
-          >
-            <ArrowLeft size={20} />
+          <Button variant="ghost" size="icon" asChild>
+            <Link to="/dashboard/settings">
+              <ArrowLeft size={20} />
+            </Link>
           </Button>
           <div>
             <h1 className="text-2xl font-bold">Pricing</h1>
-            <p className="text-foreground/60">
+            <p className="text-muted-foreground">
               Pilih paket yang sesuai kebutuhanmu
             </p>
           </div>
@@ -161,12 +157,12 @@ export function PricingPage() {
 
         {/* Payment Status */}
         {paymentStatus === "success" && (
-          <div className="mb-6 p-4 rounded-xl bg-success/20 text-success text-center">
+          <div className="mb-6 p-4 rounded-xl bg-green-500/20 text-green-500 text-center">
             🎉 Pembayaran berhasil! Subscription kamu telah diupgrade.
           </div>
         )}
         {paymentStatus === "failed" && (
-          <div className="mb-6 p-4 rounded-xl bg-danger/20 text-danger text-center">
+          <div className="mb-6 p-4 rounded-xl bg-red-500/20 text-red-500 text-center">
             ❌ Pembayaran gagal atau dibatalkan. Silakan coba lagi.
           </div>
         )}
@@ -183,34 +179,27 @@ export function PricingPage() {
               <Card
                 className={`relative h-full ${
                   tier.popular ? "border-2 border-primary shadow-lg" : ""
-                } ${currentTier === tier.id ? "ring-2 ring-success" : ""}`}
+                } ${currentTier === tier.id ? "ring-2 ring-green-500" : ""}`}
               >
                 {tier.popular && (
-                  <Chip
-                    color="primary"
-                    size="sm"
-                    className="absolute -top-3 left-1/2 -translate-x-1/2"
-                  >
+                  <Badge className="absolute -top-3 left-1/2 -translate-x-1/2">
                     Populer
-                  </Chip>
+                  </Badge>
                 )}
                 {currentTier === tier.id && (
-                  <Chip
-                    color="success"
-                    size="sm"
+                  <Badge
+                    variant="secondary"
                     className="absolute -top-3 right-4"
                   >
                     Current
-                  </Chip>
+                  </Badge>
                 )}
                 <CardHeader className="flex flex-col items-center pt-8 pb-4">
-                  <div
-                    className={`p-3 rounded-full bg-${tier.color}/20 text-${tier.color} mb-3`}
-                  >
+                  <div className="p-3 rounded-full bg-primary/20 text-primary mb-3">
                     {tier.icon}
                   </div>
                   <h2 className="text-xl font-bold">{tier.name}</h2>
-                  <p className="text-sm text-foreground/60">
+                  <p className="text-sm text-muted-foreground">
                     {tier.description}
                   </p>
                 </CardHeader>
@@ -219,7 +208,7 @@ export function PricingPage() {
                     <span className="text-3xl font-bold">
                       {tier.price === 0 ? "Gratis" : formatPrice(tier.price)}
                     </span>
-                    <span className="text-foreground/60">{tier.period}</span>
+                    <span className="text-muted-foreground">{tier.period}</span>
                   </div>
 
                   <Divider className="mb-6" />
@@ -229,7 +218,7 @@ export function PricingPage() {
                       <li key={i} className="flex items-start gap-2">
                         <Check
                           size={18}
-                          className="text-success mt-0.5 shrink-0"
+                          className="text-green-500 mt-0.5 shrink-0"
                         />
                         <span className="text-sm">{feature}</span>
                       </li>
@@ -237,17 +226,18 @@ export function PricingPage() {
                   </ul>
 
                   {tier.id === "FREE" ? (
-                    <Button fullWidth variant="flat" isDisabled>
+                    <Button className="w-full" variant="secondary" disabled>
                       {currentTier === "FREE" ? "Paket Saat Ini" : "Downgrade"}
                     </Button>
                   ) : (
                     <Button
-                      fullWidth
-                      color={tier.color === "default" ? "primary" : tier.color}
-                      variant={currentTier === tier.id ? "flat" : "solid"}
-                      isDisabled={currentTier === tier.id}
+                      className="w-full"
+                      variant={
+                        currentTier === tier.id ? "secondary" : "default"
+                      }
+                      disabled={currentTier === tier.id}
                       isLoading={isLoading === tier.id}
-                      onPress={() =>
+                      onClick={() =>
                         handleUpgrade(tier.id as "CREATOR" | "PRO")
                       }
                     >
@@ -263,7 +253,7 @@ export function PricingPage() {
         {/* FAQ */}
         <div className="mt-12 text-center">
           <h3 className="text-lg font-semibold mb-4">Pertanyaan Umum</h3>
-          <div className="max-w-2xl mx-auto space-y-4 text-sm text-foreground/60">
+          <div className="max-w-2xl mx-auto space-y-4 text-sm text-muted-foreground">
             <p>
               <strong>Bagaimana cara upgrade?</strong> Klik tombol Upgrade,
               lakukan pembayaran via QRIS/E-Wallet/Transfer, dan subscription

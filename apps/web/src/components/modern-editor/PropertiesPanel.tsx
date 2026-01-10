@@ -11,8 +11,11 @@ import {
   Slider,
   Input,
   Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
   SelectItem,
-} from "@heroui/react";
+} from "@/components/ui";
 import { useModernEditorStore } from "@/stores/modern-editor-store";
 import type {
   Layer,
@@ -43,72 +46,72 @@ export function PropertiesPanel({ className }: PropertiesPanelProps) {
     { label: "9:16 (Portrait)", width: 1080, height: 1920 },
     { label: "1:1 (Square)", width: 1080, height: 1080 },
     { label: "4:5 (IG Portrait)", width: 1080, height: 1350 },
+    { label: "Custom", width: 0, height: 0 },
   ];
 
-  const handleAspectRatioChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const selected = aspectRatioOptions.find(
-      (opt) => opt.label === e.target.value
-    );
-    if (selected) {
+  const handleAspectRatioChange = (value: string) => {
+    const selected = aspectRatioOptions.find((opt) => opt.label === value);
+    if (selected && selected.width > 0) {
       updateSettings({ width: selected.width, height: selected.height });
     }
+  };
+
+  const getCurrentAspectRatio = () => {
+    const found = aspectRatioOptions.find(
+      (opt) => opt.width === settings.width && opt.height === settings.height
+    );
+    return found?.label || "Custom";
   };
 
   if (!selectedLayer) {
     return (
       <div className={clsx("space-y-4", className)}>
-        <Card className="bg-content1/50">
+        <Card className="bg-card/50">
           <CardBody className="p-4 space-y-4">
             <h3 className="text-sm font-semibold">Canvas Settings</h3>
 
-            <div>
-              <label className="text-xs text-foreground/60 mb-1 block">
+            <div className="space-y-2">
+              <label className="text-xs text-muted-foreground mb-1 block">
                 Aspect Ratio
               </label>
               <Select
-                size="sm"
-                aria-label="Aspect Ratio"
-                selectedKeys={[
-                  aspectRatioOptions.find(
-                    (opt) =>
-                      opt.width === settings.width &&
-                      opt.height === settings.height
-                  )?.label || "Custom",
-                ]}
-                onChange={handleAspectRatioChange}
+                value={getCurrentAspectRatio()}
+                onValueChange={handleAspectRatioChange}
               >
-                {[
-                  ...aspectRatioOptions,
-                  { label: "Custom", width: 0, height: 0 },
-                ].map((opt) => (
-                  <SelectItem key={opt.label}>{opt.label}</SelectItem>
-                ))}
+                <SelectTrigger>
+                  <SelectValue placeholder="Select aspect ratio" />
+                </SelectTrigger>
+                <SelectContent>
+                  {aspectRatioOptions.map((opt) => (
+                    <SelectItem key={opt.label} value={opt.label}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
               </Select>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <Input
-                size="sm"
                 type="number"
                 label="Width"
                 value={settings.width.toString()}
-                onChange={(e) =>
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                   updateSettings({ width: Number(e.target.value) })
                 }
               />
               <Input
-                size="sm"
                 type="number"
                 label="Height"
                 value={settings.height.toString()}
-                onChange={(e) =>
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                   updateSettings({ height: Number(e.target.value) })
                 }
               />
             </div>
 
             <div>
-              <label className="text-xs text-foreground/60 mb-1 block">
+              <label className="text-xs text-muted-foreground mb-1 block">
                 Background Color
               </label>
               <div className="flex gap-2">
@@ -118,12 +121,11 @@ export function PropertiesPanel({ className }: PropertiesPanelProps) {
                   onChange={(e) =>
                     updateSettings({ backgroundColor: e.target.value })
                   }
-                  className="h-9 w-9 p-0.5 rounded cursor-pointer bg-transparent border border-default-200"
+                  className="h-9 w-9 p-0.5 rounded cursor-pointer bg-transparent border border-border"
                 />
                 <Input
-                  size="sm"
                   value={settings.backgroundColor}
-                  onChange={(e) =>
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                     updateSettings({ backgroundColor: e.target.value })
                   }
                   className="flex-1"
@@ -133,8 +135,8 @@ export function PropertiesPanel({ className }: PropertiesPanelProps) {
           </CardBody>
         </Card>
 
-        <Card className="bg-content1/50">
-          <CardBody className="p-4 text-center text-foreground/50 text-xs">
+        <Card className="bg-card/50">
+          <CardBody className="p-4 text-center text-muted-foreground text-xs">
             <p>Select a layer to edit its properties.</p>
           </CardBody>
         </Card>
@@ -146,102 +148,92 @@ export function PropertiesPanel({ className }: PropertiesPanelProps) {
     updateLayer(selectedLayerId!, updates);
   };
 
-  const maxDuration = Math.max(getMaxEndMs(), 60000); // At least 60s for slider
+  const maxDuration = Math.max(getMaxEndMs(), 60000);
 
   return (
     <div className={clsx("space-y-4", className)}>
       {/* Transform Properties */}
-      <Card className="bg-content1/50">
+      <Card className="bg-card/50">
         <CardBody className="p-4 space-y-4">
           <h3 className="text-sm font-semibold">Transform</h3>
 
           {/* Position */}
           <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs text-foreground/60 mb-1 block">
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground block">
                 X (%)
               </label>
               <Slider
-                size="sm"
-                minValue={0}
-                maxValue={100}
-                value={selectedLayer.x}
-                onChange={(v) => handleUpdate({ x: v as number })}
-                aria-label="Position X"
+                min={0}
+                max={100}
+                value={[selectedLayer.x]}
+                onValueChange={(v: number[]) => handleUpdate({ x: v[0] })}
               />
             </div>
-            <div>
-              <label className="text-xs text-foreground/60 mb-1 block">
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground block">
                 Y (%)
               </label>
               <Slider
-                size="sm"
-                minValue={0}
-                maxValue={100}
-                value={selectedLayer.y}
-                onChange={(v) => handleUpdate({ y: v as number })}
-                aria-label="Position Y"
+                min={0}
+                max={100}
+                value={[selectedLayer.y]}
+                onValueChange={(v: number[]) => handleUpdate({ y: v[0] })}
               />
             </div>
           </div>
 
           {/* Size */}
           <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs text-foreground/60 mb-1 block">
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground block">
                 Width (%)
               </label>
               <Slider
-                size="sm"
-                minValue={1}
-                maxValue={200}
-                value={selectedLayer.width}
-                onChange={(v) => handleUpdate({ width: v as number })}
-                aria-label="Width"
+                min={1}
+                max={200}
+                value={[selectedLayer.width]}
+                onValueChange={(v: number[]) => handleUpdate({ width: v[0] })}
               />
             </div>
-            <div>
-              <label className="text-xs text-foreground/60 mb-1 block">
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground block">
                 Height (%)
               </label>
               <Slider
-                size="sm"
-                minValue={1}
-                maxValue={200}
-                value={selectedLayer.height}
-                onChange={(v) => handleUpdate({ height: v as number })}
-                aria-label="Height"
+                min={1}
+                max={200}
+                value={[selectedLayer.height]}
+                onValueChange={(v: number[]) => handleUpdate({ height: v[0] })}
               />
             </div>
           </div>
 
           {/* Rotation & Opacity */}
           <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs text-foreground/60 mb-1 block">
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground block">
                 Rotation (°)
               </label>
               <Slider
-                size="sm"
-                minValue={-180}
-                maxValue={180}
-                value={selectedLayer.rotation}
-                onChange={(v) => handleUpdate({ rotation: v as number })}
-                aria-label="Rotation"
+                min={-180}
+                max={180}
+                value={[selectedLayer.rotation]}
+                onValueChange={(v: number[]) =>
+                  handleUpdate({ rotation: v[0] })
+                }
               />
             </div>
-            <div>
-              <label className="text-xs text-foreground/60 mb-1 block">
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground block">
                 Opacity
               </label>
               <Slider
-                size="sm"
-                minValue={0}
-                maxValue={1}
+                min={0}
+                max={1}
                 step={0.05}
-                value={selectedLayer.opacity}
-                onChange={(v) => handleUpdate({ opacity: v as number })}
-                aria-label="Opacity"
+                value={[selectedLayer.opacity]}
+                onValueChange={(v: number[]) => handleUpdate({ opacity: v[0] })}
               />
             </div>
           </div>
@@ -249,48 +241,44 @@ export function PropertiesPanel({ className }: PropertiesPanelProps) {
       </Card>
 
       {/* Timing Properties */}
-      <Card className="bg-content1/50">
+      <Card className="bg-card/50">
         <CardBody className="p-4 space-y-4">
           <h3 className="text-sm font-semibold">Timing</h3>
 
           <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs text-foreground/60 mb-1 block">
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground block">
                 Start (s)
               </label>
               <Input
-                size="sm"
                 type="number"
                 min={0}
                 step={0.1}
                 value={(selectedLayer.startMs / 1000).toFixed(1)}
-                onChange={(e) =>
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                   handleUpdate({ startMs: parseFloat(e.target.value) * 1000 })
                 }
-                aria-label="Start Time"
               />
             </div>
-            <div>
-              <label className="text-xs text-foreground/60 mb-1 block">
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground block">
                 End (s)
               </label>
               <Input
-                size="sm"
                 type="number"
                 min={0}
                 step={0.1}
                 value={(selectedLayer.endMs / 1000).toFixed(1)}
-                onChange={(e) =>
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                   handleUpdate({ endMs: parseFloat(e.target.value) * 1000 })
                 }
-                aria-label="End Time"
               />
             </div>
           </div>
 
           {/* Duration slider */}
-          <div>
-            <label className="text-xs text-foreground/60 mb-1 block">
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground block">
               Duration:{" "}
               {((selectedLayer.endMs - selectedLayer.startMs) / 1000).toFixed(
                 1
@@ -298,16 +286,14 @@ export function PropertiesPanel({ className }: PropertiesPanelProps) {
               s
             </label>
             <Slider
-              size="sm"
-              minValue={0}
-              maxValue={maxDuration}
+              min={0}
+              max={maxDuration}
               value={[selectedLayer.startMs, selectedLayer.endMs]}
-              onChange={(v) => {
-                if (Array.isArray(v)) {
+              onValueChange={(v: number[]) => {
+                if (v.length === 2) {
                   handleUpdate({ startMs: v[0], endMs: v[1] });
                 }
               }}
-              aria-label="Duration Range"
             />
           </div>
         </CardBody>
@@ -340,34 +326,34 @@ function TextLayerProperties({
   };
 
   return (
-    <Card className="bg-content1/50">
+    <Card className="bg-card/50">
       <CardBody className="p-4 space-y-4">
         <h3 className="text-sm font-semibold">Text</h3>
 
         {/* Position Presets */}
         <div>
-          <label className="text-xs text-foreground/60 mb-1 block">
+          <label className="text-xs text-muted-foreground mb-1 block">
             Position Preset
           </label>
           <div className="flex gap-1">
             <button
               type="button"
               onClick={() => onUpdate({ x: 50, y: 85, width: 90, height: 12 })}
-              className="flex-1 text-xs px-2 py-1.5 rounded bg-default-100 hover:bg-default-200 transition-colors"
+              className="flex-1 text-xs px-2 py-1.5 rounded bg-muted hover:bg-muted/80 transition-colors"
             >
               Bottom
             </button>
             <button
               type="button"
               onClick={() => onUpdate({ x: 50, y: 15, width: 90, height: 12 })}
-              className="flex-1 text-xs px-2 py-1.5 rounded bg-default-100 hover:bg-default-200 transition-colors"
+              className="flex-1 text-xs px-2 py-1.5 rounded bg-muted hover:bg-muted/80 transition-colors"
             >
               Top
             </button>
             <button
               type="button"
               onClick={() => onUpdate({ x: 50, y: 50, width: 80, height: 20 })}
-              className="flex-1 text-xs px-2 py-1.5 rounded bg-default-100 hover:bg-default-200 transition-colors"
+              className="flex-1 text-xs px-2 py-1.5 rounded bg-muted hover:bg-muted/80 transition-colors"
             >
               Center
             </button>
@@ -375,40 +361,46 @@ function TextLayerProperties({
         </div>
 
         <Input
-          size="sm"
           label="Content"
           value={layer.data.text}
-          onChange={(e) => updateData({ text: e.target.value })}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+            updateData({ text: e.target.value })
+          }
         />
 
         <div className="grid grid-cols-2 gap-3">
           <Input
-            size="sm"
             label="Font Size"
             type="number"
             min={8}
             max={200}
             value={layer.data.fontSize.toString()}
-            onChange={(e) =>
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
               updateData({ fontSize: parseInt(e.target.value) || 48 })
             }
           />
-          <Select
-            size="sm"
-            label="Weight"
-            selectedKeys={[layer.data.fontWeight]}
-            onChange={(e) =>
-              updateData({ fontWeight: e.target.value as "normal" | "bold" })
-            }
-          >
-            <SelectItem key="normal">Normal</SelectItem>
-            <SelectItem key="bold">Bold</SelectItem>
-          </Select>
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">Weight</label>
+            <Select
+              value={layer.data.fontWeight}
+              onValueChange={(v) =>
+                updateData({ fontWeight: v as "normal" | "bold" })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="normal">Normal</SelectItem>
+                <SelectItem value="bold">Bold</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-xs text-foreground/60 mb-1 block">
+            <label className="text-xs text-muted-foreground mb-1 block">
               Color
             </label>
             <input
@@ -416,11 +408,10 @@ function TextLayerProperties({
               value={layer.data.color}
               onChange={(e) => updateData({ color: e.target.value })}
               className="w-full h-8 rounded cursor-pointer"
-              aria-label="Text Color"
             />
           </div>
           <div>
-            <label className="text-xs text-foreground/60 mb-1 block">
+            <label className="text-xs text-muted-foreground mb-1 block">
               Bg Color
             </label>
             <div className="flex gap-1">
@@ -431,12 +422,11 @@ function TextLayerProperties({
                   updateData({ backgroundColor: e.target.value })
                 }
                 className="flex-1 h-8 rounded cursor-pointer"
-                aria-label="Background Color"
               />
               <button
                 type="button"
                 onClick={() => updateData({ backgroundColor: undefined })}
-                className="px-2 h-8 text-xs bg-default-100 hover:bg-default-200 rounded transition-colors"
+                className="px-2 h-8 text-xs bg-muted hover:bg-muted/80 rounded transition-colors"
                 title="Transparent"
               >
                 None
@@ -446,43 +436,53 @@ function TextLayerProperties({
         </div>
 
         <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">Align</label>
+            <Select
+              value={layer.data.textAlign}
+              onValueChange={(v) =>
+                updateData({ textAlign: v as "left" | "center" | "right" })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="left">Left</SelectItem>
+                <SelectItem value="center">Center</SelectItem>
+                <SelectItem value="right">Right</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground">Animation</label>
           <Select
-            size="sm"
-            label="Align"
-            selectedKeys={[layer.data.textAlign]}
-            onChange={(e) =>
+            value={layer.data.animation}
+            onValueChange={(v) =>
               updateData({
-                textAlign: e.target.value as "left" | "center" | "right",
+                animation: v as
+                  | "none"
+                  | "fade"
+                  | "slide-up"
+                  | "slide-down"
+                  | "typewriter",
               })
             }
           >
-            <SelectItem key="left">Left</SelectItem>
-            <SelectItem key="center">Center</SelectItem>
-            <SelectItem key="right">Right</SelectItem>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">None</SelectItem>
+              <SelectItem value="fade">Fade</SelectItem>
+              <SelectItem value="slide-up">Slide Up</SelectItem>
+              <SelectItem value="slide-down">Slide Down</SelectItem>
+              <SelectItem value="typewriter">Typewriter</SelectItem>
+            </SelectContent>
           </Select>
         </div>
-
-        <Select
-          size="sm"
-          label="Animation"
-          selectedKeys={[layer.data.animation]}
-          onChange={(e) =>
-            updateData({
-              animation: e.target.value as
-                | "none"
-                | "fade"
-                | "slide-up"
-                | "slide-down"
-                | "typewriter",
-            })
-          }
-        >
-          <SelectItem key="none">None</SelectItem>
-          <SelectItem key="fade">Fade</SelectItem>
-          <SelectItem key="slide-up">Slide Up</SelectItem>
-          <SelectItem key="slide-down">Slide Down</SelectItem>
-          <SelectItem key="typewriter">Typewriter</SelectItem>
-        </Select>
       </CardBody>
     </Card>
   );
@@ -501,36 +501,36 @@ function VideoLayerProperties({
   };
 
   return (
-    <Card className="bg-content1/50">
+    <Card className="bg-card/50">
       <CardBody className="p-4 space-y-4">
         <h3 className="text-sm font-semibold">Video</h3>
 
-        <div>
-          <label className="text-xs text-foreground/60 mb-1 block">
-            Volume
-          </label>
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground block">Volume</label>
           <Slider
-            size="sm"
-            minValue={0}
-            maxValue={2}
+            min={0}
+            max={2}
             step={0.1}
-            value={layer.data.volume}
-            onChange={(v) => updateData({ volume: v as number })}
-            aria-label="Volume"
+            value={[layer.data.volume]}
+            onValueChange={(v: number[]) => updateData({ volume: v[0] })}
           />
         </div>
 
-        <Select
-          size="sm"
-          label="Fit"
-          selectedKeys={[layer.data.fit]}
-          onChange={(e) =>
-            updateData({ fit: e.target.value as "cover" | "contain" })
-          }
-        >
-          <SelectItem key="contain">Contain</SelectItem>
-          <SelectItem key="cover">Cover</SelectItem>
-        </Select>
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground">Fit</label>
+          <Select
+            value={layer.data.fit}
+            onValueChange={(v) => updateData({ fit: v as "cover" | "contain" })}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="contain">Contain</SelectItem>
+              <SelectItem value="cover">Cover</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </CardBody>
     </Card>
   );
@@ -549,56 +549,48 @@ function AudioLayerProperties({
   };
 
   return (
-    <Card className="bg-content1/50">
+    <Card className="bg-card/50">
       <CardBody className="p-4 space-y-4">
         <h3 className="text-sm font-semibold">Audio</h3>
 
-        <div>
-          <label className="text-xs text-foreground/60 mb-1 block">
-            Volume
-          </label>
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground block">Volume</label>
           <Slider
-            size="sm"
-            minValue={0}
-            maxValue={2}
+            min={0}
+            max={2}
             step={0.1}
-            value={layer.data.volume}
-            onChange={(v) => updateData({ volume: v as number })}
-            aria-label="Volume"
+            value={[layer.data.volume]}
+            onValueChange={(v: number[]) => updateData({ volume: v[0] })}
           />
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="text-xs text-foreground/60 mb-1 block">
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground block">
               Fade In (s)
             </label>
             <Input
-              size="sm"
               type="number"
               min={0}
               step={0.1}
               value={(layer.data.fadeIn / 1000).toFixed(1)}
-              onChange={(e) =>
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                 updateData({ fadeIn: parseFloat(e.target.value) * 1000 })
               }
-              aria-label="Fade In"
             />
           </div>
-          <div>
-            <label className="text-xs text-foreground/60 mb-1 block">
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground block">
               Fade Out (s)
             </label>
             <Input
-              size="sm"
               type="number"
               min={0}
               step={0.1}
               value={(layer.data.fadeOut / 1000).toFixed(1)}
-              onChange={(e) =>
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                 updateData({ fadeOut: parseFloat(e.target.value) * 1000 })
               }
-              aria-label="Fade Out"
             />
           </div>
         </div>

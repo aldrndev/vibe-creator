@@ -1,17 +1,25 @@
-import { Card, CardBody, Skeleton } from '@heroui/react';
+import { Card, CardBody } from "@/components/ui";
+import { cn } from "@/lib/utils";
 
 interface SkeletonCardProps {
   count?: number;
-  type?: 'card' | 'row' | 'stat';
+  type?: "card" | "row" | "stat";
+}
+
+/**
+ * Skeleton placeholder with shimmer animation
+ */
+function Skeleton({ className }: { className?: string }) {
+  return <div className={cn("animate-pulse rounded-md bg-muted", className)} />;
 }
 
 /**
  * Reusable skeleton loader for cards
  */
-export function SkeletonCard({ count = 1, type = 'card' }: SkeletonCardProps) {
+export function SkeletonCard({ count = 1, type = "card" }: SkeletonCardProps) {
   const items = Array.from({ length: count }, (_, i) => i);
 
-  if (type === 'stat') {
+  if (type === "stat") {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {items.map((i) => (
@@ -29,7 +37,7 @@ export function SkeletonCard({ count = 1, type = 'card' }: SkeletonCardProps) {
     );
   }
 
-  if (type === 'row') {
+  if (type === "row") {
     return (
       <div className="space-y-3">
         {items.map((i) => (
@@ -77,7 +85,7 @@ export function SkeletonTable({ rows = 5 }: { rows?: number }) {
   return (
     <div className="space-y-3">
       {/* Header */}
-      <div className="flex gap-4 p-3 border-b border-divider">
+      <div className="flex gap-4 p-3 border-b border-border">
         <Skeleton className="h-4 w-24 rounded" />
         <Skeleton className="h-4 w-20 rounded" />
         <Skeleton className="h-4 w-32 rounded" />
@@ -101,3 +109,5 @@ export function SkeletonTable({ rows = 5 }: { rows?: number }) {
     </div>
   );
 }
+
+export { Skeleton };

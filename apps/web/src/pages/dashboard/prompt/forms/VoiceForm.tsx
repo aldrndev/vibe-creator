@@ -1,4 +1,13 @@
-import { Card, CardBody, Select, SelectItem, Textarea } from "@heroui/react";
+import {
+  Card,
+  CardBody,
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+  Textarea,
+} from "@/components/ui";
 import { SelectionGrid } from "@/components/ui/SelectionGrid";
 import { VoiceFormData } from "../types";
 import {
@@ -38,53 +47,91 @@ export function VoiceForm({ data, onChange }: VoiceFormProps) {
         <Textarea
           label="Script/Teks yang Dibacakan"
           placeholder="Masukkan script yang akan dijadikan voice-over..."
-          minRows={4}
+          rows={4}
           value={data.script}
-          onValueChange={(v) => handleChange("script", v)}
+          onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+            handleChange("script", e.target.value)
+          }
         />
 
         <div className="grid sm:grid-cols-2 gap-4">
-          <Select
-            label="Gaya Suara"
-            selectedKeys={[data.voiceStyle]}
-            onChange={(e) => handleChange("voiceStyle", e.target.value)}
-          >
-            {voiceStyles.map((v) => (
-              <SelectItem key={v.key}>{v.label}</SelectItem>
-            ))}
-          </Select>
+          <div className="space-y-2">
+            <label className="text-sm text-muted-foreground">Gaya Suara</label>
+            <Select
+              value={data.voiceStyle}
+              onValueChange={(v) => handleChange("voiceStyle", v)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {voiceStyles.map((v) => (
+                  <SelectItem key={v.key} value={v.key}>
+                    {v.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-          <Select
-            label="Bahasa"
-            selectedKeys={[data.language]}
-            onChange={(e) => handleChange("language", e.target.value)}
-          >
-            {languages.map((l) => (
-              <SelectItem key={l.key}>{l.label}</SelectItem>
-            ))}
-          </Select>
+          <div className="space-y-2">
+            <label className="text-sm text-muted-foreground">Bahasa</label>
+            <Select
+              value={data.language}
+              onValueChange={(v) => handleChange("language", v)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {languages.map((l) => (
+                  <SelectItem key={l.key} value={l.key}>
+                    {l.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         <div className="grid sm:grid-cols-2 gap-4">
-          <Select
-            label="Gender"
-            selectedKeys={[data.gender]}
-            onChange={(e) => handleChange("gender", e.target.value)}
-          >
-            {genders.map((g) => (
-              <SelectItem key={g.key}>{g.label}</SelectItem>
-            ))}
-          </Select>
+          <div className="space-y-2">
+            <label className="text-sm text-muted-foreground">Gender</label>
+            <Select
+              value={data.gender}
+              onValueChange={(v) => handleChange("gender", v)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {genders.map((g) => (
+                  <SelectItem key={g.key} value={g.key}>
+                    {g.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-          <Select
-            label="Kecepatan"
-            selectedKeys={[data.pace]}
-            onChange={(e) => handleChange("pace", e.target.value)}
-          >
-            {paces.map((p) => (
-              <SelectItem key={p.key}>{p.label}</SelectItem>
-            ))}
-          </Select>
+          <div className="space-y-2">
+            <label className="text-sm text-muted-foreground">Kecepatan</label>
+            <Select
+              value={data.pace}
+              onValueChange={(v) => handleChange("pace", v)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {paces.map((p) => (
+                  <SelectItem key={p.key} value={p.key}>
+                    {p.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         <SelectionGrid

@@ -4,7 +4,12 @@
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-100%25-blue)](https://www.typescriptlang.org/)
 [![Digitesia](https://img.shields.io/badge/Digitesia-Standards%20v3.6.7-green)](https://github.com)
-[![Security](https://img.shields.io/badge/Security-Grade%20A-brightgreen)](https://github.com)
+
+Repo Profile: B
+Uses Database: true
+CI Uses Compose: false
+Prod Single Node Supported: true
+Automated Deploy (GitHub Actions): false
 
 ---
 
@@ -27,21 +32,23 @@ graph TB
     Queue -->|Update Status| DB
 ```
 
+Note: JWT verification is stateless; legacy session lookup is gated by `ENABLE_LEGACY_SESSION_AUTH` during migration.
+
 ---
 
 ## 🚀 Tech Stack
 
 ### Frontend
 
-- **React** 18 + **Vite** 5 + **TypeScript** 5
+- **React** 19 + **Vite** 7 + **TypeScript** 5.9
 - **HeroUI** + **TailwindCSS**
 - **React Query** (server state)
 - **Zustand** (client state)
 
 ### Backend
 
-- **Fastify** 5 + **TypeScript** 5 (strict mode)
-- **Prisma** 6 + **PostgreSQL** 16
+- **Fastify** 5 + **TypeScript** 5.9 (strict mode)
+- **Prisma** 7 + **PostgreSQL** 16
 - **BullMQ** + **Redis** 7
 - **jose** (JWT with cryptographic signatures)
 
@@ -60,13 +67,13 @@ graph TB
 
 ## 📋 Prerequisites
 
-| Requirement | Version   | Notes                |
-| ----------- | --------- | -------------------- |
-| **Node.js** | ≥ 20.0.0  | LTS recommended      |
-| **pnpm**    | ≥ 10.26.1 | Package manager      |
-| **Docker**  | Latest    | For PostgreSQL/Redis |
-| **FFmpeg**  | Latest    | Video processing     |
-| **yt-dlp**  | Latest    | Video download       |
+| Requirement | Version | Notes                |
+| ----------- | ------- | -------------------- |
+| **Node.js** | 20.0.0  | Runtime              |
+| **pnpm**    | 10.26.1 | Package manager      |
+| **Docker**  | 29.1.2  | For PostgreSQL/Redis |
+| **FFmpeg**  | bundled | Video processing     |
+| **yt-dlp**  | bundled | Video download       |
 
 ---
 
@@ -89,6 +96,8 @@ pnpm install
 # Copy environment templates
 cp apps/server/.env.example apps/server/.env
 cp apps/web/.env.example apps/web/.env
+cp .env.docker.infra.example .env.docker.infra
+cp apps/server/.env.docker.example apps/server/.env.docker
 
 # Generate JWT keys (required)
 node -e "console.log(require('crypto').randomBytes(32).toString('base64'))" # JWT_SECRET
@@ -101,6 +110,11 @@ node -e "console.log(require('crypto').randomBytes(32).toString('base64'))" # JW
 - `REDIS_URL` - Redis connection string
 - `JWT_SECRET` - Min 32 chars (REQUIRED, no default)
 - `JWT_REFRESH_SECRET` - Min 32 chars (REQUIRED, no default)
+- `JWT_SIGNING_KEY` - ES256 private JWK (REQUIRED)
+- `JWT_VERIFY_KEYS` - ES256 public JWK list
+- `TURNSTILE_SECRET_KEY` - Required outside development
+- `XENDIT_WEBHOOK_TOKEN` - Required outside development
+- `FRONTEND_URL` - Frontend base URL for redirects
 - `R2_*` - Cloudflare R2 credentials
 
 ### 3. Start Infrastructure
@@ -217,16 +231,14 @@ vibe-creator/
 
 - ✅ **CSRF Protection** for cookie-based endpoints
 - ✅ **Security Headers** (CSP, frame-ancestors, etc.)
-- ✅ **Rate Limiting** (100 req/15min per user)
-- ✅ **Timeout Enforcement** (30s DB, 5s Redis)
-- ✅ **Circuit Breakers** for external APIs
+- ✅ **Rate Limiting** (tenant/user keys, fail-closed on sensitive endpoints)
+- ✅ **Redis Timeouts + Bounded Retries**
 
 ### Observability
 
 - ✅ **Structured Logging** with `pino`
 - ✅ **Request ID Correlation** (`requestId → jobId`)
 - ✅ **Audit Logging** (immutable sink with tamper detection)
-- ✅ **Secret Redaction** in logs
 
 ---
 
@@ -236,7 +248,7 @@ OpenAPI documentation available at:
 
 - **Development**: http://localhost:3000/documentation
 - **Staging**: https://staging-api.example.com/documentation
-- **Production**: Disabled (Exception Protocol required)
+- **Production**: Disabled by default (`ENABLE_SWAGGER=false`)
 
 Auto-generated from Zod schemas. Single source of truth.
 
@@ -259,6 +271,8 @@ pnpm test --coverage
 ### Test Coverage
 
 - ✅ Token replay detection
+- ✅ Webhook signature + timestamp verification
+- ✅ SSRF protection
 - ✅ IDOR protection
 - ✅ Tenant isolation
 - ✅ Non-leak rule
@@ -273,6 +287,8 @@ pnpm test --coverage
 ### Production Checklist
 
 - [ ] Set all JWT environment variables (no defaults!)
+- [ ] Set `SERVER_IMAGE_TAG` to git SHA for immutable image
+- [ ] Provide `.env.docker.infra` and `apps/server/.env.docker`
 - [ ] Run database migrations
 - [ ] Verify CI/CD pipeline passes
 - [ ] Test authentication flow end-to-end
@@ -291,22 +307,22 @@ pnpm test --coverage
 
 This project adheres to **Digitesia Engineering Standards v3.6.7**.
 
-**Compliance Status**: ✅ **100% Complete**
+### Compliance Matrix
 
-Key standards implemented:
-
-- JWT Authentication (C1)
-- ESLint + TypeScript Strict (C2)
-- Fail-Fast Secrets (C3)
-- Token Family Model (C4)
-- Environment Validation (C5)
-- Timeouts for All I/O (H2)
-- Circuit Breakers (H3)
-- CI/CD with 6 Gates (H4)
-- Security Test Suite (H5)
-- Audit Logging (M5)
-
-For full compliance report, see `docs/compliance-report.md`.
+| Area                                | Status         | Notes                            |
+| ----------------------------------- | -------------- | -------------------------------- |
+| Stateless JWT Access Tokens         | ✅ Implemented | jose + key ring                  |
+| Refresh Rotation + Replay Detection | ✅ Implemented | token family model               |
+| Audit Logging                       | ✅ Implemented | immutable sink + hash chain      |
+| OpenAPI Documentation               | ✅ Implemented | dev/staging only                 |
+| Rate Limiting                       | ✅ Implemented | tenant/user keys + fail-closed   |
+| Dependency Pinning                  | ✅ Implemented | exact versions                   |
+| Docker Image Pinning                | ✅ Implemented | digests enforced                 |
+| Webhook Verification                | ✅ Implemented | signature + timestamp + replay   |
+| SSRF Protection                     | ✅ Implemented | private IP + DNS rebinding block |
+| Circuit Breakers                    | ⏳ Pending     | wiring to external calls         |
+| Query Budgets + Backpressure        | ⏳ Pending     | enforcement rollout              |
+| SBOM on Release                     | ⏳ Pending     | CI integration required          |
 
 ---
 

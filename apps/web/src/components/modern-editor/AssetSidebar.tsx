@@ -6,7 +6,16 @@
  */
 
 import { useState, useCallback } from "react";
-import { Card, CardBody, Button, Tabs, Tab, ScrollShadow } from "@heroui/react";
+import {
+  Card,
+  CardBody,
+  Button,
+  Tabs,
+  TabsList,
+  Tab,
+  TabsContent,
+  ScrollArea,
+} from "@/components/ui";
 import {
   Upload,
   Video,
@@ -51,15 +60,10 @@ export function AssetSidebar({ className }: AssetSidebarProps) {
           ? "AUDIO"
           : null;
 
-        if (!type) {
-          // Unsupported file type - silently skip, UI shows only added files
-          continue;
-        }
+        if (!type) continue;
 
-        // Create blob URL for preview
         const url = URL.createObjectURL(file);
 
-        // Get duration for video/audio
         let durationMs: number | undefined;
         let width: number | undefined;
         let height: number | undefined;
@@ -87,7 +91,6 @@ export function AssetSidebar({ className }: AssetSidebarProps) {
 
         addAsset(asset);
 
-        // Auto-add to canvas
         if (type === "VIDEO") {
           addVideoLayer(asset.id);
         } else if (type === "IMAGE") {
@@ -95,7 +98,6 @@ export function AssetSidebar({ className }: AssetSidebarProps) {
         } else if (type === "AUDIO") {
           addAudioLayer(asset.id);
         }
-        // No toast feedback needed - asset appearing in list is sufficient UI feedback
       }
     },
     [addAsset, addVideoLayer, addImageLayer, addAudioLayer]
@@ -135,7 +137,7 @@ export function AssetSidebar({ className }: AssetSidebarProps) {
       <Card
         className={clsx(
           "border-2 border-dashed transition-colors mb-4",
-          isDragging ? "border-primary bg-primary/10" : "border-divider"
+          isDragging ? "border-primary bg-primary/10" : "border-border"
         )}
         onDrop={handleDrop}
         onDragOver={handleDragOver}
@@ -160,7 +162,9 @@ export function AssetSidebar({ className }: AssetSidebarProps) {
             <p className="text-sm font-medium">
               Drop file atau klik untuk upload
             </p>
-            <p className="text-xs text-foreground/50">Video, Gambar, Audio</p>
+            <p className="text-xs text-muted-foreground">
+              Video, Gambar, Audio
+            </p>
           </label>
         </CardBody>
       </Card>
@@ -169,40 +173,47 @@ export function AssetSidebar({ className }: AssetSidebarProps) {
       <div className="flex gap-2 mb-4">
         <Button
           size="sm"
-          variant="flat"
-          startContent={<Type size={14} />}
-          onPress={() => addTextLayer("Text")}
+          variant="secondary"
+          onClick={() => addTextLayer("Text")}
           className="flex-1"
         >
+          <Type size={14} />
           Text
         </Button>
         <Button
           size="sm"
-          variant="flat"
-          startContent={<Subtitles size={14} />}
-          onPress={() => addSubtitleLayer("")}
+          variant="secondary"
+          onClick={() => addSubtitleLayer("")}
           className="flex-1"
         >
+          <Subtitles size={14} />
           Subtitle
         </Button>
       </div>
 
       {/* Asset Library */}
       <Card className="flex-1 overflow-hidden">
-        <Tabs
-          aria-label="Asset tabs"
-          size="sm"
-          classNames={{ tabList: "w-full" }}
-        >
-          <Tab
-            key="all"
-            title={
-              <div className="flex items-center gap-1">
-                <Film size={14} />
-                <span>All ({assets.length})</span>
-              </div>
-            }
-          >
+        <Tabs defaultValue="all" className="w-full">
+          <TabsList className="w-full justify-start">
+            <Tab value="all">
+              <Film size={14} />
+              All ({assets.length})
+            </Tab>
+            <Tab value="video">
+              <Video size={14} />
+              {videoAssets.length}
+            </Tab>
+            <Tab value="image">
+              <ImageIcon size={14} />
+              {imageAssets.length}
+            </Tab>
+            <Tab value="audio">
+              <Music size={14} />
+              {audioAssets.length}
+            </Tab>
+          </TabsList>
+
+          <TabsContent value="all">
             <AssetList
               assets={assets}
               onRemove={removeAsset}
@@ -212,52 +223,28 @@ export function AssetSidebar({ className }: AssetSidebarProps) {
                 else if (asset.type === "AUDIO") addAudioLayer(asset.id);
               }}
             />
-          </Tab>
-          <Tab
-            key="video"
-            title={
-              <div className="flex items-center gap-1">
-                <Video size={14} />
-                <span>{videoAssets.length}</span>
-              </div>
-            }
-          >
+          </TabsContent>
+          <TabsContent value="video">
             <AssetList
               assets={videoAssets}
               onRemove={removeAsset}
               onAdd={(a) => addVideoLayer(a.id)}
             />
-          </Tab>
-          <Tab
-            key="image"
-            title={
-              <div className="flex items-center gap-1">
-                <ImageIcon size={14} />
-                <span>{imageAssets.length}</span>
-              </div>
-            }
-          >
+          </TabsContent>
+          <TabsContent value="image">
             <AssetList
               assets={imageAssets}
               onRemove={removeAsset}
               onAdd={(a) => addImageLayer(a.id)}
             />
-          </Tab>
-          <Tab
-            key="audio"
-            title={
-              <div className="flex items-center gap-1">
-                <Music size={14} />
-                <span>{audioAssets.length}</span>
-              </div>
-            }
-          >
+          </TabsContent>
+          <TabsContent value="audio">
             <AssetList
               assets={audioAssets}
               onRemove={removeAsset}
               onAdd={(a) => addAudioLayer(a.id)}
             />
-          </Tab>
+          </TabsContent>
         </Tabs>
       </Card>
     </div>
@@ -276,7 +263,7 @@ function AssetList({
 }) {
   if (assets.length === 0) {
     return (
-      <div className="p-4 text-center text-foreground/50 text-sm">
+      <div className="p-4 text-center text-muted-foreground text-sm">
         Belum ada asset
       </div>
     );
@@ -302,44 +289,42 @@ function AssetList({
   };
 
   return (
-    <ScrollShadow className="max-h-[300px] p-2 space-y-2">
-      {assets.map((asset) => (
-        <div
-          key={asset.id}
-          className="group flex items-center gap-2 p-2 rounded-lg hover:bg-content2 transition-colors"
-        >
-          <div className="w-10 h-10 rounded bg-content3 flex items-center justify-center text-foreground/50 flex-shrink-0">
-            {getIcon(asset.type)}
+    <ScrollArea className="max-h-[300px] p-2">
+      <div className="space-y-2">
+        {assets.map((asset) => (
+          <div
+            key={asset.id}
+            className="group flex items-center gap-2 p-2 rounded-lg hover:bg-muted transition-colors"
+          >
+            <div className="w-10 h-10 rounded bg-muted flex items-center justify-center text-muted-foreground flex-shrink-0">
+              {getIcon(asset.type)}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium truncate">{asset.name}</p>
+              <p className="text-xs text-muted-foreground">
+                {formatDuration(asset.durationMs)}
+              </p>
+            </div>
+            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <Button
+                size="icon"
+                variant="secondary"
+                onClick={() => onAdd(asset)}
+              >
+                <Plus size={14} />
+              </Button>
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => onRemove(asset.id)}
+              >
+                <Trash2 size={14} />
+              </Button>
+            </div>
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium truncate">{asset.name}</p>
-            <p className="text-xs text-foreground/50">
-              {formatDuration(asset.durationMs)}
-            </p>
-          </div>
-          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            <Button
-              isIconOnly
-              size="sm"
-              variant="flat"
-              color="primary"
-              onPress={() => onAdd(asset)}
-            >
-              <Plus size={14} />
-            </Button>
-            <Button
-              isIconOnly
-              size="sm"
-              variant="light"
-              color="danger"
-              onPress={() => onRemove(asset.id)}
-            >
-              <Trash2 size={14} />
-            </Button>
-          </div>
-        </div>
-      ))}
-    </ScrollShadow>
+        ))}
+      </div>
+    </ScrollArea>
   );
 }
 
@@ -356,7 +341,7 @@ async function getMediaDuration(file: File): Promise<number> {
       URL.revokeObjectURL(url);
     };
     element.onerror = () => {
-      resolve(5000); // Default 5s
+      resolve(5000);
       URL.revokeObjectURL(url);
     };
     element.src = url;

@@ -1,0 +1,139 @@
+# =============================================================================
+# Vibe Creator - Docker Compose (Local Development)
+# =============================================================================
+# Digitesia Standard v3.6.7 Compliant
+#
+# REQUIRED FILES:
+#   - .env.docker.infra    (Infrastructure secrets - postgres, redis)
+#   - apps/api/.env.docker (Application secrets - JWT, etc.)
+#
+# Both files are gitignored. Copy from .env.example templates.
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # PostgreSQL Database
+  # ---------------------------------------------------------------------------
+  postgres:
+    # Pinned to exact version with digest for determinism
+    image: postgres:16-alpine@sha256:23e88eb049fd5d54894d70100df61d38a49ed97909263f79d4ff4c30a5d5fca2
+    container_name: vibe-creator-db
+    # Secrets from dedicated infrastructure env file
+    env_file:
+      - .env.docker.infra
+    ports:
+      # Exposed for local dev tools (DBeaver, pgAdmin)
+      # Production: Remove or restrict
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # Redis Cache
+  # ---------------------------------------------------------------------------
+  redis:
+    # Pinned to exact version with digest for determinism
+    image: redis:7-alpine@sha256:ee64a64eaab618d88051c3ade8f6352d11531fcf79d9a4818b9b183d8c1d18ba
+    container_name: vibe-creator-redis
+    ports:
+      # Exposed for local dev tools (RedisInsight)
+      # Production: Remove or restrict
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # Application Server
+  # ---------------------------------------------------------------------------
+  server:
+    build:
+      context: ../..
+      dockerfile: apps/api/Dockerfile
+      target: development
+    container_name: vibe-creator-server
+    ports:
+      - "3000:3000"
+    # App secrets from dedicated env file
+    env_file:
+      - apps/api/.env.docker
+    environment:
+      # Non-secret configuration overrides
+      NODE_ENV: development
+      # FFmpeg paths (container-specific)
+      FFMPEG_PATH: /usr/bin/ffmpeg
+      MEDIA_INPUT_DIR: /app/uploads
+      TEMP_DIR: /app/uploads/temp
+      OUTPUT_DIR: /app/uploads/exports
+      COBALT_API_URL: http://cobalt:9000
+    volumes:
+      - server_uploads:/app/uploads
+      # Hot reload mappings
+      - ../../apps/api/src:/app/apps/api/src
+      - ../../apps/api/tsconfig.json:/app/apps/api/tsconfig.json
+      - ../../apps/api/package.json:/app/apps/api/package.json
+      - ../../packages/shared/src:/app/packages/shared/src
+      # Prevent host node_modules from breaking container
+      - /app/apps/api/node_modules
+      - /app/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      cobalt:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    # Resource limits for FFmpeg export safety
+    deploy:
+      resources:
+        limits:
+          cpus: "4.0"
+          memory: 4G
+        reservations:
+          cpus: "1.0"
+          memory: 512M
+
+  # ---------------------------------------------------------------------------
+  # Cobalt API (Video Downloads)
+  # ---------------------------------------------------------------------------
+  cobalt:
+    image: ghcr.io/imputnet/cobalt:10@sha256:e5d3fff05a0a5a24ef31b034736fa5075ba45bdb051da1910b84be1c7798f5b4
+    container_name: vibe-creator-cobalt
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+    environment:
+      API_URL: "http://localhost:9000"
+      API_AUTH_REQUIRED: "0"
+      QUALITY: "1080"
+      YOUTUBE_ENABLED: "1"
+      TIKTOK_ENABLED: "1"
+      TWITTER_ENABLED: "1"
+      INSTAGRAM_ENABLED: "1"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+# =============================================================================
+# Volumes
+# =============================================================================
+volumes:
+  postgres_data:
+  redis_data:
+  server_uploads:

@@ -5,13 +5,13 @@ import {
   Input,
   Table,
   TableHeader,
-  TableColumn,
   TableBody,
   TableRow,
   TableCell,
-  Chip,
+  TableHead,
+  Badge,
   Button,
-} from "@heroui/react";
+} from "@/components/ui";
 import { Search, Edit } from "lucide-react";
 import { UserData } from "@/hooks/useAdminData";
 
@@ -34,68 +34,94 @@ export function UsersTable({
     <Card className="mt-4">
       <CardHeader className="flex flex-row justify-between items-center">
         <h2 className="text-lg font-semibold">Users</h2>
-        <Input
-          placeholder="Search by name or email..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          startContent={<Search size={16} />}
-          className="max-w-xs"
-          size="sm"
-        />
+        <div className="relative max-w-xs">
+          <Search
+            size={16}
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+          />
+          <Input
+            placeholder="Search by name or email..."
+            value={searchQuery}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+              setSearchQuery(e.target.value)
+            }
+            className="pl-9"
+          />
+        </div>
       </CardHeader>
       <CardBody>
-        <Table aria-label="Users table">
+        <Table>
           <TableHeader>
-            <TableColumn>USER</TableColumn>
-            <TableColumn>TIER</TableColumn>
-            <TableColumn>EXPORTS</TableColumn>
-            <TableColumn>JOINED</TableColumn>
-            <TableColumn>ACTIONS</TableColumn>
+            <TableRow>
+              <TableHead>USER</TableHead>
+              <TableHead>TIER</TableHead>
+              <TableHead>EXPORTS</TableHead>
+              <TableHead>JOINED</TableHead>
+              <TableHead>ACTIONS</TableHead>
+            </TableRow>
           </TableHeader>
-          <TableBody isLoading={isLoading}>
-            {users.map((u) => (
-              <TableRow key={u.id}>
-                <TableCell>
-                  <div>
-                    <p className="font-medium">{u.name}</p>
-                    <p className="text-xs text-foreground/60">{u.email}</p>
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <Chip
-                    size="sm"
-                    color={
-                      u.subscription?.tier === "PRO"
-                        ? "warning"
-                        : u.subscription?.tier === "CREATOR"
-                        ? "primary"
-                        : "default"
-                    }
-                  >
-                    {u.subscription?.tier || "FREE"}
-                  </Chip>
-                </TableCell>
-                <TableCell>
-                  {u.subscription?.exportsUsed || 0} /{" "}
-                  {u.subscription?.exportsLimit || 5}
-                </TableCell>
-                <TableCell>
-                  {new Date(u.createdAt).toLocaleDateString("id-ID")}
-                </TableCell>
-                <TableCell>
-                  <div className="flex gap-2">
-                    <Button
-                      isIconOnly
-                      size="sm"
-                      variant="flat"
-                      onPress={() => onEditUser(u)}
-                    >
-                      <Edit size={14} />
-                    </Button>
-                  </div>
+          <TableBody>
+            {isLoading ? (
+              <TableRow>
+                <TableCell
+                  colSpan={5}
+                  className="text-center py-8 text-muted-foreground"
+                >
+                  Loading...
                 </TableCell>
               </TableRow>
-            ))}
+            ) : users.length === 0 ? (
+              <TableRow>
+                <TableCell
+                  colSpan={5}
+                  className="text-center py-8 text-muted-foreground"
+                >
+                  No users found
+                </TableCell>
+              </TableRow>
+            ) : (
+              users.map((u) => (
+                <TableRow key={u.id}>
+                  <TableCell>
+                    <div>
+                      <p className="font-medium">{u.name}</p>
+                      <p className="text-xs text-muted-foreground">{u.email}</p>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <Badge
+                      variant={
+                        u.subscription?.tier === "PRO"
+                          ? "warning"
+                          : u.subscription?.tier === "CREATOR"
+                          ? "default"
+                          : "secondary"
+                      }
+                    >
+                      {u.subscription?.tier || "FREE"}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    {u.subscription?.exportsUsed || 0} /{" "}
+                    {u.subscription?.exportsLimit || 5}
+                  </TableCell>
+                  <TableCell>
+                    {new Date(u.createdAt).toLocaleDateString("id-ID")}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex gap-2">
+                      <Button
+                        size="icon"
+                        variant="secondary"
+                        onClick={() => onEditUser(u)}
+                      >
+                        <Edit size={14} />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
       </CardBody>

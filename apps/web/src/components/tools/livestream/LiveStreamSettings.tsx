@@ -3,14 +3,17 @@ import {
   Card,
   CardBody,
   CardHeader,
-  Chip,
+  Badge,
   Divider,
   Input,
   Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
   SelectItem,
   Slider,
   Switch,
-} from "@heroui/react";
+} from "@/components/ui";
 import { Info, Play, Settings, Square, Wifi, WifiOff } from "lucide-react";
 import { StreamPlatform } from "@/hooks/useLiveStream";
 import { platformConfigs } from "./constants";
@@ -65,9 +68,7 @@ export function LiveStreamSettings({
   return (
     <Card>
       <CardHeader className="flex items-center gap-2">
-        <div
-          className={`w-8 h-8 rounded-lg bg-${currentPlatformConfig.color}/10 flex items-center justify-center`}
-        >
+        <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
           {currentPlatformConfig.icon}
         </div>
         <h2 className="text-lg font-semibold">
@@ -78,15 +79,11 @@ export function LiveStreamSettings({
       <CardBody className="space-y-6">
         {/* Mode Toggle */}
         {platform !== "custom" && (
-          <div className="flex justify-between items-center bg-content2 p-2 rounded-lg">
-            <span className="text-xs text-foreground/60">
+          <div className="flex justify-between items-center bg-muted p-2 rounded-lg">
+            <span className="text-xs text-muted-foreground">
               Advanced Mode (Edit URL)
             </span>
-            <Switch
-              size="sm"
-              isSelected={showAdvanced}
-              onValueChange={setShowAdvanced}
-            />
+            <Switch checked={showAdvanced} onCheckedChange={setShowAdvanced} />
           </div>
         )}
 
@@ -96,21 +93,29 @@ export function LiveStreamSettings({
             label="RTMP URL"
             placeholder="rtmp://your-server.com/live"
             value={customRtmpUrl}
-            onChange={(e) => setCustomRtmpUrl(e.target.value)}
-            isDisabled={isStreaming}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+              setCustomRtmpUrl(e.target.value)
+            }
+            disabled={isStreaming}
           />
         )}
 
         {/* Stream Key */}
-        <Input
-          label="Stream Key"
-          type="password"
-          placeholder="Masukkan stream key dari platform"
-          value={streamKey}
-          onChange={(e) => setStreamKey(e.target.value)}
-          description="Dapatkan stream key dari dashboard platform streaming kamu"
-          isDisabled={isStreaming}
-        />
+        <div className="space-y-2">
+          <Input
+            label="Stream Key"
+            type="password"
+            placeholder="Masukkan stream key dari platform"
+            value={streamKey}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+              setStreamKey(e.target.value)
+            }
+            disabled={isStreaming}
+          />
+          <p className="text-xs text-muted-foreground">
+            Dapatkan stream key dari dashboard platform streaming kamu
+          </p>
+        </div>
 
         <Divider />
 
@@ -121,21 +126,26 @@ export function LiveStreamSettings({
           </h3>
 
           <div className="grid grid-cols-2 gap-4">
-            <Select
-              label="Resolusi"
-              size="sm"
-              selectedKeys={[quality]}
-              onChange={(e) => {
-                const q = e.target.value as "720p" | "1080p";
-                setQuality(q);
-                // Auto-adjust bitrate defaults
-                if (q === "1080p") setBitrate(4500);
-                else setBitrate(2500);
-              }}
-            >
-              <SelectItem key="720p">HD 720p (Smooth)</SelectItem>
-              <SelectItem key="1080p">FHD 1080p (Sharp)</SelectItem>
-            </Select>
+            <div className="space-y-2">
+              <label className="text-xs text-muted-foreground">Resolusi</label>
+              <Select
+                value={quality}
+                onValueChange={(v) => {
+                  const q = v as "720p" | "1080p";
+                  setQuality(q);
+                  if (q === "1080p") setBitrate(4500);
+                  else setBitrate(2500);
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Pilih resolusi" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="720p">HD 720p (Smooth)</SelectItem>
+                  <SelectItem value="1080p">FHD 1080p (Sharp)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
             <div className="space-y-1">
               <div className="flex justify-between text-xs">
@@ -143,33 +153,40 @@ export function LiveStreamSettings({
                 <span>{bitrate} kbps</span>
               </div>
               <Slider
-                aria-label="Bitrate"
-                size="sm"
+                min={1000}
+                max={8000}
                 step={100}
-                minValue={1000}
-                maxValue={8000}
-                value={bitrate}
-                onChange={(v) => setBitrate(v as number)}
-                className="max-w-md"
+                value={[bitrate]}
+                onValueChange={(v: number[]) => setBitrate(v[0] ?? 2500)}
               />
             </div>
           </div>
 
-          <Select
-            label="Durasi Auto-Stop"
-            size="sm"
-            selectedKeys={[duration.toString()]}
-            onChange={(e) => setDuration(Number(e.target.value))}
-            isDisabled={isStreaming}
-            description="Stream akan otomatis berhenti ketika durasi ini habis."
-          >
-            <SelectItem key="30">30 Menit</SelectItem>
-            <SelectItem key="60">1 Jam</SelectItem>
-            <SelectItem key="180">3 Jam</SelectItem>
-            <SelectItem key="360">6 Jam</SelectItem>
-            <SelectItem key="720">12 Jam</SelectItem>
-            <SelectItem key="1440">24 Jam</SelectItem>
-          </Select>
+          <div className="space-y-2">
+            <label className="text-xs text-muted-foreground">
+              Durasi Auto-Stop
+            </label>
+            <Select
+              value={duration.toString()}
+              onValueChange={(v) => setDuration(Number(v))}
+              disabled={isStreaming}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Pilih durasi" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="30">30 Menit</SelectItem>
+                <SelectItem value="60">1 Jam</SelectItem>
+                <SelectItem value="180">3 Jam</SelectItem>
+                <SelectItem value="360">6 Jam</SelectItem>
+                <SelectItem value="720">12 Jam</SelectItem>
+                <SelectItem value="1440">24 Jam</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Stream akan otomatis berhenti ketika durasi ini habis.
+            </p>
+          </div>
         </div>
 
         <Divider />
@@ -179,21 +196,21 @@ export function LiveStreamSettings({
           <div
             className={`p-4 rounded-lg text-center ${
               isStreaming
-                ? "bg-danger/10 border border-danger/30"
-                : "bg-content2"
+                ? "bg-destructive/10 border border-destructive/30"
+                : "bg-muted"
             }`}
           >
             {isStreaming ? (
               <div className="flex items-center justify-center gap-2">
-                <Wifi size={18} className="text-danger animate-pulse" />
-                <span className="font-semibold text-danger">
+                <Wifi size={18} className="text-destructive animate-pulse" />
+                <span className="font-semibold text-destructive">
                   {streamStatus}
                 </span>
               </div>
             ) : (
               <div className="flex items-center justify-center gap-2">
-                <WifiOff size={18} className="text-foreground/60" />
-                <span className="text-foreground/60">{streamStatus}</span>
+                <WifiOff size={18} className="text-muted-foreground" />
+                <span className="text-muted-foreground">{streamStatus}</span>
               </div>
             )}
           </div>
@@ -203,56 +220,56 @@ export function LiveStreamSettings({
         <div className="flex justify-between items-center px-1 pb-2">
           <div className="flex flex-col">
             <span className="text-sm font-medium">Sisa Kuota</span>
-            <span className="text-xs text-foreground/50">Reset tiap bulan</span>
+            <span className="text-xs text-muted-foreground">
+              Reset tiap bulan
+            </span>
           </div>
-          <Chip
-            size="md"
-            color={
+          <Badge
+            variant={
               quotaRemaining === null
-                ? "default"
+                ? "secondary"
                 : quotaRemaining < 15
-                ? "danger"
+                ? "destructive"
                 : quotaRemaining < 60
                 ? "warning"
-                : "primary"
+                : "default"
             }
-            variant="flat"
             className="font-bold cursor-pointer hover:opacity-80 transition-opacity"
-            startContent={<Info size={14} />}
             onClick={() => setShowTopup(true)}
           >
+            <Info size={14} className="mr-1" />
             {quotaRemaining === null ? "..." : `${quotaRemaining} Menit (+)`}
-          </Chip>
+          </Badge>
         </div>
 
         {/* Action Buttons */}
         <div className="flex gap-3">
           {!isStreaming ? (
             <Button
-              color="danger"
+              variant="destructive"
               className="flex-1"
               size="lg"
-              isDisabled={!hasVideoFile || !streamKey}
-              onPress={onStartStream}
-              startContent={<Play size={18} />}
+              disabled={!hasVideoFile || !streamKey}
+              onClick={onStartStream}
             >
+              <Play size={18} />
               Mulai Streaming
             </Button>
           ) : (
             <Button
-              color="default"
+              variant="secondary"
               className="flex-1"
               size="lg"
-              onPress={onStopStream}
-              startContent={<Square size={18} />}
+              onClick={onStopStream}
             >
+              <Square size={18} />
               Stop Streaming
             </Button>
           )}
         </div>
 
         {/* Platform Instructions */}
-        <div className="p-3 rounded-lg bg-content2 text-xs text-foreground/60 space-y-1">
+        <div className="p-3 rounded-lg bg-muted text-xs text-muted-foreground space-y-1">
           <p className="font-semibold mb-2">Cara mendapatkan Stream Key:</p>
           <p>
             • <strong>YouTube:</strong> Studio → Go Live → Stream Key

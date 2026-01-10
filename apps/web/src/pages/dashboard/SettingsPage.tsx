@@ -5,9 +5,9 @@ import {
   Switch,
   Divider,
   Button,
-  Chip,
+  Badge,
   Avatar,
-} from "@heroui/react";
+} from "@/components/ui";
 import {
   User,
   Bell,
@@ -44,14 +44,14 @@ export function SettingsPage() {
       : subscription?.tier === "CREATOR"
       ? "Creator"
       : "Free";
-  const tierColor =
+  const tierVariant =
     user?.role === "ADMIN"
       ? "warning"
       : subscription?.tier === "PRO"
       ? "warning"
       : subscription?.tier === "CREATOR"
-      ? "primary"
-      : "default";
+      ? "default"
+      : "secondary";
   const TierIcon =
     subscription?.tier === "PRO" || user?.role === "ADMIN"
       ? Crown
@@ -66,7 +66,7 @@ export function SettingsPage() {
         <Settings size={28} className="text-primary" />
         <div>
           <h1 className="text-2xl font-bold">Pengaturan</h1>
-          <p className="text-foreground/60">Kelola akun dan preferensi</p>
+          <p className="text-muted-foreground">Kelola akun dan preferensi</p>
         </div>
       </div>
 
@@ -79,7 +79,7 @@ export function SettingsPage() {
                 <User size={20} className="text-primary" />
                 <div className="flex flex-col">
                   <p className="text-md font-semibold">Profil</p>
-                  <p className="text-small text-foreground/60">
+                  <p className="text-small text-muted-foreground">
                     Informasi akun kamu
                   </p>
                 </div>
@@ -92,21 +92,17 @@ export function SettingsPage() {
                     src={user?.avatarUrl ?? undefined}
                     name={user?.name}
                     size="lg"
-                    className="w-16 h-16 text-large"
-                    showFallback
+                    className="w-16 h-16"
                   />
                   <div className="flex-1">
                     <p className="font-semibold text-lg">{user?.name ?? "-"}</p>
-                    <p className="text-sm text-foreground/60">
+                    <p className="text-sm text-muted-foreground">
                       {user?.email ?? "-"}
                     </p>
                   </div>
-                  <Button
-                    size="sm"
-                    variant="flat"
-                    endContent={<ChevronRight size={14} />}
-                  >
+                  <Button size="sm" variant="secondary">
                     Edit Profil
+                    <ChevronRight size={14} />
                   </Button>
                 </div>
               </CardBody>
@@ -120,7 +116,7 @@ export function SettingsPage() {
                 <Palette size={20} className="text-primary" />
                 <div className="flex flex-col">
                   <p className="text-md font-semibold">Tampilan</p>
-                  <p className="text-small text-foreground/60">
+                  <p className="text-small text-muted-foreground">
                     Kustomisasi tampilan aplikasi
                   </p>
                 </div>
@@ -130,21 +126,20 @@ export function SettingsPage() {
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-3">
                     {theme === "dark" ? (
-                      <Moon size={20} className="text-foreground/60" />
+                      <Moon size={20} className="text-muted-foreground" />
                     ) : (
-                      <Sun size={20} className="text-warning" />
+                      <Sun size={20} className="text-yellow-500" />
                     )}
                     <div>
                       <p className="font-medium">Mode Gelap</p>
-                      <p className="text-sm text-foreground/60">
+                      <p className="text-sm text-muted-foreground">
                         {theme === "dark" ? "Aktif" : "Tidak aktif"}
                       </p>
                     </div>
                   </div>
                   <Switch
-                    isSelected={theme === "dark"}
-                    onValueChange={toggleTheme}
-                    color="primary"
+                    checked={theme === "dark"}
+                    onCheckedChange={toggleTheme}
                   />
                 </div>
               </CardBody>
@@ -158,7 +153,7 @@ export function SettingsPage() {
                 <Bell size={20} className="text-primary" />
                 <div className="flex flex-col">
                   <p className="text-md font-semibold">Notifikasi</p>
-                  <p className="text-small text-foreground/60">
+                  <p className="text-small text-muted-foreground">
                     Kelola preferensi notifikasi
                   </p>
                 </div>
@@ -168,20 +163,20 @@ export function SettingsPage() {
                 <div className="flex justify-between items-center">
                   <div>
                     <p className="font-medium">Notifikasi Email</p>
-                    <p className="text-sm text-foreground/60">
+                    <p className="text-sm text-muted-foreground">
                       Terima update via email
                     </p>
                   </div>
-                  <Switch defaultSelected color="primary" />
+                  <Switch defaultChecked />
                 </div>
                 <div className="flex justify-between items-center">
                   <div>
                     <p className="font-medium">Export Selesai</p>
-                    <p className="text-sm text-foreground/60">
+                    <p className="text-sm text-muted-foreground">
                       Notifikasi saat export selesai
                     </p>
                   </div>
-                  <Switch defaultSelected color="primary" />
+                  <Switch defaultChecked />
                 </div>
               </CardBody>
             </Card>
@@ -189,12 +184,12 @@ export function SettingsPage() {
 
           {/* Subscription Section */}
           <StaggerItem>
-            <Card className="border-2 border-transparent hover:border-primary/30 transition-colors bg-gradient-to-r from-primary-500/5 to-secondary-500/5">
+            <Card className="border-2 border-transparent hover:border-primary/30 transition-colors bg-gradient-to-r from-primary/5 to-primary/10">
               <CardHeader className="flex gap-3">
                 <CreditCard size={20} className="text-primary" />
                 <div className="flex flex-col">
                   <p className="text-md font-semibold">Langganan</p>
-                  <p className="text-small text-foreground/60">
+                  <p className="text-small text-muted-foreground">
                     Kelola paket langganan
                   </p>
                 </div>
@@ -203,24 +198,22 @@ export function SettingsPage() {
               <CardBody>
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-3">
-                    <div
-                      className={`w-10 h-10 rounded-lg bg-${tierColor}/20 flex items-center justify-center`}
-                    >
-                      <TierIcon size={20} className={`text-${tierColor}`} />
+                    <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center">
+                      <TierIcon size={20} className="text-primary" />
                     </div>
                     <div>
                       <p className="font-medium">Paket Saat Ini</p>
                       <div className="flex items-center gap-2">
-                        <Chip
-                          size="sm"
-                          color={tierColor as "default" | "primary" | "warning"}
-                          variant="flat"
+                        <Badge
+                          variant={
+                            tierVariant as "default" | "secondary" | "warning"
+                          }
                         >
                           {tierName}
-                        </Chip>
+                        </Badge>
                         {subscription?.tier !== "PRO" &&
                           user?.role !== "ADMIN" && (
-                            <span className="text-xs text-foreground/50">
+                            <span className="text-xs text-muted-foreground">
                               {subscription?.exportsUsed ?? 0} /{" "}
                               {subscription?.exportsLimit ?? 5} exports
                             </span>
@@ -229,14 +222,11 @@ export function SettingsPage() {
                     </div>
                   </div>
                   {subscription?.tier !== "PRO" && user?.role !== "ADMIN" && (
-                    <Button
-                      as={Link}
-                      to="/dashboard/pricing"
-                      size="sm"
-                      color="primary"
-                      endContent={<Crown size={14} />}
-                    >
-                      Upgrade
+                    <Button asChild size="sm">
+                      <Link to="/dashboard/pricing">
+                        Upgrade
+                        <Crown size={14} />
+                      </Link>
                     </Button>
                   )}
                 </div>
@@ -251,7 +241,7 @@ export function SettingsPage() {
                 <Shield size={20} className="text-primary" />
                 <div className="flex flex-col">
                   <p className="text-md font-semibold">Keamanan</p>
-                  <p className="text-small text-foreground/60">
+                  <p className="text-small text-muted-foreground">
                     Kelola pengaturan keamanan
                   </p>
                 </div>
@@ -261,31 +251,25 @@ export function SettingsPage() {
                 <div className="flex justify-between items-center">
                   <div>
                     <p className="font-medium">Ubah Password</p>
-                    <p className="text-sm text-foreground/60">
+                    <p className="text-sm text-muted-foreground">
                       Update password akun
                     </p>
                   </div>
-                  <Button
-                    size="sm"
-                    variant="flat"
-                    endContent={<ChevronRight size={14} />}
-                  >
+                  <Button size="sm" variant="secondary">
                     Ubah
+                    <ChevronRight size={14} />
                   </Button>
                 </div>
                 <div className="flex justify-between items-center">
                   <div>
                     <p className="font-medium">Sesi Aktif</p>
-                    <p className="text-sm text-foreground/60">
+                    <p className="text-sm text-muted-foreground">
                       Kelola perangkat yang login
                     </p>
                   </div>
-                  <Button
-                    size="sm"
-                    variant="flat"
-                    endContent={<ChevronRight size={14} />}
-                  >
+                  <Button size="sm" variant="secondary">
                     Lihat
+                    <ChevronRight size={14} />
                   </Button>
                 </div>
               </CardBody>

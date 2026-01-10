@@ -2,7 +2,8 @@ import { useEffect } from "react";
 import { useDirectorStore } from "@/stores/director-store";
 import { authFetch } from "@/services/api";
 import { logger } from "@/lib/logger";
-import { cn, Button, Switch, Chip, Card, CardBody } from "@heroui/react";
+import { cn } from "@/lib/utils";
+import { Button, Switch, Badge, Card, CardBody } from "@/components/ui";
 import {
   Zap,
   Trash2,
@@ -69,7 +70,6 @@ export const EditingStep = () => {
 
   const handleRemoveClip = (clipId: string) => {
     setSelectedClips(selectedClips.filter((c) => c.id !== clipId));
-    // In real app, call API DELETE /clips/:id
   };
 
   const handleStartExport = async () => {
@@ -117,7 +117,6 @@ export const EditingStep = () => {
 
             if (newStatus === "COMPLETED" || newStatus === "FAILED") {
               clearInterval(interval);
-              // Reload clips to get transcripts
               const clipsRes = await authFetch(
                 `/api/v1/director/sessions/${activeSession.id}/clips`
               );
@@ -138,9 +137,8 @@ export const EditingStep = () => {
     setSelectedClips,
   ]);
 
-  // Initial Load (if needed, e.g. reload page)
+  // Initial Load
   useEffect(() => {
-    // If clips empty, fetch them
     if (activeSession && selectedClips.length === 0) {
       authFetch(`/api/v1/director/sessions/${activeSession.id}/clips`)
         .then((res) => res.json())
@@ -157,12 +155,11 @@ export const EditingStep = () => {
           <h3 className="text-xl font-bold text-white">Refine & Subtitles</h3>
           <Button
             size="sm"
-            variant="flat"
-            color="secondary"
-            startContent={<Zap size={16} />}
-            onPress={handleStartTranscribe}
-            isDisabled={transcribeJob?.status === "PROCESSING"}
+            variant="secondary"
+            onClick={handleStartTranscribe}
+            disabled={transcribeJob?.status === "PROCESSING"}
           >
+            <Zap size={16} />
             {transcribeJob?.status === "PROCESSING"
               ? "Transcribing..."
               : "Re-Transcribe"}
@@ -181,7 +178,6 @@ export const EditingStep = () => {
               (clip.candidate.endMs - clip.candidate.startMs) / 1000
             );
 
-            // Default settings if undefined
             const settings = refineSettings[clip.id] ?? {
               faceTracking: true,
               removeSilence: true,
@@ -225,32 +221,23 @@ export const EditingStep = () => {
                         Clip Segment {idx + 1}
                       </h4>
                       <div className="flex gap-2 mt-1">
-                        <Chip
-                          size="sm"
-                          variant="flat"
-                          className="h-5 bg-zinc-800 text-zinc-400"
-                        >
+                        <Badge variant="secondary" className="h-5">
                           {clip.candidate.tags?.includes("HIGH ENERGY")
                             ? "🔥 High Energy"
                             : "✨ Highlight"}
-                        </Chip>
-                        <Chip
-                          size="sm"
-                          variant="flat"
-                          className="h-5 bg-zinc-800 text-zinc-400"
-                        >
+                        </Badge>
+                        <Badge variant="secondary" className="h-5">
                           Auto-Reframed
-                        </Chip>
+                        </Badge>
                       </div>
                     </div>
 
                     <div className="flex gap-2">
                       <Button
-                        size="sm"
-                        variant="light"
-                        isIconOnly
-                        color="danger"
-                        onPress={() => handleRemoveClip(clip.id)}
+                        size="icon"
+                        variant="ghost"
+                        className="text-destructive hover:text-destructive"
+                        onClick={() => handleRemoveClip(clip.id)}
                       >
                         <Trash2 size={16} />
                       </Button>
@@ -264,12 +251,10 @@ export const EditingStep = () => {
                         Face Tracking
                       </span>
                       <Switch
-                        size="sm"
-                        isSelected={settings.faceTracking}
-                        onValueChange={(v) =>
+                        checked={settings.faceTracking}
+                        onCheckedChange={(v: boolean) =>
                           updateRefineSetting(clip.id, "faceTracking", v)
                         }
-                        color="primary"
                       />
                     </div>
                     <div className="flex items-center justify-between">
@@ -277,23 +262,19 @@ export const EditingStep = () => {
                         Remove Silence
                       </span>
                       <Switch
-                        size="sm"
-                        isSelected={settings.removeSilence}
-                        onValueChange={(v) =>
+                        checked={settings.removeSilence}
+                        onCheckedChange={(v: boolean) =>
                           updateRefineSetting(clip.id, "removeSilence", v)
                         }
-                        color="success"
                       />
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-xs text-zinc-400">Stabilize</span>
                       <Switch
-                        size="sm"
-                        isSelected={settings.stabilize}
-                        onValueChange={(v) =>
+                        checked={settings.stabilize}
+                        onCheckedChange={(v: boolean) =>
                           updateRefineSetting(clip.id, "stabilize", v)
                         }
-                        color="warning"
                       />
                     </div>
                   </div>
@@ -317,7 +298,6 @@ export const EditingStep = () => {
                           .join(" ") || ""
                       }
                       onBlur={(e) => {
-                        // Update first segment logic for MVP
                         const val = e.target.value;
                         if (val && clip.transcript?.segments) {
                           const segments = [...clip.transcript.segments];
@@ -402,11 +382,10 @@ export const EditingStep = () => {
             </div>
 
             <Button
-              fullWidth
-              color="primary"
-              onPress={handleStartExport}
+              className="w-full"
+              onClick={handleStartExport}
               isLoading={isLoading}
-              isDisabled={isLoading}
+              disabled={isLoading}
             >
               Start Export
             </Button>
@@ -419,7 +398,6 @@ export const EditingStep = () => {
             <h4 className="font-semibold flex items-center gap-2">
               <Captions size={18} /> Subtitle Style
             </h4>
-            {/* ... Simplified Font/Size selectors ... */}
             <div className="space-y-2">
               <label className="text-xs text-zinc-500">Font Size</label>
               <input

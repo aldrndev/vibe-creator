@@ -1,0 +1,831 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================================================
+// USER & AUTH
+// ============================================================================
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  avatarUrl String?
+  role      UserRole @default(USER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sessions       UserSession[]
+  subscription   Subscription?
+  projects       Project[]
+  prompts        Prompt[]
+  exports        ExportHistory[]
+  streamSessions StreamSession[]
+  payments       PaymentHistory[]
+  
+  billingSubscription BillingSubscription?
+  streamQuotaCycles   StreamQuotaCycle[]
+  streamTopupPurchases StreamTopupPurchase[]
+  jobs                Job[]
+  directorSessions    DirectorSession[]
+
+  @@map("users")
+}
+
+model UserSession {
+  id               String    @id @default(cuid())
+  userId           String
+  token            String    @unique
+  refreshToken     String    @unique
+  userAgent        String?
+  ipAddress        String?
+  expiresAt        DateTime
+  refreshExpiresAt DateTime
+  createdAt        DateTime  @default(now())
+  
+  // Token family model for refresh replay detection
+  tokenFamily      String?   // Family identifier for tracking related tokens
+  parentTokenId    String?   // ID of parent token that was rotated
+  consumedAt       DateTime? // Timestamp when token was used (single-use)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@index([refreshToken])
+  @@index([tokenFamily])
+  @@index([parentTokenId])
+  @@map("user_sessions")
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+// ============================================================================
+// SUBSCRIPTION
+// ============================================================================
+
+model Subscription {
+  id                   String             @id @default(cuid())
+  userId               String             @unique
+  tier                 SubscriptionTier   @default(FREE)
+  status               SubscriptionStatus @default(ACTIVE)
+  exportsUsed          Int                @default(0)
+  exportsLimit         Int                @default(0)
+  validUntil           DateTime?
+  xenditSubscriptionId String?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("subscriptions")
+}
+
+enum SubscriptionTier {
+  FREE
+  CREATOR
+  PRO
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
+
+model PaymentHistory {
+  id              String        @id @default(cuid())
+  userId          String
+  amount          Int           // Amount in IDR
+  tier            SubscriptionTier
+  status          PaymentStatus @default(PENDING)
+  xenditInvoiceId String?       @unique
+  xenditPaymentId String?
+  paymentMethod   String?       // QRIS, E-Wallet, Bank Transfer
+  paidAt          DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@map("payment_history")
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  EXPIRED
+  FAILED
+}
+
+// ============================================================================
+// ANNOUNCEMENT
+// ============================================================================
+
+model Announcement {
+  id        String   @id @default(cuid())
+  title     String
+  content   String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("announcements")
+}
+
+// ============================================================================
+// PROJECT & TIMELINE
+// ============================================================================
+
+model Project {
+  id          String        @id @default(cuid())
+  userId      String
+  title       String
+  description String?
+  status      ProjectStatus @default(DRAFT)
+  settings    Json          @default("{}")
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assets   ProjectAsset[]
+  timeline Timeline?
+  exports  ExportHistory[]
+  versions ProjectVersion[]
+  jobs     Job[]
+
+  // AI Director Fields
+  mode      ProjectMode @default(TIMELINE)
+  storyData Json?       @map("story_data")
+
+  @@index([userId])
+  @@map("projects")
+}
+
+enum ProjectMode {
+  STORY
+  TIMELINE
+}
+
+model ProjectVersion {
+  id           String   @id @default(cuid())
+  projectId    String
+  name         String   // e.g., "v1", "Final Cut", "Client Feedback"
+  description  String?
+  timelineData Json     // Snapshot of timeline state
+  textOverlays Json     @default("[]") // Snapshot of text overlays
+  metadata     Json     @default("{}") // Additional metadata
+  createdAt    DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@map("project_versions")
+}
+
+model ProjectAsset {
+  id        String    @id @default(cuid())
+  projectId String
+  type      AssetType
+  name      String
+  sourceUrl String?
+  r2Key     String
+  metadata  Json      @default("{}")
+  createdAt DateTime  @default(now())
+
+  project Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  clips   TimelineClip[]
+
+  @@index([projectId])
+  @@map("project_assets")
+}
+
+model Timeline {
+  id         String   @id @default(cuid())
+  projectId  String   @unique
+  width      Int      @default(1920)
+  height     Int      @default(1080)
+  fps        Int      @default(30)
+  durationMs Int      @default(0)
+  settings   Json     @default("{}")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  project Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tracks  TimelineTrack[]
+
+  @@map("timelines")
+}
+
+model TimelineTrack {
+  id         String    @id @default(cuid())
+  timelineId String
+  type       TrackType
+  order      Int       @default(0)
+  muted      Boolean   @default(false)
+  volume     Float     @default(1.0)
+  locked     Boolean   @default(false)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  timeline Timeline       @relation(fields: [timelineId], references: [id], onDelete: Cascade)
+  clips    TimelineClip[]
+
+  @@index([timelineId])
+  @@map("timeline_tracks")
+}
+
+model TimelineClip {
+  id          String   @id @default(cuid())
+  trackId     String
+  assetId     String?
+  startMs     Int      @default(0)
+  endMs       Int      @default(0)
+  trimStartMs Int      @default(0)
+  trimEndMs   Int      @default(0)
+  transforms  Json     @default("{}")
+  effects     Json     @default("{}")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  track TimelineTrack @relation(fields: [trackId], references: [id], onDelete: Cascade)
+  asset ProjectAsset? @relation(fields: [assetId], references: [id], onDelete: SetNull)
+
+  @@index([trackId])
+  @@map("timeline_clips")
+}
+
+enum ProjectStatus {
+  DRAFT
+  PROCESSING
+  COMPLETED
+}
+
+enum AssetType {
+  VIDEO
+  AUDIO
+  IMAGE
+  VOICE
+}
+
+enum TrackType {
+  VIDEO
+  AUDIO
+  TEXT
+  OVERLAY
+}
+
+// ============================================================================
+// PROMPT BUILDER
+// ============================================================================
+
+model Prompt {
+  id               String     @id @default(cuid())
+  userId           String
+  type             PromptType
+  title            String
+  currentVersionId String?
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  user     User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  versions PromptVersion[]
+
+  @@index([userId])
+  @@index([type])
+  @@map("prompts")
+}
+
+model PromptVersion {
+  id              String   @id @default(cuid())
+  promptId        String
+  version         Int
+  inputData       Json
+  generatedPrompt String   @db.Text
+  userNotes       String?  @db.Text
+  createdAt       DateTime @default(now())
+
+  prompt Prompt @relation(fields: [promptId], references: [id], onDelete: Cascade)
+
+  @@unique([promptId, version])
+  @@index([promptId])
+  @@map("prompt_versions")
+}
+
+enum PromptType {
+  SCRIPT
+  VOICE
+  VIDEO_GEN
+  IMAGE
+  RELAXING
+  CREATIVE_SCAN
+  TIMELAPSE
+}
+
+// ============================================================================
+// EXPORT
+// ============================================================================
+
+model ExportHistory {
+  id             String           @id @default(cuid())
+  userId         String
+  projectId      String?          // Optional - allows exports without saved project
+  format         ExportFormat
+  resolution     ExportResolution
+  status         ExportStatus     @default(QUEUED)
+  phase          String           @default("QUEUED") // Current processing phase
+  phaseProgress  Int              @default(0) // 0-100 progress within phase
+  progress       Int              @default(0) // Overall 0-100 progress
+  attempts       Int              @default(0)
+  maxAttempts    Int              @default(3)
+  idempotencyKey String?          @unique // For retry safety
+  timelineData   Json?            // Timeline snapshot for processing
+  localPath      String?          // Local file path (dev)
+  r2Key          String?          // R2 key (prod)
+  downloadUrl    String?          // Signed download URL
+  urlExpiresAt   DateTime?        // URL expiration time
+  fileSizeBytes  BigInt?
+  errorMessage   String?
+  startedAt      DateTime?
+  expiresAt      DateTime?
+  createdAt      DateTime         @default(now())
+  completedAt    DateTime?
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([projectId])
+  @@index([status])
+  @@index([idempotencyKey])
+  @@map("export_history")
+}
+
+enum ExportFormat {
+  MP4
+  WEBM
+  MOV
+}
+
+enum ExportResolution {
+  SD      @map("720P")
+  HD      @map("1080P")
+  UHD     @map("4K")
+}
+
+enum ExportStatus {
+  QUEUED
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+// ============================================================================
+// URL DOWNLOAD
+// ============================================================================
+
+model DownloadJob {
+  id           String         @id @default(cuid())
+  userId       String
+  sourceUrl    String
+  platform     String
+  title        String?
+  status       DownloadStatus @default(PENDING)
+  localPath    String?        // Local file path (dev)
+  r2Key        String?        // R2 key (prod)
+  metadata     Json           @default("{}")
+  errorMessage String?
+  createdAt    DateTime       @default(now())
+  completedAt  DateTime?
+
+  @@index([userId])
+  @@index([status])
+  @@map("download_jobs")
+}
+
+enum DownloadStatus {
+  PENDING
+  DOWNLOADING
+  COMPLETED
+  FAILED
+}
+
+// ============================================================================
+// ASYNC JOBS (AI DIRECTOR)
+// ============================================================================
+
+model Job {
+  id          String    @id @default(cuid())
+  userId      String
+  projectId   String?   // Optional: some jobs might be project-agnostic
+  type        JobType
+  status      JobStatus @default(PENDING)
+  input       Json      @default("{}")
+  output      Json?
+  error       String?
+  progress    Int       @default(0) // 0-100
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([projectId])
+  @@index([status])
+  @@map("jobs")
+}
+
+enum JobStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum JobType {
+  STORY_GENERATION
+  SCENE_GENERATION
+  ASSET_GENERATION
+  DIRECTOR_ANALYSIS
+  DIRECTOR_TRANSCRIBE
+  DIRECTOR_EXPORT
+}
+
+// ============================================================================
+// AI DIRECTOR (WIZARD)
+// ============================================================================
+
+model DirectorSession {
+  id            String              @id @default(cuid())
+  userId        String
+  step          DirectorStep        @default(IMPORT)
+  schemaVersion Int                 @default(1)
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  user           User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  asset          DirectorAsset?
+  analysisJob    DirectorAnalysisJob?
+  selectedClips  DirectorSelectedClip[]
+  transcribeJob  DirectorTranscribeJob?
+  subtitleStyle  DirectorSubtitleStyle?
+  exportJob      DirectorExportJob?
+  clipTranscripts DirectorClipTranscript[]
+
+  @@index([userId])
+  @@map("director_sessions")
+}
+
+enum DirectorStep {
+  IMPORT
+  ANALYZING
+  PICKING
+  EDITING
+  EXPORTING
+  COMPLETED
+}
+
+model DirectorAsset {
+  id                   String              @id @default(cuid())
+  sessionId            String              @unique
+  storageKey           String
+  contentHash          String?
+  mimeType             String
+  sizeBytes            BigInt
+  origin               DirectorAssetOrigin
+  sourceUrlNormalized  String?
+  ingestStatus         DirectorIngestStatus @default(UPLOADING)
+  durationMs           Int?
+  thumbnailStorageKey  String?
+  metadata             Json                @default("{}")
+  createdAt            DateTime            @default(now())
+
+  session DirectorSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@map("director_assets")
+}
+
+enum DirectorAssetOrigin {
+  UPLOAD
+  URL_IMPORT
+}
+
+enum DirectorIngestStatus {
+  UPLOADING
+  READY
+  FAILED
+}
+
+model DirectorAnalysisJob {
+  id              String                  @id @default(cuid())
+  sessionId       String                  @unique
+  bullmqJobId     String?
+  idempotencyKey  String                  @unique
+  status          DirectorJobStatus       @default(PENDING)
+  config          Json                    @default("{}")
+  metrics         Json?
+  startedAt       DateTime?
+  completedAt     DateTime?
+  errorMessage    String?
+
+  session    DirectorSession           @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  candidates DirectorClipCandidate[]
+
+  @@map("director_analysis_jobs")
+}
+
+model DirectorClipCandidate {
+  id                      String   @id @default(cuid())
+  analysisJobId           String
+  startMs                 Int
+  endMs                   Int
+  tags                    String[]
+  score                   Float?
+  rank                    Int
+  previewStorageKey       String?
+  videoPreviewStorageKey  String?
+  metadata                Json     @default("{}")
+
+  analysisJob   DirectorAnalysisJob      @relation(fields: [analysisJobId], references: [id], onDelete: Cascade)
+  selectedClips DirectorSelectedClip[]
+
+  @@index([analysisJobId])
+  @@map("director_clip_candidates")
+}
+
+model DirectorSelectedClip {
+  id           String   @id @default(cuid())
+  sessionId    String
+  candidateId  String
+  trimStartMs  Int      @default(0)
+  trimEndMs    Int      @default(0)
+  orderIndex   Int
+  createdAt    DateTime @default(now())
+
+  session   DirectorSession       @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  candidate DirectorClipCandidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  transcript DirectorClipTranscript?
+
+  @@index([sessionId])
+  @@map("director_selected_clips")
+}
+
+model DirectorTranscribeJob {
+  id              String            @id @default(cuid())
+  sessionId       String            @unique
+  bullmqJobId     String?
+  idempotencyKey  String            @unique
+  status          DirectorJobStatus @default(PENDING)
+  engine          String?
+  language        String?
+  segments        Json?
+  startedAt       DateTime?
+  completedAt     DateTime?
+  errorMessage    String?
+
+  session DirectorSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@map("director_transcribe_jobs")
+}
+
+model DirectorSubtitleStyle {
+  id              String   @id @default(cuid())
+  sessionId       String   @unique
+  fontToken       String   @default("font-default")
+  textColorToken  String   @default("text-white")
+  bgColorToken    String   @default("bg-overlay")
+  fontSize        Int      @default(32)
+  position        String   @default("bottom")
+  animation       String   @default("fade")
+  createdAt       DateTime @default(now())
+
+  session DirectorSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@map("director_subtitle_styles")
+}
+
+model DirectorExportJob {
+  id               String            @id @default(cuid())
+  sessionId        String            @unique
+  bullmqJobId      String?
+  idempotencyKey   String            @unique
+  status           DirectorJobStatus @default(PENDING)
+  aspectRatio      String            @default("9:16")
+  quality          String            @default("1080p")
+  includeSubtitles Boolean           @default(true)
+  outputStorageKey String?
+  startedAt        DateTime?
+  completedAt      DateTime?
+  errorMessage     String?
+
+  session DirectorSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@map("director_export_jobs")
+}
+
+enum DirectorJobStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+
+// ================================
+// STREAMING MODELS
+// ================================
+
+model StreamSession {
+  id           String       @id @default(cuid())
+  userId       String
+  platform     String       // youtube, tiktok, twitch, etc.
+  status       StreamStatus @default(STARTING)
+  startedAt    DateTime     @default(now())
+  autoStopAt   DateTime?
+  endedAt      DateTime?
+  stopReason   StreamStopReason?
+  durationMinutesBilled Int?
+  
+  quotaCycleId String?
+  quotaCycle   StreamQuotaCycle? @relation(fields: [quotaCycleId], references: [id])
+  
+  config       Json?        // Redacted stream config
+  errorMessage String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([autoStopAt, status])
+  @@map("stream_sessions")
+}
+
+enum StreamStatus {
+  CREATED
+  STARTING
+  LIVE
+  STOPPING
+  STOPPED
+  FAILED
+  ENDED // Legacy support
+}
+
+enum StreamStopReason {
+  USER_REQUEST
+  AUTO_STOP
+  ERROR
+  ADMIN
+  SERVER_RESTART
+  QUOTA_EXHAUSTED
+}
+
+// ================================
+// BILLING MODELS
+// ================================
+
+model BillingSubscription {
+  id                     String   @id @default(cuid())
+  userId                 String   @unique
+  provider               String   // XENDIT
+  providerSubscriptionId String   @unique // Xendit ID
+  status                 String   // ACTIVE, PAST_DUE, etc.
+  planKey                String
+  currentPeriodStartAt   DateTime
+  currentPeriodEndAt     DateTime
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("billing_subscriptions")
+}
+
+model StreamQuotaCycle {
+  id              String   @id @default(cuid())
+  userId          String
+  cycleStartAt    DateTime
+  cycleEndAt      DateTime
+  
+  quotaMinutesBase  Int
+  quotaMinutesTopup Int      @default(0)
+  quotaMinutesUsed  Int      @default(0)
+  
+  status          String   @default("OPEN") // OPEN, CLOSED
+  
+  sessions        StreamSession[]
+  topups          StreamTopupPurchase[]
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, cycleStartAt, cycleEndAt])
+  @@index([userId, status])
+  @@map("stream_quota_cycles")
+}
+
+model PaymentEvent {
+  id              String   @id @default(cuid())
+  provider        String   @default("XENDIT")
+  providerEventId String   @unique
+  eventType       String
+  payload         Json
+  receivedAt      DateTime @default(now())
+  
+  @@map("payment_events")
+}
+
+model StreamTopupPurchase {
+  id                  String   @id @default(cuid())
+  userId              String
+  provider            String   @default("XENDIT")
+  providerPaymentId   String   @unique
+  minutes             Int
+  amount              Int
+  status              String   // PENDING, PAID, FAILED
+  appliedToQuotaCycleId String?
+  
+  quotaCycle StreamQuotaCycle? @relation(fields: [appliedToQuotaCycleId], references: [id])
+  user       User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  
+  @@map("stream_topup_purchases")
+}
+
+model DirectorClipTranscript {
+  id               String   @id @default(cuid())
+  sessionId        String   @map("session_id")
+  selectedClipId   String   @unique @map("selected_clip_id")
+  status           DirectorJobStatus @default(PENDING)
+  language         String?
+  engine           String   @default("WHISPER_LOCAL")
+  segments         Json?    // [{ startMs, endMs, text }]
+  errorMessage     String?  @map("error_message")
+  startedAt        DateTime? @map("started_at")
+  completedAt      DateTime? @map("completed_at")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  session          DirectorSession      @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  selectedClip     DirectorSelectedClip @relation(fields: [selectedClipId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@map("director_clip_transcripts")
+}
+
+// ============================================================================
+// AUDIT LOGGING
+// ============================================================================
+
+/// Immutable audit log for security events
+model AuditLog {
+  id String @id @default(cuid())
+
+  // Correlation
+  requestId String
+  jobId     String?
+  sessionId String?
+
+  // Identity
+  userId   String?
+  tenantId String?
+
+  // Event details
+  action       String
+  resourceType String?
+  resourceId   String?
+  metadata     Json    @default("{}")
+
+  // Request context
+  ipAddress String?
+  userAgent String?
+
+  // Tamper detection
+  prevHash String? @db.VarChar(64)
+
+  // Timestamp
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+  @@index([requestId])
+  @@index([sessionId])
+  @@map("audit_logs")
+}

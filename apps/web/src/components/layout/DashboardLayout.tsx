@@ -1,13 +1,14 @@
 import { Outlet, NavLink, useNavigate, useLocation } from "react-router-dom";
 import {
   Button,
+  Badge,
   Avatar,
-  Dropdown,
-  DropdownTrigger,
   DropdownMenu,
-  DropdownItem,
-  Chip,
-} from "@heroui/react";
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui";
 import {
   LayoutDashboard,
   FolderOpen,
@@ -32,7 +33,7 @@ import {
 import { useState, useRef, useEffect } from "react";
 import { useAuthStore } from "@/stores/auth-store";
 import { useThemeStore } from "@/stores/theme-store";
-import { clsx } from "clsx";
+import { cn } from "@/lib/utils";
 import { MobileBottomNav } from "./MobileBottomNav";
 import { FEATURES } from "@/lib/feature-flags";
 
@@ -106,23 +107,22 @@ export function DashboardLayout() {
 
       {/* Sidebar */}
       <aside
-        className={clsx(
-          "fixed inset-y-0 left-0 z-50 w-64 transform bg-content1 border-r border-divider transition-transform duration-300 lg:static lg:translate-x-0",
+        className={cn(
+          "fixed inset-y-0 left-0 z-50 w-64 transform bg-card border-r border-border transition-transform duration-300 lg:static lg:translate-x-0",
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
         <div className="flex h-full flex-col">
           {/* Logo */}
-          <div className="flex h-16 items-center justify-between px-6 border-b border-divider">
+          <div className="flex h-16 items-center justify-between px-6 border-b border-border">
             <span className="text-xl font-bold gradient-text">
               Vibe Creator
             </span>
             <Button
-              isIconOnly
-              variant="light"
-              size="sm"
+              variant="ghost"
+              size="icon"
               className="lg:hidden"
-              onPress={() => setSidebarOpen(false)}
+              onClick={() => setSidebarOpen(false)}
             >
               <X size={20} />
             </Button>
@@ -142,11 +142,11 @@ export function DashboardLayout() {
                     {/* Parent menu button */}
                     <button
                       onClick={() => setToolsExpanded(!toolsExpanded)}
-                      className={clsx(
+                      className={cn(
                         "w-full flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors touch-target",
                         isChildActive
                           ? "bg-primary/20 text-primary"
-                          : "text-foreground/70 hover:bg-default-100 hover:text-foreground"
+                          : "text-muted-foreground hover:bg-accent hover:text-foreground"
                       )}
                     >
                       <item.icon size={20} />
@@ -162,18 +162,18 @@ export function DashboardLayout() {
 
                     {/* Child menu items */}
                     {toolsExpanded && (
-                      <div className="ml-4 mt-1 space-y-1 border-l-2 border-divider pl-2">
+                      <div className="ml-4 mt-1 space-y-1 border-l-2 border-border pl-2">
                         {item.children.map((child) => (
                           <NavLink
                             key={child.name}
                             to={child.href}
                             onClick={() => setSidebarOpen(false)}
                             className={({ isActive }) =>
-                              clsx(
+                              cn(
                                 "flex items-center gap-3 rounded-lg px-4 py-2 text-sm font-medium transition-colors",
                                 isActive
                                   ? "bg-primary text-primary-foreground"
-                                  : "text-foreground/60 hover:bg-default-100 hover:text-foreground"
+                                  : "text-muted-foreground hover:bg-accent hover:text-foreground"
                               )
                             }
                           >
@@ -195,11 +195,11 @@ export function DashboardLayout() {
                   end={item.href === "/dashboard"}
                   onClick={() => setSidebarOpen(false)}
                   className={({ isActive }) =>
-                    clsx(
+                    cn(
                       "flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors touch-target",
                       isActive
                         ? "bg-primary text-primary-foreground"
-                        : "text-foreground/70 hover:bg-default-100 hover:text-foreground"
+                        : "text-muted-foreground hover:bg-accent hover:text-foreground"
                     )
                   }
                 >
@@ -214,39 +214,30 @@ export function DashboardLayout() {
               <NavLink
                 to={adminNav.href}
                 className={({ isActive }) =>
-                  clsx(
+                  cn(
                     "flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors",
                     isActive
-                      ? "bg-warning text-warning-foreground"
-                      : "text-warning hover:bg-warning/20"
+                      ? "bg-yellow-500/20 text-yellow-500"
+                      : "text-yellow-500 hover:bg-yellow-500/10"
                   )
                 }
               >
                 <adminNav.icon size={20} />
                 {adminNav.name}
-                <Chip
-                  size="sm"
-                  color="warning"
-                  variant="flat"
-                  className="ml-auto"
-                >
+                <Badge variant="warning" className="ml-auto">
                   Admin
-                </Chip>
+                </Badge>
               </NavLink>
             )}
           </nav>
 
           {/* User section */}
-          <div className="border-t border-divider p-4">
+          <div className="border-t border-border p-4">
             <div className="flex items-center gap-3">
-              <Avatar
-                name={user?.name ?? "User"}
-                size="sm"
-                className="bg-primary text-primary-foreground"
-              />
+              <Avatar name={user?.name ?? "User"} size="sm" />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">{user?.name}</p>
-                <p className="text-xs text-foreground/60 truncate">
+                <p className="text-xs text-muted-foreground truncate">
                   {user?.email}
                 </p>
               </div>
@@ -258,12 +249,12 @@ export function DashboardLayout() {
       {/* Main content */}
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Header */}
-        <header className="flex h-16 items-center justify-between border-b border-divider px-6 bg-content1/80 backdrop-blur-md sticky top-0 z-30">
+        <header className="flex h-16 items-center justify-between border-b border-border px-6 bg-card/80 backdrop-blur-md sticky top-0 z-30">
           <Button
-            isIconOnly
-            variant="light"
+            variant="ghost"
+            size="icon"
             className="lg:hidden"
-            onPress={() => setSidebarOpen(true)}
+            onClick={() => setSidebarOpen(true)}
           >
             <Menu size={20} />
           </Button>
@@ -273,54 +264,49 @@ export function DashboardLayout() {
           <div className="flex items-center gap-2">
             {/* Theme toggle */}
             <Button
-              isIconOnly
-              variant="light"
-              onPress={toggleTheme}
+              variant="ghost"
+              size="icon"
+              onClick={toggleTheme}
               aria-label="Toggle theme"
             >
               {theme === "dark" ? <Sun size={20} /> : <Moon size={20} />}
             </Button>
 
             {/* User menu */}
-            <Dropdown placement="bottom-end">
-              <DropdownTrigger>
-                <Button isIconOnly variant="light" className="rounded-full">
-                  <Avatar
-                    name={user?.name ?? "User"}
-                    size="sm"
-                    className="bg-primary text-primary-foreground"
-                  />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="rounded-full">
+                  <Avatar name={user?.name ?? "User"} size="sm" />
                 </Button>
-              </DropdownTrigger>
-              <DropdownMenu aria-label="User menu">
-                <DropdownItem
-                  key="profile"
-                  className="h-14 gap-2"
-                  textValue="Profile"
-                >
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <div className="px-2 py-1.5">
                   <p className="font-semibold">{user?.name}</p>
-                  <p className="text-sm text-foreground/60">{user?.email}</p>
-                </DropdownItem>
-                <DropdownItem key="settings" href="/dashboard/settings">
-                  Settings
-                </DropdownItem>
-                <DropdownItem
-                  key="logout"
-                  color="danger"
-                  startContent={<LogOut size={16} />}
-                  onPress={handleLogout}
+                  <p className="text-sm text-muted-foreground">{user?.email}</p>
+                </div>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={() => navigate("/dashboard/settings")}
                 >
+                  Settings
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={handleLogout}
+                  className="text-destructive focus:text-destructive"
+                >
+                  <LogOut size={16} />
                   Logout
-                </DropdownItem>
-              </DropdownMenu>
-            </Dropdown>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </header>
 
         {/* Page content */}
         <main
           ref={mainRef}
-          className={clsx(
+          className={cn(
             "flex-1 flex flex-col min-w-0", // base styles
             // For Modern Editor (Full Screen Tool), remove padding/overflow to let tool handle it
             location.pathname.includes("/modern-editor")

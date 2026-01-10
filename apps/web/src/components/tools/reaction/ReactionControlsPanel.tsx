@@ -1,4 +1,3 @@
-import { ChangeEvent } from "react";
 import {
   Button,
   Card,
@@ -6,11 +5,16 @@ import {
   Slider,
   Divider,
   Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
   SelectItem,
   Switch,
   Accordion,
   AccordionItem,
-} from "@heroui/react";
+  AccordionTrigger,
+  AccordionContent,
+} from "@/components/ui";
 import { Grid, Layers, Settings2, Volume2, Sparkles } from "lucide-react";
 import { LayoutMode, SideBySideLayout } from "@/hooks/useReactionCreator";
 
@@ -89,29 +93,27 @@ export function ReactionControlsPanel({
       <Card>
         <CardBody className="p-0 overflow-hidden">
           {/* Mode Selector (Always Visible) */}
-          <div className="p-4 bg-default-50/50 border-b border-divider">
-            <label className="text-xs font-semibold uppercase text-foreground/50 mb-3 block px-1">
+          <div className="p-4 bg-muted/50 border-b border-border">
+            <label className="text-xs font-semibold uppercase text-muted-foreground mb-3 block px-1">
               Mode Layout
             </label>
             <div className="grid grid-cols-2 gap-3">
               {layoutModes.map((mode) => (
                 <Card
                   key={mode.id}
-                  isPressable
-                  onPress={() => setLayoutMode(mode.id)}
-                  className={`border-2 transition-all ${
+                  className={`cursor-pointer border-2 transition-all ${
                     layoutMode === mode.id
-                      ? `border-${mode.color} bg-${mode.color}/5`
-                      : "border-transparent hover:border-default-200"
+                      ? `border-primary bg-primary/5`
+                      : "border-transparent hover:border-border"
                   }`}
-                  shadow="sm"
+                  onClick={() => setLayoutMode(mode.id)}
                 >
                   <CardBody className="p-3 text-center flex flex-col items-center justify-center gap-2 h-full">
                     <div
                       className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
                         layoutMode === mode.id
-                          ? `bg-${mode.color}/20 text-${mode.color}`
-                          : "bg-default-100 text-default-500"
+                          ? `bg-primary/20 text-primary`
+                          : "bg-muted text-muted-foreground"
                       }`}
                     >
                       <mode.icon size={18} />
@@ -119,12 +121,12 @@ export function ReactionControlsPanel({
                     <div>
                       <p
                         className={`font-semibold text-sm ${
-                          layoutMode === mode.id ? `text-${mode.color}` : ""
+                          layoutMode === mode.id ? `text-primary` : ""
                         }`}
                       >
                         {mode.name}
                       </p>
-                      <p className="text-[10px] text-foreground/50 leading-tight mt-0.5">
+                      <p className="text-[10px] text-muted-foreground leading-tight mt-0.5">
                         {mode.description}
                       </p>
                     </div>
@@ -138,117 +140,111 @@ export function ReactionControlsPanel({
           <div className="p-0 md:p-6 md:space-y-6">
             {/* Accordion Wrapper for Mobile Layout Optimization */}
             <Accordion
-              defaultExpandedKeys={["visual", "audio"]}
-              selectionMode="multiple"
+              type="multiple"
+              defaultValue={["visual", "audio"]}
               className="md:hidden px-2"
             >
-              <AccordionItem
-                key="visual"
-                aria-label="Visual Preferences"
-                title={
-                  <div className="flex items-center gap-2 text-sm font-semibold">
+              <AccordionItem value="visual">
+                <AccordionTrigger className="text-sm font-semibold">
+                  <div className="flex items-center gap-2">
                     <Settings2 size={16} /> Preferensi Visual
                   </div>
-                }
-              >
-                <div className="space-y-6 pb-2">
-                  {/* Aspect Ratio */}
-                  <div>
-                    <div className="flex justify-between items-center mb-2">
+                </AccordionTrigger>
+                <AccordionContent>
+                  <div className="space-y-6 pb-2">
+                    {/* Aspect Ratio */}
+                    <div className="space-y-2">
                       <label className="text-sm font-medium">
                         Aspect Ratio Output
                       </label>
+                      <Select
+                        value={aspectRatio}
+                        onValueChange={setAspectRatio}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Pilih Rasio" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="16:9">
+                            16:9 (YouTube, FB Video)
+                          </SelectItem>
+                          <SelectItem value="9:16">
+                            9:16 (TikTok/Reels/Shorts)
+                          </SelectItem>
+                          <SelectItem value="1:1">1:1 (IG/FB Feed)</SelectItem>
+                          <SelectItem value="4:5">
+                            4:5 (IG/FB Portrait)
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
-                    <Select
-                      selectedKeys={[aspectRatio]}
-                      onChange={(e: ChangeEvent<HTMLSelectElement>) =>
-                        setAspectRatio(e.target.value)
-                      }
-                      size="sm"
-                      aria-label="Aspect Ratio"
-                    >
-                      <SelectItem key="16:9">
-                        16:9 (YouTube, FB Video)
-                      </SelectItem>
-                      <SelectItem key="9:16">
-                        9:16 (TikTok/Reels/Shorts)
-                      </SelectItem>
-                      <SelectItem key="1:1">1:1 (IG/FB Feed)</SelectItem>
-                      <SelectItem key="4:5">4:5 (IG/FB Portrait)</SelectItem>
-                    </Select>
+                    <Divider />
+                    {/* Dynamic Controls based on Layout */}
+                    <DynamicControls
+                      layoutMode={layoutMode}
+                      circular={circular}
+                      setCircular={setCircular}
+                      pipScale={pipScale}
+                      setPipScale={setPipScale}
+                      sideBySideLayout={sideBySideLayout}
+                      setSideBySideLayout={setSideBySideLayout}
+                      splitRatio={splitRatio}
+                      setSplitRatio={setSplitRatio}
+                      smoothBorder={smoothBorder}
+                      setSmoothBorder={setSmoothBorder}
+                      overlayMode={overlayMode}
+                      setOverlayMode={setOverlayMode}
+                    />
                   </div>
-                  <Divider />
-                  {/* Dynamic Controls based on Layout */}
-                  <DynamicControls
-                    layoutMode={layoutMode}
-                    circular={circular}
-                    setCircular={setCircular}
-                    pipScale={pipScale}
-                    setPipScale={setPipScale}
-                    sideBySideLayout={sideBySideLayout}
-                    setSideBySideLayout={setSideBySideLayout}
-                    splitRatio={splitRatio}
-                    setSplitRatio={setSplitRatio}
-                    smoothBorder={smoothBorder}
-                    setSmoothBorder={setSmoothBorder}
-                    overlayMode={overlayMode}
-                    setOverlayMode={setOverlayMode}
-                  />
-                </div>
+                </AccordionContent>
               </AccordionItem>
-              <AccordionItem
-                key="audio"
-                aria-label="Audio Mixer"
-                title={
-                  <div className="flex items-center gap-2 text-sm font-semibold">
+              <AccordionItem value="audio">
+                <AccordionTrigger className="text-sm font-semibold">
+                  <div className="flex items-center gap-2">
                     <Volume2 size={16} /> Audio Mixer
                   </div>
-                }
-              >
-                <div className="space-y-4 pb-4">
-                  <AudioControls
-                    mainVolume={mainVolume}
-                    setMainVolume={setMainVolume}
-                    reactionVolume={reactionVolume}
-                    setReactionVolume={setReactionVolume}
-                  />
-                </div>
+                </AccordionTrigger>
+                <AccordionContent>
+                  <div className="space-y-4 pb-4">
+                    <AudioControls
+                      mainVolume={mainVolume}
+                      setMainVolume={setMainVolume}
+                      reactionVolume={reactionVolume}
+                      setReactionVolume={setReactionVolume}
+                    />
+                  </div>
+                </AccordionContent>
               </AccordionItem>
             </Accordion>
 
             {/* Desktop Only: Unwrapped */}
             <div className="hidden md:block space-y-6">
-              <Card
-                className="border border-divider shadow-none bg-default-50/50"
-                radius="sm"
-              >
+              <Card className="border border-border shadow-none bg-muted/50">
                 <CardBody className="space-y-4 p-4">
-                  <h3 className="text-xs font-bold uppercase text-foreground/50 flex items-center gap-2">
+                  <h3 className="text-xs font-bold uppercase text-muted-foreground flex items-center gap-2">
                     <Settings2 size={14} /> Preferensi Visual
                   </h3>
                   {/* Aspect Ratio */}
-                  <div>
-                    <div className="flex justify-between items-center mb-2">
-                      <label className="text-sm font-medium">
-                        Aspect Ratio Output
-                      </label>
-                    </div>
-                    <Select
-                      selectedKeys={[aspectRatio]}
-                      onChange={(e: ChangeEvent<HTMLSelectElement>) =>
-                        setAspectRatio(e.target.value)
-                      }
-                      size="sm"
-                      aria-label="Aspect Ratio"
-                    >
-                      <SelectItem key="16:9">
-                        16:9 (YouTube, FB Video)
-                      </SelectItem>
-                      <SelectItem key="9:16">
-                        9:16 (TikTok/Reels/Shorts)
-                      </SelectItem>
-                      <SelectItem key="1:1">1:1 (IG/FB Feed)</SelectItem>
-                      <SelectItem key="4:5">4:5 (IG/FB Portrait)</SelectItem>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">
+                      Aspect Ratio Output
+                    </label>
+                    <Select value={aspectRatio} onValueChange={setAspectRatio}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Pilih Rasio" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="16:9">
+                          16:9 (YouTube, FB Video)
+                        </SelectItem>
+                        <SelectItem value="9:16">
+                          9:16 (TikTok/Reels/Shorts)
+                        </SelectItem>
+                        <SelectItem value="1:1">1:1 (IG/FB Feed)</SelectItem>
+                        <SelectItem value="4:5">
+                          4:5 (IG/FB Portrait)
+                        </SelectItem>
+                      </SelectContent>
                     </Select>
                   </div>
                   <Divider className="my-2" />
@@ -270,12 +266,9 @@ export function ReactionControlsPanel({
                 </CardBody>
               </Card>
 
-              <Card
-                className="border border-divider shadow-none bg-default-50/50"
-                radius="sm"
-              >
+              <Card className="border border-border shadow-none bg-muted/50">
                 <CardBody className="space-y-4 p-4">
-                  <h3 className="text-xs font-bold uppercase text-foreground/50 flex items-center gap-2">
+                  <h3 className="text-xs font-bold uppercase text-muted-foreground flex items-center gap-2">
                     <Volume2 size={14} /> Audio Mixer
                   </h3>
                   <AudioControls
@@ -289,16 +282,15 @@ export function ReactionControlsPanel({
             </div>
 
             {/* Process Button - Sticky on Mobile */}
-            <div className="fixed bottom-0 left-0 right-0 p-4 bg-background/80 backdrop-blur-lg border-t border-divider md:static md:bg-transparent md:border-none md:p-0 z-50">
+            <div className="fixed bottom-0 left-0 right-0 p-4 bg-background/80 backdrop-blur-lg border-t border-border md:static md:bg-transparent md:border-none md:p-0 z-50">
               <Button
                 size="lg"
-                color="primary"
                 className="w-full font-semibold shadow-lg shadow-primary/20"
-                startContent={!isProcessing && <Sparkles size={20} />}
                 isLoading={isProcessing}
-                isDisabled={!hasFiles}
-                onPress={onProcess}
+                disabled={!hasFiles}
+                onClick={onProcess}
               >
+                {!isProcessing && <Sparkles size={20} />}
                 {isProcessing ? processingStatus : "Buat Video Reaction"}
               </Button>
             </div>
@@ -344,14 +336,9 @@ function DynamicControls({
         <div>
           <div className="flex justify-between items-center">
             <label className="text-sm font-medium">Mode Lingkaran</label>
-            <Switch
-              size="sm"
-              isSelected={circular}
-              onValueChange={setCircular}
-              aria-label="Circular Mode"
-            />
+            <Switch checked={circular} onCheckedChange={setCircular} />
           </div>
-          <p className="text-[10px] text-foreground/50">
+          <p className="text-[10px] text-muted-foreground">
             Ubah bentuk video reaction menjadi lingkaran.
           </p>
         </div>
@@ -359,22 +346,19 @@ function DynamicControls({
         <div>
           <div className="flex justify-between items-center mb-1">
             <label className="text-sm font-medium">Ukuran (Scale)</label>
-            <span className="text-xs font-mono bg-default-200 px-2 py-0.5 rounded text-foreground/70">
+            <span className="text-xs font-mono bg-muted px-2 py-0.5 rounded text-muted-foreground">
               {Math.round(pipScale * 100)}%
             </span>
           </div>
           <Slider
-            size="sm"
+            min={0.15}
+            max={0.5}
             step={0.01}
-            minValue={0.15}
-            maxValue={0.5}
-            value={pipScale}
-            onChange={(v) => setPipScale(v as number)}
-            className="max-w-md"
-            aria-label="PIP Scale"
+            value={[pipScale]}
+            onValueChange={(v: number[]) => setPipScale(v[0] ?? 0.3)}
           />
         </div>
-        <p className="text-xs text-foreground/50 mt-1 italic">
+        <p className="text-xs text-muted-foreground mt-1 italic">
           *Tip: Ubah posisi video reaction dengan menggeser kotak preview di
           kiri.
         </p>
@@ -386,16 +370,16 @@ function DynamicControls({
     <div className="space-y-4 animate-in fade-in">
       <div>
         <label className="text-sm font-medium mb-3 block flex items-center gap-2">
-          <Grid size={14} className="text-secondary" />
+          <Grid size={14} className="text-secondary-foreground" />
           Arah Grid
         </label>
         <div className="flex gap-2">
           <Button
-            size="md"
-            variant={sideBySideLayout === "horizontal" ? "solid" : "flat"}
-            color="secondary"
+            variant={
+              sideBySideLayout === "horizontal" ? "default" : "secondary"
+            }
             className="flex-1"
-            onPress={() => setSideBySideLayout("horizontal")}
+            onClick={() => setSideBySideLayout("horizontal")}
           >
             <div className="flex flex-col">
               <p>Horizontal</p>
@@ -403,11 +387,9 @@ function DynamicControls({
             </div>
           </Button>
           <Button
-            size="md"
-            variant={sideBySideLayout === "vertical" ? "solid" : "flat"}
-            color="secondary"
+            variant={sideBySideLayout === "vertical" ? "default" : "secondary"}
             className="flex-1"
-            onPress={() => setSideBySideLayout("vertical")}
+            onClick={() => setSideBySideLayout("vertical")}
           >
             <div className="flex flex-col">
               <p>Vertical</p>
@@ -420,59 +402,47 @@ function DynamicControls({
       <div>
         <div className="flex justify-between items-center mb-1">
           <label className="text-sm font-medium">Split Ratio</label>
-          <span className="text-xs font-mono bg-default-200 px-2 py-0.5 rounded text-foreground/70">
+          <span className="text-xs font-mono bg-muted px-2 py-0.5 rounded text-muted-foreground">
             {Math.round(splitRatio * 100)}% /{" "}
             {Math.round((1 - splitRatio) * 100)}%
           </span>
         </div>
         <Slider
-          size="sm"
+          min={0.5}
+          max={0.7}
           step={0.05}
-          minValue={0.5}
-          maxValue={0.7}
-          value={splitRatio}
-          onChange={(v) => setSplitRatio(v as number)}
-          aria-label="Split Ratio"
+          value={[splitRatio]}
+          onValueChange={(v: number[]) => setSplitRatio(v[0] ?? 50)}
         />
-        <p className="text-[10px] text-foreground/40 mt-1">
+        <p className="text-[10px] text-muted-foreground mt-1">
           Default ratio 50/50, geser kekanan untuk merubah.
         </p>
       </div>
 
-      <div className="space-y-3 pt-2 bg-default-100/50 p-2 rounded-lg">
+      <div className="space-y-3 pt-2 bg-muted/50 p-2 rounded-lg">
         <div className="flex justify-between items-start gap-2">
           <div className="flex-1">
             <label className="text-xs font-medium block">
               Gradient Blending
             </label>
-            <p className="text-[10px] text-foreground/50 leading-tight">
+            <p className="text-[10px] text-muted-foreground leading-tight">
               Membuat batas antar video menjadi halus (seamless) dengan gradasi.
             </p>
           </div>
-          <Switch
-            size="sm"
-            isSelected={smoothBorder}
-            onValueChange={setSmoothBorder}
-            aria-label="Smooth Border"
-          />
+          <Switch checked={smoothBorder} onCheckedChange={setSmoothBorder} />
         </div>
         <div className="flex justify-between items-start gap-2">
           <div className="flex-1">
             <label className="text-xs font-medium block">
               Overlay Background
             </label>
-            <p className="text-[10px] text-foreground/50 leading-tight">
+            <p className="text-[10px] text-muted-foreground leading-tight">
               Menambahkan background blur di area kosong agar terlihat smooth.
             </p>
           </div>
-          <Switch
-            size="sm"
-            isSelected={overlayMode}
-            onValueChange={setOverlayMode}
-            aria-label="Overlay Mode"
-          />
+          <Switch checked={overlayMode} onCheckedChange={setOverlayMode} />
         </div>
-        <p className="text-[10px] text-foreground/50">
+        <p className="text-[10px] text-muted-foreground">
           Aktifkan keduanya untuk smooth faded border antar video utama dan
           reaction.
         </p>
@@ -496,43 +466,37 @@ function AudioControls({
     <>
       <div>
         <div className="flex justify-between items-center mb-1">
-          <label className="text-xs font-semibold text-foreground/70">
+          <label className="text-xs font-semibold text-muted-foreground">
             Main Audio
           </label>
-          <span className="text-[10px] font-mono bg-success/10 text-success px-1.5 py-0.5 rounded">
+          <span className="text-[10px] font-mono bg-green-500/10 text-green-500 px-1.5 py-0.5 rounded">
             {Math.round(mainVolume * 100)}%
           </span>
         </div>
         <Slider
-          size="sm"
-          color="success"
+          min={0}
+          max={2}
           step={0.1}
-          minValue={0}
-          maxValue={2}
-          value={mainVolume}
-          onChange={(v) => setMainVolume(v as number)}
-          aria-label="Main Volume"
+          value={[mainVolume]}
+          onValueChange={(v: number[]) => setMainVolume(v[0] ?? 100)}
         />
       </div>
 
       <div>
         <div className="flex justify-between items-center mb-1">
-          <label className="text-xs font-semibold text-foreground/70">
+          <label className="text-xs font-semibold text-muted-foreground">
             Reaction Audio
           </label>
-          <span className="text-[10px] font-mono bg-secondary/10 text-secondary px-1.5 py-0.5 rounded">
+          <span className="text-[10px] font-mono bg-secondary/10 text-secondary-foreground px-1.5 py-0.5 rounded">
             {Math.round(reactionVolume * 100)}%
           </span>
         </div>
         <Slider
-          size="sm"
-          color="secondary"
+          min={0}
+          max={2}
           step={0.1}
-          minValue={0}
-          maxValue={2}
-          value={reactionVolume}
-          onChange={(v) => setReactionVolume(v as number)}
-          aria-label="Reaction Volume"
+          value={[reactionVolume]}
+          onValueChange={(v: number[]) => setReactionVolume(v[0] ?? 100)}
         />
       </div>
     </>

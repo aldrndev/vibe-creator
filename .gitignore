@@ -6,11 +6,11 @@ dist/
 .next/
 out/
 
-# Environment files
+# Environment files (all .env files except examples)
 .env
-.env.local
-.env.*.local
+.env.*
 !.env.example
+!.env.*.example
 
 # IDE
 .idea/
@@ -43,9 +43,35 @@ temp/
 tmp/
 *.tmp
 
-# Video processing
+# Video processing & uploads
 output/
 uploads/
-*.env.bak
+exports/
+
+# Python virtual environment
+venv/
+__pycache__/
+*.py[cod]
+
+# Docker env files (secrets)
 .env.docker
-.env.docker.infra
+.env.docker.*
+infra/compose/.env.docker.infra
+infra/compose/apps/**/.env.docker
+
+# Test artifacts
+test-temp-ffmpeg/
+*.test.tmp
+
+# Cache
+.cache/
+.vite/
+.vite-temp/
+
+# FFmpeg/Whisper outputs (generated)
+*.mp4
+*.webm
+*.mov
+*.wav
+*.mp3
+!apps/web/public/**/*.mp4

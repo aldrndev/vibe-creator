@@ -4,21 +4,22 @@ import {
   Button,
   Card,
   CardBody,
-  Chip,
+  Badge,
   Tabs,
+  TabsList,
   Tab,
-  Dropdown,
-  DropdownTrigger,
+  TabsContent,
   DropdownMenu,
-  DropdownItem,
-  Modal,
-  ModalContent,
-  ModalHeader,
-  ModalBody,
-  ModalFooter,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
   Input,
-  useDisclosure,
-} from "@heroui/react";
+} from "@/components/ui";
 import { motion } from "framer-motion";
 import {
   ArrowLeft,
@@ -57,22 +58,19 @@ export function PromptDetailPage() {
   const [selectedVersion, setSelectedVersion] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [newTitle, setNewTitle] = useState("");
-
-  const editModal = useDisclosure();
-  const deleteModal = useDisclosure();
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
 
   const handleCopy = async (text: string) => {
     await navigator.clipboard.writeText(text);
     setCopied(true);
-    // Button text changes to "Disalin!" - sufficient visual feedback
     setTimeout(() => setCopied(false), 2000);
   };
 
   const handleEdit = async () => {
     try {
       await updatePrompt.mutateAsync({ title: newTitle });
-      editModal.onClose();
-      // Modal closing is sufficient feedback
+      setIsEditOpen(false);
     } catch {
       // Error is logged by mutation
     }
@@ -82,7 +80,6 @@ export function PromptDetailPage() {
     try {
       await deletePrompt.mutateAsync(id!);
       navigate("/dashboard/prompts");
-      // Navigation is sufficient feedback
     } catch {
       // Error is logged by mutation
     }
@@ -91,7 +88,6 @@ export function PromptDetailPage() {
   const handleRegenerate = async () => {
     try {
       await regeneratePrompt.mutateAsync();
-      // Data is refetched - UI update is sufficient feedback
     } catch {
       // Error is logged by mutation
     }
@@ -108,10 +104,10 @@ export function PromptDetailPage() {
   if (error || !prompt) {
     return (
       <div className="text-center py-12">
-        <p className="text-foreground/60">Prompt tidak ditemukan</p>
+        <p className="text-muted-foreground">Prompt tidak ditemukan</p>
         <Button
-          variant="light"
-          onPress={() => navigate("/dashboard/prompts")}
+          variant="ghost"
+          onClick={() => navigate("/dashboard/prompts")}
           className="mt-4"
         >
           Kembali ke Prompt
@@ -130,61 +126,55 @@ export function PromptDetailPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Button
-            isIconOnly
-            variant="light"
-            onPress={() => navigate("/dashboard/prompts")}
+            size="icon"
+            variant="ghost"
+            onClick={() => navigate("/dashboard/prompts")}
           >
             <ArrowLeft size={20} />
           </Button>
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-bold">{prompt.title}</h1>
-              <Chip size="sm" variant="flat" color="primary">
+              <Badge variant="default">
                 {promptTypeLabels[prompt.type] || prompt.type}
-              </Chip>
+              </Badge>
             </div>
-            <p className="text-foreground/60 text-sm">
+            <p className="text-muted-foreground text-sm">
               {prompt.versions.length} versi • Dibuat{" "}
               {new Date(prompt.createdAt).toLocaleDateString("id-ID")}
             </p>
           </div>
         </div>
 
-        <Dropdown>
-          <DropdownTrigger>
-            <Button isIconOnly variant="light">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button size="icon" variant="ghost">
               <MoreVertical size={20} />
             </Button>
-          </DropdownTrigger>
-          <DropdownMenu>
-            <DropdownItem
-              key="edit"
-              startContent={<Edit size={16} />}
-              onPress={() => {
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuItem
+              onClick={() => {
                 setNewTitle(prompt.title);
-                editModal.onOpen();
+                setIsEditOpen(true);
               }}
             >
+              <Edit size={16} />
               Edit Judul
-            </DropdownItem>
-            <DropdownItem
-              key="regenerate"
-              startContent={<RefreshCw size={16} />}
-              onPress={handleRegenerate}
-            >
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleRegenerate}>
+              <RefreshCw size={16} />
               Regenerate
-            </DropdownItem>
-            <DropdownItem
-              key="delete"
-              startContent={<Trash size={16} />}
-              className="text-danger"
-              color="danger"
-              onPress={deleteModal.onOpen}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className="text-destructive"
+              onClick={() => setIsDeleteOpen(true)}
             >
+              <Trash size={16} />
               Hapus
-            </DropdownItem>
-          </DropdownMenu>
-        </Dropdown>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6">
@@ -206,7 +196,7 @@ export function PromptDetailPage() {
                       (!selectedVersion &&
                         version.id === prompt.versions[0]?.id)
                         ? "border-primary bg-primary/10"
-                        : "border-divider hover:border-primary/50"
+                        : "border-border hover:border-primary/50"
                     }`}
                   >
                     <div className="flex items-center justify-between">
@@ -214,17 +204,15 @@ export function PromptDetailPage() {
                         Versi {version.version}
                       </span>
                       {version.id === prompt.currentVersionId && (
-                        <Chip size="sm" color="success" variant="flat">
-                          Aktif
-                        </Chip>
+                        <Badge variant="default">Aktif</Badge>
                       )}
                     </div>
-                    <div className="flex items-center gap-1 text-xs text-foreground/60 mt-1">
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
                       <Clock size={12} />
                       {new Date(version.createdAt).toLocaleString("id-ID")}
                     </div>
                     {version.userNotes && (
-                      <p className="text-xs text-foreground/60 mt-2 line-clamp-2">
+                      <p className="text-xs text-muted-foreground mt-2 line-clamp-2">
                         {version.userNotes}
                       </p>
                     )}
@@ -243,40 +231,35 @@ export function PromptDetailPage() {
         >
           <Card className="h-full">
             <CardBody className="p-0 flex flex-col">
-              <Tabs
-                aria-label="Prompt tabs"
-                classNames={{
-                  tabList: "px-4 pt-4",
-                }}
-              >
-                <Tab key="prompt" title="Generated Prompt">
-                  <div className="p-4">
-                    <div className="flex justify-end mb-4">
-                      <Button
-                        size="sm"
-                        variant="flat"
-                        startContent={
-                          copied ? <Check size={16} /> : <Copy size={16} />
-                        }
-                        onPress={() =>
-                          handleCopy(currentVersion?.generatedPrompt || "")
-                        }
-                      >
-                        {copied ? "Disalin!" : "Salin"}
-                      </Button>
-                    </div>
-                    <pre className="whitespace-pre-wrap text-sm font-mono text-foreground/80 bg-content2 p-4 rounded-lg max-h-[60vh] overflow-auto">
-                      {currentVersion?.generatedPrompt || "Tidak ada prompt"}
-                    </pre>
+              <Tabs defaultValue="prompt" className="flex-1 flex flex-col">
+                <TabsList className="px-4 pt-4">
+                  <Tab value="prompt">Generated Prompt</Tab>
+                  <Tab value="input">Input Data</Tab>
+                </TabsList>
+
+                <TabsContent value="prompt" className="p-4">
+                  <div className="flex justify-end mb-4">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() =>
+                        handleCopy(currentVersion?.generatedPrompt || "")
+                      }
+                    >
+                      {copied ? <Check size={16} /> : <Copy size={16} />}
+                      {copied ? "Disalin!" : "Salin"}
+                    </Button>
                   </div>
-                </Tab>
-                <Tab key="input" title="Input Data">
-                  <div className="p-4">
-                    <pre className="whitespace-pre-wrap text-sm font-mono text-foreground/80 bg-content2 p-4 rounded-lg max-h-[60vh] overflow-auto">
-                      {JSON.stringify(currentVersion?.inputData || {}, null, 2)}
-                    </pre>
-                  </div>
-                </Tab>
+                  <pre className="whitespace-pre-wrap text-sm font-mono text-muted-foreground bg-muted p-4 rounded-lg max-h-[60vh] overflow-auto">
+                    {currentVersion?.generatedPrompt || "Tidak ada prompt"}
+                  </pre>
+                </TabsContent>
+
+                <TabsContent value="input" className="p-4">
+                  <pre className="whitespace-pre-wrap text-sm font-mono text-muted-foreground bg-muted p-4 rounded-lg max-h-[60vh] overflow-auto">
+                    {JSON.stringify(currentVersion?.inputData || {}, null, 2)}
+                  </pre>
+                </TabsContent>
               </Tabs>
             </CardBody>
           </Card>
@@ -284,55 +267,53 @@ export function PromptDetailPage() {
       </div>
 
       {/* Edit Modal */}
-      <Modal isOpen={editModal.isOpen} onClose={editModal.onClose}>
-        <ModalContent>
-          <ModalHeader>Edit Judul</ModalHeader>
-          <ModalBody>
-            <Input
-              label="Judul"
-              value={newTitle}
-              onChange={(e) => setNewTitle(e.target.value)}
-            />
-          </ModalBody>
-          <ModalFooter>
-            <Button variant="light" onPress={editModal.onClose}>
+      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Judul</DialogTitle>
+          </DialogHeader>
+          <Input
+            label="Judul"
+            value={newTitle}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+              setNewTitle(e.target.value)
+            }
+          />
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setIsEditOpen(false)}>
               Batal
             </Button>
-            <Button
-              color="primary"
-              onPress={handleEdit}
-              isLoading={updatePrompt.isPending}
-            >
+            <Button onClick={handleEdit} isLoading={updatePrompt.isPending}>
               Simpan
             </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Modal */}
-      <Modal isOpen={deleteModal.isOpen} onClose={deleteModal.onClose}>
-        <ModalContent>
-          <ModalHeader>Hapus Prompt</ModalHeader>
-          <ModalBody>
-            <p>
-              Apakah kamu yakin ingin menghapus prompt ini? Tindakan ini tidak
-              dapat dibatalkan.
-            </p>
-          </ModalBody>
-          <ModalFooter>
-            <Button variant="light" onPress={deleteModal.onClose}>
+      <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Hapus Prompt</DialogTitle>
+          </DialogHeader>
+          <p className="text-muted-foreground">
+            Apakah kamu yakin ingin menghapus prompt ini? Tindakan ini tidak
+            dapat dibatalkan.
+          </p>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setIsDeleteOpen(false)}>
               Batal
             </Button>
             <Button
-              color="danger"
-              onPress={handleDelete}
+              variant="destructive"
+              onClick={handleDelete}
               isLoading={deletePrompt.isPending}
             >
               Hapus
             </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -3,9 +3,12 @@ import {
   CardBody,
   Input,
   Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
   SelectItem,
   Textarea,
-} from "@heroui/react";
+} from "@/components/ui";
 import { SelectionGrid } from "@/components/ui/SelectionGrid";
 import { ScriptFormData } from "../types";
 import { TargetModelSelector } from "../components/TargetModelSelector";
@@ -61,58 +64,103 @@ export function ScriptForm({ data, onChange }: ScriptFormProps) {
         />
 
         <div className="grid sm:grid-cols-2 gap-4">
-          <Select
-            label="Platform"
-            selectedKeys={[data.platform]}
-            onChange={(e) => handleChange("platform", e.target.value)}
-          >
-            {platforms.map((p) => (
-              <SelectItem key={p.key}>{p.label}</SelectItem>
-            ))}
-          </Select>
+          <div className="space-y-2">
+            <label className="text-sm text-muted-foreground">Platform</label>
+            <Select
+              value={data.platform}
+              onValueChange={(v) => handleChange("platform", v)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {platforms.map((p) => (
+                  <SelectItem key={p.key} value={p.key}>
+                    {p.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-          <Select
-            label="Durasi"
-            selectedKeys={[data.duration]}
-            onChange={(e) => handleChange("duration", e.target.value)}
-          >
-            {durations.map((d) => (
-              <SelectItem key={d.key}>{d.label}</SelectItem>
-            ))}
-          </Select>
+          <div className="space-y-2">
+            <label className="text-sm text-muted-foreground">Durasi</label>
+            <Select
+              value={data.duration}
+              onValueChange={(v) => handleChange("duration", v)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {durations.map((d) => (
+                  <SelectItem key={d.key} value={d.key}>
+                    {d.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         <div className="grid sm:grid-cols-2 gap-4">
-          <Select
-            label="Tone"
-            selectedKeys={[data.tone]}
-            onChange={(e) => handleChange("tone", e.target.value)}
-          >
-            {tones.map((t) => (
-              <SelectItem key={t.key}>{t.label}</SelectItem>
-            ))}
-          </Select>
+          <div className="space-y-2">
+            <label className="text-sm text-muted-foreground">Tone</label>
+            <Select
+              value={data.tone}
+              onValueChange={(v) => handleChange("tone", v)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {tones.map((t) => (
+                  <SelectItem key={t.key} value={t.key}>
+                    {t.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-          <Select
-            label="Goal Konten"
-            selectedKeys={[data.contentGoal]}
-            onChange={(e) => handleChange("contentGoal", e.target.value)}
-          >
-            {contentGoals.map((g) => (
-              <SelectItem key={g.key}>{g.label}</SelectItem>
-            ))}
-          </Select>
+          <div className="space-y-2">
+            <label className="text-sm text-muted-foreground">Goal Konten</label>
+            <Select
+              value={data.contentGoal}
+              onValueChange={(v) => handleChange("contentGoal", v)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {contentGoals.map((g) => (
+                  <SelectItem key={g.key} value={g.key}>
+                    {g.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
-        <Select
-          label="Gaya Narasi"
-          selectedKeys={[data.narrativeStyle]}
-          onChange={(e) => handleChange("narrativeStyle", e.target.value)}
-        >
-          {narrativeStyles.map((n) => (
-            <SelectItem key={n.key}>{n.label}</SelectItem>
-          ))}
-        </Select>
+        <div className="space-y-2">
+          <label className="text-sm text-muted-foreground">Gaya Narasi</label>
+          <Select
+            value={data.narrativeStyle}
+            onValueChange={(v) => handleChange("narrativeStyle", v)}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {narrativeStyles.map((n) => (
+                <SelectItem key={n.key} value={n.key}>
+                  {n.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
         <SelectionGrid
           label="Pesan Utama"
@@ -134,14 +182,18 @@ export function ScriptForm({ data, onChange }: ScriptFormProps) {
           label="Keywords (pisahkan dengan koma)"
           placeholder="Contoh: iPhone, Apple, smartphone, review"
           value={data.keywords}
-          onValueChange={(v) => handleChange("keywords", v)}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+            handleChange("keywords", e.target.value)
+          }
         />
 
         <Textarea
           label="Konteks Tambahan (opsional)"
           placeholder="Informasi tambahan yang perlu diketahui..."
           value={data.additionalContext}
-          onValueChange={(v) => handleChange("additionalContext", v)}
+          onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+            handleChange("additionalContext", e.target.value)
+          }
         />
       </CardBody>
     </Card>

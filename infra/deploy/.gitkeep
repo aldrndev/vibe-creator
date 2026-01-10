@@ -1,0 +1,4 @@
+# Placeholder for deploy assets
+# This directory contains deployment configurations:
+# - single-node/ - Single VPS deployment scripts
+# - multi-node/ - Kubernetes/Docker Swarm configs (if needed)

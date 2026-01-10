@@ -1,5 +1,5 @@
 import { useRef } from "react";
-import { Button, Card, CardBody } from "@heroui/react";
+import { Button, Card, CardBody } from "@/components/ui";
 import {
   Download,
   Monitor,
@@ -22,7 +22,7 @@ interface ReactionUploadPanelProps {
   reactionVideoUrl: string;
   mainVideoError: string | null;
   reactionVideoError: string | null;
-  resultUrl?: string; // from hook results[layoutMode]
+  resultUrl?: string;
   layoutMode: LayoutMode;
   aspectRatio: string;
   pipScale: number;
@@ -77,7 +77,7 @@ export function ReactionUploadPanel({
         className="hidden"
       />
 
-      <Card className="flex-1 bg-black/5 border-divider overflow-hidden min-h-[350px] md:min-h-[500px] flex flex-col">
+      <Card className="flex-1 bg-black/5 border-border overflow-hidden min-h-[350px] md:min-h-[500px] flex flex-col">
         <div className="relative flex-1 flex items-center justify-center md:items-start md:justify-start bg-zinc-900/50 p-4 md:p-8">
           {/* Empty State / Upload Zone if videos missing */}
           {!mainVideoUrl || !reactionVideoUrl ? (
@@ -88,23 +88,26 @@ export function ReactionUploadPanel({
                 className={`flex-1 rounded-2xl border-2 border-dashed flex flex-col items-center justify-center p-6 cursor-pointer transition-all hover:scale-[1.02] group active:scale-95
                           ${
                             mainVideoUrl
-                              ? "border-success/50 bg-success/10"
+                              ? "border-green-500/50 bg-green-500/10"
                               : "border-zinc-700 hover:border-primary hover:bg-zinc-800/50"
                           }`}
               >
                 {mainVideoUrl ? (
                   <>
-                    <div className="w-12 h-12 md:w-16 md:h-16 rounded-full bg-success/20 flex items-center justify-center mb-3 md:mb-4">
-                      <Check size={24} className="text-success md:w-8 md:h-8" />
+                    <div className="w-12 h-12 md:w-16 md:h-16 rounded-full bg-green-500/20 flex items-center justify-center mb-3 md:mb-4">
+                      <Check
+                        size={24}
+                        className="text-green-500 md:w-8 md:h-8"
+                      />
                     </div>
-                    <p className="font-semibold text-success text-sm md:text-base">
+                    <p className="font-semibold text-green-500 text-sm md:text-base">
                       Main Video Loaded
                     </p>
                     <Button
                       size="sm"
-                      variant="flat"
+                      variant="secondary"
                       className="mt-2"
-                      onPress={() => mainInputRef.current?.click()}
+                      onClick={() => mainInputRef.current?.click()}
                     >
                       Ganti
                     </Button>
@@ -129,7 +132,7 @@ export function ReactionUploadPanel({
                   </>
                 )}
                 {mainVideoError && (
-                  <p className="text-xs text-danger mt-2 text-center">
+                  <p className="text-xs text-destructive mt-2 text-center">
                     {mainVideoError}
                   </p>
                 )}
@@ -141,23 +144,26 @@ export function ReactionUploadPanel({
                 className={`flex-1 rounded-2xl border-2 border-dashed flex flex-col items-center justify-center p-6 cursor-pointer transition-all hover:scale-[1.02] group active:scale-95
                           ${
                             reactionVideoUrl
-                              ? "border-success/50 bg-success/10"
+                              ? "border-green-500/50 bg-green-500/10"
                               : "border-zinc-700 hover:border-secondary hover:bg-zinc-800/50"
                           }`}
               >
                 {reactionVideoUrl ? (
                   <>
-                    <div className="w-12 h-12 md:w-16 md:h-16 rounded-full bg-success/20 flex items-center justify-center mb-3 md:mb-4">
-                      <Check size={24} className="text-success md:w-8 md:h-8" />
+                    <div className="w-12 h-12 md:w-16 md:h-16 rounded-full bg-green-500/20 flex items-center justify-center mb-3 md:mb-4">
+                      <Check
+                        size={24}
+                        className="text-green-500 md:w-8 md:h-8"
+                      />
                     </div>
-                    <p className="font-semibold text-success text-sm md:text-base">
+                    <p className="font-semibold text-green-500 text-sm md:text-base">
                       Reaction Loaded
                     </p>
                     <Button
                       size="sm"
-                      variant="flat"
+                      variant="secondary"
                       className="mt-2"
-                      onPress={() => reactionInputRef.current?.click()}
+                      onClick={() => reactionInputRef.current?.click()}
                     >
                       Ganti
                     </Button>
@@ -167,7 +173,7 @@ export function ReactionUploadPanel({
                     <div className="w-16 h-16 md:w-20 md:h-20 rounded-full bg-zinc-800 flex items-center justify-center mb-4 md:mb-6 group-hover:bg-secondary/20 transition-colors">
                       <Smartphone
                         size={32}
-                        className="text-zinc-400 group-hover:text-secondary md:w-10 md:h-10"
+                        className="text-zinc-400 group-hover:text-secondary-foreground md:w-10 md:h-10"
                       />
                     </div>
                     <p className="text-base md:text-lg font-bold text-zinc-300">
@@ -182,7 +188,7 @@ export function ReactionUploadPanel({
                   </>
                 )}
                 {reactionVideoError && (
-                  <p className="text-xs text-danger mt-2 text-center">
+                  <p className="text-xs text-destructive mt-2 text-center">
                     {reactionVideoError}
                   </p>
                 )}
@@ -219,30 +225,28 @@ export function ReactionUploadPanel({
 
         {/* Bottom Bar: File Controls */}
         {(mainVideoUrl || reactionVideoUrl) && (
-          <div className="bg-content1 p-4 flex flex-col sm:flex-row justify-between items-center border-t border-divider gap-4">
+          <div className="bg-card p-4 flex flex-col sm:flex-row justify-between items-center border-t border-border gap-4">
             <div className="flex gap-2 w-full sm:w-auto">
               <Button
                 size="sm"
-                variant="flat"
-                fullWidth
-                className="sm:w-auto"
-                startContent={<Monitor size={14} />}
-                onPress={() => mainInputRef.current?.click()}
+                variant="secondary"
+                className="flex-1 sm:flex-none"
+                onClick={() => mainInputRef.current?.click()}
               >
+                <Monitor size={14} />
                 Ganti Main
               </Button>
               <Button
                 size="sm"
-                variant="flat"
-                fullWidth
-                className="sm:w-auto"
-                startContent={<Smartphone size={14} />}
-                onPress={() => reactionInputRef.current?.click()}
+                variant="secondary"
+                className="flex-1 sm:flex-none"
+                onClick={() => reactionInputRef.current?.click()}
               >
+                <Smartphone size={14} />
                 Ganti React
               </Button>
             </div>
-            <div className="text-xs text-foreground/50 text-center sm:text-right w-full sm:w-auto">
+            <div className="text-xs text-muted-foreground text-center sm:text-right w-full sm:w-auto">
               {customPosition
                 ? `Posisi: ${customPosition.x}px, ${customPosition.y}px`
                 : "Drag preview untuk mengatur posisi"}
@@ -253,37 +257,34 @@ export function ReactionUploadPanel({
 
       {/* Result Area (Moved below Preview) */}
       {resultUrl && (
-        <Card className="border-2 border-success/30 bg-success/5 animate-in fade-in slide-in-from-bottom-4">
+        <Card className="border-2 border-green-500/30 bg-green-500/5 animate-in fade-in slide-in-from-bottom-4">
           <CardBody className="space-y-4">
             <div className="flex flex-row items-center gap-4">
-              <div className="bg-success/20 p-3 rounded-full">
-                <Check className="text-success" />
+              <div className="bg-green-500/20 p-3 rounded-full">
+                <Check className="text-green-500" />
               </div>
               <div className="flex-1">
-                <h3 className="font-bold text-success-700">Video Selesai!</h3>
-                <p className="text-xs text-success-600/80">Siap didownload.</p>
+                <h3 className="font-bold text-green-700">Video Selesai!</h3>
+                <p className="text-xs text-green-600/80">Siap didownload.</p>
               </div>
-              <Button
-                as="a"
-                href={resultUrl}
-                download
-                color="success"
-                startContent={<Download size={16} />}
-              >
-                Download Video
+              <Button asChild>
+                <a href={resultUrl} download>
+                  <Download size={16} />
+                  Download Video
+                </a>
               </Button>
             </div>
 
-            <div className="p-3 bg-warning/10 border border-warning/20 rounded-lg flex items-start gap-3">
+            <div className="p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg flex items-start gap-3">
               <AlertTriangle
-                className="text-warning shrink-0 mt-0.5"
+                className="text-yellow-500 shrink-0 mt-0.5"
                 size={18}
               />
               <div>
-                <h3 className="text-sm font-semibold text-warning-700 dark:text-warning-500">
+                <h3 className="text-sm font-semibold text-yellow-600 dark:text-yellow-500">
                   Video Tidak Disimpan Permanen
                 </h3>
-                <p className="text-xs text-muted-foreground mt-1 text-warning-800/80 dark:text-warning-300/80">
+                <p className="text-xs text-muted-foreground mt-1">
                   Hasil video ini hanya tersimpan di server selama{" "}
                   <b>60 menit</b>. Harap segera unduh video Anda sebelum dihapus
                   otomatis oleh sistem.

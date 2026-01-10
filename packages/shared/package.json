@@ -18,7 +18,7 @@
     "lint": "eslint src/"
   },
   "devDependencies": {
-    "tsc-alias": "^1.8.10",
+    "tsc-alias": "1.8.10",
     "typescript": "5.9.3"
   }
 }

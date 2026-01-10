@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { useDirectorStore } from "@/stores/director-store";
 import { authFetch } from "@/services/api";
 import { logger } from "@/lib/logger";
-import { Card, CardBody, Button, Spinner } from "@heroui/react";
+import { Card, CardBody, Button, Spinner } from "@/components/ui";
 import { CheckCircle2, AlertCircle, Download, RotateCcw } from "lucide-react";
 
 export const ExportStep = () => {
@@ -67,16 +67,16 @@ export const ExportStep = () => {
       <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur-md">
         <CardBody className="p-8 flex flex-col items-center text-center gap-6">
           {isCompleted ? (
-            <div className="w-20 h-20 rounded-full bg-success/10 flex items-center justify-center mb-2">
-              <CheckCircle2 className="w-10 h-10 text-success" />
+            <div className="w-20 h-20 rounded-full bg-green-500/10 flex items-center justify-center mb-2">
+              <CheckCircle2 className="w-10 h-10 text-green-500" />
             </div>
           ) : isFailed ? (
-            <div className="w-20 h-20 rounded-full bg-danger/10 flex items-center justify-center mb-2">
-              <AlertCircle className="w-10 h-10 text-danger" />
+            <div className="w-20 h-20 rounded-full bg-red-500/10 flex items-center justify-center mb-2">
+              <AlertCircle className="w-10 h-10 text-red-500" />
             </div>
           ) : (
             <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mb-2">
-              <Spinner size="lg" color="primary" />
+              <Spinner size="lg" />
             </div>
           )}
 
@@ -111,23 +111,17 @@ export const ExportStep = () => {
 
           <div className="flex gap-4">
             {isCompleted && exportJob.outputUrl && (
-              <Button
-                as="a"
-                href={exportJob.outputUrl}
-                download
-                color="primary"
-                startContent={<Download size={18} />}
-              >
-                Download Video
+              <Button asChild>
+                <a href={exportJob.outputUrl} download>
+                  <Download size={18} />
+                  Download Video
+                </a>
               </Button>
             )}
 
             {(isCompleted || isFailed) && (
-              <Button
-                variant="flat"
-                startContent={<RotateCcw size={18} />}
-                onPress={reset}
-              >
+              <Button variant="secondary" onClick={reset}>
+                <RotateCcw size={18} />
                 Create Another
               </Button>
             )}

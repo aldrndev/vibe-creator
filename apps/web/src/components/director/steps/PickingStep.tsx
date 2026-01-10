@@ -1,7 +1,8 @@
 import { useDirectorStore } from "@/stores/director-store";
 import { authFetch } from "@/services/api";
 import { logger } from "@/lib/logger";
-import { cn, Button, Chip } from "@heroui/react";
+import { cn } from "@/lib/utils";
+import { Button, Badge } from "@/components/ui";
 import { Play, CheckCircle2, FileVideo } from "lucide-react";
 
 export const PickingStep = () => {
@@ -35,7 +36,6 @@ export const PickingStep = () => {
       const data = await res.json();
 
       if (data.success) {
-        // Update selected clips data immediately from response
         setSelectedClips(data.data);
         setStep("EDITING");
       } else {
@@ -60,9 +60,8 @@ export const PickingStep = () => {
         <div className="flex gap-2">
           <Button
             size="sm"
-            variant="flat"
-            onPress={() => {
-              // Select top 3
+            variant="secondary"
+            onClick={() => {
               candidates.slice(0, 3).forEach((c) => {
                 if (!selectedCandidateIds.has(c.id))
                   toggleCandidateSelection(c.id);
@@ -105,26 +104,23 @@ export const PickingStep = () => {
                       src={(() => {
                         const asset = activeSession?.asset;
                         if (!asset?.storageKey) return undefined;
-                        // Assuming valid storageKey format
                         const filename = asset.storageKey.split("/").pop();
                         return `/api/v1/director/static-assets/${filename}`;
                       })()}
                       className="w-full h-full object-cover bg-black"
                       autoPlay
                       playsInline
-                      muted={false} // Allow sound on preview?
+                      muted={false}
                       onTimeUpdate={(e) => {
                         const video = e.currentTarget;
                         const start = clip.startMs / 1000;
                         const end = clip.endMs / 1000;
 
-                        // Loop logic
                         if (video.currentTime >= end) {
                           video.currentTime = start;
                           video.play();
                         }
 
-                        // Progress bar logic
                         const progress =
                           ((video.currentTime - start) / (end - start)) * 100;
                         const progressBar = document.getElementById(
@@ -215,15 +211,9 @@ export const PickingStep = () => {
               {!isPlaying && (
                 <div className="absolute inset-x-0 bottom-0 p-4 bg-gradient-to-t from-black/90 to-transparent pointer-events-none">
                   <div className="flex items-center justify-between mb-1">
-                    <Chip
-                      size="sm"
-                      variant="flat"
-                      classNames={{
-                        base: "bg-yellow-500/20 text-yellow-500 h-5",
-                      }}
-                    >
+                    <Badge variant="warning" className="h-5">
                       ★ {Math.round(clip.score * 100)}
-                    </Chip>
+                    </Badge>
                     <span className="text-xs font-medium text-zinc-300 bg-black/50 px-2 py-1 rounded">
                       {duration}s
                     </span>
@@ -273,10 +263,9 @@ export const PickingStep = () => {
           </span>
         </div>
         <Button
-          color="primary"
-          isDisabled={selectedCandidateIds.size === 0 || isLoading}
+          disabled={selectedCandidateIds.size === 0 || isLoading}
           isLoading={isLoading}
-          onPress={handleClipSelection}
+          onClick={handleClipSelection}
         >
           Proceed to Edit
         </Button>

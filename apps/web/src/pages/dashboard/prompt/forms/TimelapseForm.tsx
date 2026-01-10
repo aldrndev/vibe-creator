@@ -3,11 +3,14 @@ import {
   CardBody,
   Input,
   Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
   SelectItem,
   Textarea,
-  Chip,
+  Badge,
   Button,
-} from "@heroui/react";
+} from "@/components/ui";
 import { SelectionGrid } from "@/components/ui/SelectionGrid";
 import { TimelapseFormData } from "../types";
 import {
@@ -76,9 +79,9 @@ export function TimelapseForm({ data, onChange }: TimelapseFormProps) {
           onChange={(v) => handleChange("targetModel", v)}
         />
         <h3 className="font-medium">Detail Timelapse / Sora</h3>
-        <Chip color="secondary" variant="flat" size="sm">
+        <Badge variant="secondary">
           Sora AI: max 15s single / 25s storyboard
-        </Chip>
+        </Badge>
 
         <SelectionGrid
           label="Kategori"
@@ -92,7 +95,9 @@ export function TimelapseForm({ data, onChange }: TimelapseFormProps) {
           label="Subject"
           placeholder="Deskripsi objek/scene yang akan di-timelapse"
           value={data.subject}
-          onValueChange={(v) => handleChange("subject", v)}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+            handleChange("subject", e.target.value)
+          }
           maxLength={200}
         />
 
@@ -105,60 +110,64 @@ export function TimelapseForm({ data, onChange }: TimelapseFormProps) {
         />
 
         <div className="grid sm:grid-cols-2 gap-4">
-          <Select
-            label="Mode"
-            selectedKeys={[data.mode]}
-            onChange={(e) => {
-              const mode = e.target.value as "single" | "storyboard";
-              onChange({
-                ...data,
-                mode,
-                totalDurationSeconds: mode === "single" ? 15 : 25,
-                scenes: [],
-              });
-            }}
-          >
-            <SelectItem key="single">Single Video (max 15s)</SelectItem>
-            <SelectItem key="storyboard">Storyboard (max 25s)</SelectItem>
-          </Select>
+          <div className="space-y-2">
+            <label className="text-sm text-muted-foreground">Mode</label>
+            <Select
+              value={data.mode}
+              onValueChange={(v) => {
+                const mode = v as "single" | "storyboard";
+                onChange({
+                  ...data,
+                  mode,
+                  totalDurationSeconds: mode === "single" ? 15 : 25,
+                  scenes: [],
+                });
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="single">Single Video (max 15s)</SelectItem>
+                <SelectItem value="storyboard">Storyboard (max 25s)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
-          <Select
-            label="Total Durasi"
-            selectedKeys={[String(data.totalDurationSeconds)]}
-            onChange={(e) => {
-              onChange({
-                ...data,
-                totalDurationSeconds: Number(e.target.value),
-                scenes: [],
-              });
-            }}
-          >
-            {data.mode === "single" ? (
-              <>
-                <SelectItem key="5" textValue="5 detik">
-                  5 detik
-                </SelectItem>
-                <SelectItem key="10" textValue="10 detik">
-                  10 detik
-                </SelectItem>
-                <SelectItem key="15" textValue="15 detik">
-                  15 detik
-                </SelectItem>
-              </>
-            ) : (
-              <>
-                <SelectItem key="15" textValue="15 detik">
-                  15 detik
-                </SelectItem>
-                <SelectItem key="20" textValue="20 detik">
-                  20 detik
-                </SelectItem>
-                <SelectItem key="25" textValue="25 detik">
-                  25 detik
-                </SelectItem>
-              </>
-            )}
-          </Select>
+          <div className="space-y-2">
+            <label className="text-sm text-muted-foreground">
+              Total Durasi
+            </label>
+            <Select
+              value={String(data.totalDurationSeconds)}
+              onValueChange={(v) => {
+                onChange({
+                  ...data,
+                  totalDurationSeconds: Number(v),
+                  scenes: [],
+                });
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {data.mode === "single" ? (
+                  <>
+                    <SelectItem value="5">5 detik</SelectItem>
+                    <SelectItem value="10">10 detik</SelectItem>
+                    <SelectItem value="15">15 detik</SelectItem>
+                  </>
+                ) : (
+                  <>
+                    <SelectItem value="15">15 detik</SelectItem>
+                    <SelectItem value="20">20 detik</SelectItem>
+                    <SelectItem value="25">25 detik</SelectItem>
+                  </>
+                )}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         {data.mode === "storyboard" && (
@@ -168,23 +177,22 @@ export function TimelapseForm({ data, onChange }: TimelapseFormProps) {
                 Scenes (min 2, max 8)
               </label>
               <div className="flex items-center gap-2">
-                <Chip
-                  size="sm"
-                  color={
+                <Badge
+                  variant={
                     remainingSeconds === 0
-                      ? "success"
+                      ? "default"
                       : remainingSeconds < 0
-                      ? "danger"
-                      : "warning"
+                      ? "destructive"
+                      : "outline"
                   }
                 >
                   Sisa: {remainingSeconds}s
-                </Chip>
+                </Badge>
                 <Button
                   size="sm"
-                  variant="flat"
-                  onPress={addScene}
-                  isDisabled={data.scenes.length >= 8 || remainingSeconds <= 0}
+                  variant="secondary"
+                  onClick={addScene}
+                  disabled={data.scenes.length >= 8 || remainingSeconds <= 0}
                 >
                   + Scene
                 </Button>
@@ -194,43 +202,45 @@ export function TimelapseForm({ data, onChange }: TimelapseFormProps) {
             {data.scenes.map((scene, index) => (
               <div
                 key={index}
-                className="flex gap-2 items-start p-3 bg-content2 rounded-lg"
+                className="flex gap-2 items-start p-3 bg-muted rounded-lg"
               >
                 <div className="flex-1">
                   <Input
-                    size="sm"
                     label={`Scene ${index + 1}`}
                     placeholder="Deskripsi scene..."
                     value={scene.description}
-                    onValueChange={(v) => updateScene(index, "description", v)}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                      updateScene(index, "description", e.target.value)
+                    }
                     maxLength={300}
                   />
                 </div>
-                <Select
-                  size="sm"
-                  label="Durasi"
-                  className="w-24"
-                  selectedKeys={[String(scene.durationSeconds)]}
-                  onChange={(e) =>
-                    updateScene(
-                      index,
-                      "durationSeconds",
-                      Number(e.target.value)
-                    )
-                  }
-                >
-                  {[3, 4, 5, 6, 7, 8].map((d) => (
-                    <SelectItem key={String(d)} textValue={`${d}s`}>
-                      {d}s
-                    </SelectItem>
-                  ))}
-                </Select>
+                <div className="w-24 space-y-2">
+                  <label className="text-xs text-muted-foreground">
+                    Durasi
+                  </label>
+                  <Select
+                    value={String(scene.durationSeconds)}
+                    onValueChange={(v) =>
+                      updateScene(index, "durationSeconds", Number(v))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {[3, 4, 5, 6, 7, 8].map((d) => (
+                        <SelectItem key={String(d)} value={String(d)}>
+                          {d}s
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <Button
-                  size="sm"
-                  isIconOnly
-                  variant="light"
-                  color="danger"
-                  onPress={() => removeScene(index)}
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => removeScene(index)}
                 >
                   ×
                 </Button>
@@ -240,66 +250,115 @@ export function TimelapseForm({ data, onChange }: TimelapseFormProps) {
         )}
 
         <div className="grid sm:grid-cols-2 gap-4">
-          <Select
-            label="Speed Multiplier"
-            selectedKeys={[String(data.speedMultiplier)]}
-            onChange={(e) =>
-              handleChange("speedMultiplier", Number(e.target.value))
-            }
-          >
-            {timelapseSpeeds.map((s) => (
-              <SelectItem key={String(s.key)}>{s.label}</SelectItem>
-            ))}
-          </Select>
+          <div className="space-y-2">
+            <label className="text-sm text-muted-foreground">
+              Speed Multiplier
+            </label>
+            <Select
+              value={String(data.speedMultiplier)}
+              onValueChange={(v) => handleChange("speedMultiplier", Number(v))}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {timelapseSpeeds.map((s) => (
+                  <SelectItem key={String(s.key)} value={String(s.key)}>
+                    {s.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-          <Select
-            label="Style"
-            selectedKeys={[data.style]}
-            onChange={(e) => handleChange("style", e.target.value)}
-          >
-            {timelapseStyles.map((s) => (
-              <SelectItem key={s.key}>{s.label}</SelectItem>
-            ))}
-          </Select>
+          <div className="space-y-2">
+            <label className="text-sm text-muted-foreground">Style</label>
+            <Select
+              value={data.style}
+              onValueChange={(v) => handleChange("style", v)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {timelapseStyles.map((s) => (
+                  <SelectItem key={s.key} value={s.key}>
+                    {s.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         <div className="grid sm:grid-cols-3 gap-4">
-          <Select
-            label="Kamera"
-            selectedKeys={[data.camera]}
-            onChange={(e) => handleChange("camera", e.target.value)}
-          >
-            {timelapseCameras.map((c) => (
-              <SelectItem key={c.key}>{c.label}</SelectItem>
-            ))}
-          </Select>
+          <div className="space-y-2">
+            <label className="text-sm text-muted-foreground">Kamera</label>
+            <Select
+              value={data.camera}
+              onValueChange={(v) => handleChange("camera", v)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {timelapseCameras.map((c) => (
+                  <SelectItem key={c.key} value={c.key}>
+                    {c.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-          <Select
-            label="Aspect Ratio"
-            selectedKeys={[data.aspectRatio]}
-            onChange={(e) => handleChange("aspectRatio", e.target.value)}
-          >
-            {aspectRatios.map((a) => (
-              <SelectItem key={a.key}>{a.label}</SelectItem>
-            ))}
-          </Select>
+          <div className="space-y-2">
+            <label className="text-sm text-muted-foreground">
+              Aspect Ratio
+            </label>
+            <Select
+              value={data.aspectRatio}
+              onValueChange={(v) => handleChange("aspectRatio", v)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {aspectRatios.map((a) => (
+                  <SelectItem key={a.key} value={a.key}>
+                    {a.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-          <Select
-            label="Lighting"
-            selectedKeys={[data.lighting]}
-            onChange={(e) => handleChange("lighting", e.target.value)}
-          >
-            {timelapseLightings.map((l) => (
-              <SelectItem key={l.key}>{l.label}</SelectItem>
-            ))}
-          </Select>
+          <div className="space-y-2">
+            <label className="text-sm text-muted-foreground">Lighting</label>
+            <Select
+              value={data.lighting}
+              onValueChange={(v) => handleChange("lighting", v)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {timelapseLightings.map((l) => (
+                  <SelectItem key={l.key} value={l.key}>
+                    {l.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         <Textarea
           label="Detail Tambahan (opsional)"
           placeholder="Detail spesifik lainnya..."
           value={data.additionalDetails}
-          onValueChange={(v) => handleChange("additionalDetails", v)}
+          onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+            handleChange("additionalDetails", e.target.value)
+          }
           maxLength={1000}
         />
       </CardBody>

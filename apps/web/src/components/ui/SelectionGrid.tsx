@@ -1,4 +1,5 @@
-import { Card, CardBody } from "@heroui/react";
+import { Card, CardBody } from "@/components/ui";
+import { cn } from "@/lib/utils";
 
 interface SelectionOption {
   key: string;
@@ -28,24 +29,31 @@ export function SelectionGrid({
       {label && (
         <label className="text-sm font-medium block mb-2">{label}</label>
       )}
-      <div className={`grid grid-cols-2 sm:grid-cols-${columns} gap-2`}>
+      <div
+        className={cn(
+          "grid gap-2",
+          columns === 2 && "grid-cols-2",
+          columns === 3 && "grid-cols-2 sm:grid-cols-3",
+          columns === 4 && "grid-cols-2 sm:grid-cols-4"
+        )}
+      >
         {options.map((opt) => (
           <Card
             key={opt.key}
-            isPressable
-            onPress={() => onChange(opt.key)}
-            className={`border-2 transition-colors ${
+            className={cn(
+              "cursor-pointer border-2 transition-colors",
               value === opt.key
                 ? "border-primary bg-primary/10"
-                : "border-transparent hover:border-divider"
-            }`}
+                : "border-transparent hover:border-border"
+            )}
+            onClick={() => onChange(opt.key)}
           >
             <CardBody className="p-2 text-center flex flex-col items-center justify-center gap-0.5">
               <p className="text-sm font-medium leading-tight">
                 {opt.label.split(" / ")[0]}
               </p>
               {opt.label.includes(" / ") && (
-                <p className="text-[10px] text-foreground/60 leading-tight">
+                <p className="text-[10px] text-muted-foreground leading-tight">
                   {opt.label.split(" / ")[1]}
                 </p>
               )}
@@ -91,28 +99,35 @@ export function MultiSelectGrid({
         <label className="text-sm font-medium block mb-2">
           {label}{" "}
           {maxSelections > 1 && (
-            <span className="text-foreground/50">(max {maxSelections})</span>
+            <span className="text-muted-foreground">(max {maxSelections})</span>
           )}
         </label>
       )}
-      <div className={`grid grid-cols-2 sm:grid-cols-${columns} gap-2`}>
+      <div
+        className={cn(
+          "grid gap-2",
+          columns === 2 && "grid-cols-2",
+          columns === 3 && "grid-cols-2 sm:grid-cols-3",
+          columns === 4 && "grid-cols-2 sm:grid-cols-4"
+        )}
+      >
         {options.map((opt) => (
           <Card
             key={opt.key}
-            isPressable
-            onPress={() => handleToggle(opt.key)}
-            className={`border-2 transition-colors ${
+            className={cn(
+              "cursor-pointer border-2 transition-colors",
               values.includes(opt.key)
                 ? "border-primary bg-primary/10"
-                : "border-transparent hover:border-divider"
-            }`}
+                : "border-transparent hover:border-border"
+            )}
+            onClick={() => handleToggle(opt.key)}
           >
             <CardBody className="p-2 text-center flex flex-col items-center justify-center gap-0.5">
               <p className="text-sm font-medium leading-tight">
                 {opt.label.split(" / ")[0]}
               </p>
               {opt.label.includes(" / ") && (
-                <p className="text-[10px] text-foreground/60 leading-tight">
+                <p className="text-[10px] text-muted-foreground leading-tight">
                   {opt.label.split(" / ")[1]}
                 </p>
               )}

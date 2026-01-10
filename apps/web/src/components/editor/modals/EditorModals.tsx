@@ -1,12 +1,12 @@
 import {
   Button,
-  Modal,
-  ModalContent,
-  ModalHeader,
-  ModalBody,
-  ModalFooter,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
   Input,
-} from "@heroui/react";
+} from "@/components/ui";
 import { VoiceRecorderModal } from "@/components/editor/VoiceRecorderModal";
 import { TextOverlayEditor } from "@/components/editor/TextOverlayEditor";
 import { ExportModal } from "@/components/editor/ExportModal";
@@ -64,18 +64,31 @@ export const EditorModals = ({
   return (
     <>
       {/* URL Download Modal */}
-      <Modal isOpen={isUrlModalOpen} onClose={closeUrlModal} size="lg">
-        <ModalContent>
-          <ModalHeader>Import dari URL</ModalHeader>
-          <ModalBody className="space-y-4">
-            <Input
-              label="URL Video"
-              placeholder="https://youtube.com/watch?v=... atau TikTok/Instagram/Sora"
-              value={urlInput}
-              onChange={(e) => setUrlInput(e.target.value)}
-              description="Mendukung: YouTube, TikTok, Instagram, Twitter, Facebook, Sora AI"
-              isDisabled={isDownloading}
-            />
+      <Dialog
+        open={isUrlModalOpen}
+        onOpenChange={(open) => !open && closeUrlModal()}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Import dari URL</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Input
+                label="URL Video"
+                placeholder="https://youtube.com/watch?v=... atau TikTok/Instagram/Sora"
+                value={urlInput}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                  setUrlInput(e.target.value)
+                }
+                disabled={isDownloading}
+              />
+              <p className="text-xs text-muted-foreground">
+                Mendukung: YouTube, TikTok, Instagram, Twitter, Facebook, Sora
+                AI
+              </p>
+            </div>
 
             {/* URL Preview Embed */}
             {urlInput &&
@@ -86,14 +99,14 @@ export const EditorModals = ({
                 // TikTok - 100% supported
                 if (url.includes("tiktok.com")) {
                   return (
-                    <div className="rounded-lg overflow-hidden bg-success/10 border border-success/30 p-4">
+                    <div className="rounded-lg overflow-hidden bg-green-500/10 border border-green-500/30 p-4">
                       <div className="flex items-start gap-3">
-                        <div className="text-success text-xl">✅</div>
+                        <div className="text-green-500 text-xl">✅</div>
                         <div>
-                          <p className="font-medium text-success mb-1">
+                          <p className="font-medium text-green-500 mb-1">
                             TikTok Siap Download
                           </p>
-                          <p className="text-sm text-foreground/60">
+                          <p className="text-sm text-muted-foreground">
                             Video TikTok akan didownload dan langsung
                             ditambahkan ke timeline.
                           </p>
@@ -106,14 +119,14 @@ export const EditorModals = ({
                 // Instagram - 100% supported
                 if (url.includes("instagram.com")) {
                   return (
-                    <div className="rounded-lg overflow-hidden bg-success/10 border border-success/30 p-4">
+                    <div className="rounded-lg overflow-hidden bg-green-500/10 border border-green-500/30 p-4">
                       <div className="flex items-start gap-3">
-                        <div className="text-success text-xl">✅</div>
+                        <div className="text-green-500 text-xl">✅</div>
                         <div>
-                          <p className="font-medium text-success mb-1">
+                          <p className="font-medium text-green-500 mb-1">
                             Instagram Siap Download
                           </p>
-                          <p className="text-sm text-foreground/60">
+                          <p className="text-sm text-muted-foreground">
                             Video/Reels Instagram akan didownload dan
                             ditambahkan ke timeline.
                           </p>
@@ -126,14 +139,14 @@ export const EditorModals = ({
                 // Twitter/X - supported
                 if (url.includes("twitter.com") || url.includes("x.com")) {
                   return (
-                    <div className="rounded-lg overflow-hidden bg-success/10 border border-success/30 p-4">
+                    <div className="rounded-lg overflow-hidden bg-green-500/10 border border-green-500/30 p-4">
                       <div className="flex items-start gap-3">
-                        <div className="text-success text-xl">✅</div>
+                        <div className="text-green-500 text-xl">✅</div>
                         <div>
-                          <p className="font-medium text-success mb-1">
+                          <p className="font-medium text-green-500 mb-1">
                             Twitter/X Siap Download
                           </p>
-                          <p className="text-sm text-foreground/60">
+                          <p className="text-sm text-muted-foreground">
                             Video Twitter/X akan didownload dan ditambahkan ke
                             timeline.
                           </p>
@@ -146,14 +159,14 @@ export const EditorModals = ({
                 // Facebook - supported
                 if (url.includes("facebook.com") || url.includes("fb.watch")) {
                   return (
-                    <div className="rounded-lg overflow-hidden bg-success/10 border border-success/30 p-4">
+                    <div className="rounded-lg overflow-hidden bg-green-500/10 border border-green-500/30 p-4">
                       <div className="flex items-start gap-3">
-                        <div className="text-success text-xl">✅</div>
+                        <div className="text-green-500 text-xl">✅</div>
                         <div>
-                          <p className="font-medium text-success mb-1">
+                          <p className="font-medium text-green-500 mb-1">
                             Facebook Siap Download
                           </p>
-                          <p className="text-sm text-foreground/60">
+                          <p className="text-sm text-muted-foreground">
                             Video Facebook akan didownload dan ditambahkan ke
                             timeline.
                           </p>
@@ -166,14 +179,14 @@ export const EditorModals = ({
                 // Sora AI - supported
                 if (url.includes("sora.chatgpt.com")) {
                   return (
-                    <div className="rounded-lg overflow-hidden bg-success/10 border border-success/30 p-4">
+                    <div className="rounded-lg overflow-hidden bg-green-500/10 border border-green-500/30 p-4">
                       <div className="flex items-start gap-3">
-                        <div className="text-success text-xl">✨</div>
+                        <div className="text-green-500 text-xl">✨</div>
                         <div>
-                          <p className="font-medium text-success mb-1">
+                          <p className="font-medium text-green-500 mb-1">
                             Sora AI Video Siap Download
                           </p>
-                          <p className="text-sm text-foreground/60">
+                          <p className="text-sm text-muted-foreground">
                             Video AI dari OpenAI Sora akan didownload dan
                             ditambahkan ke timeline.
                           </p>
@@ -199,10 +212,10 @@ export const EditorModals = ({
                       className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold
                       ${
                         downloadStep > step
-                          ? "bg-success text-white"
+                          ? "bg-green-500 text-white"
                           : downloadStep === step
                           ? "bg-primary text-white animate-pulse"
-                          : "bg-default-200 text-foreground/40"
+                          : "bg-muted text-muted-foreground"
                       }`}
                     >
                       {downloadStep > step ? "✓" : step}
@@ -211,7 +224,7 @@ export const EditorModals = ({
                       className={`text-sm ${
                         downloadStep >= step
                           ? "text-foreground"
-                          : "text-foreground/40"
+                          : "text-muted-foreground"
                       }`}
                     >
                       {label}
@@ -220,21 +233,18 @@ export const EditorModals = ({
                 ))}
               </div>
             )}
-          </ModalBody>
-          <ModalFooter>
-            <Button variant="light" onPress={closeUrlModal}>
+          </div>
+
+          <DialogFooter>
+            <Button variant="ghost" onClick={closeUrlModal}>
               Batal
             </Button>
-            <Button
-              color="primary"
-              onPress={handleUrlDownload}
-              isLoading={isDownloading}
-            >
+            <Button onClick={handleUrlDownload} isLoading={isDownloading}>
               Download
             </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Voice Recorder Modal */}
       <VoiceRecorderModal

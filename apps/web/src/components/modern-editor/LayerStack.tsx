@@ -5,7 +5,7 @@
  * Similar to Figma/Photoshop layer panel.
  */
 
-import { Card, CardBody, Button } from "@heroui/react";
+import { Card, CardBody, Button } from "@/components/ui";
 import {
   Eye,
   EyeOff,
@@ -87,8 +87,8 @@ export function LayerStack({ className }: LayerStackProps) {
 
   if (displayOrder.length === 0) {
     return (
-      <Card className={clsx("bg-content1/50", className)}>
-        <CardBody className="p-4 text-center text-foreground/50 text-sm">
+      <Card className={clsx("bg-card/50", className)}>
+        <CardBody className="p-4 text-center text-muted-foreground text-sm">
           <p>Belum ada layer.</p>
           <p className="text-xs mt-1">Tambahkan video, gambar, atau text.</p>
         </CardBody>
@@ -97,7 +97,7 @@ export function LayerStack({ className }: LayerStackProps) {
   }
 
   return (
-    <Card className={clsx("bg-content1/50", className)}>
+    <Card className={clsx("bg-card/50", className)}>
       <CardBody className="p-2 space-y-1 max-h-[400px] overflow-y-auto">
         {displayOrder.map((layerId) => {
           const layer = layersById[layerId];
@@ -117,13 +117,13 @@ export function LayerStack({ className }: LayerStackProps) {
                 "flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors group",
                 isSelected
                   ? "bg-primary/20 border border-primary"
-                  : "hover:bg-content2 border border-transparent"
+                  : "hover:bg-muted border border-transparent"
               )}
             >
               {/* Drag handle */}
               <GripVertical
                 size={14}
-                className="text-foreground/30 cursor-grab active:cursor-grabbing"
+                className="text-muted-foreground cursor-grab active:cursor-grabbing"
               />
 
               {/* Type icon */}
@@ -131,8 +131,8 @@ export function LayerStack({ className }: LayerStackProps) {
                 className={clsx(
                   "w-8 h-8 rounded flex items-center justify-center flex-shrink-0",
                   layer.visible
-                    ? "bg-content3 text-foreground/70"
-                    : "bg-content3/50 text-foreground/30"
+                    ? "bg-muted text-muted-foreground"
+                    : "bg-muted/50 text-muted-foreground/50"
                 )}
               >
                 {getLayerIcon(layer.type)}
@@ -143,12 +143,12 @@ export function LayerStack({ className }: LayerStackProps) {
                 <p
                   className={clsx(
                     "text-sm font-medium truncate",
-                    !layer.visible && "text-foreground/50"
+                    !layer.visible && "text-muted-foreground"
                   )}
                 >
                   {getLayerLabel(layer)}
                 </p>
-                <p className="text-xs text-foreground/40">
+                <p className="text-xs text-muted-foreground">
                   {(layer.startMs / 1000).toFixed(1)}s -{" "}
                   {(layer.endMs / 1000).toFixed(1)}s
                 </p>
@@ -157,39 +157,42 @@ export function LayerStack({ className }: LayerStackProps) {
               {/* Actions */}
               <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                 <Button
-                  isIconOnly
-                  size="sm"
-                  variant="light"
-                  onPress={() =>
-                    updateLayer(layerId, { visible: !layer.visible })
-                  }
+                  size="icon"
+                  variant="ghost"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    updateLayer(layerId, { visible: !layer.visible });
+                  }}
                 >
                   {layer.visible ? <Eye size={14} /> : <EyeOff size={14} />}
                 </Button>
                 <Button
-                  isIconOnly
-                  size="sm"
-                  variant="light"
-                  onPress={() =>
-                    updateLayer(layerId, { locked: !layer.locked })
-                  }
+                  size="icon"
+                  variant="ghost"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    updateLayer(layerId, { locked: !layer.locked });
+                  }}
                 >
                   {layer.locked ? <Lock size={14} /> : <Unlock size={14} />}
                 </Button>
                 <Button
-                  isIconOnly
-                  size="sm"
-                  variant="light"
-                  onPress={() => duplicateLayer(layerId)}
+                  size="icon"
+                  variant="ghost"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    duplicateLayer(layerId);
+                  }}
                 >
                   <Copy size={14} />
                 </Button>
                 <Button
-                  isIconOnly
-                  size="sm"
-                  variant="light"
-                  color="danger"
-                  onPress={() => removeLayer(layerId)}
+                  size="icon"
+                  variant="ghost"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    removeLayer(layerId);
+                  }}
                 >
                   <Trash2 size={14} />
                 </Button>

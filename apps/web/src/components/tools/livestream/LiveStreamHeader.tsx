@@ -1,4 +1,4 @@
-import { Button, Chip } from "@heroui/react";
+import { Button, Badge } from "@/components/ui";
 import { ArrowLeft, Radio, Wifi } from "lucide-react";
 import { Link } from "react-router-dom";
 
@@ -9,36 +9,28 @@ interface LiveStreamHeaderProps {
 export function LiveStreamHeader({ isStreaming }: LiveStreamHeaderProps) {
   return (
     <div className="flex items-center gap-4 mb-6">
-      <Button
-        as={Link}
-        to="/tools/live-stream-history"
-        isIconOnly
-        variant="light"
-        size="sm"
-      >
-        <ArrowLeft size={20} />
+      <Button asChild variant="ghost" size="icon">
+        <Link to="/tools/live-stream-history">
+          <ArrowLeft size={20} />
+        </Link>
       </Button>
 
       <div className="flex-1">
         <h1 className="text-2xl font-bold flex items-center gap-2">
-          <Radio size={24} className="text-danger" />
+          <Radio size={24} className="text-destructive" />
           Live Streaming
         </h1>
-        <p className="text-foreground/60 text-sm">
+        <p className="text-muted-foreground text-sm">
           Stream video ke platform favorit
         </p>
       </div>
 
       {isStreaming && (
         <div>
-          <Chip
-            color="danger"
-            variant="solid"
-            className="animate-pulse"
-            startContent={<Wifi size={14} />}
-          >
+          <Badge variant="destructive" className="animate-pulse">
+            <Wifi size={14} className="mr-1" />
             LIVE
-          </Chip>
+          </Badge>
         </div>
       )}
     </div>

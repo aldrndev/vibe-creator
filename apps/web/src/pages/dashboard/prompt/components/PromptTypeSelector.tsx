@@ -1,4 +1,4 @@
-import { Card, CardBody } from "@heroui/react";
+import { Card, CardBody } from "@/components/ui";
 import { PromptType } from "@vibe-creator/shared";
 import { promptTypes } from "../constants";
 
@@ -25,12 +25,12 @@ export function PromptTypeSelector({
                 className={`p-3 rounded-lg border text-left transition-all ${
                   selectedType === type.key
                     ? "border-primary bg-primary/10"
-                    : "border-divider hover:border-primary/50"
+                    : "border-border hover:border-primary/50"
                 }`}
               >
                 <Icon size={18} className="mb-2 text-primary" />
                 <p className="font-medium text-sm">{type.label}</p>
-                <p className="text-xs text-foreground/60 mt-1">
+                <p className="text-xs text-muted-foreground mt-1">
                   {type.description}
                 </p>
               </button>

@@ -1,6 +1,13 @@
 import { useState } from "react";
 import { useEditorStore } from "@/stores/editor-store";
-import { Button, Slider, Tooltip } from "@heroui/react";
+import {
+  Button,
+  Slider,
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+  TooltipProvider,
+} from "@/components/ui";
 import {
   Play,
   Pause,
@@ -143,188 +150,196 @@ export const EditorMainArea = () => {
   };
 
   return (
-    <>
-      <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative">
-        {/* Left panel - Assets */}
-        <AssetPanel
-          className={clsx(
-            "md:flex z-10",
-            mobileTab === "assets"
-              ? "flex w-full absolute inset-0 md:static md:w-64"
-              : "hidden"
-          )}
-        />
+    <TooltipProvider>
+      <>
+        <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative">
+          {/* Left panel - Assets */}
+          <AssetPanel
+            className={clsx(
+              "md:flex z-10",
+              mobileTab === "assets"
+                ? "flex w-full absolute inset-0 md:static md:w-64"
+                : "hidden"
+            )}
+          />
 
-        {/* Center - Preview + Controls */}
-        <div
-          className={clsx(
-            "flex-1 flex flex-col min-w-0 min-h-0",
-            mobileTab !== "preview" ? "hidden md:flex" : "flex"
-          )}
-        >
-          {/* Video Preview */}
-          <div className="flex-1 flex items-center justify-center bg-content2 dark:bg-black/50 p-4 min-h-0 overflow-hidden">
-            <VideoPreview />
+          {/* Center - Preview + Controls */}
+          <div
+            className={clsx(
+              "flex-1 flex flex-col min-w-0 min-h-0",
+              mobileTab !== "preview" ? "hidden md:flex" : "flex"
+            )}
+          >
+            {/* Video Preview */}
+            <div className="flex-1 flex items-center justify-center bg-muted dark:bg-black/50 p-4 min-h-0 overflow-hidden">
+              <VideoPreview />
+            </div>
+
+            {/* Playback controls */}
+            <div className="h-16 border-t border-border flex items-center md:justify-center overflow-x-auto no-scrollbar gap-4 px-4 flex-shrink-0 bg-background">
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => setCurrentTime(0)}
+                    >
+                      <SkipBack size={18} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Ke awal (Home)</TooltipContent>
+                </Tooltip>
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button size="icon" onClick={togglePlayback}>
+                      {isPlaying ? <Pause size={18} /> : <Play size={18} />}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Play/Pause (Space)</TooltipContent>
+                </Tooltip>
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => setCurrentTime(timeline.durationMs)}
+                    >
+                      <SkipForward size={18} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Ke akhir (End)</TooltipContent>
+                </Tooltip>
+              </div>
+
+              <div className="font-mono text-sm text-muted-foreground w-24 text-center">
+                {formatTime(currentTimeMs)}
+              </div>
+
+              {/* Editing buttons */}
+              <div className="flex items-center gap-1 border-l border-border pl-4">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={handleSplitClip}
+                    >
+                      <Scissors size={18} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Split di Playhead (S)</TooltipContent>
+                </Tooltip>
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={handleDuplicateClip}
+                      disabled={!selectedClipId}
+                    >
+                      <Copy size={18} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Duplicate Klip (Cmd+D)</TooltipContent>
+                </Tooltip>
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={handleDeleteClip}
+                      disabled={!selectedClipId}
+                    >
+                      <Trash2 size={18} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Hapus Klip (Del)</TooltipContent>
+                </Tooltip>
+              </div>
+
+              <div className="flex items-center gap-2 ml-auto">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => setZoomLevel(zoomLevel * 0.8)}
+                    >
+                      <ZoomOut size={18} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Zoom Out</TooltipContent>
+                </Tooltip>
+
+                <Slider
+                  min={20}
+                  max={300}
+                  step={10}
+                  value={[zoomLevel]}
+                  onValueChange={(v: number[]) => setZoomLevel(v[0] ?? 100)}
+                  className="w-24 hidden md:flex"
+                />
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => setZoomLevel(zoomLevel * 1.25)}
+                    >
+                      <ZoomIn size={18} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Zoom In</TooltipContent>
+                </Tooltip>
+              </div>
+            </div>
           </div>
 
-          {/* Playback controls */}
-          <div className="h-16 border-t border-divider flex items-center md:justify-center overflow-x-auto no-scrollbar gap-4 px-4 flex-shrink-0 bg-background">
-            <div className="flex items-center gap-2 flex-shrink-0">
-              <Tooltip content="Ke awal (Home)">
-                <Button
-                  size="sm"
-                  variant="light"
-                  isIconOnly
-                  onPress={() => setCurrentTime(0)}
-                >
-                  <SkipBack size={18} />
-                </Button>
-              </Tooltip>
-
-              <Tooltip content="Play/Pause (Space)">
-                <Button
-                  size="sm"
-                  color="primary"
-                  isIconOnly
-                  onPress={togglePlayback}
-                >
-                  {isPlaying ? <Pause size={18} /> : <Play size={18} />}
-                </Button>
-              </Tooltip>
-
-              <Tooltip content="Ke akhir (End)">
-                <Button
-                  size="sm"
-                  variant="light"
-                  isIconOnly
-                  onPress={() => setCurrentTime(timeline.durationMs)}
-                >
-                  <SkipForward size={18} />
-                </Button>
-              </Tooltip>
-            </div>
-
-            <div className="font-mono text-sm text-foreground/70 w-24 text-center">
-              {formatTime(currentTimeMs)}
-            </div>
-
-            {/* Editing buttons */}
-            <div className="flex items-center gap-1 border-l border-divider pl-4">
-              <Tooltip content="Split di Playhead (S)">
-                <Button
-                  size="sm"
-                  variant="light"
-                  isIconOnly
-                  onPress={handleSplitClip}
-                >
-                  <Scissors size={18} />
-                </Button>
-              </Tooltip>
-
-              <Tooltip content="Duplicate Klip (Cmd+D)">
-                <Button
-                  size="sm"
-                  variant="light"
-                  isIconOnly
-                  onPress={handleDuplicateClip}
-                  isDisabled={!selectedClipId}
-                >
-                  <Copy size={18} />
-                </Button>
-              </Tooltip>
-
-              <Tooltip content="Hapus Klip (Del)">
-                <Button
-                  size="sm"
-                  variant="light"
-                  color="danger"
-                  isIconOnly
-                  onPress={handleDeleteClip}
-                  isDisabled={!selectedClipId}
-                >
-                  <Trash2 size={18} />
-                </Button>
-              </Tooltip>
-            </div>
-
-            <div className="flex items-center gap-2 ml-auto">
-              <Tooltip content="Zoom Out">
-                <Button
-                  size="sm"
-                  variant="light"
-                  isIconOnly
-                  onPress={() => setZoomLevel(zoomLevel * 0.8)}
-                >
-                  <ZoomOut size={18} />
-                </Button>
-              </Tooltip>
-
-              <Slider
-                size="sm"
-                minValue={20}
-                maxValue={300}
-                step={10}
-                value={zoomLevel}
-                onChange={(v) => setZoomLevel(v as number)}
-                className="w-24 hidden md:flex"
-                aria-label="Zoom level"
-              />
-
-              <Tooltip content="Zoom In">
-                <Button
-                  size="sm"
-                  variant="light"
-                  isIconOnly
-                  onPress={() => setZoomLevel(zoomLevel * 1.25)}
-                >
-                  <ZoomIn size={18} />
-                </Button>
-              </Tooltip>
-            </div>
-          </div>
+          {/* Right panel - Inspector */}
+          <InspectorPanel
+            className={clsx(
+              "md:flex z-10",
+              mobileTab === "inspector"
+                ? "flex w-full absolute inset-0 md:static md:w-80"
+                : "hidden"
+            )}
+          />
         </div>
 
-        {/* Right panel - Inspector */}
-        <InspectorPanel
-          className={clsx(
-            "md:flex z-10",
-            mobileTab === "inspector"
-              ? "flex w-full absolute inset-0 md:static md:w-80"
-              : "hidden"
-          )}
-        />
-      </div>
-
-      {/* Mobile Tab Navigation */}
-      <div className="md:hidden h-14 border-t border-divider bg-content1 flex items-center justify-around px-2 flex-shrink-0">
-        <Button
-          variant={mobileTab === "assets" ? "flat" : "light"}
-          color={mobileTab === "assets" ? "primary" : "default"}
-          className="flex-1 flex flex-col gap-1 h-full py-2 rounded-none"
-          onPress={() => setMobileTab("assets")}
-        >
-          <LayoutTemplate size={20} />
-          <span className="text-[10px]">Assets</span>
-        </Button>
-        <Button
-          variant={mobileTab === "preview" ? "flat" : "light"}
-          color={mobileTab === "preview" ? "primary" : "default"}
-          className="flex-1 flex flex-col gap-1 h-full py-2 rounded-none"
-          onPress={() => setMobileTab("preview")}
-        >
-          <MonitorPlay size={20} />
-          <span className="text-[10px]">Preview</span>
-        </Button>
-        <Button
-          variant={mobileTab === "inspector" ? "flat" : "light"}
-          color={mobileTab === "inspector" ? "primary" : "default"}
-          className="flex-1 flex flex-col gap-1 h-full py-2 rounded-none"
-          onPress={() => setMobileTab("inspector")}
-        >
-          <SlidersHorizontal size={20} />
-          <span className="text-[10px]">Edit</span>
-        </Button>
-      </div>
-    </>
+        {/* Mobile Tab Navigation */}
+        <div className="md:hidden h-14 border-t border-border bg-card flex items-center justify-around px-2 flex-shrink-0">
+          <Button
+            variant={mobileTab === "assets" ? "secondary" : "ghost"}
+            className="flex-1 flex flex-col gap-1 h-full py-2 rounded-none"
+            onClick={() => setMobileTab("assets")}
+          >
+            <LayoutTemplate size={20} />
+            <span className="text-[10px]">Assets</span>
+          </Button>
+          <Button
+            variant={mobileTab === "preview" ? "secondary" : "ghost"}
+            className="flex-1 flex flex-col gap-1 h-full py-2 rounded-none"
+            onClick={() => setMobileTab("preview")}
+          >
+            <MonitorPlay size={20} />
+            <span className="text-[10px]">Preview</span>
+          </Button>
+          <Button
+            variant={mobileTab === "inspector" ? "secondary" : "ghost"}
+            className="flex-1 flex flex-col gap-1 h-full py-2 rounded-none"
+            onClick={() => setMobileTab("inspector")}
+          >
+            <SlidersHorizontal size={20} />
+            <span className="text-[10px]">Edit</span>
+          </Button>
+        </div>
+      </>
+    </TooltipProvider>
   );
 };

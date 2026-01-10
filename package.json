@@ -9,11 +9,12 @@
     "lint": "pnpm -r lint",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
-    "server": "pnpm --filter @vibe-creator/server dev",
+    "api": "pnpm --filter @vibe-creator/api dev",
     "web": "pnpm --filter @vibe-creator/web dev",
-    "db:migrate": "pnpm --filter @vibe-creator/server db:migrate",
-    "db:generate": "pnpm --filter @vibe-creator/server db:generate",
-    "db:studio": "pnpm --filter @vibe-creator/server db:studio",
+    "db:migrate": "pnpm --filter @vibe-creator/api db:migrate",
+    "db:generate": "pnpm --filter @vibe-creator/api db:generate",
+    "db:studio": "pnpm --filter @vibe-creator/api db:studio",
+    "layout:check": "node infra/scripts/layout-check.js",
     "clean": "rm -rf node_modules **/*/node_modules **/*/dist **/*/build"
   },
   "keywords": [
@@ -28,17 +29,17 @@
     "node": ">=20.0.0"
   },
   "devDependencies": {
-    "@eslint/js": "^9.39.2",
-    "@typescript-eslint/eslint-plugin": "^8.52.0",
-    "@typescript-eslint/parser": "^8.52.0",
-    "eslint": "^9.39.2",
-    "eslint-plugin-react-hooks": "^7.0.1",
-    "eslint-plugin-react-refresh": "^0.4.26",
-    "globals": "^17.0.0"
+    "@eslint/js": "9.39.2",
+    "@typescript-eslint/eslint-plugin": "8.52.0",
+    "@typescript-eslint/parser": "8.52.0",
+    "eslint": "9.39.2",
+    "eslint-plugin-react-hooks": "7.0.1",
+    "eslint-plugin-react-refresh": "0.4.26",
+    "globals": "17.0.0"
   },
   "pnpm": {
     "overrides": {
-      "esbuild": ">=0.25.0"
+      "esbuild": "0.25.0"
     }
   }
 }

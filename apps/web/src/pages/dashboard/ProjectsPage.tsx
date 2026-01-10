@@ -3,13 +3,13 @@ import {
   Card,
   CardBody,
   CardFooter,
-  Chip,
-  Dropdown,
-  DropdownTrigger,
+  Badge,
   DropdownMenu,
-  DropdownItem,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
   Skeleton,
-} from "@heroui/react";
+} from "@/components/ui";
 import { useNavigate } from "react-router-dom";
 import {
   FolderOpen,
@@ -85,11 +85,9 @@ export function ProjectsPage() {
   };
 
   const handleDeleteExport = async (id: string) => {
-    if (!confirm("Yakin ingin menghapus export ini?")) return;
-
+    // Using inline confirmation approach
     try {
       await deleteExport.mutateAsync(id);
-      // Query invalidation + confirm dialog is sufficient feedback
     } catch {
       // Error is logged by mutation
     }
@@ -97,7 +95,6 @@ export function ProjectsPage() {
 
   const handleDownload = (url: string | null, filename: string) => {
     if (!url) {
-      // No file available - button should be disabled in UI
       return;
     }
     const link = document.createElement("a");
@@ -123,22 +120,20 @@ export function ProjectsPage() {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
-  const getStatusColor = (status: string) => {
+  const getStatusVariant = (status: string) => {
     switch (status) {
       case "COMPLETED":
-        return "success";
+        return "default";
       case "PROCESSING":
         return "warning";
       case "FAILED":
-        return "danger";
+        return "destructive";
       default:
-        return "default";
+        return "secondary";
     }
   };
 
   const getToolIcon = (_projectId: string | null) => {
-    // For now, all exports show Video icon
-    // In future, can track toolType in export record
     return Video;
   };
 
@@ -151,13 +146,10 @@ export function ProjectsPage() {
             <FolderOpen size={24} className="text-primary" />
             My Exports
           </h1>
-          <p className="text-foreground/60">Video yang sudah kamu export</p>
+          <p className="text-muted-foreground">Video yang sudah kamu export</p>
         </div>
-        <Button
-          color="primary"
-          startContent={<Video size={20} />}
-          onPress={handleNewExport}
-        >
+        <Button onClick={handleNewExport}>
+          <Video size={20} />
           Buat Video Baru
         </Button>
       </div>
@@ -198,7 +190,7 @@ export function ProjectsPage() {
                   <Card className="h-full group border-2 border-transparent hover:border-primary/30 transition-colors">
                     <CardBody className="p-4">
                       {/* Video thumbnail/preview */}
-                      <div className="aspect-video bg-content2 rounded-lg mb-4 flex items-center justify-center overflow-hidden relative">
+                      <div className="aspect-video bg-muted rounded-lg mb-4 flex items-center justify-center overflow-hidden relative">
                         {item.status === "COMPLETED" && item.downloadUrl ? (
                           <video
                             src={
@@ -211,7 +203,7 @@ export function ProjectsPage() {
                         ) : (
                           <ToolIcon
                             size={40}
-                            className="text-foreground/20 group-hover:text-primary/40 transition-colors"
+                            className="text-muted-foreground/50 group-hover:text-primary/40 transition-colors"
                           />
                         )}
                       </div>
@@ -223,19 +215,15 @@ export function ProjectsPage() {
                             {item.project?.title ??
                               `Export ${item.id.slice(0, 8)}`}
                           </h3>
-                          <Chip
-                            size="sm"
-                            color={getStatusColor(item.status)}
-                            variant="flat"
-                          >
+                          <Badge variant={getStatusVariant(item.status)}>
                             {item.status === "COMPLETED"
                               ? "Selesai"
                               : item.status === "PROCESSING"
                               ? "Proses"
                               : item.status}
-                          </Chip>
+                          </Badge>
                         </div>
-                        <div className="flex items-center gap-2 text-sm text-foreground/60">
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
                           <span>{item.format}</span>
                           <span>•</span>
                           <span>{item.resolution}</span>
@@ -246,18 +234,16 @@ export function ProjectsPage() {
                     </CardBody>
 
                     <CardFooter className="pt-0 flex items-center justify-between">
-                      <div className="flex items-center gap-1 text-xs text-foreground/50">
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
                         <Clock size={12} />
                         {formatDate(item.createdAt)}
                       </div>
                       <div className="flex items-center gap-1">
                         {item.status === "COMPLETED" && item.downloadUrl && (
                           <Button
-                            isIconOnly
-                            size="sm"
-                            variant="light"
-                            color="primary"
-                            onPress={() =>
+                            size="icon"
+                            variant="ghost"
+                            onClick={() =>
                               handleDownload(
                                 getAuthenticatedUrl(item.downloadUrl),
                                 `export-${item.id.slice(0, 8)}.mp4`
@@ -267,39 +253,34 @@ export function ProjectsPage() {
                             <DownloadIcon size={16} />
                           </Button>
                         )}
-                        <Dropdown>
-                          <DropdownTrigger>
-                            <Button isIconOnly size="sm" variant="light">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button size="icon" variant="ghost">
                               <MoreVertical size={16} />
                             </Button>
-                          </DropdownTrigger>
-                          <DropdownMenu
-                            aria-label="Export actions"
-                            disabledKeys={!item.downloadUrl ? ["download"] : []}
-                          >
-                            <DropdownItem
-                              key="download"
-                              startContent={<DownloadIcon size={16} />}
-                              onPress={() =>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              disabled={!item.downloadUrl}
+                              onClick={() =>
                                 handleDownload(
                                   getAuthenticatedUrl(item.downloadUrl),
                                   `export-${item.id.slice(0, 8)}.mp4`
                                 )
                               }
                             >
+                              <DownloadIcon size={16} />
                               Download
-                            </DropdownItem>
-                            <DropdownItem
-                              key="delete"
-                              startContent={<Trash2 size={16} />}
-                              className="text-danger"
-                              color="danger"
-                              onPress={() => handleDeleteExport(item.id)}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive"
+                              onClick={() => handleDeleteExport(item.id)}
                             >
+                              <Trash2 size={16} />
                               Hapus
-                            </DropdownItem>
-                          </DropdownMenu>
-                        </Dropdown>
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </CardFooter>
                   </Card>

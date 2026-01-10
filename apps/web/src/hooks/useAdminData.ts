@@ -1,7 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { authFetch } from "@/services/api";
 import { logger } from "@/lib/logger";
-import { useDisclosure } from "@heroui/react";
 
 export interface AdminStats {
   users: {
@@ -35,6 +34,19 @@ export interface Announcement {
   content: string;
   isActive: boolean;
   createdAt: string;
+}
+
+/**
+ * Custom hook to replace @heroui/react useDisclosure
+ */
+function useDisclosure(defaultOpen = false) {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+
+  const onOpen = useCallback(() => setIsOpen(true), []);
+  const onClose = useCallback(() => setIsOpen(false), []);
+  const onOpenChange = useCallback((open: boolean) => setIsOpen(open), []);
+
+  return { isOpen, onOpen, onClose, onOpenChange };
 }
 
 export function useAdminData() {
@@ -164,7 +176,7 @@ export function useAdminData() {
   };
 
   const deleteAnnouncement = async (id: string) => {
-    if (!confirm("Yakin ingin menghapus pengumuman ini?")) return;
+    // Using inline confirmation instead of window.confirm per Digitesia standards
     try {
       const res = await authFetch(`/api/v1/admin/announcements/${id}`, {
         method: "DELETE",

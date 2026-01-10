@@ -1,42 +1,62 @@
-import { Card, CardBody, Slider, Select, SelectItem, Switch, Divider, Button } from '@heroui/react';
-import { 
-  Settings2, 
-  Move, 
-  RotateCw, 
-  Maximize2, 
-  Eye, 
-  Volume2, 
+import {
+  Card,
+  CardBody,
+  Slider,
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+  Switch,
+  Divider,
+  Button,
+} from "@/components/ui";
+import {
+  Settings2,
+  Move,
+  RotateCw,
+  Maximize2,
+  Eye,
+  Volume2,
   VolumeX,
   Gauge,
   Palette,
   Film,
-  Unlink
-} from 'lucide-react';
-import { useEditorStore } from '@/stores/editor-store';
-import { clsx } from 'clsx';
+  Unlink,
+} from "lucide-react";
+import { useEditorStore } from "@/stores/editor-store";
+import { clsx } from "clsx";
 
 // Filter presets
 const FILTER_PRESETS = [
-  { id: 'none', name: 'None', css: '' },
-  { id: 'grayscale', name: 'B&W', css: 'grayscale(100%)' },
-  { id: 'sepia', name: 'Sepia', css: 'sepia(100%)' },
-  { id: 'vintage', name: 'Vintage', css: 'sepia(50%) contrast(1.1) brightness(0.9)' },
-  { id: 'cold', name: 'Cold', css: 'saturate(0.8) hue-rotate(180deg)' },
-  { id: 'warm', name: 'Warm', css: 'saturate(1.2) sepia(20%)' },
-  { id: 'high-contrast', name: 'High Contrast', css: 'contrast(1.4)' },
-  { id: 'fade', name: 'Fade', css: 'contrast(0.9) brightness(1.1) saturate(0.8)' },
-  { id: 'vivid', name: 'Vivid', css: 'saturate(1.5) contrast(1.1)' },
+  { id: "none", name: "None", css: "" },
+  { id: "grayscale", name: "B&W", css: "grayscale(100%)" },
+  { id: "sepia", name: "Sepia", css: "sepia(100%)" },
+  {
+    id: "vintage",
+    name: "Vintage",
+    css: "sepia(50%) contrast(1.1) brightness(0.9)",
+  },
+  { id: "cold", name: "Cold", css: "saturate(0.8) hue-rotate(180deg)" },
+  { id: "warm", name: "Warm", css: "saturate(1.2) sepia(20%)" },
+  { id: "high-contrast", name: "High Contrast", css: "contrast(1.4)" },
+  {
+    id: "fade",
+    name: "Fade",
+    css: "contrast(0.9) brightness(1.1) saturate(0.8)",
+  },
+  { id: "vivid", name: "Vivid", css: "saturate(1.5) contrast(1.1)" },
 ];
 
 // Speed presets
 const SPEED_PRESETS = [
-  { value: 0.25, label: '0.25x' },
-  { value: 0.5, label: '0.5x' },
-  { value: 0.75, label: '0.75x' },
-  { value: 1, label: '1x (Normal)' },
-  { value: 1.25, label: '1.25x' },
-  { value: 1.5, label: '1.5x' },
-  { value: 2, label: '2x' },
+  { value: 0.25, label: "0.25x" },
+  { value: 0.5, label: "0.5x" },
+  { value: 0.75, label: "0.75x" },
+  { value: 1, label: "1x (Normal)" },
+  { value: 1.25, label: "1.25x" },
+  { value: 1.5, label: "1.5x" },
+  { value: 2, label: "2x" },
 ];
 
 interface InspectorPanelProps {
@@ -44,15 +64,16 @@ interface InspectorPanelProps {
 }
 
 export function InspectorPanel({ className }: InspectorPanelProps) {
-  const { timeline, selectedClipId, updateClip, detachLinkedClips } = useEditorStore();
+  const { timeline, selectedClipId, updateClip, detachLinkedClips } =
+    useEditorStore();
 
   // Find selected clip and its track type
   let selectedClip = null;
   let selectedTrackId: string | null = null;
-  let selectedTrackType: 'VIDEO' | 'AUDIO' | 'TEXT' | 'OVERLAY' | null = null;
-  
+  let selectedTrackType: "VIDEO" | "AUDIO" | "TEXT" | "OVERLAY" | null = null;
+
   for (const track of timeline.tracks) {
-    const clip = track.clips.find(c => c.id === selectedClipId);
+    const clip = track.clips.find((c) => c.id === selectedClipId);
     if (clip) {
       selectedClip = clip;
       selectedTrackId = track.id;
@@ -63,8 +84,14 @@ export function InspectorPanel({ className }: InspectorPanelProps) {
 
   const handleTransformChange = (key: string, value: number) => {
     if (!selectedTrackId || !selectedClipId || !selectedClip) return;
-    
-    const currentTransforms = selectedClip.transforms || { x: 0, y: 0, scale: 1, rotation: 0, opacity: 1 };
+
+    const currentTransforms = selectedClip.transforms || {
+      x: 0,
+      y: 0,
+      scale: 1,
+      rotation: 0,
+      opacity: 1,
+    };
     updateClip(selectedTrackId, selectedClipId, {
       transforms: {
         x: currentTransforms.x,
@@ -77,10 +104,19 @@ export function InspectorPanel({ className }: InspectorPanelProps) {
     });
   };
 
-  const handleEffectChange = (key: string, value: number | string | string[]) => {
+  const handleEffectChange = (
+    key: string,
+    value: number | string | string[]
+  ) => {
     if (!selectedTrackId || !selectedClipId || !selectedClip) return;
-    
-    const currentEffects = selectedClip.effects || { filters: [], speed: 1, volume: 1, fadeIn: 0, fadeOut: 0 };
+
+    const currentEffects = selectedClip.effects || {
+      filters: [],
+      speed: 1,
+      volume: 1,
+      fadeIn: 0,
+      fadeOut: 0,
+    };
     updateClip(selectedTrackId, selectedClipId, {
       effects: {
         filters: currentEffects.filters,
@@ -98,20 +134,27 @@ export function InspectorPanel({ className }: InspectorPanelProps) {
     const minutes = Math.floor(totalSeconds / 60);
     const seconds = totalSeconds % 60;
     const milliseconds = Math.floor((ms % 1000) / 10);
-    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${milliseconds.toString().padStart(2, '0')}`;
+    return `${minutes.toString().padStart(2, "0")}:${seconds
+      .toString()
+      .padStart(2, "0")}.${milliseconds.toString().padStart(2, "0")}`;
   };
 
   if (!selectedClip) {
     return (
-      <div className={clsx('w-72 bg-content1 border-l border-divider flex flex-col', className)}>
-        <div className="p-4 border-b border-divider">
+      <div
+        className={clsx(
+          "w-72 bg-card border-l border-border flex flex-col",
+          className
+        )}
+      >
+        <div className="p-4 border-b border-border">
           <h3 className="font-semibold flex items-center gap-2">
             <Settings2 size={18} />
             Inspector
           </h3>
         </div>
         <div className="flex-1 flex items-center justify-center p-4">
-          <p className="text-sm text-foreground/50 text-center">
+          <p className="text-sm text-muted-foreground text-center">
             Pilih clip di timeline untuk melihat properti
           </p>
         </div>
@@ -119,15 +162,32 @@ export function InspectorPanel({ className }: InspectorPanelProps) {
     );
   }
 
-  const transforms = selectedClip.transforms || { x: 0, y: 0, scale: 1, rotation: 0, opacity: 1 };
-  const effects = selectedClip.effects || { filters: [], speed: 1, volume: 1, fadeIn: 0, fadeOut: 0 };
+  const transforms = selectedClip.transforms || {
+    x: 0,
+    y: 0,
+    scale: 1,
+    rotation: 0,
+    opacity: 1,
+  };
+  const effects = selectedClip.effects || {
+    filters: [],
+    speed: 1,
+    volume: 1,
+    fadeIn: 0,
+    fadeOut: 0,
+  };
   const isMuted = effects.volume === 0;
-  const currentFilter = effects.filters?.[0] || 'none';
+  const currentFilter = effects.filters?.[0] || "none";
 
   return (
-    <div className={clsx('w-72 bg-content1 border-l border-divider flex flex-col overflow-hidden', className)}>
+    <div
+      className={clsx(
+        "w-72 bg-card border-l border-border flex flex-col overflow-hidden",
+        className
+      )}
+    >
       {/* Header */}
-      <div className="p-4 border-b border-divider shrink-0">
+      <div className="p-4 border-b border-border shrink-0">
         <h3 className="font-semibold flex items-center gap-2">
           <Settings2 size={18} />
           Inspector
@@ -137,13 +197,17 @@ export function InspectorPanel({ className }: InspectorPanelProps) {
       {/* Content - Scrollable */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {/* Clip Info */}
-        <Card className="bg-content2">
+        <Card className="bg-muted">
           <CardBody className="p-3">
             <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 rounded flex items-center justify-center ${
-                selectedTrackType === 'AUDIO' ? 'bg-green-500/20' : 'bg-primary/20'
-              }`}>
-                {selectedTrackType === 'AUDIO' ? (
+              <div
+                className={`w-10 h-10 rounded flex items-center justify-center ${
+                  selectedTrackType === "AUDIO"
+                    ? "bg-green-500/20"
+                    : "bg-primary/20"
+                }`}
+              >
+                {selectedTrackType === "AUDIO" ? (
                   <Volume2 size={20} className="text-green-500" />
                 ) : (
                   <Film size={20} className="text-primary" />
@@ -151,11 +215,12 @@ export function InspectorPanel({ className }: InspectorPanelProps) {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-sm truncate">
-                  {selectedClip.asset?.name || 'Untitled Clip'}
+                  {selectedClip.asset?.name || "Untitled Clip"}
                 </p>
-                <p className="text-xs text-foreground/50">
-                  {selectedTrackType === 'AUDIO' ? 'Audio' : 'Video'} • {formatTime(selectedClip.endMs - selectedClip.startMs)}
-                  {selectedClip.linkId && ' • Linked'}
+                <p className="text-xs text-muted-foreground">
+                  {selectedTrackType === "AUDIO" ? "Audio" : "Video"} •{" "}
+                  {formatTime(selectedClip.endMs - selectedClip.startMs)}
+                  {selectedClip.linkId && " • Linked"}
                 </p>
               </div>
             </div>
@@ -163,16 +228,15 @@ export function InspectorPanel({ className }: InspectorPanelProps) {
             {selectedClip.linkId && (
               <Button
                 size="sm"
-                variant="flat"
-                color="warning"
+                variant="outline"
                 className="w-full mt-3"
-                startContent={<Unlink size={14} />}
-                onPress={() => {
+                onClick={() => {
                   if (selectedClipId) {
                     detachLinkedClips(selectedClipId);
                   }
                 }}
               >
+                <Unlink size={14} />
                 Detach Audio
               </Button>
             )}
@@ -182,7 +246,7 @@ export function InspectorPanel({ className }: InspectorPanelProps) {
         <Divider />
 
         {/* Transform Section - VIDEO ONLY */}
-        {selectedTrackType !== 'AUDIO' && (
+        {selectedTrackType !== "AUDIO" && (
           <>
             <div className="space-y-3">
               <h4 className="text-sm font-medium flex items-center gap-2">
@@ -192,96 +256,96 @@ export function InspectorPanel({ className }: InspectorPanelProps) {
 
               <div className="space-y-4">
                 {/* Position X */}
-                <div>
-                  <div className="flex justify-between text-xs mb-1">
-                    <span className="text-foreground/60">Position X</span>
+                <div className="space-y-1">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Position X</span>
                     <span>{Math.round(transforms.x)}px</span>
                   </div>
-                  <Slider 
-                    size="sm"
-                    minValue={-500}
-                    maxValue={500}
+                  <Slider
+                    min={-500}
+                    max={500}
                     step={1}
-                    value={transforms.x}
-                    onChange={(v) => handleTransformChange('x', v as number)}
-                    aria-label="Position X"
+                    value={[transforms.x ?? 0]}
+                    onValueChange={(v: number[]) =>
+                      handleTransformChange("x", v[0] ?? 0)
+                    }
                   />
                 </div>
 
                 {/* Position Y */}
-                <div>
-                  <div className="flex justify-between text-xs mb-1">
-                    <span className="text-foreground/60">Position Y</span>
+                <div className="space-y-1">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Position Y</span>
                     <span>{Math.round(transforms.y)}px</span>
                   </div>
-                  <Slider 
-                    size="sm"
-                    minValue={-500}
-                    maxValue={500}
+                  <Slider
+                    min={-500}
+                    max={500}
                     step={1}
-                    value={transforms.y}
-                    onChange={(v) => handleTransformChange('y', v as number)}
-                    aria-label="Position Y"
+                    value={[transforms.y ?? 0]}
+                    onValueChange={(v: number[]) =>
+                      handleTransformChange("y", v[0] ?? 0)
+                    }
                   />
                 </div>
 
                 {/* Scale */}
-                <div>
-                  <div className="flex justify-between text-xs mb-1">
-                    <span className="text-foreground/60 flex items-center gap-1">
+                <div className="space-y-1">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground flex items-center gap-1">
                       <Maximize2 size={12} />
                       Scale
                     </span>
                     <span>{Math.round(transforms.scale * 100)}%</span>
                   </div>
-                  <Slider 
-                    size="sm"
-                    minValue={0.1}
-                    maxValue={3}
+                  <Slider
+                    min={0.1}
+                    max={3}
                     step={0.01}
-                    value={transforms.scale}
-                    onChange={(v) => handleTransformChange('scale', v as number)}
-                    aria-label="Scale"
+                    value={[transforms.scale ?? 1]}
+                    onValueChange={(v: number[]) =>
+                      handleTransformChange("scale", v[0] ?? 1)
+                    }
                   />
                 </div>
 
                 {/* Rotation */}
-                <div>
-                  <div className="flex justify-between text-xs mb-1">
-                    <span className="text-foreground/60 flex items-center gap-1">
+                <div className="space-y-1">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground flex items-center gap-1">
                       <RotateCw size={12} />
                       Rotation
                     </span>
                     <span>{Math.round(transforms.rotation)}°</span>
                   </div>
-                  <Slider 
-                    size="sm"
-                    minValue={-180}
-                    maxValue={180}
+                  <Slider
+                    min={-180}
+                    max={180}
                     step={1}
-                    value={transforms.rotation}
-                    onChange={(v) => handleTransformChange('rotation', v as number)}
-                    aria-label="Rotation"
+                    value={[transforms.rotation ?? 0]}
+                    onValueChange={(v: number[]) =>
+                      handleTransformChange("rotation", v[0] ?? 0)
+                    }
                   />
                 </div>
 
                 {/* Opacity */}
-                <div>
-                  <div className="flex justify-between text-xs mb-1">
-                    <span className="text-foreground/60 flex items-center gap-1">
+                <div className="space-y-1">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground flex items-center gap-1">
                       <Eye size={12} />
                       Opacity
                     </span>
                     <span>{Math.round(transforms.opacity * 100)}%</span>
                   </div>
-                  <Slider 
-                    size="sm"
-                    minValue={0}
-                    maxValue={1}
+                  <Slider
+                    min={0}
+                    max={1}
                     step={0.01}
-                    value={transforms.opacity}
-                    onChange={(v) => handleTransformChange('opacity', v as number)}
-                    aria-label="Opacity"
+                    value={[transforms.opacity ?? 1]}
+                    onValueChange={(v: number[]) =>
+                      handleTransformChange("opacity", v[0] ?? 1)
+                    }
                   />
                 </div>
               </div>
@@ -300,65 +364,67 @@ export function InspectorPanel({ className }: InspectorPanelProps) {
 
           <div className="space-y-4">
             {/* Volume */}
-            <div>
-              <div className="flex justify-between items-center text-xs mb-1">
-                <span className="text-foreground/60 flex items-center gap-1">
+            <div className="space-y-1">
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-muted-foreground flex items-center gap-1">
                   {isMuted ? <VolumeX size={12} /> : <Volume2 size={12} />}
                   Volume
                 </span>
                 <div className="flex items-center gap-2">
-                  <span>{isMuted ? 'Muted' : `${Math.round(effects.volume * 100)}%`}</span>
-                  <Switch 
-                    size="sm"
-                    isSelected={!isMuted}
-                    onValueChange={(checked) => handleEffectChange('volume', checked ? 1 : 0)}
-                    aria-label="Mute toggle"
+                  <span>
+                    {isMuted ? "Muted" : `${Math.round(effects.volume * 100)}%`}
+                  </span>
+                  <Switch
+                    checked={!isMuted}
+                    onCheckedChange={(checked) =>
+                      handleEffectChange("volume", checked ? 1 : 0)
+                    }
                   />
                 </div>
               </div>
-              <Slider 
-                size="sm"
-                minValue={0}
-                maxValue={2}
+              <Slider
+                min={0}
+                max={2}
                 step={0.01}
-                value={effects.volume}
-                onChange={(v) => handleEffectChange('volume', v as number)}
-                isDisabled={isMuted}
-                aria-label="Volume"
+                value={[effects.volume ?? 1]}
+                onValueChange={(v: number[]) =>
+                  handleEffectChange("volume", v[0] ?? 1)
+                }
+                disabled={isMuted}
               />
             </div>
 
             {/* Fade In */}
-            <div>
-              <div className="flex justify-between text-xs mb-1">
-                <span className="text-foreground/60">Fade In</span>
+            <div className="space-y-1">
+              <div className="flex justify-between text-xs">
+                <span className="text-muted-foreground">Fade In</span>
                 <span>{effects.fadeIn}ms</span>
               </div>
-              <Slider 
-                size="sm"
-                minValue={0}
-                maxValue={2000}
+              <Slider
+                min={0}
+                max={2000}
                 step={100}
-                value={effects.fadeIn}
-                onChange={(v) => handleEffectChange('fadeIn', v as number)}
-                aria-label="Fade In"
+                value={[effects.fadeIn ?? 0]}
+                onValueChange={(v: number[]) =>
+                  handleEffectChange("fadeIn", v[0] ?? 0)
+                }
               />
             </div>
 
             {/* Fade Out */}
-            <div>
-              <div className="flex justify-between text-xs mb-1">
-                <span className="text-foreground/60">Fade Out</span>
+            <div className="space-y-1">
+              <div className="flex justify-between text-xs">
+                <span className="text-muted-foreground">Fade Out</span>
                 <span>{effects.fadeOut}ms</span>
               </div>
-              <Slider 
-                size="sm"
-                minValue={0}
-                maxValue={2000}
+              <Slider
+                min={0}
+                max={2000}
                 step={100}
-                value={effects.fadeOut}
-                onChange={(v) => handleEffectChange('fadeOut', v as number)}
-                aria-label="Fade Out"
+                value={[effects.fadeOut ?? 0]}
+                onValueChange={(v: number[]) =>
+                  handleEffectChange("fadeOut", v[0] ?? 0)
+                }
               />
             </div>
           </div>
@@ -375,50 +441,57 @@ export function InspectorPanel({ className }: InspectorPanelProps) {
 
           <div className="space-y-4">
             {/* Speed */}
-            <div>
-              <div className="flex justify-between text-xs mb-1">
-                <span className="text-foreground/60 flex items-center gap-1">
+            <div className="space-y-1">
+              <div className="flex justify-between text-xs">
+                <span className="text-muted-foreground flex items-center gap-1">
                   <Gauge size={12} />
                   Speed
                 </span>
               </div>
-              <Select 
-                size="sm"
-                selectedKeys={[effects.speed.toString()]}
-                onSelectionChange={(keys) => {
-                  const selected = Array.from(keys)[0] as string;
-                  if (selected) handleEffectChange('speed', parseFloat(selected));
-                }}
-                aria-label="Speed"
+              <Select
+                value={effects.speed.toString()}
+                onValueChange={(v) =>
+                  handleEffectChange("speed", parseFloat(v))
+                }
               >
-                {SPEED_PRESETS.map(preset => (
-                  <SelectItem key={preset.value.toString()}>
-                    {preset.label}
-                  </SelectItem>
-                ))}
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {SPEED_PRESETS.map((preset) => (
+                    <SelectItem
+                      key={preset.value.toString()}
+                      value={preset.value.toString()}
+                    >
+                      {preset.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
               </Select>
             </div>
 
             {/* Filter - VIDEO ONLY */}
-            {selectedTrackType !== 'AUDIO' && (
-              <div>
-                <div className="flex justify-between text-xs mb-1">
-                  <span className="text-foreground/60">Filter</span>
+            {selectedTrackType !== "AUDIO" && (
+              <div className="space-y-1">
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">Filter</span>
                 </div>
-                <Select 
-                  size="sm"
-                  selectedKeys={[currentFilter]}
-                  onSelectionChange={(keys) => {
-                    const selected = Array.from(keys)[0] as string;
-                    if (selected) handleEffectChange('filters', selected === 'none' ? [] : [selected]);
-                  }}
-                  aria-label="Filter"
+                <Select
+                  value={currentFilter}
+                  onValueChange={(v) =>
+                    handleEffectChange("filters", v === "none" ? [] : [v])
+                  }
                 >
-                  {FILTER_PRESETS.map(preset => (
-                    <SelectItem key={preset.id}>
-                      {preset.name}
-                    </SelectItem>
-                  ))}
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {FILTER_PRESETS.map((preset) => (
+                      <SelectItem key={preset.id} value={preset.id}>
+                        {preset.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
                 </Select>
               </div>
             )}
