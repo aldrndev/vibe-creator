@@ -83,10 +83,12 @@ export function LoginPage() {
 
   return (
     <div>
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold mb-2">Selamat Datang Kembali</h1>
-        <p className="text-muted-foreground">
-          Masuk ke akun kamu untuk melanjutkan
+      <div className="mb-10 text-center sm:text-left">
+        <h1 className="text-3xl font-black tracking-tight mb-2">
+          Selamat Datang Kembali
+        </h1>
+        <p className="text-muted-foreground font-medium">
+          Masuk ke akun kamu untuk melanjutkan petualangan kreatif.
         </p>
       </div>
 
@@ -99,52 +101,40 @@ export function LoginPage() {
       )}
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-        <div className="space-y-2">
-          <div className="relative">
-            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-              <Mail size={18} />
-            </div>
-            <Input
-              label="Email"
-              type="email"
-              placeholder="nama@email.com"
-              className="pl-10"
-              error={errors.email?.message}
-              {...register("email", {
-                required: "Email diperlukan",
-                pattern: {
-                  value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
-                  message: "Email tidak valid",
-                },
-              })}
-            />
-          </div>
-        </div>
+        <Input
+          label="Email"
+          type="email"
+          placeholder="nama@email.com"
+          leftIcon={<Mail size={20} />}
+          error={errors.email?.message}
+          {...register("email", {
+            required: "Email diperlukan",
+            pattern: {
+              value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
+              message: "Email tidak valid",
+            },
+          })}
+        />
 
-        <div className="space-y-2">
-          <div className="relative">
-            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-              <Lock size={18} />
-            </div>
-            <Input
-              label="Password"
-              type={showPassword ? "text" : "password"}
-              placeholder="Masukkan password"
-              className="pl-10 pr-10"
-              error={errors.password?.message}
-              {...register("password", {
-                required: "Password diperlukan",
-              })}
-            />
+        <Input
+          label="Password"
+          type={showPassword ? "text" : "password"}
+          placeholder="Masukkan password"
+          leftIcon={<Lock size={20} />}
+          rightIcon={
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              className="text-muted-foreground hover:text-primary transition-colors pr-1"
             >
               {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
             </button>
-          </div>
-        </div>
+          }
+          error={errors.password?.message}
+          {...register("password", {
+            required: "Password diperlukan",
+          })}
+        />
 
         <TurnstileWidget
           ref={turnstileRef}
@@ -154,19 +144,19 @@ export function LoginPage() {
 
         <Button
           type="submit"
-          className="w-full"
+          className="w-full h-14 rounded-full text-base font-bold shadow-md hover:shadow-lg transition-all active:scale-95"
           size="lg"
           isLoading={isLoading}
           disabled={!turnstileToken}
         >
-          {!isLoading && <LogIn size={20} />}
-          Masuk
+          {!isLoading && <LogIn size={20} className="mr-2" />}
+          Masuk Sekarang
         </Button>
       </form>
 
-      <p className="mt-6 text-center text-sm text-muted-foreground">
+      <p className="mt-8 text-center text-sm font-medium text-muted-foreground">
         Belum punya akun?{" "}
-        <Link to="/register" className="text-primary hover:underline">
+        <Link to="/register" className="text-primary font-bold hover:underline">
           Daftar sekarang
         </Link>
       </p>

@@ -15,24 +15,30 @@ export const StepIndicator = () => {
   const steps: {
     id: DirectorStep;
     label: string;
-    icon: React.ComponentType<{ size?: number; className?: string }>;
+    icon: React.ComponentType<{
+      size?: number;
+      className?: string;
+      strokeWidth?: number;
+    }>;
   }[] = [
-    { id: "IMPORT", label: "Import", icon: Upload },
-    { id: "ANALYZING", label: "Analyze", icon: Wand2 },
-    { id: "PICKING", label: "Pick Clips", icon: Scissors },
-    { id: "EDITING", label: "Refine", icon: Captions },
-    { id: "EXPORTING", label: "Export", icon: Download },
+    { id: "IMPORT", label: "Impor", icon: Upload },
+    { id: "ANALYZING", label: "Analisis", icon: Wand2 },
+    { id: "PICKING", label: "Pilih", icon: Scissors },
+    { id: "EDITING", label: "Edit", icon: Captions },
+    { id: "EXPORTING", label: "Ekspor", icon: Download },
   ];
 
   const currentIdx = steps.findIndex((s) => s.id === step);
 
   return (
-    <div className="w-full max-w-4xl mx-auto mb-8 px-4">
-      <div className="relative flex justify-between items-center">
-        {/* Progress Line */}
-        <div className="absolute left-0 top-5 w-full h-1 bg-zinc-800 z-0 rounded-full" />
+    <div className="w-full mx-auto mb-12">
+      <div className="relative flex justify-between items-center max-w-2xl mx-auto">
+        {/* Progress Line - Base */}
+        <div className="absolute left-0 top-5 sm:top-6 -translate-y-1/2 w-full h-[2px] bg-border z-0 rounded-full" />
+
+        {/* Progress Line - Active Filling */}
         <div
-          className="absolute left-0 top-5 h-1 bg-gradient-to-r from-primary to-secondary z-0 rounded-full transition-all duration-500"
+          className="absolute left-0 top-5 sm:top-6 -translate-y-1/2 h-[2px] bg-gradient-to-r from-primary via-orange-500 to-rose-600 z-0 rounded-full transition-all duration-700 ease-in-out"
           style={{ width: `${(currentIdx / (steps.length - 1)) * 100}%` }}
         />
 
@@ -43,36 +49,47 @@ export const StepIndicator = () => {
           return (
             <div
               key={s.id}
-              className="flex flex-col items-center gap-2 relative z-10"
+              className="flex flex-col items-center gap-3 relative z-10"
             >
               <div
                 className={cn(
-                  "w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all duration-300 bg-zinc-950",
+                  "w-10 h-10 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center border-2 transition-all duration-500",
                   isActive
-                    ? "border-primary text-primary shadow-lg shadow-primary/20 scale-110"
+                    ? "border-primary bg-card text-primary scale-110 z-20"
                     : isCompleted
-                    ? "border-primary bg-primary text-white"
-                    : "border-zinc-700 text-zinc-500"
+                    ? "border-primary bg-primary text-white scale-95"
+                    : "border-border/50 bg-background text-muted-foreground"
                 )}
               >
                 {isCompleted ? (
-                  <CheckCircle2 size={20} />
+                  <CheckCircle2 size={24} strokeWidth={2.5} />
                 ) : (
-                  <s.icon size={20} />
+                  <s.icon size={22} strokeWidth={isActive ? 2.5 : 2} />
                 )}
               </div>
               <span
                 className={cn(
-                  "text-xs font-medium transition-colors",
+                  "hidden sm:block text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all duration-300",
                   isActive
-                    ? "text-primary"
+                    ? "text-primary translate-y-1"
                     : isCompleted
-                    ? "text-zinc-300"
-                    : "text-zinc-600"
+                    ? "text-foreground/60"
+                    : "text-muted-foreground/40"
                 )}
               >
                 {s.label}
               </span>
+              {/* Mobile Mobile Identifier Dot */}
+              <div
+                className={cn(
+                  "sm:hidden w-1.5 h-1.5 rounded-full transition-all duration-500",
+                  isActive
+                    ? "bg-primary scale-150"
+                    : isCompleted
+                    ? "bg-primary/60"
+                    : "bg-muted-foreground/20"
+                )}
+              />
             </div>
           );
         })}

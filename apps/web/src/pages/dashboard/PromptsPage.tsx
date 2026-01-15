@@ -11,7 +11,7 @@ import {
   Pagination,
 } from "@/components/ui";
 import { Link, useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Plus,
   Sparkles,
@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { usePrompts } from "@/hooks/use-prompts";
 import type { PromptType } from "@vibe-creator/shared";
+import { PageTransition } from "@/components/ui/PageTransition";
 
 const promptTypes: Array<{
   key: PromptType | "all";
@@ -47,16 +48,15 @@ const promptTypeLabels: Record<
   string,
   {
     label: string;
-    variant: "default" | "secondary" | "warning" | "destructive";
   }
 > = {
-  SCRIPT: { label: "Script", variant: "default" },
-  VOICE: { label: "Voice", variant: "secondary" },
-  VIDEO_GEN: { label: "Video", variant: "default" },
-  IMAGE: { label: "Image", variant: "warning" },
-  RELAXING: { label: "Relaxing", variant: "secondary" },
-  CREATIVE_SCAN: { label: "Scan", variant: "destructive" },
-  TIMELAPSE: { label: "Timelapse", variant: "secondary" },
+  SCRIPT: { label: "Script" },
+  VOICE: { label: "Voice" },
+  VIDEO_GEN: { label: "Video" },
+  IMAGE: { label: "Image" },
+  RELAXING: { label: "Relaxing" },
+  CREATIVE_SCAN: { label: "Scan" },
+  TIMELAPSE: { label: "Timelapse" },
 };
 
 export function PromptsPage() {
@@ -85,198 +85,235 @@ export function PromptsPage() {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Prompt Builder</h1>
-          <p className="text-muted-foreground">
-            Buat dan kelola prompt untuk konten kamu
-          </p>
-        </div>
-        <Button asChild>
-          <Link to="/dashboard/prompts/new">
-            <Plus size={20} />
-            Prompt Baru
-          </Link>
-        </Button>
-      </div>
-
-      {/* Tabs - Responsive Container */}
-      <div className="w-full overflow-x-auto pb-2 -mb-2 scrollbar-hide">
-        <Tabs value={selectedType} onValueChange={handleTypeChange}>
-          <TabsList className="w-max">
-            {promptTypes.map((type) => (
-              <TabsTrigger
-                key={type.key}
-                value={type.key}
-                className="flex items-center gap-2 px-4"
-              >
-                <type.icon size={16} />
-                <span>{type.label}</span>
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
-      </div>
-
-      {/* Content */}
-      <motion.div
-        key={selectedType}
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
-        className="space-y-6"
-      >
-        {isLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {[1, 2, 3, 4, 5, 6].map((i) => (
-              <Card key={i} className="border border-transparent shadow-sm">
-                <CardBody className="p-4">
-                  <div className="flex items-center gap-4">
-                    <Skeleton className="w-12 h-12 rounded-xl" />
-                    <div className="flex-1 space-y-2">
-                      <Skeleton className="w-2/3 h-4 rounded-lg" />
-                      <Skeleton className="w-1/2 h-3 rounded-lg" />
-                    </div>
-                  </div>
-                </CardBody>
-              </Card>
-            ))}
-          </div>
-        ) : prompts.length > 0 ? (
-          <>
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {prompts.map((prompt) => {
-                const typeConfig = promptTypeLabels[prompt.type] || {
-                  label: prompt.type,
-                  variant: "secondary" as const,
-                };
-                const TypeIcon =
-                  promptTypes.find((t) => t.key === prompt.type)?.icon ||
-                  Sparkles;
-
-                return (
-                  <Card
-                    key={prompt.id}
-                    className="group hover:bg-accent/50 transition-all border hover:border-primary/30 shadow-sm hover:shadow-md cursor-pointer"
-                    onClick={() => handlePromptClick(prompt.id)}
-                  >
-                    <CardBody className="p-4">
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-primary/10 text-primary">
-                          <TypeIcon size={24} strokeWidth={1.5} />
-                        </div>
-                        <div className="flex-1 min-w-0 text-left">
-                          <div className="flex items-center gap-2 mb-1.5">
-                            <h3 className="font-semibold text-medium truncate">
-                              {prompt.title}
-                            </h3>
-                            <Badge variant={typeConfig.variant}>
-                              {typeConfig.label}
-                            </Badge>
-                          </div>
-                          <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                            <span className="font-medium bg-accent px-2 py-0.5 rounded-md">
-                              v{prompt.currentVersion}
-                            </span>
-                            <span className="flex items-center gap-1.5">
-                              <Clock size={12} />
-                              {new Date(prompt.updatedAt).toLocaleDateString(
-                                "id-ID",
-                                {
-                                  day: "numeric",
-                                  month: "short",
-                                  year: "numeric",
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                }
-                              )}
-                            </span>
-                          </div>
-                        </div>
-                        <ChevronRight
-                          size={20}
-                          className="text-muted-foreground/30 group-hover:text-muted-foreground transition-colors group-hover:translate-x-0.5"
-                        />
-                      </div>
-                    </CardBody>
-                  </Card>
-                );
-              })}
+    <PageTransition className="pb-20 lg:pb-10">
+      <div className="max-w-[1400px] mx-auto space-y-8">
+        {/* Header */}
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary via-orange-500 to-rose-600 flex items-center justify-center">
+                <Sparkles className="text-white w-6 h-6" />
+              </div>
+              <h1 className="text-3xl font-black tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-primary via-orange-500 to-rose-600">
+                Prompt Builder
+              </h1>
             </div>
 
-            {/* Pagination */}
-            {totalPages > 1 && (
+            <Button
+              asChild
+              className="w-full md:w-auto rounded-full px-6 h-11 font-black uppercase text-[10px] tracking-widest transition-all active:scale-95"
+            >
+              <Link to="/dashboard/prompts/new">
+                <Plus size={18} className="mr-2" /> Prompt Baru
+              </Link>
+            </Button>
+          </div>
+          <p className="text-muted-foreground font-medium text-sm ml-1 md:ml-13 md:text-left">
+            Arsip prompt kreatif dan hasil optimasi model AI favorit anda.
+          </p>
+        </div>
+
+        {/* Tabs - Responsive Container */}
+        <div className="w-full overflow-x-auto mb-4 scrollbar-hide">
+          <Tabs
+            value={selectedType}
+            onValueChange={handleTypeChange}
+            className="w-max"
+          >
+            <TabsList className="bg-muted/50 p-0 rounded-2xl border border-border/70 backdrop-blur-md">
+              {promptTypes.map((type) => (
+                <TabsTrigger
+                  key={type.key}
+                  value={type.key}
+                  className="flex items-center gap-2 px-6 h-10 rounded-xl font-black uppercase text-[10px] tracking-widest data-[state=active]:bg-primary data-[state=active]:text-white transition-all"
+                >
+                  <type.icon size={14} />
+                  <span>{type.label}</span>
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+        </div>
+
+        {/* Content */}
+        <div className="space-y-8">
+          {isLoading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <Card key={i} className="bg-card/40 border-border/50">
+                  <CardBody className="p-6">
+                    <div className="flex items-center gap-5">
+                      <Skeleton className="w-14 h-14 rounded-2xl bg-muted/20" />
+                      <div className="flex-1 space-y-3">
+                        <Skeleton className="w-3/4 h-5 rounded-lg bg-muted/20" />
+                        <Skeleton className="w-1/2 h-3 rounded-md bg-muted/10" />
+                      </div>
+                    </div>
+                  </CardBody>
+                </Card>
+              ))}
+            </div>
+          ) : prompts.length > 0 ? (
+            <AnimatePresence mode="popLayout">
+              <motion.div
+                key={selectedType}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6"
+              >
+                {prompts.map((prompt) => {
+                  const typeLabel =
+                    promptTypeLabels[prompt.type]?.label || prompt.type;
+                  const TypeIcon =
+                    promptTypes.find((t) => t.key === prompt.type)?.icon ||
+                    Sparkles;
+
+                  return (
+                    <Card
+                      key={prompt.id}
+                      className="group bg-card/60 backdrop-blur-xl border-border/50 hover:border-primary/50 transition-all duration-300 cursor-pointer relative overflow-hidden active:scale-[0.98]"
+                      onClick={() => handlePromptClick(prompt.id)}
+                    >
+                      {/* Subtle hover glare */}
+                      <div className="absolute inset-0 bg-gradient-to-tr from-primary/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+
+                      <CardBody className="p-6">
+                        <div className="flex items-center gap-5 relative z-10">
+                          <div className="w-14 h-14 rounded-2xl flex items-center justify-center bg-primary/10 text-primary border border-primary/20 group-hover:scale-110 transition-transform duration-500">
+                            <TypeIcon size={28} strokeWidth={1.5} />
+                          </div>
+                          <div className="flex-1 min-w-0 text-left space-y-1.5">
+                            <div className="flex items-center gap-2">
+                              <h3 className="font-bold text-lg leading-tight truncate text-foreground group-hover:text-primary transition-colors">
+                                {prompt.title}
+                              </h3>
+                            </div>
+                            <div className="flex items-center flex-wrap gap-2 text-[10px] uppercase font-black tracking-widest text-muted-foreground">
+                              <Badge
+                                variant="secondary"
+                                className="bg-primary/5 text-primary/80 border-primary/20 py-0.5 px-2"
+                              >
+                                {typeLabel}
+                              </Badge>
+                              <div className="flex items-center gap-1.5 bg-muted/20 px-2 py-0.5 rounded-full">
+                                <span className="text-primary/70">
+                                  v{prompt.currentVersion}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-1.5 text-muted-foreground/60">
+                                <Clock size={12} className="shrink-0" />
+                                <span className="truncate">
+                                  {new Date(
+                                    prompt.updatedAt
+                                  ).toLocaleDateString("id-ID", {
+                                    day: "numeric",
+                                    month: "short",
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="h-10 w-10 rounded-full flex items-center justify-center bg-muted/10 opacity-0 group-hover:opacity-100 transition-all group-hover:translate-x-1">
+                            <ChevronRight size={18} className="text-primary" />
+                          </div>
+                        </div>
+                      </CardBody>
+                    </Card>
+                  );
+                })}
+              </motion.div>
+            </AnimatePresence>
+          ) : (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+            >
+              <Card className="bg-card/30 backdrop-blur-xl border-dashed border-2 border-border/50">
+                <CardBody className="p-16 text-center">
+                  {selectedType === "all" ? (
+                    <div className="space-y-6 max-w-sm mx-auto">
+                      <div className="w-20 h-20 rounded-3xl bg-primary/10 flex items-center justify-center mx-auto border border-primary/20">
+                        <Sparkles className="text-primary w-10 h-10" />
+                      </div>
+                      <div className="space-y-2">
+                        <h2 className="text-xl font-black uppercase tracking-widest">
+                          Belum Ada Prompt
+                        </h2>
+                        <p className="text-muted-foreground font-medium text-sm">
+                          Mulai arsiteki prompt berkualitas untuk meningkatkan
+                          kualitas konten anda sekarang.
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-6 max-w-sm mx-auto">
+                      {(() => {
+                        const TypeIcon =
+                          promptTypes.find((t) => t.key === selectedType)
+                            ?.icon || Sparkles;
+                        return (
+                          <div className="w-20 h-20 rounded-3xl bg-muted/10 flex items-center justify-center mx-auto border border-border/50">
+                            <TypeIcon className="text-muted-foreground w-10 h-10" />
+                          </div>
+                        );
+                      })()}
+                      <div className="space-y-2">
+                        <h2 className="text-xl font-black uppercase tracking-widest italic">
+                          Prompt {promptTypeLabels[selectedType]?.label} Kosong
+                        </h2>
+                        <p className="text-muted-foreground font-medium text-sm">
+                          {selectedType === "SCRIPT" &&
+                            "Arsiteki script storytelling yang menghipnotis audiens anda."}
+                          {selectedType === "VOICE" &&
+                            "Rancang karakter suara yang sempurna untuk narasi video anda."}
+                          {selectedType === "VIDEO_GEN" &&
+                            "Wujudkan imajinasi visual terbaik dengan prompt video AI yang kaya."}
+                          {selectedType === "IMAGE" &&
+                            "Ciptakan visual artistik dan thumbnail yang klik-worthy."}
+                          {selectedType === "RELAXING" &&
+                            "Susun mood audio ambient yang menenangkan jiwa."}
+                          {selectedType === "CREATIVE_SCAN" &&
+                            "Bongkar strategi kreatif video viral kompetitor anda."}
+                          {selectedType === "TIMELAPSE" &&
+                            "Buat mahakarya timelapse cinematic dengan kekuatan Sora AI."}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                  <Button
+                    size="lg"
+                    asChild
+                    className="mt-8 rounded-full h-12 px-8 font-black uppercase text-[10px] tracking-widest transition-all active:scale-95"
+                  >
+                    <Link to="/dashboard/prompts/new">
+                      <Plus size={18} className="mr-2" /> Buat Prompt Pertama
+                    </Link>
+                  </Button>
+                </CardBody>
+              </Card>
+            </motion.div>
+          )}
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="flex justify-center pt-4"
+            >
               <Pagination
                 total={totalPages}
                 page={page}
                 onChange={setPage}
-                className="mt-6"
+                className="bg-card/40 backdrop-blur-xl border border-border/50 p-1 rounded-full"
               />
-            )}
-          </>
-        ) : (
-          <Card className="border-dashed border-2 bg-transparent shadow-none">
-            <CardBody className="p-12 text-center">
-              {selectedType === "all" ? (
-                <>
-                  <Sparkles
-                    className="mx-auto mb-4 text-muted-foreground"
-                    size={64}
-                  />
-                  <h2 className="text-xl font-semibold mb-2">
-                    Belum ada prompt
-                  </h2>
-                  <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-                    Buat prompt pertama kamu untuk mulai generate konten
-                    berkualitas.
-                  </p>
-                </>
-              ) : (
-                <>
-                  {(() => {
-                    const TypeIcon =
-                      promptTypes.find((t) => t.key === selectedType)?.icon ||
-                      Sparkles;
-                    return (
-                      <TypeIcon
-                        className="mx-auto mb-4 text-muted-foreground"
-                        size={64}
-                      />
-                    );
-                  })()}
-                  <h2 className="text-xl font-semibold mb-2">
-                    Belum ada prompt {promptTypeLabels[selectedType]?.label}
-                  </h2>
-                  <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-                    {selectedType === "SCRIPT" &&
-                      "Buat prompt untuk generate script dan storytelling yang menarik."}
-                    {selectedType === "VOICE" &&
-                      "Buat prompt untuk generate voice-over dan dubbing."}
-                    {selectedType === "VIDEO_GEN" &&
-                      "Buat prompt untuk generate video dengan AI seperti Veo atau Runway."}
-                    {selectedType === "IMAGE" &&
-                      "Buat prompt untuk generate thumbnail dan gambar konten."}
-                    {selectedType === "RELAXING" &&
-                      "Buat prompt untuk generate audio relaxing dan ambient."}
-                    {selectedType === "CREATIVE_SCAN" &&
-                      "Analisis video kompetitor untuk mendapat insight kreatif."}
-                    {selectedType === "TIMELAPSE" &&
-                      "Buat prompt timelapse untuk Sora AI video generation."}
-                  </p>
-                </>
-              )}
-              <Button size="lg" asChild>
-                <Link to="/dashboard/prompts/new">
-                  <Plus size={20} />
-                  Buat Prompt Pertama
-                </Link>
-              </Button>
-            </CardBody>
-          </Card>
-        )}
-      </motion.div>
-    </div>
+            </motion.div>
+          )}
+        </div>
+      </div>
+    </PageTransition>
   );
 }

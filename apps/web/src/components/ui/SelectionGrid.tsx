@@ -1,4 +1,3 @@
-import { Card, CardBody } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
 interface SelectionOption {
@@ -25,40 +24,51 @@ export function SelectionGrid({
   label,
 }: SelectionGridProps) {
   return (
-    <div>
+    <div className="space-y-3">
       {label && (
-        <label className="text-sm font-medium block mb-2">{label}</label>
+        <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+          {label}
+        </label>
       )}
       <div
         className={cn(
           "grid gap-2",
           columns === 2 && "grid-cols-2",
           columns === 3 && "grid-cols-2 sm:grid-cols-3",
-          columns === 4 && "grid-cols-2 sm:grid-cols-4"
+          columns === 4 && "grid-cols-2 sm:grid-cols-4",
+          columns === 5 && "grid-cols-2 sm:grid-cols-3 md:grid-cols-5"
         )}
       >
         {options.map((opt) => (
-          <Card
+          <button
             key={opt.key}
-            className={cn(
-              "cursor-pointer border-2 transition-colors",
-              value === opt.key
-                ? "border-primary bg-primary/10"
-                : "border-transparent hover:border-border"
-            )}
             onClick={() => onChange(opt.key)}
+            className={cn(
+              "relative px-3 py-4 rounded-xl border transition-all duration-300 active:scale-95 text-center flex flex-col items-center justify-center gap-1 group",
+              value === opt.key
+                ? "bg-primary/10 border-primary shadow-lg shadow-primary/5"
+                : "bg-muted/10 border-border/50 hover:border-primary/30 hover:bg-muted/20"
+            )}
           >
-            <CardBody className="p-2 text-center flex flex-col items-center justify-center gap-0.5">
-              <p className="text-sm font-medium leading-tight">
-                {opt.label.split(" / ")[0]}
-              </p>
-              {opt.label.includes(" / ") && (
-                <p className="text-[10px] text-muted-foreground leading-tight">
-                  {opt.label.split(" / ")[1]}
-                </p>
+            {value === opt.key && (
+              <div className="absolute top-2 right-2 w-1 h-1 rounded-full bg-primary animate-pulse" />
+            )}
+            <p
+              className={cn(
+                "text-[11px] font-black uppercase tracking-tight transition-colors",
+                value === opt.key
+                  ? "text-primary"
+                  : "text-foreground/80 group-hover:text-primary/80"
               )}
-            </CardBody>
-          </Card>
+            >
+              {opt.label.split(" / ")[0]}
+            </p>
+            {opt.label.includes(" / ") && (
+              <p className="text-[9px] font-medium text-muted-foreground leading-tight line-clamp-1">
+                {opt.label.split(" / ")[1]}
+              </p>
+            )}
+          </button>
         ))}
       </div>
     </div>
@@ -94,45 +104,58 @@ export function MultiSelectGrid({
   };
 
   return (
-    <div>
+    <div className="space-y-3">
       {label && (
-        <label className="text-sm font-medium block mb-2">
-          {label}{" "}
+        <div className="flex items-center justify-between ml-1">
+          <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+            {label}
+          </label>
           {maxSelections > 1 && (
-            <span className="text-muted-foreground">(max {maxSelections})</span>
+            <span className="text-[9px] font-black text-primary/40 uppercase tracking-widest">
+              Max {maxSelections}
+            </span>
           )}
-        </label>
+        </div>
       )}
       <div
         className={cn(
           "grid gap-2",
           columns === 2 && "grid-cols-2",
           columns === 3 && "grid-cols-2 sm:grid-cols-3",
-          columns === 4 && "grid-cols-2 sm:grid-cols-4"
+          columns === 4 && "grid-cols-2 sm:grid-cols-4",
+          columns === 5 && "grid-cols-2 sm:grid-cols-3 md:grid-cols-5"
         )}
       >
         {options.map((opt) => (
-          <Card
+          <button
             key={opt.key}
-            className={cn(
-              "cursor-pointer border-2 transition-colors",
-              values.includes(opt.key)
-                ? "border-primary bg-primary/10"
-                : "border-transparent hover:border-border"
-            )}
             onClick={() => handleToggle(opt.key)}
+            className={cn(
+              "relative px-4 py-4 rounded-xl border transition-all duration-300 active:scale-95 text-center flex flex-col items-center justify-center gap-1 group",
+              values.includes(opt.key)
+                ? "bg-primary/10 border-primary shadow-lg shadow-primary/5"
+                : "bg-muted/10 border-border/50 hover:border-primary/30 hover:bg-muted/20"
+            )}
           >
-            <CardBody className="p-2 text-center flex flex-col items-center justify-center gap-0.5">
-              <p className="text-sm font-medium leading-tight">
-                {opt.label.split(" / ")[0]}
-              </p>
-              {opt.label.includes(" / ") && (
-                <p className="text-[10px] text-muted-foreground leading-tight">
-                  {opt.label.split(" / ")[1]}
-                </p>
+            {values.includes(opt.key) && (
+              <div className="absolute top-2 right-2 w-1 h-1 rounded-full bg-primary animate-pulse" />
+            )}
+            <p
+              className={cn(
+                "text-[11px] font-black uppercase tracking-tight transition-colors",
+                values.includes(opt.key)
+                  ? "text-primary"
+                  : "text-foreground/80 group-hover:text-primary/80"
               )}
-            </CardBody>
-          </Card>
+            >
+              {opt.label.split(" / ")[0]}
+            </p>
+            {opt.label.includes(" / ") && (
+              <p className="text-[9px] font-medium text-muted-foreground leading-tight line-clamp-1">
+                {opt.label.split(" / ")[1]}
+              </p>
+            )}
+          </button>
         ))}
       </div>
     </div>

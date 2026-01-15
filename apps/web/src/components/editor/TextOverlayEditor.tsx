@@ -8,13 +8,11 @@ import {
   Button,
   Input,
   Textarea,
-  Slider,
   Select,
   SelectTrigger,
   SelectValue,
   SelectContent,
   SelectItem,
-  Divider,
   Badge,
 } from "@/components/ui";
 import {
@@ -24,9 +22,13 @@ import {
   AlignCenter,
   AlignRight,
   Sparkles,
+  Timer,
+  Layout,
+  Check,
 } from "lucide-react";
 import type { TextOverlay } from "@vibe-creator/shared";
 import { useEditorStore } from "@/stores/editor-store";
+import { cn } from "@/lib/utils";
 
 // Font family options
 const FONT_FAMILIES = [
@@ -42,8 +44,8 @@ const FONT_FAMILIES = [
 
 // Animation presets
 const ANIMATIONS = [
-  { id: "none", name: "None" },
-  { id: "fade", name: "Fade In" },
+  { id: "none", name: "No Animation" },
+  { id: "fade", name: "Fade Reveal" },
   { id: "slide-up", name: "Slide Up" },
   { id: "slide-down", name: "Slide Down" },
   { id: "typewriter", name: "Typewriter" },
@@ -51,27 +53,27 @@ const ANIMATIONS = [
 
 // Position presets
 const POSITION_PRESETS = [
-  { id: "top-left", x: 10, y: 10, label: "Top Left" },
-  { id: "top-center", x: 50, y: 10, label: "Top Center" },
-  { id: "top-right", x: 90, y: 10, label: "Top Right" },
-  { id: "center", x: 50, y: 50, label: "Center" },
-  { id: "bottom-left", x: 10, y: 90, label: "Bottom Left" },
-  { id: "bottom-center", x: 50, y: 90, label: "Bottom Center" },
-  { id: "bottom-right", x: 90, y: 90, label: "Bottom Right" },
+  { id: "top-left", x: 10, y: 10, label: "TL" },
+  { id: "top-center", x: 50, y: 10, label: "TC" },
+  { id: "top-right", x: 90, y: 10, label: "TR" },
+  { id: "center", x: 50, y: 50, label: "CTR" },
+  { id: "bottom-left", x: 10, y: 90, label: "BL" },
+  { id: "bottom-center", x: 50, y: 90, label: "BC" },
+  { id: "bottom-right", x: 90, y: 90, label: "BR" },
 ];
 
 // Color presets
 const COLOR_PRESETS = [
   "#FFFFFF",
   "#000000",
-  "#FF0000",
-  "#00FF00",
-  "#0000FF",
-  "#FFFF00",
-  "#FF00FF",
-  "#00FFFF",
-  "#FF6B6B",
-  "#4ECDC4",
+  "#FF3B30",
+  "#4CD964",
+  "#007AFF",
+  "#FFCC00",
+  "#FF9500",
+  "#5856D6",
+  "#FF2D55",
+  "#AF52DE",
 ];
 
 interface TextOverlayEditorProps {
@@ -87,10 +89,7 @@ export function TextOverlayEditor({
 }: TextOverlayEditorProps) {
   const { timeline, addTextOverlay, updateTextOverlay } = useEditorStore();
 
-  // Create a key for resetting form state when switching between editing modes
   const overlayKey = editingOverlay?.id ?? (isOpen ? "new" : "closed");
-
-  // Form state - initialized from editingOverlay or defaults
   const [text, setText] = useState(() => editingOverlay?.text ?? "");
   const [fontFamily, setFontFamily] = useState(
     () => editingOverlay?.fontFamily ?? "Inter"
@@ -121,10 +120,8 @@ export function TextOverlayEditor({
     () => editingOverlay?.endMs ?? Math.min(5000, timeline.durationMs || 5000)
   );
 
-  // Track last overlay key to detect changes and reset form
   const [lastOverlayKey, setLastOverlayKey] = useState(overlayKey);
 
-  // Reset form when switching between editing modes (without useEffect cascading)
   if (overlayKey !== lastOverlayKey) {
     setLastOverlayKey(overlayKey);
     if (editingOverlay) {
@@ -187,264 +184,197 @@ export function TextOverlayEditor({
     onClose();
   };
 
-  const applyPositionPreset = (preset: (typeof POSITION_PRESETS)[0]) => {
-    setX(preset.x);
-    setY(preset.y);
-  };
-
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Type size={20} />
-            {editingOverlay ? "Edit Text Overlay" : "Add Text Overlay"}
-          </DialogTitle>
+      <DialogContent className="max-w-2xl max-h-[90vh] bg-background/60 backdrop-blur-3xl border-white/10 p-0 overflow-hidden shadow-2xl overflow-y-auto scrollbar-hide">
+        <DialogHeader className="p-8 pb-4 border-b border-white/5 bg-white/5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-primary/20 flex items-center justify-center text-primary shadow-lg shadow-primary/10">
+                <Type size={24} />
+              </div>
+              <DialogTitle className="text-xl font-black uppercase tracking-tight">
+                {editingOverlay ? "Edit Overlay" : "New Overlay"}
+              </DialogTitle>
+            </div>
+            <Badge
+              variant="outline"
+              className="h-6 font-black border-primary/20 bg-primary/5 text-primary"
+            >
+              TEXT LAYER
+            </Badge>
+          </div>
         </DialogHeader>
 
-        <div className="space-y-6">
-          {/* Text Input */}
-          <Textarea
-            placeholder="Enter your text..."
-            value={text}
-            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-              setText(e.target.value)
-            }
-            rows={3}
-          />
+        <div className="p-8 space-y-8">
+          {/* Content Field */}
+          <section className="space-y-4">
+            <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 flex items-center gap-2">
+              <Type size={12} className="text-primary" />
+              Overlay Text Content
+            </label>
+            <Textarea
+              placeholder="Start typing your message..."
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              className="min-h-[120px] bg-background/40 border-border/40 rounded-2xl p-6 text-base font-bold resize-none focus:ring-primary/40 focus:border-primary/40 transition-all text-center"
+            />
+          </section>
 
-          <Divider />
+          <div className="grid grid-cols-2 gap-8 pt-4">
+            {/* Typography */}
+            <section className="space-y-6">
+              <div className="flex items-center gap-3">
+                <Layout size={14} className="text-muted-foreground/40" />
+                <h4 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
+                  Style & Typo
+                </h4>
+              </div>
 
-          {/* Font Settings */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label className="text-xs text-muted-foreground">
-                Font Family
-              </label>
-              <Select value={fontFamily} onValueChange={setFontFamily}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {FONT_FAMILIES.map((font) => (
-                    <SelectItem
-                      key={font.id}
-                      value={font.id}
-                      style={{ fontFamily: font.id }}
+              <div className="space-y-4">
+                <Select value={fontFamily} onValueChange={setFontFamily}>
+                  <SelectTrigger className="h-12 bg-background/40 border-border/40 rounded-xl font-bold">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-background/90 backdrop-blur-xl">
+                    {FONT_FAMILIES.map((font) => (
+                      <SelectItem
+                        key={font.id}
+                        value={font.id}
+                        style={{ fontFamily: font.id }}
+                      >
+                        {font.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <div className="flex gap-2">
+                  {["left", "center", "right"].map((align) => (
+                    <Button
+                      key={align}
+                      size="icon"
+                      variant={textAlign === align ? "default" : "outline"}
+                      className="flex-1 h-12 rounded-xl"
+                      onClick={() => setTextAlign(align as any)}
                     >
-                      {font.name}
-                    </SelectItem>
+                      {align === "left" ? (
+                        <AlignLeft size={16} />
+                      ) : align === "center" ? (
+                        <AlignCenter size={16} />
+                      ) : (
+                        <AlignRight size={16} />
+                      )}
+                    </Button>
                   ))}
-                </SelectContent>
-              </Select>
-            </div>
+                </div>
 
-            <div className="space-y-2">
-              <div className="flex justify-between text-xs">
-                <span>Font Size</span>
-                <span>{fontSize}px</span>
-              </div>
-              <Slider
-                min={12}
-                max={120}
-                step={2}
-                value={[fontSize]}
-                onValueChange={(v: number[]) => setFontSize(v[0] ?? 24)}
-              />
-            </div>
-          </div>
-
-          {/* Font Style Toggles */}
-          <div className="flex gap-2">
-            <Button
-              size="sm"
-              variant={fontWeight === "bold" ? "default" : "outline"}
-              onClick={() =>
-                setFontWeight(fontWeight === "bold" ? "normal" : "bold")
-              }
-            >
-              B
-            </Button>
-            <Button
-              size="sm"
-              variant={fontStyle === "italic" ? "default" : "outline"}
-              className="italic"
-              onClick={() =>
-                setFontStyle(fontStyle === "italic" ? "normal" : "italic")
-              }
-            >
-              I
-            </Button>
-          </div>
-
-          <Divider />
-
-          {/* Colors */}
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <Palette size={16} />
-              <span className="text-sm font-medium">Colors</span>
-            </div>
-
-            <div>
-              <p className="text-xs text-muted-foreground mb-2">Text Color</p>
-              <div className="flex gap-2 flex-wrap">
-                {COLOR_PRESETS.map((c) => (
-                  <button
-                    key={c}
-                    className={`w-8 h-8 rounded-lg border-2 transition-all ${
-                      color === c
-                        ? "border-primary scale-110"
-                        : "border-transparent"
-                    }`}
-                    style={{ backgroundColor: c }}
-                    onClick={() => setColor(c)}
-                  />
-                ))}
-                <label className="w-8 h-8 rounded-lg border-2 border-border overflow-hidden cursor-pointer hover:border-primary transition-all relative">
-                  <input
-                    type="color"
-                    value={color}
-                    onChange={(e) => setColor(e.target.value)}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                  />
-                  <div
-                    className="w-full h-full"
-                    style={{
-                      background:
-                        "conic-gradient(red, yellow, lime, aqua, blue, magenta, red)",
-                    }}
-                  />
-                </label>
-              </div>
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-muted-foreground mb-2">
-                  Background Color (optional)
-                </p>
-                {backgroundColor && (
+                <div className="grid grid-cols-2 gap-2">
                   <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => setBackgroundColor("")}
+                    variant={fontWeight === "bold" ? "default" : "outline"}
+                    className="h-12 rounded-xl font-bold"
+                    onClick={() =>
+                      setFontWeight(fontWeight === "bold" ? "normal" : "bold")
+                    }
                   >
-                    Clear
+                    Bold
                   </Button>
-                )}
-              </div>
-              <div className="flex gap-2 flex-wrap">
-                {[
-                  "#000000",
-                  "#FFFFFF",
-                  "#FF0000",
-                  "#00000080",
-                  "#FFFFFF80",
-                ].map((c) => (
-                  <button
-                    key={c}
-                    className={`w-8 h-8 rounded-lg border-2 transition-all ${
-                      backgroundColor === c
-                        ? "border-primary scale-110"
-                        : "border-border"
-                    }`}
-                    style={{ backgroundColor: c }}
-                    onClick={() => setBackgroundColor(c)}
-                  />
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <Divider />
-
-          {/* Position */}
-          <div className="space-y-3">
-            <p className="text-sm font-medium">Position</p>
-
-            <div className="flex gap-2 flex-wrap">
-              {POSITION_PRESETS.map((preset) => (
-                <Badge
-                  key={preset.id}
-                  variant={
-                    x === preset.x && y === preset.y ? "default" : "outline"
-                  }
-                  className="cursor-pointer"
-                  onClick={() => applyPositionPreset(preset)}
-                >
-                  {preset.label}
-                </Badge>
-              ))}
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <div className="flex justify-between text-xs">
-                  <span>X Position</span>
-                  <span>{x}%</span>
+                  <Button
+                    variant={fontStyle === "italic" ? "default" : "outline"}
+                    className="h-12 rounded-xl italic"
+                    onClick={() =>
+                      setFontStyle(fontStyle === "italic" ? "normal" : "italic")
+                    }
+                  >
+                    Italic
+                  </Button>
                 </div>
-                <Slider
-                  min={0}
-                  max={100}
-                  step={1}
-                  value={[x]}
-                  onValueChange={(v: number[]) => setX(v[0] ?? 50)}
-                />
               </div>
-              <div className="space-y-1">
-                <div className="flex justify-between text-xs">
-                  <span>Y Position</span>
-                  <span>{y}%</span>
+            </section>
+
+            {/* Colors */}
+            <section className="space-y-6">
+              <div className="flex items-center gap-3">
+                <Palette size={14} className="text-muted-foreground/40" />
+                <h4 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
+                  Color Palette
+                </h4>
+              </div>
+
+              <div className="space-y-4">
+                <div className="p-4 bg-background/20 rounded-2xl border border-white/5 space-y-4">
+                  <p className="text-[9px] font-black uppercase text-muted-foreground/40">
+                    Text Color
+                  </p>
+                  <div className="grid grid-cols-5 gap-2">
+                    {COLOR_PRESETS.map((c) => (
+                      <button
+                        key={c}
+                        className={cn(
+                          "aspect-square rounded-lg border-2 transition-all hover:scale-110 flex items-center justify-center",
+                          color === c
+                            ? "border-primary shadow-lg shadow-primary/20"
+                            : "border-transparent"
+                        )}
+                        style={{ backgroundColor: c }}
+                        onClick={() => setColor(c)}
+                      >
+                        {color === c && (
+                          <Check
+                            size={10}
+                            className={cn(
+                              c === "#FFFFFF" ? "text-black" : "text-white"
+                            )}
+                          />
+                        )}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <Slider
-                  min={0}
-                  max={100}
-                  step={1}
-                  value={[y]}
-                  onValueChange={(v: number[]) => setY(v[0] ?? 50)}
-                />
+
+                <div className="p-4 bg-background/20 rounded-2xl border border-white/5 space-y-4">
+                  <p className="text-[9px] font-black uppercase text-muted-foreground/40">
+                    Backdrop Shadow
+                  </p>
+                  <div className="flex gap-2">
+                    {["", "#000000", "#00000080", "#FFFFFF80"].map((c) => (
+                      <button
+                        key={c}
+                        className={cn(
+                          "w-8 h-8 rounded-lg border-2 transition-all hover:scale-110 flex items-center justify-center",
+                          backgroundColor === c
+                            ? "border-primary"
+                            : "border-white/10"
+                        )}
+                        style={{ backgroundColor: c || "transparent" }}
+                        onClick={() => setBackgroundColor(c)}
+                      >
+                        {!c && (
+                          <div className="w-4 h-0.5 bg-destructive rotate-45" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
-            </div>
+            </section>
           </div>
 
-          {/* Alignment */}
-          <div className="flex gap-2">
-            <Button
-              size="icon"
-              variant={textAlign === "left" ? "default" : "outline"}
-              onClick={() => setTextAlign("left")}
-            >
-              <AlignLeft size={16} />
-            </Button>
-            <Button
-              size="icon"
-              variant={textAlign === "center" ? "default" : "outline"}
-              onClick={() => setTextAlign("center")}
-            >
-              <AlignCenter size={16} />
-            </Button>
-            <Button
-              size="icon"
-              variant={textAlign === "right" ? "default" : "outline"}
-              onClick={() => setTextAlign("right")}
-            >
-              <AlignRight size={16} />
-            </Button>
-          </div>
-
-          <Divider />
-
-          {/* Animation */}
-          <div className="flex items-center gap-2">
-            <Sparkles size={16} />
-            <div className="flex-1 space-y-1">
-              <label className="text-xs text-muted-foreground">Animation</label>
+          {/* Configuration Grid */}
+          <div className="grid grid-cols-3 gap-8 pt-4">
+            {/* Animation */}
+            <section className="space-y-4">
+              <div className="flex items-center gap-3">
+                <Sparkles size={14} className="text-primary/60" />
+                <h4 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
+                  Animation
+                </h4>
+              </div>
               <Select
                 value={animation}
-                onValueChange={(v) => setAnimation(v as typeof animation)}
+                onValueChange={(v) => setAnimation(v as any)}
               >
-                <SelectTrigger>
+                <SelectTrigger className="h-12 bg-background/40 border-border/40 rounded-xl font-bold text-xs">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -455,66 +385,114 @@ export function TextOverlayEditor({
                   ))}
                 </SelectContent>
               </Select>
+            </section>
+
+            {/* Duration */}
+            <section className="space-y-4 col-span-2">
+              <div className="flex items-center gap-3">
+                <Timer size={14} className="text-emerald-500/60" />
+                <h4 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
+                  Timing Control
+                </h4>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="relative">
+                  <Input
+                    type="number"
+                    value={startMs}
+                    onChange={(e) => setStartMs(parseInt(e.target.value) || 0)}
+                    className="h-12 pl-14 font-black bg-background/40 border-border/40 rounded-xl"
+                  />
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[10px] font-black text-muted-foreground/40">
+                    START
+                  </span>
+                </div>
+                <div className="relative">
+                  <Input
+                    type="number"
+                    value={endMs}
+                    onChange={(e) => setEndMs(parseInt(e.target.value) || 0)}
+                    className="h-12 pl-14 font-black bg-background/40 border-border/40 rounded-xl"
+                  />
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[10px] font-black text-muted-foreground/40">
+                    END
+                  </span>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          {/* Position Presets */}
+          <section className="space-y-4 pt-4 border-t border-white/5">
+            <h4 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 text-center">
+              Position Presets
+            </h4>
+            <div className="flex justify-center gap-2 flex-wrap">
+              {POSITION_PRESETS.map((preset) => (
+                <Badge
+                  key={preset.id}
+                  variant={
+                    x === preset.x && y === preset.y ? "default" : "outline"
+                  }
+                  className="px-4 py-1.5 cursor-pointer rounded-full text-[10px] font-black transition-all hover:scale-105"
+                  onClick={() => {
+                    setX(preset.x);
+                    setY(preset.y);
+                  }}
+                >
+                  {preset.label}
+                </Badge>
+              ))}
             </div>
-          </div>
+          </section>
 
-          <Divider />
-
-          {/* Timing */}
-          <div className="grid grid-cols-2 gap-4">
-            <Input
-              type="number"
-              label="Start Time (ms)"
-              value={startMs.toString()}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                setStartMs(parseInt(e.target.value) || 0)
-              }
-            />
-            <Input
-              type="number"
-              label="End Time (ms)"
-              value={endMs.toString()}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                setEndMs(parseInt(e.target.value) || 5000)
-              }
-            />
-          </div>
-
-          {/* Preview */}
-          <div
-            className="relative bg-black rounded-lg overflow-hidden"
-            style={{ aspectRatio: "16/9", minHeight: 200 }}
-          >
-            <div
-              className="absolute transition-all"
-              style={{
-                left: `${x}%`,
-                top: `${y}%`,
-                transform: "translate(-50%, -50%)",
-                fontFamily,
-                fontSize: `${fontSize * 0.4}px`,
-                fontWeight,
-                fontStyle,
-                color,
-                backgroundColor: backgroundColor || "transparent",
-                padding: backgroundColor ? "4px 8px" : 0,
-                borderRadius: 4,
-                textAlign,
-                whiteSpace: "pre-wrap",
-                maxWidth: "90%",
-              }}
-            >
-              {text || "Preview text..."}
+          {/* Real-time Preview Area */}
+          <div className="relative group/preview mt-4">
+            <div className="absolute -inset-0.5 bg-gradient-to-r from-primary/20 to-purple-500/20 rounded-3xl blur opacity-30 group-hover/preview:opacity-50 transition duration-1000"></div>
+            <div className="relative bg-black rounded-2xl overflow-hidden border border-white/10 aspect-video flex items-center justify-center shadow-2xl">
+              <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 pointer-events-none"></div>
+              <div
+                className="p-4 transition-all duration-500"
+                style={{
+                  fontFamily,
+                  fontSize: `${fontSize * 0.4}px`,
+                  fontWeight,
+                  fontStyle,
+                  color,
+                  backgroundColor: backgroundColor || "transparent",
+                  padding: backgroundColor ? "12px 24px" : 0,
+                  borderRadius: 12,
+                  textAlign,
+                  whiteSpace: "pre-wrap",
+                  maxWidth: "80%",
+                  boxShadow: backgroundColor
+                    ? "0 10px 30px rgba(0,0,0,0.5)"
+                    : "none",
+                  textShadow: !backgroundColor
+                    ? "0 4px 12px rgba(0,0,0,0.8)"
+                    : "none",
+                }}
+              >
+                {text || "Hello Visual Studio"}
+              </div>
             </div>
           </div>
         </div>
 
-        <DialogFooter>
-          <Button variant="ghost" onClick={onClose}>
-            Cancel
+        <DialogFooter className="p-8 pt-4 bg-white/5 border-t border-white/5 flex gap-4">
+          <Button
+            variant="ghost"
+            onClick={onClose}
+            className="h-12 px-8 rounded-2xl font-black uppercase tracking-widest text-[10px]"
+          >
+            Abandon
           </Button>
-          <Button onClick={handleSave} disabled={!text.trim()}>
-            {editingOverlay ? "Save Changes" : "Add Text"}
+          <Button
+            onClick={handleSave}
+            disabled={!text.trim()}
+            className="h-12 flex-1 rounded-2xl font-black uppercase tracking-widest text-[10px] shadow-xl shadow-primary/20 transition-all hover:scale-[1.02] active:scale-95"
+          >
+            {editingOverlay ? "Flush Changes" : "Deploy Text Layer"}
           </Button>
         </DialogFooter>
       </DialogContent>

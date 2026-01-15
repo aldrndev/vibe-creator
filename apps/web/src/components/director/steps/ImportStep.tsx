@@ -161,53 +161,52 @@ export const ImportStep = () => {
   };
 
   return (
-    <div className="max-w-2xl mx-auto w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur-md">
-        <CardBody className="p-8 flex flex-col items-center text-center gap-6">
-          <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mb-2">
-            <Wand2 className="w-10 h-10 text-primary" />
+    <div className="max-w-5xl mx-auto w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <Card className="bg-card/70 border-border/50 backdrop-blur-xl relative overflow-hidden group mb-10">
+        <CardBody className="p-6 sm:p-10 flex flex-col items-center text-center gap-3">
+          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary via-orange-500 to-rose-600 flex items-center justify-center mb-2">
+            <Wand2 className="w-6 h-6 text-white drop-shadow-sm" />
           </div>
 
-          <div>
-            <h2 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-zinc-400 mb-2">
+          <div className="space-y-3">
+            <h2 className="text-3xl sm:text-4xl font-black tracking-tight bg-clip-text text-transparent bg-gradient-to-br from-primary via-orange-500 to-rose-600">
               AI Director
             </h2>
-            <p className="text-zinc-400 max-w-md mx-auto leading-relaxed">
-              Buat konten viral secara otomatis! 🚀 <br />
-              Dari video panjang ke Shorts siap upload dalam menit. <br />
-              AI bantu temukan momen menarik, kamu pilih yang terbaik.
+            <p className="text-muted-foreground max-w-md mx-auto leading-relaxed font-medium">
+              Ubah video panjang kamu menjadi Shorts yang viral dalam hitungan
+              menit. 🚀
             </p>
           </div>
 
           {error && (
-            <div className="flex items-center gap-2 text-destructive bg-destructive/10 px-4 py-2 rounded-lg text-sm">
-              <AlertCircle size={16} />
-              {error}
+            <div className="flex items-center gap-2 text-rose-500 bg-rose-500/10 px-4 py-3 rounded-2xl text-sm border border-rose-500/20 w-full animate-in fade-in zoom-in-95 duration-300">
+              <AlertCircle size={18} className="shrink-0" />
+              <span className="font-semibold text-left">{error}</span>
             </div>
           )}
 
-          <div className="w-full grid md:grid-cols-2 gap-4 mt-4">
+          <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-6 mt-2">
             {/* Upload Zone */}
             <div
               onClick={() =>
                 !isWaitingForAsset && fileInputRef.current?.click()
               }
               className={cn(
-                "group relative h-48 rounded-xl border-2 border-dashed border-zinc-700 transition-all flex flex-col items-center justify-center gap-3",
+                "group/upload relative min-h-[16rem] rounded-3xl border-2 border-dashed border-border/40 transition-all flex flex-col items-center justify-center gap-4 bg-muted/5 overflow-hidden",
                 isWaitingForAsset
                   ? "opacity-50 cursor-not-allowed"
-                  : "hover:border-primary hover:bg-white/5 cursor-pointer"
+                  : "hover:border-primary/60 hover:bg-primary/5 cursor-pointer active:scale-[0.98]"
               )}
             >
-              <div className="w-12 h-12 rounded-full bg-zinc-800 group-hover:bg-primary/20 flex items-center justify-center transition-colors">
-                <FileVideo className="w-6 h-6 text-zinc-400 group-hover:text-primary" />
+              <div className="w-14 h-14 rounded-2xl bg-muted/50 group-hover/upload:bg-primary/20 flex items-center justify-center transition-all duration-300 group-hover/upload:scale-110">
+                <FileVideo className="w-7 h-7 text-muted-foreground group-hover/upload:text-primary transition-colors" />
               </div>
-              <div>
-                <p className="font-semibold text-zinc-200 group-hover:text-white">
-                  Upload Video
+              <div className="text-center px-4">
+                <p className="font-bold text-foreground group-hover/upload:text-primary transition-colors">
+                  Upload File Video
                 </p>
-                <p className="text-xs text-zinc-500 mt-1">
-                  MP4, MOV hingga 200MB
+                <p className="text-[11px] text-muted-foreground mt-1 font-medium bg-muted/30 px-3 py-1 rounded-full inline-block">
+                  MP4, MOV • Maks 200MB
                 </p>
               </div>
               <input
@@ -221,38 +220,43 @@ export const ImportStep = () => {
             </div>
 
             {/* URL Zone */}
-            <div className="h-48 rounded-xl border border-zinc-700 bg-zinc-900/50 p-6 flex flex-col justify-between relative overflow-hidden">
+            <div className="min-h-[16rem] rounded-3xl border border-border/50 bg-muted/5 p-8 flex flex-col justify-between relative overflow-hidden group/url">
               {isWaitingForAsset ? (
-                <div className="absolute inset-0 z-10 bg-zinc-900/90 backdrop-blur-sm flex flex-col items-center justify-center p-6 gap-4">
-                  <div className="w-full">
-                    <div className="flex justify-between text-xs text-zinc-400 mb-2">
-                      <span>Sedang mengunduh...</span>
-                      <span>{Math.round(downloadProgress)}%</span>
+                <div className="absolute inset-0 z-10 bg-background/90 backdrop-blur-md flex flex-col items-center justify-center p-8 gap-5">
+                  <div className="w-full space-y-3">
+                    <div className="flex justify-between items-end text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                      <span className="flex items-center gap-2">
+                        <div className="size-2 rounded-full bg-primary animate-pulse" />
+                        Mengunduh...
+                      </span>
+                      <span className="text-primary text-sm">
+                        {Math.round(downloadProgress)}%
+                      </span>
                     </div>
-                    <div className="w-full h-2 bg-zinc-800 rounded-full overflow-hidden">
+                    <div className="w-full h-3 bg-muted rounded-full overflow-hidden shadow-inner border border-border/20">
                       <div
-                        className="h-full bg-primary transition-all duration-300 ease-out"
+                        className="h-full bg-gradient-to-r from-primary via-orange-500 to-rose-600 transition-all duration-300 ease-out"
                         style={{ width: `${downloadProgress}%` }}
                       />
                     </div>
                   </div>
-                  <p className="text-xs text-zinc-500 animate-pulse">
-                    Mohon tunggu, mengambil video kualitas tinggi...
+                  <p className="text-[11px] font-black uppercase tracking-widest text-muted-foreground/60 animate-pulse text-center">
+                    Mencari kualitas visual terbaik...
                   </p>
                 </div>
               ) : null}
 
               <div className="flex flex-col items-center gap-3">
-                <div className="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center">
-                  <LinkIcon className="w-6 h-6 text-zinc-400" />
+                <div className="w-14 h-14 rounded-2xl bg-muted/50 flex items-center justify-center group-hover/url:scale-110 transition-transform duration-300">
+                  <LinkIcon className="w-7 h-7 text-muted-foreground" />
                 </div>
-                <p className="font-semibold text-zinc-200">Impor URL</p>
+                <p className="font-bold text-foreground">Impor dari URL</p>
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-3">
                 <Input
-                  placeholder="Tempel URL YouTube, TikTok..."
-                  className="bg-zinc-800 border-zinc-700"
+                  placeholder="Tempel link YouTube, TikTok..."
+                  leftIcon={<LinkIcon size={20} />}
                   value={importUrl}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                     setImportUrl(e.target.value)
@@ -260,34 +264,34 @@ export const ImportStep = () => {
                   disabled={isLoading || isWaitingForAsset}
                 />
                 <Button
-                  className="w-full"
-                  variant="secondary"
+                  className="w-full rounded-2xl font-bold"
+                  variant="default"
                   disabled={!importUrl || isLoading || isWaitingForAsset}
                   isLoading={isLoading && !isWaitingForAsset}
                   onClick={handleUrlImport}
                 >
-                  Impor
+                  Mulai Impor
                 </Button>
               </div>
             </div>
           </div>
 
-          <div className="flex flex-wrap justify-center gap-2 mt-2">
+          <div className="flex flex-wrap justify-center gap-3 mt-4">
             {["YouTube", "TikTok", "Instagram", "Facebook"].map((platform) => (
               <Badge
                 key={platform}
                 variant="secondary"
-                className="cursor-pointer hover:bg-zinc-700 transition-colors"
+                className="px-4 py-1.5 rounded-full cursor-pointer hover:bg-primary/10 hover:text-primary transition-all duration-300 border border-transparent hover:border-primary/20 font-bold text-[10px] uppercase tracking-wider"
               >
                 {platform}
               </Badge>
             ))}
             <Badge
               variant="default"
-              className="cursor-pointer hover:bg-primary/80 transition-colors"
+              className="px-4 py-1.5 rounded-full cursor-pointer transition-all duration-300 font-bold text-[10px] uppercase tracking-wider"
               onClick={() => setIsSourcesModalOpen(true)}
             >
-              <Plus size={12} className="mr-1" />
+              <Plus size={14} className="mr-1.5" />
               Lainnya
             </Badge>
           </div>

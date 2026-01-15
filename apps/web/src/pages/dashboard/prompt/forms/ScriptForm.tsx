@@ -8,6 +8,7 @@ import {
   SelectContent,
   SelectItem,
   Textarea,
+  Divider,
 } from "@/components/ui";
 import { SelectionGrid } from "@/components/ui/SelectionGrid";
 import { ScriptFormData } from "../types";
@@ -38,64 +39,210 @@ export function ScriptForm({ data, onChange }: ScriptFormProps) {
   };
 
   return (
-    <Card>
-      <CardBody className="p-4 space-y-6">
+    <Card className="bg-card/60 backdrop-blur-xl border-border/50 shadow-2xl shadow-primary/5">
+      <CardBody className="p-8 space-y-10">
         <TargetModelSelector
           promptType="SCRIPT"
           value={data.targetModel}
           onChange={(v) => handleChange("targetModel", v)}
         />
-        <h3 className="font-medium">Detail Script & Ide</h3>
 
-        <SelectionGrid
-          label="Niche / Topik"
-          options={niches}
-          value={data.niche}
-          onChange={(v) => handleChange("niche", v)}
-          columns={5}
-        />
-
-        <SelectionGrid
-          label="Target Audiens"
-          options={targetAudiences}
-          value={data.targetAudience}
-          onChange={(v) => handleChange("targetAudience", v)}
-          columns={4}
-        />
-
-        <div className="grid sm:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <label className="text-sm text-muted-foreground">Platform</label>
-            <Select
-              value={data.platform}
-              onValueChange={(v) => handleChange("platform", v)}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {platforms.map((p) => (
-                  <SelectItem key={p.key} value={p.key}>
-                    {p.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+        {/* Section: Core Identity */}
+        <div className="space-y-6">
+          <div className="flex items-center gap-3">
+            <div className="w-1.5 h-6 bg-primary rounded-full" />
+            <h3 className="text-sm font-black uppercase tracking-[0.2em] text-foreground">
+              Core Identity
+            </h3>
           </div>
 
-          <div className="space-y-2">
-            <label className="text-sm text-muted-foreground">Durasi</label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            <div className="space-y-3">
+              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+                Niche / Topik
+              </label>
+              <Select
+                value={data.niche}
+                onValueChange={(v) => handleChange("niche", v)}
+              >
+                <SelectTrigger className="h-14 rounded-2xl bg-muted/10 border-border/50 font-bold px-5 text-sm">
+                  <SelectValue placeholder="Pilih Niche" />
+                </SelectTrigger>
+                <SelectContent className="rounded-2xl border-border/50 max-h-[300px]">
+                  {niches.map((n) => (
+                    <SelectItem
+                      key={n.key}
+                      value={n.key}
+                      className="font-bold text-xs uppercase tracking-widest py-3"
+                    >
+                      {n.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-3">
+              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+                Target Audiens
+              </label>
+              <Select
+                value={data.targetAudience}
+                onValueChange={(v) => handleChange("targetAudience", v)}
+              >
+                <SelectTrigger className="h-14 rounded-2xl bg-muted/10 border-border/50 font-bold px-5 text-sm">
+                  <SelectValue placeholder="Pilih Audiens" />
+                </SelectTrigger>
+                <SelectContent className="rounded-2xl border-border/50 max-h-[300px]">
+                  {targetAudiences.map((a) => (
+                    <SelectItem
+                      key={a.key}
+                      value={a.key}
+                      className="font-bold text-xs uppercase tracking-widest py-3"
+                    >
+                      {a.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
+
+        <Divider className="opacity-30" />
+
+        {/* Section: Format & Delivery */}
+        <div className="space-y-6">
+          <div className="flex items-center gap-3">
+            <div className="w-1.5 h-6 bg-orange-500 rounded-full" />
+            <h3 className="text-sm font-black uppercase tracking-[0.2em] text-foreground">
+              Format & Delivery
+            </h3>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            <div className="space-y-3">
+              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+                Platform
+              </label>
+              <Select
+                value={data.platform}
+                onValueChange={(v) => handleChange("platform", v)}
+              >
+                <SelectTrigger className="h-14 rounded-2xl bg-muted/10 border-border/50 font-bold px-5 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="rounded-2xl border-border/50">
+                  {platforms.map((p) => (
+                    <SelectItem
+                      key={p.key}
+                      value={p.key}
+                      className="font-bold text-xs uppercase tracking-widest"
+                    >
+                      {p.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-3">
+              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+                Durasi
+              </label>
+              <Select
+                value={data.duration}
+                onValueChange={(v) => handleChange("duration", v)}
+              >
+                <SelectTrigger className="h-14 rounded-2xl bg-muted/10 border-border/50 font-bold px-5 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="rounded-2xl border-border/50">
+                  {durations.map((d) => (
+                    <SelectItem
+                      key={d.key}
+                      value={d.key}
+                      className="font-bold text-xs uppercase tracking-widest"
+                    >
+                      {d.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            <div className="space-y-3">
+              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+                Tone / Suasana
+              </label>
+              <Select
+                value={data.tone}
+                onValueChange={(v) => handleChange("tone", v)}
+              >
+                <SelectTrigger className="h-14 rounded-2xl bg-muted/10 border-border/50 font-bold px-5 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="rounded-2xl border-border/50">
+                  {tones.map((t) => (
+                    <SelectItem
+                      key={t.key}
+                      value={t.key}
+                      className="font-bold text-xs uppercase tracking-widest"
+                    >
+                      {t.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-3">
+              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+                Goal Konten
+              </label>
+              <Select
+                value={data.contentGoal}
+                onValueChange={(v) => handleChange("contentGoal", v)}
+              >
+                <SelectTrigger className="h-14 rounded-2xl bg-muted/10 border-border/50 font-bold px-5 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="rounded-2xl border-border/50">
+                  {contentGoals.map((g) => (
+                    <SelectItem
+                      key={g.key}
+                      value={g.key}
+                      className="font-bold text-xs uppercase tracking-widest"
+                    >
+                      {g.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+              Gaya Narasi
+            </label>
             <Select
-              value={data.duration}
-              onValueChange={(v) => handleChange("duration", v)}
+              value={data.narrativeStyle}
+              onValueChange={(v) => handleChange("narrativeStyle", v)}
             >
-              <SelectTrigger>
+              <SelectTrigger className="h-14 rounded-2xl bg-muted/10 border-border/50 font-bold px-5 text-sm">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
-                {durations.map((d) => (
-                  <SelectItem key={d.key} value={d.key}>
-                    {d.label}
+              <SelectContent className="rounded-2xl border-border/50">
+                {narrativeStyles.map((n) => (
+                  <SelectItem
+                    key={n.key}
+                    value={n.key}
+                    className="font-bold text-xs uppercase tracking-widest"
+                  >
+                    {n.label}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -103,98 +250,77 @@ export function ScriptForm({ data, onChange }: ScriptFormProps) {
           </div>
         </div>
 
-        <div className="grid sm:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <label className="text-sm text-muted-foreground">Tone</label>
-            <Select
-              value={data.tone}
-              onValueChange={(v) => handleChange("tone", v)}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {tones.map((t) => (
-                  <SelectItem key={t.key} value={t.key}>
-                    {t.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+        <Divider className="opacity-30" />
+
+        {/* Section: Strategy & Details */}
+        <div className="space-y-8">
+          <div className="flex items-center gap-3">
+            <div className="w-1.5 h-6 bg-rose-600 rounded-full" />
+            <h3 className="text-sm font-black uppercase tracking-[0.2em] text-foreground">
+              Strategy & Details
+            </h3>
           </div>
 
-          <div className="space-y-2">
-            <label className="text-sm text-muted-foreground">Goal Konten</label>
-            <Select
-              value={data.contentGoal}
-              onValueChange={(v) => handleChange("contentGoal", v)}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {contentGoals.map((g) => (
-                  <SelectItem key={g.key} value={g.key}>
-                    {g.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <SelectionGrid
+            label="Pesan Utama"
+            options={keyMessages}
+            value={data.keyMessage}
+            onChange={(v) => handleChange("keyMessage", v)}
+            columns={3}
+          />
+
+          <SelectionGrid
+            label="Call to Action"
+            options={callToActions}
+            value={data.callToAction}
+            onChange={(v) => handleChange("callToAction", v)}
+            columns={3}
+          />
+
+          <div className="space-y-6 pt-4">
+            <div className="space-y-3">
+              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+                Keywords (pisahkan dengan koma)
+              </label>
+              <Input
+                placeholder="Contoh: iPhone, Apple, smartphone, review"
+                value={data.keywords}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                  handleChange("keywords", e.target.value)
+                }
+                className="h-14 rounded-2xl bg-muted/10 border-border/50 font-bold px-6 focus:bg-muted/20 transition-all"
+              />
+            </div>
+
+            <div className="space-y-3">
+              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+                Emotional Journey (pisahkan dengan , atau -{">"})
+              </label>
+              <Input
+                placeholder="Contoh: Penasaran -> Terkejut -> Puas"
+                value={data.emotionalJourney}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                  handleChange("emotionalJourney", e.target.value)
+                }
+                className="h-14 rounded-2xl bg-muted/10 border-border/50 font-bold px-6 focus:bg-muted/20 transition-all"
+              />
+            </div>
+
+            <div className="space-y-3">
+              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+                Konteks Tambahan (opsional)
+              </label>
+              <Textarea
+                placeholder="Informasi tambahan yang perlu diketahui..."
+                value={data.additionalContext}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+                  handleChange("additionalContext", e.target.value)
+                }
+                className="min-h-[140px] rounded-3xl bg-muted/10 border-border/50 font-bold p-6 focus:bg-muted/20 transition-all leading-relaxed"
+              />
+            </div>
           </div>
         </div>
-
-        <div className="space-y-2">
-          <label className="text-sm text-muted-foreground">Gaya Narasi</label>
-          <Select
-            value={data.narrativeStyle}
-            onValueChange={(v) => handleChange("narrativeStyle", v)}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {narrativeStyles.map((n) => (
-                <SelectItem key={n.key} value={n.key}>
-                  {n.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <SelectionGrid
-          label="Pesan Utama"
-          options={keyMessages}
-          value={data.keyMessage}
-          onChange={(v) => handleChange("keyMessage", v)}
-          columns={5}
-        />
-
-        <SelectionGrid
-          label="Call to Action"
-          options={callToActions}
-          value={data.callToAction}
-          onChange={(v) => handleChange("callToAction", v)}
-          columns={5}
-        />
-
-        <Input
-          label="Keywords (pisahkan dengan koma)"
-          placeholder="Contoh: iPhone, Apple, smartphone, review"
-          value={data.keywords}
-          onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-            handleChange("keywords", e.target.value)
-          }
-        />
-
-        <Textarea
-          label="Konteks Tambahan (opsional)"
-          placeholder="Informasi tambahan yang perlu diketahui..."
-          value={data.additionalContext}
-          onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-            handleChange("additionalContext", e.target.value)
-          }
-        />
       </CardBody>
     </Card>
   );

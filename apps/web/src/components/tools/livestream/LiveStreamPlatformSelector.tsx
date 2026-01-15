@@ -1,4 +1,4 @@
-import { Card, CardBody } from "@/components/ui";
+import { cn } from "@/lib/utils";
 import { HoverCard } from "@/components/ui/PageTransition";
 import { StreamPlatform } from "@/hooks/useLiveStream";
 import { platformConfigs } from "./constants";
@@ -15,30 +15,62 @@ export function LiveStreamPlatformSelector({
   isStreaming,
 }: LiveStreamPlatformSelectorProps) {
   return (
-    <div className="mb-6">
-      <label className="text-sm font-medium mb-3 block">Pilih Platform</label>
-      <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
-        {Object.entries(platformConfigs).map(([key, config]) => (
-          <HoverCard key={key}>
-            <Card
-              className={`cursor-pointer border-2 transition-colors ${
-                isStreaming ? "opacity-50 cursor-not-allowed" : ""
-              } ${
-                platform === key
-                  ? `border-primary bg-primary/10`
-                  : "border-transparent hover:border-border"
-              }`}
-              onClick={() => !isStreaming && setPlatform(key as StreamPlatform)}
-            >
-              <CardBody className="p-3 text-center">
-                <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center mx-auto mb-1">
+    <div className="space-y-4">
+      <div className="flex flex-col gap-1 ml-1">
+        <label className="text-xs font-black uppercase tracking-widest text-muted-foreground">
+          Pilih Platform
+        </label>
+        <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">
+          Target tujuan siaran anda
+        </p>
+      </div>
+
+      <div className="grid grid-cols-3 md:grid-cols-6 lg:grid-cols-6 gap-2">
+        {Object.entries(platformConfigs).map(([key, config]) => {
+          const isActive = platform === key;
+          return (
+            <HoverCard key={key}>
+              <button
+                onClick={() =>
+                  !isStreaming && setPlatform(key as StreamPlatform)
+                }
+                disabled={isStreaming}
+                className={cn(
+                  "flex flex-col items-center justify-center gap-3 p-4 rounded-2xl border transition-all duration-300 relative group overflow-hidden active:scale-95 w-full h-full",
+                  isActive
+                    ? "bg-primary/10 border-primary"
+                    : "bg-card/20 backdrop-blur-xl border-border/50 hover:border-primary/30 hover:bg-muted/20",
+                  isStreaming && !isActive ? "opacity-40 grayscale" : ""
+                )}
+              >
+                <div
+                  className={cn(
+                    "w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-300",
+                    isActive
+                      ? "bg-primary text-white scale-110"
+                      : "bg-muted text-muted-foreground group-hover:scale-110 group-hover:bg-primary/10 group-hover:text-primary"
+                  )}
+                >
                   {config.icon}
                 </div>
-                <p className="text-xs font-medium truncate">{config.name}</p>
-              </CardBody>
-            </Card>
-          </HoverCard>
-        ))}
+                <div className="text-center">
+                  <p
+                    className={cn(
+                      "text-xs font-black tracking-tight",
+                      isActive ? "text-primary" : "text-foreground"
+                    )}
+                  >
+                    {config.name}
+                  </p>
+                </div>
+
+                {isActive && (
+                  <div className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                )}
+              </button>
+            </HoverCard>
+          );
+        })}
       </div>
     </div>
   );

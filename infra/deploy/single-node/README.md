@@ -1,46 +1,33 @@
-# VPS Single-Node Deployment
+# VPS Single-Node Deployment (Full Containerized)
 
-Panduan deploy Vibe Creator ke VPS single-node.
+Deploy Vibe Creator ke VPS dengan **semua service dalam Docker containers**.
 
 ## Prerequisites
 
 - Ubuntu 22.04+ / Debian 12+
-- Docker & Docker Compose
-- Node.js 20+ & pnpm
-- Nginx
-- Python 3.10+ (untuk Whisper)
+- Docker & Docker Compose v2
+- Git
+
+**Tidak perlu install Node.js di host** - semua dalam container!
 
 ## Quick Start
 
-### 1. Setup VPS
+### 1. Clone Repository
 
 ```bash
-# Install dependencies
-sudo apt update && sudo apt install -y docker.io docker-compose nginx certbot python3-pip
-
-# Install Node.js
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-sudo apt install -y nodejs
-npm install -g pnpm
-
-# Create app user
-sudo useradd -m -s /bin/bash app
-sudo usermod -aG docker app
-```
-
-### 2. Clone & Configure
-
-```bash
-sudo su - app
 git clone https://github.com/aldrndev/vibe-creator.git
 cd vibe-creator
+```
 
-# Copy env files
+### 2. Setup Environment Files
+
+```bash
+# Infrastructure (PostgreSQL password)
 cp infra/compose/.env.docker.infra.example infra/compose/.env.docker.infra
-cp infra/compose/apps/api/.env.docker.example infra/compose/apps/api/.env.docker
-
-# Edit dengan nilai production
 nano infra/compose/.env.docker.infra
+
+# API (JWT secrets, API keys)
+cp infra/compose/apps/api/.env.docker.example infra/compose/apps/api/.env.docker
 nano infra/compose/apps/api/.env.docker
 ```
 
@@ -51,76 +38,65 @@ chmod +x infra/deploy/single-node/deploy.sh
 ./infra/deploy/single-node/deploy.sh --first-run
 ```
 
-### 4. Setup Nginx & SSL
+Ini akan:
+
+- Build API Docker image
+- Start PostgreSQL, Redis, dan API containers
+- Run database migrations
+
+### 4. Setup Nginx + SSL
 
 ```bash
-# Copy nginx config
 sudo cp infra/deploy/single-node/nginx.conf /etc/nginx/sites-available/vibe-creator
+sudo nano /etc/nginx/sites-available/vibe-creator  # ganti domain
 sudo ln -s /etc/nginx/sites-available/vibe-creator /etc/nginx/sites-enabled/
-
-# Edit domain
-sudo nano /etc/nginx/sites-available/vibe-creator
-
-# Get SSL certificate
 sudo certbot --nginx -d yourdomain.com
-
-# Restart nginx
 sudo systemctl restart nginx
-```
-
-### 5. Setup Whisper (Optional)
-
-```bash
-cd ~/vibe-creator
-python3 -m venv nenv
-source nenv/bin/activate
-pip install openai-whisper
 ```
 
 ## Commands
 
-| Command                           | Fungsi            |
-| --------------------------------- | ----------------- |
-| `sudo systemctl status vibe-api`  | Cek status        |
-| `sudo systemctl restart vibe-api` | Restart API       |
-| `sudo journalctl -u vibe-api -f`  | View logs         |
-| `pnpm docker:prod:ps`             | Status containers |
-| `pnpm docker:prod:logs`           | Container logs    |
+| Command                     | Fungsi             |
+| --------------------------- | ------------------ |
+| `pnpm docker:prod:ps`       | Status containers  |
+| `pnpm docker:prod:logs`     | View logs          |
+| `pnpm docker:prod:restart`  | Restart containers |
+| `pnpm docker:prod:build`    | Rebuild image only |
+| `pnpm docker:prod:up:build` | Rebuild & start    |
 
-## Update
+## Update Application
 
 ```bash
 cd ~/vibe-creator
 ./infra/deploy/single-node/deploy.sh
 ```
 
-## Backup
+## Included in Container
 
-Database backup otomatis (setup cron):
-
-```bash
-crontab -e
-# Add:
-0 2 * * * docker exec vibe-creator-db-prod pg_dump -U postgres vibe_creator | gzip > /home/app/backups/db-$(date +\%Y\%m\%d).sql.gz
-```
+- ✅ Node.js 20
+- ✅ FFmpeg
+- ✅ Python + yt-dlp
+- ✅ faster-whisper (auto-transcription)
 
 ## Troubleshooting
 
-### API tidak jalan
+### View Logs
 
 ```bash
-sudo journalctl -u vibe-api -n 50
+pnpm docker:prod:logs
+docker logs vibe-creator-api-prod
 ```
 
-### Database error
+### Restart
 
 ```bash
-docker logs vibe-creator-db-prod
-docker exec vibe-creator-db-prod pg_isready
+pnpm docker:prod:restart
 ```
 
-### Disk penuh
+### Rebuild from scratch
 
 ```bash
+pnpm docker:prod:down
 docker system prune -af
+pnpm docker:prod:up:build
 ```

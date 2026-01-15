@@ -2,7 +2,6 @@ import { useEffect, useCallback, useRef, useState } from "react";
 import { logger } from "@/lib/logger";
 import { useParams } from "react-router-dom";
 import { useEditorStore } from "@/stores/editor-store";
-import { Timeline } from "@/components/editor/Timeline";
 import { useFFmpeg } from "@/hooks/use-ffmpeg";
 import { useExport } from "@/hooks/use-export";
 import { useUrlDownload } from "@/hooks/use-url-download";
@@ -408,10 +407,6 @@ export function EditorPage() {
       />
 
       <EditorMainArea />
-
-      <div className="h-48 border-t border-border flex-shrink-0">
-        <Timeline />
-      </div>
 
       <input
         ref={fileInputRef}

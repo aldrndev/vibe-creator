@@ -50,7 +50,7 @@ Forbidden at repo root:
 - docker/ (MUST be infra/compose/ unless exception)
 
 Infra/provisioning/orchestration folders at repo root are FORBIDDEN.
-If used, they MUST live under infra/deploy/<tool>/.
+If used, they MUST live under infra/deploy/multi-node/<tool>/.
 Otherwise they MUST NOT exist.
 
 Validation patterns (non-exhaustive):
@@ -315,6 +315,7 @@ If apps/web exists, it MUST contain:
 Additionally:
 
 - apps/web MUST have src/ OR app/ as routing/framework root.
+- components/features/lib/styles MUST exist under apps/web/src/ OR apps/web/app/ (whichever exists as the framework root).
 
 ## 10) DATABASE PLACEMENT (AUTHORITATIVE)
 
@@ -381,7 +382,7 @@ If deployment assets exist, they MUST be placed under:
 
 If any orchestration/provisioning tool is used, its assets MUST be under:
 
-- infra/deploy/<tool>/
+- infra/deploy/multi-node/<tool>/
 
 ## 15) WORKFLOW FILE CONTRACT (AUTHORITATIVE)
 
@@ -417,6 +418,45 @@ Forbidden script names:
 - server
 - backend
 - frontend
+
+### 16.1 ROOT SCRIPT CONTRACT — DOCKER (AUTHORITATIVE)
+
+If the repo uses Docker Compose (infra/compose exists), root package.json MUST include Docker scripts.
+
+Development Docker Scripts (REQUIRED):
+
+- docker:up
+- docker:down
+- docker:logs
+- docker:ps
+- docker:restart
+- docker:build
+- docker:up:build
+
+Production Docker Scripts (REQUIRED only if Prod Single Node Supported: true):
+
+- docker:prod:up
+- docker:prod:down
+- docker:prod:logs
+- docker:prod:ps
+- docker:prod:restart
+- docker:prod:build
+- docker:prod:up:build
+
+Forbidden Docker Script Names:
+
+- docker:start (use docker:up)
+- docker:stop (use docker:down)
+- compose:ANY (use docker:ANY)
+
+Docker Script Naming Convention (ABSOLUTE):
+
+- Prefix:
+  - docker: for development
+  - docker:prod: for production
+- Suffix:
+  - :build for build-only
+  - :up:build for build + start
 
 ## 17) ENFORCEMENT CONTRACT (AUTHORITATIVE)
 
@@ -480,7 +520,3 @@ Repo is compliant only if:
 - infra/compose and workflows exist based on flags
 - pnpm layout:check exists and runs in CI
 - any deviation has an ADR
-
-## CHANGELOG
-
-- v1.0: Profiles, deterministic README flags, canonical layout, DB centralization for Profile C, strict script naming, enforcement contract, mobile support.

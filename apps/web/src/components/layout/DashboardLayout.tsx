@@ -1,4 +1,10 @@
-import { Outlet, NavLink, useNavigate, useLocation } from "react-router-dom";
+import {
+  Outlet,
+  NavLink,
+  Link,
+  useNavigate,
+  useLocation,
+} from "react-router-dom";
 import {
   Button,
   Badge,
@@ -11,9 +17,7 @@ import {
 } from "@/components/ui";
 import {
   LayoutDashboard,
-  FolderOpen,
   Sparkles,
-  Download,
   Settings,
   LogOut,
   Moon,
@@ -29,6 +33,7 @@ import {
   MessageSquareReply,
   Radio,
   Wand2,
+  TrendingUp,
 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { useAuthStore } from "@/stores/auth-store";
@@ -62,14 +67,15 @@ const toolsChildren = [
 // Main navigation items
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { name: "My Exports", href: "/dashboard/exports", icon: FolderOpen },
+  { name: "Trending", href: "/dashboard/trending", icon: TrendingUp },
+  // { name: "My Exports", href: "/dashboard/exports", icon: FolderOpen },
   {
     name: "Tools",
     icon: Video,
     children: toolsChildren,
   },
   { name: "Prompt Builder", href: "/dashboard/prompts", icon: Sparkles },
-  { name: "Downloads", href: "/dashboard/downloads", icon: Download },
+  // { name: "Downloads", href: "/dashboard/downloads", icon: Download },
   { name: "Community", href: "/dashboard/community", icon: Users },
   { name: "Settings", href: "/dashboard/settings", icon: Settings },
 ];
@@ -96,11 +102,11 @@ export function DashboardLayout() {
   }, [location.pathname]);
 
   return (
-    <div className="flex h-screen bg-background">
+    <div className="flex h-screen bg-background text-foreground">
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+          className="fixed inset-0 z-40 bg-black/50 lg:hidden backdrop-blur-sm"
           onClick={() => setSidebarOpen(false)}
         />
       )}
@@ -108,16 +114,24 @@ export function DashboardLayout() {
       {/* Sidebar */}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 w-64 transform bg-card border-r border-border transition-transform duration-300 lg:static lg:translate-x-0",
+          "fixed inset-y-0 left-0 z-50 w-64 transform bg-background border-r border-border transition-transform duration-300 lg:static lg:translate-x-0 lg:bg-card/60 lg:backdrop-blur-xl",
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
         <div className="flex h-full flex-col">
           {/* Logo */}
-          <div className="flex h-16 items-center justify-between px-6 border-b border-border">
-            <span className="text-xl font-bold gradient-text">
-              Vibe Creator
-            </span>
+          <div className="flex h-16 items-center justify-between px-6 border-b border-border shadow-sm">
+            <Link
+              to="/"
+              className="flex items-center gap-2 text-xl font-black tracking-tighter hover:opacity-80 transition-opacity"
+            >
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary via-orange-500 to-rose-600 flex items-center justify-center shadow-lg shadow-primary/20">
+                <Sparkles className="text-white w-5 h-5" />
+              </div>
+              <span className="bg-clip-text text-transparent bg-gradient-to-r from-primary via-orange-500 to-rose-600">
+                Vibe Creator
+              </span>
+            </Link>
             <Button
               variant="ghost"
               size="icon"
@@ -143,13 +157,20 @@ export function DashboardLayout() {
                     <button
                       onClick={() => setToolsExpanded(!toolsExpanded)}
                       className={cn(
-                        "w-full flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors touch-target",
+                        "w-full flex items-center gap-3 rounded-r-lg px-4 py-3 text-sm font-medium transition-all duration-200 touch-target border-l-[3px]",
                         isChildActive
-                          ? "bg-primary/20 text-primary"
-                          : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                          ? "border-primary bg-gradient-to-r from-primary/15 to-transparent text-primary font-bold"
+                          : "border-transparent text-muted-foreground hover:bg-accent hover:text-foreground"
                       )}
                     >
-                      <item.icon size={20} />
+                      <item.icon
+                        size={20}
+                        className={cn(
+                          "transition-colors",
+                          isChildActive &&
+                            "text-primary drop-shadow-[0_0_8px_rgba(249,115,22,0.5)]"
+                        )}
+                      />
                       {item.name}
                       <span className="ml-auto">
                         {toolsExpanded ? (
@@ -162,7 +183,7 @@ export function DashboardLayout() {
 
                     {/* Child menu items */}
                     {toolsExpanded && (
-                      <div className="ml-4 mt-1 space-y-1 border-l-2 border-border pl-2">
+                      <div className="ml-4 mt-1 space-y-1 pl-2 border-l border-border/40">
                         {item.children.map((child) => (
                           <NavLink
                             key={child.name}
@@ -170,10 +191,10 @@ export function DashboardLayout() {
                             onClick={() => setSidebarOpen(false)}
                             className={({ isActive }) =>
                               cn(
-                                "flex items-center gap-3 rounded-lg px-4 py-2 text-sm font-medium transition-colors",
+                                "flex items-center gap-3 rounded-lg px-4 py-2 text-sm font-medium transition-all",
                                 isActive
-                                  ? "bg-primary text-primary-foreground"
-                                  : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                                  ? "text-primary bg-primary/10 font-semibold"
+                                  : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
                               )
                             }
                           >
@@ -196,15 +217,26 @@ export function DashboardLayout() {
                   onClick={() => setSidebarOpen(false)}
                   className={({ isActive }) =>
                     cn(
-                      "flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors touch-target",
+                      "flex items-center gap-3 rounded-r-lg px-4 py-3 text-sm font-medium transition-all duration-200 touch-target border-l-[3px]",
                       isActive
-                        ? "bg-primary text-primary-foreground"
-                        : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                        ? "border-primary bg-gradient-to-r from-primary/15 to-transparent text-primary font-bold"
+                        : "border-transparent text-muted-foreground hover:bg-accent hover:text-foreground"
                     )
                   }
                 >
-                  <item.icon size={20} />
-                  {item.name}
+                  {({ isActive }) => (
+                    <>
+                      <item.icon
+                        size={20}
+                        className={cn(
+                          "transition-colors",
+                          isActive &&
+                            "text-primary drop-shadow-[0_0_8px_rgba(249,115,22,0.5)]"
+                        )}
+                      />
+                      {item.name}
+                    </>
+                  )}
                 </NavLink>
               );
             })}
@@ -249,11 +281,18 @@ export function DashboardLayout() {
       {/* Main content */}
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Header */}
-        <header className="flex h-16 items-center justify-between border-b border-border px-6 bg-card/80 backdrop-blur-md sticky top-0 z-30">
+        <header
+          className={cn(
+            "flex h-16 items-center justify-between border-b border-border px-6 sticky top-0 z-30 transition-all duration-300",
+            location.pathname.includes("/modern-editor")
+              ? "bg-background border-b-0" // More solid background for editor to avoid ghosting
+              : "bg-card/80 backdrop-blur-md"
+          )}
+        >
           <Button
             variant="ghost"
             size="icon"
-            className="lg:hidden"
+            className="lg:hidden text-foreground"
             onClick={() => setSidebarOpen(true)}
           >
             <Menu size={20} />
@@ -280,9 +319,20 @@ export function DashboardLayout() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
-                <div className="px-2 py-1.5">
-                  <p className="font-semibold">{user?.name}</p>
-                  <p className="text-sm text-muted-foreground">{user?.email}</p>
+                <div className="flex items-center gap-3 px-3 py-3 border-b border-border/50 mb-1">
+                  <Avatar
+                    name={user?.name ?? "User"}
+                    size="sm"
+                    className="ring-2 ring-primary/20"
+                  />
+                  <div className="flex flex-col min-w-0">
+                    <p className="text-sm font-black tracking-tight truncate">
+                      {user?.name}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground truncate uppercase tracking-widest">
+                      {user?.email}
+                    </p>
+                  </div>
                 </div>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
@@ -293,10 +343,10 @@ export function DashboardLayout() {
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={handleLogout}
-                  className="text-destructive focus:text-destructive"
+                  className="text-destructive focus:text-white focus:bg-destructive mt-1 mx-1 rounded-xl"
                 >
                   <LogOut size={16} />
-                  Logout
+                  <span className="font-bold">Logout</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

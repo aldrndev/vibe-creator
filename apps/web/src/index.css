@@ -1,6 +1,5 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+@config "../tailwind.config.ts";
 
 /* ============================================================================
    CSS VARIABLES - Design Tokens
@@ -27,12 +26,12 @@
   --font-size-4xl: 2.25rem;
 
   /* Border radius */
-  --radius-sm: 0.25rem;
-  --radius-md: 0.5rem;
+  --radius-sm: calc(0.75rem - 4px);
+  --radius-md: calc(0.75rem - 2px);
   --radius-lg: 0.75rem;
   --radius-xl: 1rem;
   --radius-full: 9999px;
-  --radius: 0.5rem;
+  --radius: 0.75rem;
 
   /* Transitions */
   --transition-fast: 150ms ease;
@@ -48,49 +47,49 @@
   --z-popover: 1060;
   --z-tooltip: 1070;
 
-  /* Semantic Colors - Light Mode */
-  --background: 0 0% 100%;
-  --foreground: 222.2 84% 4.9%;
+  /* Semantic Colors - Balanced Zinc + Pure Royal Orange */
+  --background: 0 0% 98%;
+  --foreground: 240 10% 3.9%;
   --card: 0 0% 100%;
-  --card-foreground: 222.2 84% 4.9%;
+  --card-foreground: 240 10% 3.9%;
   --popover: 0 0% 100%;
-  --popover-foreground: 222.2 84% 4.9%;
-  --primary: 221.2 83.2% 53.3%;
-  --primary-foreground: 210 40% 98%;
-  --secondary: 210 40% 96.1%;
-  --secondary-foreground: 222.2 47.4% 11.2%;
-  --muted: 210 40% 96.1%;
-  --muted-foreground: 215.4 16.3% 46.9%;
-  --accent: 210 40% 96.1%;
-  --accent-foreground: 222.2 47.4% 11.2%;
+  --popover-foreground: 240 10% 3.9%;
+  --primary: 16 90% 50%; /* Pure Royal Orange */
+  --primary-foreground: 0 0% 100%;
+  --secondary: 240 4.8% 95.9%;
+  --secondary-foreground: 240 5.9% 10%;
+  --muted: 240 4.8% 95.9%;
+  --muted-foreground: 240 3.8% 46.1%;
+  --accent: 240 4.8% 95.9%;
+  --accent-foreground: 240 5.9% 10%;
   --destructive: 0 84.2% 60.2%;
-  --destructive-foreground: 210 40% 98%;
-  --border: 214.3 31.8% 91.4%;
-  --input: 214.3 31.8% 91.4%;
-  --ring: 221.2 83.2% 53.3%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 240 5.9% 90%;
+  --input: 240 5.9% 90%;
+  --ring: 16 90% 50%;
 }
 
 .dark {
-  /* Semantic Colors - Dark Mode */
-  --background: 222.2 84% 4.9%;
-  --foreground: 210 40% 98%;
-  --card: 222.2 84% 4.9%;
-  --card-foreground: 210 40% 98%;
-  --popover: 222.2 84% 4.9%;
-  --popover-foreground: 210 40% 98%;
-  --primary: 217.2 91.2% 59.8%;
-  --primary-foreground: 222.2 47.4% 11.2%;
-  --secondary: 217.2 32.6% 17.5%;
-  --secondary-foreground: 210 40% 98%;
-  --muted: 217.2 32.6% 17.5%;
-  --muted-foreground: 215 20.2% 65.1%;
-  --accent: 217.2 32.6% 17.5%;
-  --accent-foreground: 210 40% 98%;
+  /* Softened Dark Mode (Zinc-900ish) + Royal Orange */
+  --background: 240 10% 10%;
+  --foreground: 0 0% 98%;
+  --card: 240 10% 12%;
+  --card-foreground: 0 0% 98%;
+  --popover: 240 10% 12%;
+  --popover-foreground: 0 0% 98%;
+  --primary: 16 90% 50%; /* Consistent Royal Orange */
+  --primary-foreground: 0 0% 100%;
+  --secondary: 240 4.8% 20%;
+  --secondary-foreground: 0 0% 98%;
+  --muted: 240 4.8% 20%;
+  --muted-foreground: 240 5% 64.9%;
+  --accent: 240 4.8% 20%;
+  --accent-foreground: 0 0% 98%;
   --destructive: 0 62.8% 30.6%;
-  --destructive-foreground: 210 40% 98%;
-  --border: 217.2 32.6% 17.5%;
-  --input: 217.2 32.6% 17.5%;
-  --ring: 224.3 76.3% 48%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 240 4.8% 20%;
+  --input: 240 4.8% 20%;
+  --ring: 16 90% 50%;
 }
 
 /* ============================================================================
@@ -99,12 +98,39 @@
 
 html {
   scroll-behavior: smooth;
+  height: 100%;
 }
 
 body {
   font-family: "Inter", system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+  min-height: 100%;
+}
+
+/* Browser Autofill Styling - Premium Fix */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: hsl(var(--foreground)) !important;
+  transition: background-color 5000s ease-in-out 0s;
+  caret-color: hsl(var(--foreground));
+}
+
+/* Hide number input spinners */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
 }
 
 /* Focus visible for accessibility */
@@ -199,6 +225,12 @@ body {
 
 .animate-pulse-glow {
   animation: pulse-glow 2s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
 }
 
 /* ============================================================================

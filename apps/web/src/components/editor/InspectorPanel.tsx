@@ -1,6 +1,4 @@
 import {
-  Card,
-  CardBody,
   Slider,
   Select,
   SelectTrigger,
@@ -8,24 +6,12 @@ import {
   SelectContent,
   SelectItem,
   Switch,
-  Divider,
+  Badge,
   Button,
 } from "@/components/ui";
-import {
-  Settings2,
-  Move,
-  RotateCw,
-  Maximize2,
-  Eye,
-  Volume2,
-  VolumeX,
-  Gauge,
-  Palette,
-  Film,
-  Unlink,
-} from "lucide-react";
+import { Settings2, Volume2, Film, Unlink } from "lucide-react";
 import { useEditorStore } from "@/stores/editor-store";
-import { clsx } from "clsx";
+import { cn } from "@/lib/utils";
 
 // Filter presets
 const FILTER_PRESETS = [
@@ -142,22 +128,18 @@ export function InspectorPanel({ className }: InspectorPanelProps) {
   if (!selectedClip) {
     return (
       <div
-        className={clsx(
-          "w-72 bg-card border-l border-border flex flex-col",
+        className={cn(
+          "w-full md:w-80 bg-background border-l border-border flex flex-col pt-12 text-center text-muted-foreground",
           className
         )}
       >
-        <div className="p-4 border-b border-border">
-          <h3 className="font-semibold flex items-center gap-2">
-            <Settings2 size={18} />
-            Inspector
-          </h3>
+        <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
+          <Settings2 size={20} className="opacity-50" />
         </div>
-        <div className="flex-1 flex items-center justify-center p-4">
-          <p className="text-sm text-muted-foreground text-center">
-            Pilih clip di timeline untuk melihat properti
-          </p>
-        </div>
+        <p className="text-sm font-medium">No Selection</p>
+        <p className="text-xs opacity-60 mt-1">
+          Select a clip to edit properties
+        </p>
       </div>
     );
   }
@@ -181,280 +163,241 @@ export function InspectorPanel({ className }: InspectorPanelProps) {
 
   return (
     <div
-      className={clsx(
-        "w-72 bg-card border-l border-border flex flex-col overflow-hidden",
+      className={cn(
+        "w-full md:w-80 bg-background border-l border-border flex flex-col overflow-hidden",
         className
       )}
     >
       {/* Header */}
-      <div className="p-4 border-b border-border shrink-0">
-        <h3 className="font-semibold flex items-center gap-2">
-          <Settings2 size={18} />
-          Inspector
-        </h3>
+      <div className="h-14 md:h-16 px-6 border-b border-border flex items-center shrink-0">
+        <h3 className="font-semibold text-sm">Inspector</h3>
       </div>
 
       {/* Content - Scrollable */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 overflow-y-auto p-6 space-y-8">
         {/* Clip Info */}
-        <Card className="bg-muted">
-          <CardBody className="p-3">
-            <div className="flex items-center gap-3">
-              <div
-                className={`w-10 h-10 rounded flex items-center justify-center ${
-                  selectedTrackType === "AUDIO"
-                    ? "bg-green-500/20"
-                    : "bg-primary/20"
-                }`}
-              >
-                {selectedTrackType === "AUDIO" ? (
-                  <Volume2 size={20} className="text-green-500" />
-                ) : (
-                  <Film size={20} className="text-primary" />
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-sm truncate">
-                  {selectedClip.asset?.name || "Untitled Clip"}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {selectedTrackType === "AUDIO" ? "Audio" : "Video"} •{" "}
-                  {formatTime(selectedClip.endMs - selectedClip.startMs)}
-                  {selectedClip.linkId && " • Linked"}
-                </p>
-              </div>
+        <div className="flex items-start gap-4">
+          <div
+            className={cn(
+              "w-10 h-10 rounded-lg flex items-center justify-center shrink-0",
+              selectedTrackType === "AUDIO"
+                ? "bg-emerald-500/10 text-emerald-500"
+                : "bg-blue-500/10 text-blue-500"
+            )}
+          >
+            {selectedTrackType === "AUDIO" ? (
+              <Volume2 size={20} />
+            ) : (
+              <Film size={20} />
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <h4 className="font-medium text-sm truncate">
+              {selectedClip.asset?.name || "Untitled Clip"}
+            </h4>
+            <div className="flex items-center gap-2 mt-1">
+              <Badge variant="secondary" className="text-[10px] h-5 px-1.5">
+                {selectedTrackType === "AUDIO" ? "AUDIO" : "VIDEO"}
+              </Badge>
+              <span className="text-xs text-muted-foreground font-mono">
+                {formatTime(selectedClip.endMs - selectedClip.startMs)}
+              </span>
             </div>
+
             {/* Detach button for linked clips */}
             {selectedClip.linkId && (
               <Button
+                variant="ghost"
                 size="sm"
-                variant="outline"
-                className="w-full mt-3"
+                className="h-6 px-2 text-[10px] mt-2 text-muted-foreground hover:text-foreground -ml-2"
                 onClick={() => {
                   if (selectedClipId) {
                     detachLinkedClips(selectedClipId);
                   }
                 }}
               >
-                <Unlink size={14} />
-                Detach Audio
+                <Unlink size={12} className="mr-1.5" />
+                Unlink Audio
               </Button>
             )}
-          </CardBody>
-        </Card>
-
-        <Divider />
+          </div>
+        </div>
 
         {/* Transform Section - VIDEO ONLY */}
         {selectedTrackType !== "AUDIO" && (
-          <>
-            <div className="space-y-3">
-              <h4 className="text-sm font-medium flex items-center gap-2">
-                <Move size={14} />
-                Transform
-              </h4>
+          <div className="space-y-4">
+            <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+              Transform
+            </h4>
 
-              <div className="space-y-4">
-                {/* Position X */}
-                <div className="space-y-1">
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
                   <div className="flex justify-between text-xs">
                     <span className="text-muted-foreground">Position X</span>
-                    <span>{Math.round(transforms.x)}px</span>
+                    <span className="font-mono text-[10px] text-muted-foreground/70">
+                      {Math.round(transforms.x)}
+                    </span>
                   </div>
                   <Slider
-                    min={-500}
-                    max={500}
-                    step={1}
+                    min={-1000}
+                    max={1000}
                     value={[transforms.x ?? 0]}
-                    onValueChange={(v: number[]) =>
-                      handleTransformChange("x", v[0] ?? 0)
-                    }
+                    onValueChange={(v) => handleTransformChange("x", v[0] ?? 0)}
                   />
                 </div>
-
-                {/* Position Y */}
-                <div className="space-y-1">
+                <div className="space-y-2">
                   <div className="flex justify-between text-xs">
                     <span className="text-muted-foreground">Position Y</span>
-                    <span>{Math.round(transforms.y)}px</span>
+                    <span className="font-mono text-[10px] text-muted-foreground/70">
+                      {Math.round(transforms.y)}
+                    </span>
                   </div>
                   <Slider
-                    min={-500}
-                    max={500}
-                    step={1}
+                    min={-1000}
+                    max={1000}
                     value={[transforms.y ?? 0]}
-                    onValueChange={(v: number[]) =>
-                      handleTransformChange("y", v[0] ?? 0)
-                    }
+                    onValueChange={(v) => handleTransformChange("y", v[0] ?? 0)}
                   />
                 </div>
+              </div>
 
-                {/* Scale */}
-                <div className="space-y-1">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
                   <div className="flex justify-between text-xs">
-                    <span className="text-muted-foreground flex items-center gap-1">
-                      <Maximize2 size={12} />
-                      Scale
+                    <span className="text-muted-foreground">Scale</span>
+                    <span className="font-mono text-[10px] text-muted-foreground/70">
+                      {Math.round(transforms.scale * 100)}%
                     </span>
-                    <span>{Math.round(transforms.scale * 100)}%</span>
                   </div>
                   <Slider
                     min={0.1}
-                    max={3}
+                    max={5}
                     step={0.01}
                     value={[transforms.scale ?? 1]}
-                    onValueChange={(v: number[]) =>
+                    onValueChange={(v) =>
                       handleTransformChange("scale", v[0] ?? 1)
                     }
                   />
                 </div>
-
-                {/* Rotation */}
-                <div className="space-y-1">
+                <div className="space-y-2">
                   <div className="flex justify-between text-xs">
-                    <span className="text-muted-foreground flex items-center gap-1">
-                      <RotateCw size={12} />
-                      Rotation
+                    <span className="text-muted-foreground">Rotation</span>
+                    <span className="font-mono text-[10px] text-muted-foreground/70">
+                      {Math.round(transforms.rotation)}°
                     </span>
-                    <span>{Math.round(transforms.rotation)}°</span>
                   </div>
                   <Slider
                     min={-180}
                     max={180}
-                    step={1}
                     value={[transforms.rotation ?? 0]}
-                    onValueChange={(v: number[]) =>
+                    onValueChange={(v) =>
                       handleTransformChange("rotation", v[0] ?? 0)
                     }
                   />
                 </div>
+              </div>
 
-                {/* Opacity */}
-                <div className="space-y-1">
-                  <div className="flex justify-between text-xs">
-                    <span className="text-muted-foreground flex items-center gap-1">
-                      <Eye size={12} />
-                      Opacity
-                    </span>
-                    <span>{Math.round(transforms.opacity * 100)}%</span>
-                  </div>
-                  <Slider
-                    min={0}
-                    max={1}
-                    step={0.01}
-                    value={[transforms.opacity ?? 1]}
-                    onValueChange={(v: number[]) =>
-                      handleTransformChange("opacity", v[0] ?? 1)
-                    }
-                  />
+              <div className="space-y-2">
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">Opacity</span>
+                  <span className="font-mono text-[10px] text-muted-foreground/70">
+                    {Math.round(transforms.opacity * 100)}%
+                  </span>
                 </div>
+                <Slider
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  value={[transforms.opacity ?? 1]}
+                  onValueChange={(v) =>
+                    handleTransformChange("opacity", v[0] ?? 1)
+                  }
+                />
               </div>
             </div>
-
-            <Divider />
-          </>
+          </div>
         )}
 
         {/* Audio Section */}
-        <div className="space-y-3">
-          <h4 className="text-sm font-medium flex items-center gap-2">
-            <Volume2 size={14} />
-            Audio
-          </h4>
+        <div className="space-y-4 pt-4 border-t border-border">
+          <div className="flex items-center justify-between">
+            <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+              Audio
+            </h4>
+            <Switch
+              checked={!isMuted}
+              onCheckedChange={(checked) =>
+                handleEffectChange("volume", checked ? 1 : 0)
+              }
+            />
+          </div>
 
           <div className="space-y-4">
-            {/* Volume */}
-            <div className="space-y-1">
-              <div className="flex justify-between items-center text-xs">
-                <span className="text-muted-foreground flex items-center gap-1">
-                  {isMuted ? <VolumeX size={12} /> : <Volume2 size={12} />}
-                  Volume
+            <div className="space-y-2">
+              <div className="flex justify-between text-xs">
+                <span className="text-muted-foreground">Volume</span>
+                <span className="font-mono text-[10px] text-muted-foreground/70">
+                  {isMuted ? "Muted" : `${Math.round(effects.volume * 100)}%`}
                 </span>
-                <div className="flex items-center gap-2">
-                  <span>
-                    {isMuted ? "Muted" : `${Math.round(effects.volume * 100)}%`}
-                  </span>
-                  <Switch
-                    checked={!isMuted}
-                    onCheckedChange={(checked) =>
-                      handleEffectChange("volume", checked ? 1 : 0)
-                    }
-                  />
-                </div>
               </div>
               <Slider
                 min={0}
                 max={2}
                 step={0.01}
                 value={[effects.volume ?? 1]}
-                onValueChange={(v: number[]) =>
-                  handleEffectChange("volume", v[0] ?? 1)
-                }
+                onValueChange={(v) => handleEffectChange("volume", v[0] ?? 1)}
                 disabled={isMuted}
               />
             </div>
 
-            {/* Fade In */}
-            <div className="space-y-1">
-              <div className="flex justify-between text-xs">
-                <span className="text-muted-foreground">Fade In</span>
-                <span>{effects.fadeIn}ms</span>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <span className="text-xs text-muted-foreground">
+                  Fade In (ms)
+                </span>
+                <input
+                  type="number"
+                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                  value={effects.fadeIn}
+                  onChange={(e) =>
+                    handleEffectChange("fadeIn", parseInt(e.target.value) || 0)
+                  }
+                />
               </div>
-              <Slider
-                min={0}
-                max={2000}
-                step={100}
-                value={[effects.fadeIn ?? 0]}
-                onValueChange={(v: number[]) =>
-                  handleEffectChange("fadeIn", v[0] ?? 0)
-                }
-              />
-            </div>
-
-            {/* Fade Out */}
-            <div className="space-y-1">
-              <div className="flex justify-between text-xs">
-                <span className="text-muted-foreground">Fade Out</span>
-                <span>{effects.fadeOut}ms</span>
+              <div className="space-y-1">
+                <span className="text-xs text-muted-foreground">
+                  Fade Out (ms)
+                </span>
+                <input
+                  type="number"
+                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                  value={effects.fadeOut}
+                  onChange={(e) =>
+                    handleEffectChange("fadeOut", parseInt(e.target.value) || 0)
+                  }
+                />
               </div>
-              <Slider
-                min={0}
-                max={2000}
-                step={100}
-                value={[effects.fadeOut ?? 0]}
-                onValueChange={(v: number[]) =>
-                  handleEffectChange("fadeOut", v[0] ?? 0)
-                }
-              />
             </div>
           </div>
         </div>
 
-        <Divider />
-
         {/* Effects Section */}
-        <div className="space-y-3">
-          <h4 className="text-sm font-medium flex items-center gap-2">
-            <Palette size={14} />
+        <div className="space-y-4 pt-4 border-t border-border">
+          <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
             Effects
           </h4>
 
           <div className="space-y-4">
-            {/* Speed */}
-            <div className="space-y-1">
-              <div className="flex justify-between text-xs">
-                <span className="text-muted-foreground flex items-center gap-1">
-                  <Gauge size={12} />
-                  Speed
-                </span>
-              </div>
+            <div className="space-y-2">
+              <span className="text-xs text-muted-foreground">Speed</span>
               <Select
                 value={effects.speed.toString()}
                 onValueChange={(v) =>
                   handleEffectChange("speed", parseFloat(v))
                 }
               >
-                <SelectTrigger>
+                <SelectTrigger className="h-9">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -470,19 +413,16 @@ export function InspectorPanel({ className }: InspectorPanelProps) {
               </Select>
             </div>
 
-            {/* Filter - VIDEO ONLY */}
             {selectedTrackType !== "AUDIO" && (
-              <div className="space-y-1">
-                <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">Filter</span>
-                </div>
+              <div className="space-y-2">
+                <span className="text-xs text-muted-foreground">Filter</span>
                 <Select
                   value={currentFilter}
                   onValueChange={(v) =>
                     handleEffectChange("filters", v === "none" ? [] : [v])
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="h-9">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -502,5 +442,4 @@ export function InspectorPanel({ className }: InspectorPanelProps) {
   );
 }
 
-// Export filter presets for use in VideoPreview
 export { FILTER_PRESETS };

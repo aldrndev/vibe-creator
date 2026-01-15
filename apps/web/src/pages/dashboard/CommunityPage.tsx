@@ -1,4 +1,4 @@
-import { Card, CardBody, Button, Badge } from "@/components/ui";
+import { Card, CardBody, Button, Badge, Divider } from "@/components/ui";
 import {
   MessageCircle,
   Send,
@@ -27,20 +27,22 @@ const communities = [
   {
     id: "telegram",
     name: "Telegram Group",
-    description: "Diskusi, tips, dan support dari komunitas",
+    description:
+      "Diskusi, tips, dan support dari komunitas creator terbaik di Indonesia.",
     icon: Send,
     link: TELEGRAM_URL,
     members: "500+",
-    gradient: "from-blue-500/20 to-cyan-500/20",
+    color: "blue",
   },
   {
     id: "whatsapp",
     name: "WhatsApp Group",
-    description: "Grup eksklusif untuk sharing dan networking",
+    description:
+      "Grup whatsapp eksklusif untuk sharing, networking, dan info terupdate.",
     icon: MessageCircle,
     link: WHATSAPP_URL,
     members: "200+",
-    gradient: "from-green-500/20 to-emerald-500/20",
+    color: "green",
   },
 ];
 
@@ -57,68 +59,88 @@ export function CommunityPage() {
   };
 
   return (
-    <PageTransition className="space-y-8">
-      {/* Header */}
-      <div>
-        <div className="flex items-center gap-3 mb-2">
-          <Users size={28} className="text-primary" />
-          <h1 className="text-2xl font-bold">Komunitas</h1>
+    <PageTransition className="pb-20 lg:pb-10 space-y-12">
+      {/* Header Section */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-border/30 pb-10">
+        <div className="space-y-4">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary via-orange-500 to-rose-600 flex items-center justify-center">
+              <Users className="text-white w-7 h-7" />
+            </div>
+            <h1 className="text-4xl font-black tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-primary via-orange-500 to-rose-600">
+              Komunitas
+            </h1>
+          </div>
+          <p className="text-muted-foreground font-black uppercase text-[10px] tracking-[0.2em] ml-16 transform -translate-y-1">
+            Networking & Kolaborasi Creator Indonesia
+          </p>
         </div>
-        <p className="text-muted-foreground">
-          Bergabung dengan komunitas creator dan dapatkan tips, support, dan
-          networking
-        </p>
       </div>
 
-      {/* Join Community Cards */}
-      <StaggerContainer>
-        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-          <Sparkles size={20} className="text-yellow-500" />
-          Gabung Komunitas
-        </h2>
-        <div className="grid sm:grid-cols-2 gap-4">
+      {/* Join Community Section */}
+      <StaggerContainer className="space-y-6">
+        <div className="flex items-center gap-3">
+          <div className="w-1.5 h-6 bg-primary rounded-full" />
+          <h3 className="text-sm font-black uppercase tracking-[0.2em] text-foreground">
+            Gabung Komunitas
+          </h3>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {communities.map((community) => (
-            <StaggerItem key={community.id}>
-              <HoverCard>
-                <Card className="border-2 border-transparent hover:border-primary/50 transition-all overflow-hidden">
-                  <CardBody
-                    className={`p-5 bg-gradient-to-br ${community.gradient}`}
-                  >
-                    <div className="flex items-start gap-4">
+            <StaggerItem key={community.id} className="h-full">
+              <HoverCard className="h-full">
+                <Card className="bg-card/70 backdrop-blur-xl border-border/50 group overflow-hidden h-full">
+                  <CardBody className="p-8">
+                    <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
                       <div
-                        className={`w-14 h-14 rounded-xl ${
-                          community.id === "telegram"
-                            ? "bg-blue-500/20"
-                            : "bg-green-500/20"
-                        } flex items-center justify-center flex-shrink-0`}
+                        className={`w-16 h-16 rounded-3xl ${
+                          community.color === "blue"
+                            ? "bg-blue-500/10"
+                            : "bg-green-500/10"
+                        } flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-110 duration-500`}
                       >
                         <community.icon
-                          size={28}
+                          size={32}
                           className={
-                            community.id === "telegram"
+                            community.color === "blue"
                               ? "text-blue-500"
                               : "text-green-500"
                           }
                         />
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h3 className="font-semibold">{community.name}</h3>
-                          <Badge variant="secondary">
-                            {community.members} members
-                          </Badge>
+                      <div className="flex-1 min-w-0 text-center sm:text-left space-y-4">
+                        <div className="space-y-2">
+                          <div className="flex flex-col sm:flex-row items-center gap-3">
+                            <h3 className="text-xl font-black tracking-tight">
+                              {community.name}
+                            </h3>
+                            <Badge className="bg-muted/30 text-muted-foreground border-border/50 font-black uppercase text-[9px] tracking-widest px-3">
+                              {community.members} Members
+                            </Badge>
+                          </div>
+                          <p className="text-sm text-muted-foreground font-medium leading-relaxed">
+                            {community.description}
+                          </p>
                         </div>
-                        <p className="text-sm text-muted-foreground mb-3">
-                          {community.description}
-                        </p>
-                        <Button asChild size="sm">
+                        <Button
+                          asChild
+                          className={`w-full sm:w-auto h-12 rounded-2xl font-black uppercase tracking-widest text-[10px] ${
+                            community.color === "blue"
+                              ? "bg-blue-600 hover:bg-blue-700"
+                              : "bg-green-600 hover:bg-green-700"
+                          } border-none`}
+                        >
                           <a
                             href={community.link}
                             target="_blank"
                             rel="noopener noreferrer"
                           >
                             Gabung Sekarang
-                            <ArrowRight size={14} />
+                            <ArrowRight
+                              size={14}
+                              className="ml-2 group-hover:translate-x-1 transition-transform"
+                            />
                           </a>
                         </Button>
                       </div>
@@ -131,49 +153,74 @@ export function CommunityPage() {
         </div>
       </StaggerContainer>
 
-      {/* Announcements */}
-      <StaggerContainer>
-        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-          <Megaphone size={20} className="text-yellow-500" />
-          Pengumuman
-        </h2>
+      <Divider className="opacity-30" />
 
-        {isLoading && <SkeletonCard count={3} type="row" />}
+      {/* Announcements Section */}
+      <StaggerContainer className="space-y-6">
+        <div className="flex items-center gap-3">
+          <div className="w-1.5 h-6 bg-orange-500 rounded-full" />
+          <h3 className="text-sm font-black uppercase tracking-[0.2em] text-foreground">
+            Pengumuman Terbaru
+          </h3>
+        </div>
+
+        {isLoading && (
+          <SkeletonCard
+            count={3}
+            type="row"
+            className="bg-card/70 backdrop-blur-xl border-border/50"
+          />
+        )}
 
         {!isLoading && announcements.length === 0 && (
           <EmptyState
             type="announcements"
-            description="Pengumuman terbaru akan muncul di sini"
+            description="Belum ada pengumuman terbaru untuk saat ini."
           />
         )}
 
         {!isLoading && announcements.length > 0 && (
-          <div className="space-y-3">
+          <div className="grid gap-4">
             {announcements.map((announcement) => (
               <StaggerItem key={announcement.id}>
-                <Card className="hover:border-primary/30 transition-colors border-2 border-transparent">
-                  <CardBody className="p-4">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h3 className="font-medium">{announcement.title}</h3>
-                          {isNew(announcement.createdAt) && (
-                            <Badge variant="default">Baru</Badge>
-                          )}
+                <Card className="bg-card/70 backdrop-blur-xl border-border/50 hover:border-primary/50 transition-all group">
+                  <CardBody className="p-6">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+                      <div className="flex items-start gap-4 flex-1">
+                        <div className="w-10 h-10 rounded-xl bg-orange-500/10 flex items-center justify-center flex-shrink-0">
+                          <Megaphone size={20} className="text-orange-500" />
                         </div>
-                        <p className="text-sm text-muted-foreground">
-                          {announcement.content}
-                        </p>
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-3">
+                            <h3 className="font-black text-foreground tracking-tight">
+                              {announcement.title}
+                            </h3>
+                            {isNew(announcement.createdAt) && (
+                              <Badge className="bg-primary/20 text-primary border-primary/20 font-black uppercase text-[8px] tracking-widest px-2 animate-pulse">
+                                Baru
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-sm text-muted-foreground font-medium line-clamp-2">
+                            {announcement.content}
+                          </p>
+                        </div>
                       </div>
-                      <span className="text-xs text-muted-foreground whitespace-nowrap">
-                        {new Date(announcement.createdAt).toLocaleDateString(
-                          "id-ID",
-                          {
-                            day: "numeric",
-                            month: "short",
-                          }
-                        )}
-                      </span>
+                      <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center border-t sm:border-t-0 sm:border-l border-border/30 pt-4 sm:pt-0 sm:pl-8">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                          Ditulis Pada
+                        </span>
+                        <span className="text-sm font-bold text-foreground/80">
+                          {new Date(announcement.createdAt).toLocaleDateString(
+                            "id-ID",
+                            {
+                              day: "numeric",
+                              month: "short",
+                              year: "numeric",
+                            }
+                          )}
+                        </span>
+                      </div>
                     </div>
                   </CardBody>
                 </Card>
@@ -183,27 +230,40 @@ export function CommunityPage() {
         )}
       </StaggerContainer>
 
-      {/* CTA */}
-      <Card className="bg-gradient-to-r from-primary/10 to-secondary/10 border-primary/20">
-        <CardBody className="p-6 text-center">
-          <h3 className="text-lg font-semibold mb-2">
-            Ada pertanyaan atau butuh bantuan?
-          </h3>
-          <p className="text-muted-foreground mb-4">
-            Langsung tanya di grup Telegram atau WhatsApp, tim dan komunitas
-            siap membantu!
-          </p>
-          <div className="flex justify-center gap-3">
-            <Button asChild variant="secondary">
+      {/* Footer CTA */}
+      <Card className="bg-card/70 backdrop-blur-xl border-border/50 group overflow-hidden">
+        <CardBody className="p-10 text-center relative z-10 space-y-6">
+          <div className="w-16 h-16 rounded-2xl backdrop-blur-md border border-white/20 flex items-center justify-center mx-auto mb-6">
+            <Sparkles className="text-primary w-8 h-8" />
+          </div>
+          <div className="max-w-xl mx-auto space-y-3">
+            <h3 className="text-2xl font-black tracking-tighter">
+              Bantuan Selalu Tersedia
+            </h3>
+            <p className="text-muted-foreground font-medium">
+              Ada pertanyaan atau butuh bantuan teknis? Langsung tanya di grup
+              kami. Tim support dan member lain siap membantu 24/7!
+            </p>
+          </div>
+          <div className="flex flex-col sm:flex-row justify-center gap-4 pt-4">
+            <Button
+              asChild
+              size="lg"
+              className="h-14 rounded-2xl font-black uppercase tracking-widest text-[11px] bg-blue-600 hover:bg-blue-700 border-none px-10"
+            >
               <a href={TELEGRAM_URL} target="_blank" rel="noopener noreferrer">
-                <Send size={16} />
-                Telegram
+                <Send size={18} className="mr-3" />
+                Telegram Group
               </a>
             </Button>
-            <Button asChild variant="secondary">
+            <Button
+              asChild
+              size="lg"
+              className="h-14 rounded-2xl font-black uppercase tracking-widest text-[11px] bg-green-600 hover:bg-green-700 border-none px-10"
+            >
               <a href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer">
-                <MessageCircle size={16} />
-                WhatsApp
+                <MessageCircle size={18} className="mr-3" />
+                WhatsApp Group
               </a>
             </Button>
           </div>

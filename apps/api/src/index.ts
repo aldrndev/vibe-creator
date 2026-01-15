@@ -34,6 +34,7 @@ import { projectRoutes } from "@/modules/project/project.routes";
 import { billingRoutes } from "@/modules/billing/billing.routes";
 import { jobRoutes } from "@/modules/story/job.routes";
 import { directorRoutes } from "@/modules/director/director.routes";
+import { trendingRoutes } from "@/modules/trending/trending.routes";
 
 // JWT key ring initialization (Digitesia Standard C1)
 import { initializeKeyRing } from "@/lib/jwt";
@@ -112,22 +113,26 @@ async function main(): Promise<void> {
   await fastify.register(
     async (api) => {
       await authPlugin(api);
-      await api.register(rateLimit, {
-        max: env.RATE_LIMIT_TEST_MODE ? Number.MAX_SAFE_INTEGER : 100,
-        timeWindow: "15 minutes",
-        redis,
-        keyGenerator: (request) => {
-          const routeKey = request.url.split("?")[0] || "global";
-          const tenantId = request.auth?.tenantId || request.user?.id;
-          const userId = request.auth?.userId || request.user?.id;
 
-          if (tenantId && userId) {
-            return `global:${tenantId}:${userId}:${routeKey}`;
-          }
+      // Skip rate limit plugin entirely in test mode to avoid Redis blocking
+      if (!env.RATE_LIMIT_TEST_MODE) {
+        await api.register(rateLimit, {
+          max: 100,
+          timeWindow: "15 minutes",
+          redis,
+          keyGenerator: (request) => {
+            const routeKey = request.url.split("?")[0] || "global";
+            const tenantId = request.auth?.tenantId || request.user?.id;
+            const userId = request.auth?.userId || request.user?.id;
 
-          return `global:ip:${request.ip}:${routeKey}`;
-        },
-      });
+            if (tenantId && userId) {
+              return `global:${tenantId}:${userId}:${routeKey}`;
+            }
+
+            return `global:ip:${request.ip}:${routeKey}`;
+          },
+        });
+      }
 
       // Public announcements endpoint (no auth required)
       api.get("/announcements", async (_request, reply) => {
@@ -171,6 +176,7 @@ async function main(): Promise<void> {
       await api.register(billingRoutes, { prefix: "/billing" });
       await api.register(jobRoutes, { prefix: "/jobs" });
       await api.register(directorRoutes, { prefix: "/director" });
+      await api.register(trendingRoutes, { prefix: "/trending" });
     },
     { prefix: "/api/v1" }
   );

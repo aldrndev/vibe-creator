@@ -16,7 +16,7 @@ import {
 } from "@/components/ui";
 import { Info, Play, Settings, Square, Wifi, WifiOff } from "lucide-react";
 import { StreamPlatform } from "@/hooks/useLiveStream";
-import { platformConfigs } from "./constants";
+import { cn } from "@/lib/utils";
 
 interface LiveStreamSettingsProps {
   platform: StreamPlatform;
@@ -63,71 +63,81 @@ export function LiveStreamSettings({
   onStopStream,
   hasVideoFile,
 }: LiveStreamSettingsProps) {
-  const currentPlatformConfig = platformConfigs[platform];
-
   return (
-    <Card>
-      <CardHeader className="flex items-center gap-2">
-        <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-          {currentPlatformConfig.icon}
+    <Card className="bg-card/70 backdrop-blur-xl border-border/50 h-full">
+      <CardHeader className="flex flex-row items-center gap-3 border-b border-border/50 pb-4">
+        <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center border border-primary/20">
+          <Settings size={20} className="text-primary" />
         </div>
-        <h2 className="text-lg font-semibold">
-          {currentPlatformConfig.name} Settings
-        </h2>
-      </CardHeader>
-
-      <CardBody className="space-y-6">
-        {/* Mode Toggle */}
-        {platform !== "custom" && (
-          <div className="flex justify-between items-center bg-muted p-2 rounded-lg">
-            <span className="text-xs text-muted-foreground">
-              Advanced Mode (Edit URL)
-            </span>
-            <Switch checked={showAdvanced} onCheckedChange={setShowAdvanced} />
-          </div>
-        )}
-
-        {/* Custom RTMP URL */}
-        {(platform === "custom" || showAdvanced) && (
-          <Input
-            label="RTMP URL"
-            placeholder="rtmp://your-server.com/live"
-            value={customRtmpUrl}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-              setCustomRtmpUrl(e.target.value)
-            }
-            disabled={isStreaming}
-          />
-        )}
-
-        {/* Stream Key */}
-        <div className="space-y-2">
-          <Input
-            label="Stream Key"
-            type="password"
-            placeholder="Masukkan stream key dari platform"
-            value={streamKey}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-              setStreamKey(e.target.value)
-            }
-            disabled={isStreaming}
-          />
-          <p className="text-xs text-muted-foreground">
-            Dapatkan stream key dari dashboard platform streaming kamu
+        <div>
+          <h2 className="text-lg font-black tracking-tight">Konfigurasi</h2>
+          <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">
+            Live Stream Setup
           </p>
         </div>
+      </CardHeader>
 
-        <Divider />
+      <CardBody className="p-5 lg:p-6 space-y-6 lg:space-y-8">
+        {/* Stream Credentials */}
+        <div className="space-y-6">
+          <div className="space-y-4">
+            <div className="flex justify-between items-center bg-muted/20 p-3 rounded-2xl border border-border/50">
+              <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-2">
+                Advanced RTMP Mode
+              </span>
+              <Switch
+                checked={showAdvanced}
+                onCheckedChange={setShowAdvanced}
+              />
+            </div>
 
-        {/* Quality Settings */}
-        <div className="space-y-4">
-          <h3 className="text-sm font-semibold flex items-center gap-2">
-            <Settings size={16} /> Stream Quality
-          </h3>
+            {(platform === "custom" || showAdvanced) && (
+              <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
+                <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+                  RTMP URL
+                </label>
+                <Input
+                  placeholder="rtmp://your-server.com/live"
+                  value={customRtmpUrl}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                    setCustomRtmpUrl(e.target.value)
+                  }
+                  disabled={isStreaming}
+                  className="h-12 rounded-xl bg-muted/20 border-border/50 font-bold"
+                />
+              </div>
+            )}
 
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+                Stream Key
+              </label>
+              <Input
+                type="password"
+                placeholder="Paste stream key here..."
+                value={streamKey}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                  setStreamKey(e.target.value)
+                }
+                disabled={isStreaming}
+                className="h-12 rounded-xl bg-muted/20 border-border/50 font-bold"
+              />
+              <p className="text-[9px] text-muted-foreground font-medium uppercase tracking-wider px-1">
+                Dapatkan key dari dashboard platform streaming
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <Divider className="opacity-40" />
+
+        {/* Quality & Duration */}
+        <div className="space-y-8">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <label className="text-xs text-muted-foreground">Resolusi</label>
+              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+                Resolusi
+              </label>
               <Select
                 value={quality}
                 onValueChange={(v) => {
@@ -137,149 +147,164 @@ export function LiveStreamSettings({
                   else setBitrate(2500);
                 }}
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="Pilih resolusi" />
+                <SelectTrigger className="h-12 rounded-xl bg-muted/20 border-border/50 font-bold">
+                  <SelectValue placeholder="Resolusi" />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="720p">HD 720p (Smooth)</SelectItem>
-                  <SelectItem value="1080p">FHD 1080p (Sharp)</SelectItem>
+                <SelectContent className="rounded-xl font-bold">
+                  <SelectItem value="720p">720p HD</SelectItem>
+                  <SelectItem value="1080p">1080p FHD</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
-            <div className="space-y-1">
-              <div className="flex justify-between text-xs">
-                <span>Bitrate</span>
-                <span>{bitrate} kbps</span>
-              </div>
-              <Slider
-                min={1000}
-                max={8000}
-                step={100}
-                value={[bitrate]}
-                onValueChange={(v: number[]) => setBitrate(v[0] ?? 2500)}
-              />
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+                Auto-Stop
+              </label>
+              <Select
+                value={duration.toString()}
+                onValueChange={(v) => setDuration(Number(v))}
+                disabled={isStreaming}
+              >
+                <SelectTrigger className="h-12 rounded-xl bg-muted/20 border-border/50 font-bold">
+                  <SelectValue placeholder="Durasi" />
+                </SelectTrigger>
+                <SelectContent className="rounded-xl font-bold">
+                  <SelectItem value="30">30 Menit</SelectItem>
+                  <SelectItem value="60">1 Jam</SelectItem>
+                  <SelectItem value="180">3 Jam</SelectItem>
+                  <SelectItem value="1440">24 Jam</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
-          <div className="space-y-2">
-            <label className="text-xs text-muted-foreground">
-              Durasi Auto-Stop
-            </label>
-            <Select
-              value={duration.toString()}
-              onValueChange={(v) => setDuration(Number(v))}
-              disabled={isStreaming}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Pilih durasi" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="30">30 Menit</SelectItem>
-                <SelectItem value="60">1 Jam</SelectItem>
-                <SelectItem value="180">3 Jam</SelectItem>
-                <SelectItem value="360">6 Jam</SelectItem>
-                <SelectItem value="720">12 Jam</SelectItem>
-                <SelectItem value="1440">24 Jam</SelectItem>
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">
-              Stream akan otomatis berhenti ketika durasi ini habis.
-            </p>
+          <div className="space-y-5 bg-muted/10 p-5 rounded-3xl border border-border/40">
+            <div className="flex justify-between items-center px-1">
+              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                Target Bitrate
+              </label>
+              <div className="text-[10px] font-black tracking-widest bg-primary/10 text-primary px-3 py-1 rounded-full border border-primary/20 font-mono">
+                {bitrate} KBPS
+              </div>
+            </div>
+            <Slider
+              min={1000}
+              max={8000}
+              step={100}
+              value={[bitrate]}
+              onValueChange={(v: number[]) => setBitrate(v[0] ?? 2500)}
+              className="py-2"
+            />
           </div>
         </div>
 
-        <Divider />
+        {/* Status & Quota */}
+        <div className="space-y-4">
+          {streamStatus && (
+            <div
+              className={cn(
+                "p-4 rounded-2xl text-center flex items-center justify-center gap-2 border transition-colors",
+                isStreaming
+                  ? "bg-rose-500/5 border-rose-500/20 text-rose-500"
+                  : "bg-muted/10 border-border/50 text-muted-foreground"
+              )}
+            >
+              {isStreaming ? (
+                <Wifi size={16} className="animate-pulse" />
+              ) : (
+                <WifiOff size={16} />
+              )}
+              <span className="text-[10px] font-black uppercase tracking-widest leading-none">
+                {streamStatus}
+              </span>
+            </div>
+          )}
 
-        {/* Status */}
-        {streamStatus && (
-          <div
-            className={`p-4 rounded-lg text-center ${
-              isStreaming
-                ? "bg-destructive/10 border border-destructive/30"
-                : "bg-muted"
-            }`}
-          >
-            {isStreaming ? (
-              <div className="flex items-center justify-center gap-2">
-                <Wifi size={18} className="text-destructive animate-pulse" />
-                <span className="font-semibold text-destructive">
-                  {streamStatus}
-                </span>
+          <div className="flex justify-between items-center bg-muted/5 p-4 rounded-2xl border border-border/40">
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                Sisa Kuota
+              </span>
+              <span className="text-[9px] text-muted-foreground leading-none font-medium opacity-60">
+                Reset Bulanan
+              </span>
+            </div>
+            <Badge
+              className={cn(
+                "px-4 py-2 rounded-xl text-[10px] font-black tracking-widest cursor-pointer hover:scale-105 active:scale-95 transition-all flex items-center gap-2",
+                quotaRemaining === null
+                  ? "bg-muted"
+                  : quotaRemaining < 60
+                  ? "bg-rose-500"
+                  : "bg-primary"
+              )}
+              onClick={() => setShowTopup(true)}
+            >
+              {quotaRemaining === null ? "..." : `${quotaRemaining} MINS`}
+              <div className="w-4 h-4 rounded-full bg-white/20 flex items-center justify-center">
+                <span className="text-white text-[10px] font-black">+</span>
               </div>
-            ) : (
-              <div className="flex items-center justify-center gap-2">
-                <WifiOff size={18} className="text-muted-foreground" />
-                <span className="text-muted-foreground">{streamStatus}</span>
-              </div>
-            )}
+            </Badge>
           </div>
-        )}
-
-        {/* Quota Info */}
-        <div className="flex justify-between items-center px-1 pb-2">
-          <div className="flex flex-col">
-            <span className="text-sm font-medium">Sisa Kuota</span>
-            <span className="text-xs text-muted-foreground">
-              Reset tiap bulan
-            </span>
-          </div>
-          <Badge
-            variant={
-              quotaRemaining === null
-                ? "secondary"
-                : quotaRemaining < 15
-                ? "destructive"
-                : quotaRemaining < 60
-                ? "warning"
-                : "default"
-            }
-            className="font-bold cursor-pointer hover:opacity-80 transition-opacity"
-            onClick={() => setShowTopup(true)}
-          >
-            <Info size={14} className="mr-1" />
-            {quotaRemaining === null ? "..." : `${quotaRemaining} Menit (+)`}
-          </Badge>
         </div>
 
         {/* Action Buttons */}
-        <div className="flex gap-3">
+        <div className="pt-4">
           {!isStreaming ? (
             <Button
-              variant="destructive"
-              className="flex-1"
-              size="lg"
+              className="w-full h-14 md:h-12 rounded-2xl font-black uppercase tracking-[0.2em] text-sm transition-all active:scale-[0.98]"
               disabled={!hasVideoFile || !streamKey}
               onClick={onStartStream}
             >
-              <Play size={18} />
+              <Play size={18} className="mr-2 fill-current" />
               Mulai Streaming
             </Button>
           ) : (
             <Button
               variant="secondary"
-              className="flex-1"
-              size="lg"
+              className="w-full h-14 md:h-12 rounded-2xl font-black uppercase tracking-[0.2em] text-sm transition-all active:scale-[0.98] border-border/50 bg-muted"
               onClick={onStopStream}
             >
-              <Square size={18} />
+              <Square size={18} className="mr-2 fill-current" />
               Stop Streaming
             </Button>
           )}
+
+          {!hasVideoFile && (
+            <div className="flex items-center gap-2 p-3 mt-4 rounded-xl bg-amber-500/5 border border-amber-500/10">
+              <Info className="text-amber-500 shrink-0" size={14} />
+              <p className="text-[10px] text-amber-600 font-bold uppercase tracking-tight">
+                Upload video untuk memulai siaran
+              </p>
+            </div>
+          )}
         </div>
 
-        {/* Platform Instructions */}
-        <div className="p-3 rounded-lg bg-muted text-xs text-muted-foreground space-y-1">
-          <p className="font-semibold mb-2">Cara mendapatkan Stream Key:</p>
-          <p>
-            • <strong>YouTube:</strong> Studio → Go Live → Stream Key
+        {/* Instructions */}
+        <div className="p-5 rounded-3xl bg-muted/10 border border-border/40 space-y-4">
+          <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground opacity-60 px-1">
+            Gimana dapet Stream Key?
           </p>
-          <p>
-            • <strong>TikTok:</strong> LIVE Studio → Stream Key
-          </p>
-          <p>
-            • <strong>Twitch:</strong> Dashboard → Settings → Stream Key
-          </p>
+          <div className="grid grid-cols-1 gap-3">
+            {[
+              { label: "YouTube", text: "Studio → Live → Key" },
+              { label: "TikTok", text: "Live Studio → Key" },
+              { label: "Twitch", text: "Settings → Stream Key" },
+            ].map((item) => (
+              <div
+                key={item.label}
+                className="flex items-center justify-between px-3 py-2 rounded-xl bg-white/5 border border-white/5"
+              >
+                <span className="text-[10px] font-black text-foreground">
+                  {item.label}
+                </span>
+                <span className="text-[9px] font-bold text-muted-foreground uppercase opacity-80">
+                  {item.text}
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
       </CardBody>
     </Card>

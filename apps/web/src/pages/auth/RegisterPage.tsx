@@ -98,10 +98,12 @@ export function RegisterPage() {
 
   return (
     <div>
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold mb-2">Buat Akun Baru</h1>
-        <p className="text-muted-foreground">
-          Daftar untuk mulai membuat konten luar biasa
+      <div className="mb-10 text-center sm:text-left">
+        <h1 className="text-3xl font-black tracking-tight mb-2">
+          Buat Akun Baru
+        </h1>
+        <p className="text-muted-foreground font-medium">
+          Daftar untuk mulai membangun masa depan konten digital kamu.
         </p>
       </div>
 
@@ -114,88 +116,70 @@ export function RegisterPage() {
       )}
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-        <div className="relative">
-          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-            <User size={18} />
-          </div>
-          <Input
-            label="Nama Lengkap"
-            placeholder="Nama kamu"
-            className="pl-10"
-            error={errors.name?.message}
-            {...register("name", {
-              required: "Nama diperlukan",
-              minLength: {
-                value: 2,
-                message: "Nama minimal 2 karakter",
-              },
-            })}
-          />
-        </div>
+        <Input
+          label="Nama Lengkap"
+          placeholder="Nama kamu"
+          leftIcon={<User size={20} />}
+          error={errors.name?.message}
+          {...register("name", {
+            required: "Nama diperlukan",
+            minLength: {
+              value: 2,
+              message: "Nama minimal 2 karakter",
+            },
+          })}
+        />
 
-        <div className="relative">
-          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-            <Mail size={18} />
-          </div>
-          <Input
-            label="Email"
-            type="email"
-            placeholder="nama@email.com"
-            className="pl-10"
-            error={errors.email?.message}
-            {...register("email", {
-              required: "Email diperlukan",
-              pattern: {
-                value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
-                message: "Email tidak valid",
-              },
-            })}
-          />
-        </div>
+        <Input
+          label="Email"
+          type="email"
+          placeholder="nama@email.com"
+          leftIcon={<Mail size={20} />}
+          error={errors.email?.message}
+          {...register("email", {
+            required: "Email diperlukan",
+            pattern: {
+              value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
+              message: "Email tidak valid",
+            },
+          })}
+        />
 
-        <div className="relative">
-          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-            <Lock size={18} />
-          </div>
-          <Input
-            label="Password"
-            type={showPassword ? "text" : "password"}
-            placeholder="Minimal 8 karakter"
-            className="pl-10 pr-10"
-            error={errors.password?.message}
-            {...register("password", {
-              required: "Password diperlukan",
-              minLength: {
-                value: 8,
-                message: "Password minimal 8 karakter",
-              },
-            })}
-          />
-          <button
-            type="button"
-            onClick={() => setShowPassword(!showPassword)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-          >
-            {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-          </button>
-        </div>
+        <Input
+          label="Password"
+          type={showPassword ? "text" : "password"}
+          placeholder="Minimal 8 karakter"
+          leftIcon={<Lock size={20} />}
+          rightIcon={
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="text-muted-foreground hover:text-primary transition-colors pr-1"
+            >
+              {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+            </button>
+          }
+          error={errors.password?.message}
+          {...register("password", {
+            required: "Password diperlukan",
+            minLength: {
+              value: 8,
+              message: "Password minimal 8 karakter",
+            },
+          })}
+        />
 
-        <div className="relative">
-          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-            <Lock size={18} />
-          </div>
-          <Input
-            label="Konfirmasi Password"
-            type={showPassword ? "text" : "password"}
-            placeholder="Ulangi password"
-            className="pl-10"
-            error={errors.confirmPassword?.message}
-            {...register("confirmPassword", {
-              required: "Konfirmasi password diperlukan",
-              validate: (value) => value === password || "Password tidak cocok",
-            })}
-          />
-        </div>
+        <Input
+          label="Konfirmasi Password"
+          type={showPassword ? "text" : "password"}
+          placeholder="Ulangi password"
+          leftIcon={<Lock size={20} />}
+          error={errors.confirmPassword?.message}
+          {...register("confirmPassword", {
+            required: "Konfirmasi password diperlukan",
+            validate: (value) => value === password || "Password tidak cocok",
+          })}
+        />
 
         <TurnstileWidget
           ref={turnstileRef}
@@ -205,20 +189,20 @@ export function RegisterPage() {
 
         <Button
           type="submit"
-          className="w-full"
+          className="w-full h-14 rounded-full text-base font-bold shadow-md hover:shadow-lg transition-all active:scale-95"
           size="lg"
           isLoading={isLoading}
           disabled={!turnstileToken}
         >
-          {!isLoading && <UserPlus size={20} />}
-          Daftar
+          {!isLoading && <UserPlus size={20} className="mr-2" />}
+          Daftar Sekarang
         </Button>
       </form>
 
-      <p className="mt-6 text-center text-sm text-muted-foreground">
+      <p className="mt-8 text-center text-sm font-medium text-muted-foreground">
         Sudah punya akun?{" "}
-        <Link to="/login" className="text-primary hover:underline">
-          Masuk
+        <Link to="/login" className="text-primary font-bold hover:underline">
+          Masuk ke Akun
         </Link>
       </p>
     </div>

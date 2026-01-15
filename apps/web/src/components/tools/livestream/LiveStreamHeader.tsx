@@ -1,5 +1,5 @@
 import { Button, Badge } from "@/components/ui";
-import { ArrowLeft, Radio, Wifi } from "lucide-react";
+import { ArrowLeft, Radio } from "lucide-react";
 import { Link } from "react-router-dom";
 
 interface LiveStreamHeaderProps {
@@ -8,31 +8,39 @@ interface LiveStreamHeaderProps {
 
 export function LiveStreamHeader({ isStreaming }: LiveStreamHeaderProps) {
   return (
-    <div className="flex items-center gap-4 mb-6">
-      <Button asChild variant="ghost" size="icon">
-        <Link to="/tools/live-stream-history">
-          <ArrowLeft size={20} />
-        </Link>
-      </Button>
-
-      <div className="flex-1">
-        <h1 className="text-2xl font-bold flex items-center gap-2">
-          <Radio size={24} className="text-destructive" />
-          Live Streaming
-        </h1>
-        <p className="text-muted-foreground text-sm">
-          Stream video ke platform favorit
-        </p>
-      </div>
-
-      {isStreaming && (
-        <div>
-          <Badge variant="destructive" className="animate-pulse">
-            <Wifi size={14} className="mr-1" />
-            LIVE
-          </Badge>
+    <div className="flex flex-col gap-2 mb-8">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Button
+            asChild
+            variant="ghost"
+            size="icon"
+            className="rounded-full w-10 h-10 bg-muted/20 border border-border/50 mr-1"
+          >
+            <Link to="/tools/live-stream-history">
+              <ArrowLeft size={18} />
+            </Link>
+          </Button>
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary via-orange-500 to-rose-600 flex items-center justify-center">
+            <Radio className="text-white w-6 h-6" />
+          </div>
+          <h1 className="text-3xl font-black tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-primary via-orange-500 to-rose-600">
+            Live Streamer
+          </h1>
         </div>
-      )}
+
+        <div className="flex items-center gap-2">
+          {isStreaming && (
+            <Badge className="bg-rose-500 hover:bg-rose-500 text-white border-rose-400/30 animate-pulse px-3 py-1 rounded-full text-[10px] font-black tracking-widest">
+              <span className="w-1.5 h-1.5 rounded-full bg-white mr-2" />
+              LIVE
+            </Badge>
+          )}
+        </div>
+      </div>
+      <p className="text-muted-foreground font-medium text-sm ml-13">
+        Loop video stream kamu 24/7 ke berbagai platform tanpa PC menyala.
+      </p>
     </div>
   );
 }

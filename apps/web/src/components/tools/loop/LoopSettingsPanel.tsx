@@ -12,12 +12,11 @@ import {
   SelectContent,
   SelectItem,
   Slider,
-  Switch,
 } from "@/components/ui";
-import { AlertCircle, Download, Sparkles } from "lucide-react";
-import { HoverCard } from "@/components/ui/PageTransition";
+import { Download, Settings2 } from "lucide-react";
 import { LoopMode } from "@/hooks/useLoopCreator";
 import { loopModes } from "./constants";
+import { cn } from "@/lib/utils";
 
 interface LoopSettingsPanelProps {
   loopMode: LoopMode;
@@ -74,270 +73,283 @@ export function LoopSettingsPanel({
   const currentModeConfig = loopModes.find((m) => m.id === loopMode)!;
 
   return (
-    <Card>
-      <CardHeader className="flex items-center gap-2">
-        <div className="w-8 h-8 rounded-lg bg-secondary/10 flex items-center justify-center">
-          <Sparkles size={16} className="text-secondary-foreground" />
+    <Card className="bg-card/70 backdrop-blur-xl border-border/50 h-full">
+      <CardHeader className="flex flex-row items-center gap-3 border-b border-border/50 pb-4">
+        <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center border border-primary/20">
+          <Settings2 size={20} className="text-primary" />
         </div>
-        <h2 className="text-lg font-semibold">Pengaturan</h2>
-      </CardHeader>
-      <CardBody className="space-y-6">
-        {/* Loop Mode Cards */}
         <div>
-          <label className="text-sm font-medium mb-3 block">Mode</label>
-          <div className="grid grid-cols-3 gap-2">
-            {loopModes.map((mode) => (
-              <HoverCard key={mode.id}>
-                <Card
-                  className={`cursor-pointer border-2 transition-colors ${
-                    loopMode === mode.id
-                      ? `border-primary bg-primary/10`
-                      : "border-transparent hover:border-border"
-                  }`}
+          <h2 className="text-lg font-black tracking-tight">Konfigurasi</h2>
+          <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">
+            Sesuaikan Hasil
+          </p>
+        </div>
+      </CardHeader>
+      <CardBody className="p-6 space-y-8">
+        {/* Loop Mode Selection */}
+        <div className="space-y-4">
+          <label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">
+            Pilih Mode
+          </label>
+          <div className="grid grid-cols-3 gap-3">
+            {loopModes.map((mode) => {
+              const isActive = loopMode === mode.id;
+              return (
+                <button
+                  key={mode.id}
                   onClick={() => setLoopMode(mode.id)}
+                  className={cn(
+                    "flex flex-col items-center gap-3 p-4 rounded-2xl border transition-all duration-300 group relative overflow-hidden",
+                    isActive
+                      ? "bg-primary/10 border-primary"
+                      : "bg-muted/10 border-border/50 hover:border-primary/30 hover:bg-muted/20"
+                  )}
                 >
-                  <CardBody className="p-3 text-center">
-                    <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center mx-auto mb-2">
-                      <mode.icon size={20} className="text-primary" />
-                    </div>
-                    <p className="font-medium text-sm">{mode.name}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {mode.description}
+                  <div
+                    className={cn(
+                      "w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-300",
+                      isActive
+                        ? "bg-primary text-white scale-110"
+                        : "bg-muted text-muted-foreground group-hover:scale-110"
+                    )}
+                  >
+                    <mode.icon size={22} />
+                  </div>
+                  <div className="text-center">
+                    <p
+                      className={cn(
+                        "text-xs font-black tracking-tight",
+                        isActive ? "text-primary" : "text-foreground"
+                      )}
+                    >
+                      {mode.name}
                     </p>
-                  </CardBody>
-                </Card>
-              </HoverCard>
-            ))}
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </div>
 
-        <div className="relative">
-          <div className="transition-all space-y-6">
-            <Divider />
+        <Divider className="opacity-40" />
 
-            <div className="mt-4 space-y-2">
-              <label className="text-sm font-medium">
-                Format Output (Canvas)
+        {/* Format & Trim Section */}
+        <div className="space-y-6">
+          <div className="space-y-3">
+            <label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">
+              Rasio Video
+            </label>
+            <Select value={aspectRatio} onValueChange={setAspectRatio}>
+              <SelectTrigger className="h-12 rounded-xl bg-muted/20 border-border/50">
+                <SelectValue placeholder="Original" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="original">Original (Asli)</SelectItem>
+                <SelectItem value="16:9">16:9 Landscape</SelectItem>
+                <SelectItem value="9:16">
+                  9:16 Portrait (TikTok/Reels)
+                </SelectItem>
+                <SelectItem value="1:1">1:1 Square</SelectItem>
+                <SelectItem value="4:5">4:5 Portrait</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-5">
+            <div className="flex justify-between items-end px-1">
+              <label className="text-xs font-black uppercase tracking-widest text-muted-foreground">
+                Rentang Waktu
               </label>
-              <Select value={aspectRatio} onValueChange={setAspectRatio}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Pilih Rasio" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">Original (Tanpa Crop)</SelectItem>
-                  <SelectItem value="16:9">16:9 (YouTube, FB Video)</SelectItem>
-                  <SelectItem value="9:16">
-                    9:16 (TikTok/Reels/Shorts)
-                  </SelectItem>
-                  <SelectItem value="1:1">1:1 (IG/FB Feed)</SelectItem>
-                  <SelectItem value="4:5">4:5 (IG/FB Portrait)</SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground mt-1">
-                *Otomatis menambahkan background blur jika rasio tidak sesuai
-              </p>
-            </div>
-
-            <Divider className="my-4" />
-
-            {/* Trim Controls */}
-            <div className="space-y-4">
-              <label className="text-sm font-medium block">
-                Rentang: {(startMs / 1000).toFixed(1)}s -{" "}
-                {(endMs / 1000).toFixed(1)}s
-              </label>
-              <div className="flex gap-4">
-                <div className="flex-1 space-y-2">
-                  <label className="text-xs text-muted-foreground">Mulai</label>
-                  <Slider
-                    min={0}
-                    max={endMs - 500}
-                    step={100}
-                    value={[startMs]}
-                    onValueChange={(v: number[]) => setStartMs(v[0] ?? 0)}
-                  />
-                </div>
-                <div className="flex-1 space-y-2">
-                  <label className="text-xs text-muted-foreground">Akhir</label>
-                  <Slider
-                    min={startMs + 500}
-                    max={maxDuration}
-                    step={100}
-                    value={[endMs]}
-                    onValueChange={(v: number[]) => setEndMs(v[0] ?? 5000)}
-                  />
-                </div>
+              <div className="text-[10px] font-black tracking-widest bg-primary/10 text-primary px-3 py-1 rounded-full border border-primary/20">
+                {((endMs - startMs) / 1000).toFixed(1)} DETIK
               </div>
             </div>
 
-            {/* GIF Duration Warning */}
-            {loopMode === "gif" && endMs - startMs > 10000 && (
-              <div className="mt-3 p-2 bg-yellow-500/10 border border-yellow-500/20 rounded-md flex items-center gap-2">
-                <AlertCircle size={14} className="text-yellow-500" />
-                <p className="text-xs text-yellow-600">
-                  Durasi GIF {((endMs - startMs) / 1000).toFixed(1)}s cukup
-                  panjang. Ukuran file mungkin sangat besar.
-                </p>
-              </div>
-            )}
-
-            {/* Loop Count / Duration Control */}
-            {(loopMode === "loop" || loopMode === "boomerang") && (
-              <>
-                <Divider />
-                <div className="space-y-4">
-                  {loopMode === "loop" && (
-                    <div className="flex justify-between items-center">
-                      <label className="text-sm font-medium">
-                        Target Output
-                      </label>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs">
-                          {useDurationMode ? "Durasi" : "Jumlah Putar"}
-                        </span>
-                        <Switch
-                          checked={useDurationMode}
-                          onCheckedChange={setUseDurationMode}
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {loopMode === "loop" && useDurationMode ? (
-                    (() => {
-                      const durationMs = endMs - startMs;
-                      let unitMs = durationMs;
-                      const overlap = Math.min(2000, durationMs * 0.3);
-                      unitMs = durationMs - overlap;
-
-                      const maxPossibleMinutes = Math.floor(
-                        (5000 * unitMs) / 60000
-                      );
-                      const uiMaxMinutes = Math.min(500, maxPossibleMinutes);
-
-                      return (
-                        <div className="space-y-2">
-                          <Input
-                            type="number"
-                            label="Durasi Target (Menit)"
-                            placeholder={`Maks: ${uiMaxMinutes} menit`}
-                            value={targetMinutes.toString()}
-                            onChange={(
-                              e: React.ChangeEvent<HTMLInputElement>
-                            ) => {
-                              const v = e.target.value;
-                              setTargetMinutes(Number(v));
-                              const targetMs = Number(v) * 60 * 1000;
-                              const calcLoops = Math.ceil(targetMs / unitMs);
-                              setLoopCount(calcLoops);
-                            }}
-                            min={1}
-                            max={uiMaxMinutes}
-                          />
-                          <p
-                            className={`text-xs ${
-                              loopCount > 5000
-                                ? "text-destructive"
-                                : "text-muted-foreground"
-                            }`}
-                          >
-                            Sistem akan mengulang sebanyak <b>{loopCount}x</b>{" "}
-                            {loopCount > 5000 && "(Terlalu Banyak!)"} untuk
-                            mencapai durasi ini.
-                          </p>
-                        </div>
-                      );
-                    })()
-                  ) : (
-                    <div>
-                      {loopMode === "boomerang" && (
-                        <div className="mb-2 p-2 bg-primary/10 rounded-md text-xs text-primary">
-                          <b>Mode Boomerang:</b> Total Putar disesuaikan agar
-                          durasi maksimal 1 Menit.
-                        </div>
-                      )}
-                      <div className="flex justify-between items-center mb-2">
-                        <label className="text-sm font-medium">
-                          Total Putar: {loopCount}x
-                        </label>
-                        <span className="text-xs text-muted-foreground">
-                          Estimasi:{" "}
-                          {formatDuration(
-                            (loopMode === "loop"
-                              ? (endMs -
-                                  startMs -
-                                  Math.min(2000, (endMs - startMs) * 0.3)) *
-                                loopCount
-                              : (endMs - startMs) * 2 * loopCount) / 1000
-                          )}
-                        </span>
-                      </div>
-                      <Slider
-                        min={1}
-                        max={(() => {
-                          if (loopMode === "boomerang") {
-                            const unitMs = (endMs - startMs) * 2;
-                            return Math.max(1, Math.floor(60000 / unitMs));
-                          }
-                          return 50;
-                        })()}
-                        step={1}
-                        value={[loopCount]}
-                        onValueChange={(v: number[]) => setLoopCount(v[0] ?? 1)}
-                      />
-                      {loopMode === "boomerang" && (
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Max{" "}
-                          {Math.max(
-                            1,
-                            Math.floor(60000 / ((endMs - startMs) * 2))
-                          )}
-                          x putaran (karena batas durasi 1 menit).
-                        </p>
-                      )}
-                    </div>
-                  )}
+            <div className="space-y-6 bg-muted/10 p-5 rounded-3xl border border-border/40">
+              <div className="space-y-4">
+                <div className="flex justify-between items-center text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                  <span>Start: {(startMs / 1000).toFixed(1)}s</span>
                 </div>
-              </>
-            )}
+                <Slider
+                  min={0}
+                  max={endMs - 500}
+                  step={100}
+                  value={[startMs]}
+                  onValueChange={(v: number[]) => setStartMs(v[0] ?? 0)}
+                  className="py-2"
+                />
+              </div>
+              <div className="space-y-4">
+                <div className="flex justify-between items-center text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                  <span>End: {(endMs / 1000).toFixed(1)}s</span>
+                </div>
+                <Slider
+                  min={startMs + 500}
+                  max={maxDuration}
+                  step={100}
+                  value={[endMs]}
+                  onValueChange={(v: number[]) => setEndMs(v[0] ?? 5000)}
+                  className="py-2"
+                />
+              </div>
+            </div>
           </div>
         </div>
-        <Divider />
 
-        {/* Processing Status */}
+        {/* Loop Controls Section */}
+        {(loopMode === "loop" || loopMode === "boomerang") && (
+          <div className="space-y-8 bg-muted/5 p-6 rounded-3xl border border-border/40">
+            {/* Mode Selection like Orientation in photo */}
+            {loopMode === "loop" && (
+              <div className="space-y-4">
+                <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+                  Mode Pengulangan
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    onClick={() => setUseDurationMode(false)}
+                    className={cn(
+                      "p-4 rounded-2xl border transition-all flex flex-col items-center gap-2 group",
+                      !useDurationMode
+                        ? "bg-primary/10 border-primary"
+                        : "bg-muted/10 border-border/50 hover:bg-muted/20"
+                    )}
+                  >
+                    <p
+                      className={cn(
+                        "text-[10px] font-black uppercase tracking-tight",
+                        !useDurationMode ? "text-primary" : "text-foreground"
+                      )}
+                    >
+                      Jumlah Putaran
+                    </p>
+                  </button>
+                  <button
+                    onClick={() => setUseDurationMode(true)}
+                    className={cn(
+                      "p-4 rounded-2xl border transition-all flex flex-col items-center gap-2 group",
+                      useDurationMode
+                        ? "bg-primary/10 border-primary"
+                        : "bg-muted/10 border-border/50 hover:bg-muted/20"
+                    )}
+                  >
+                    <p
+                      className={cn(
+                        "text-[10px] font-black uppercase tracking-tight",
+                        useDurationMode ? "text-primary" : "text-foreground"
+                      )}
+                    >
+                      Target Durasi
+                    </p>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Value & Slider Section */}
+            <div className="space-y-6">
+              <div className="flex justify-between items-center px-1">
+                <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                  {useDurationMode ? "Durasi Menit" : "Set Putaran"}
+                </label>
+                <div className="flex items-center gap-2">
+                  <div className="text-[10px] font-black tracking-widest bg-primary/10 text-primary px-3 py-1.5 rounded-full border border-primary/20">
+                    {useDurationMode
+                      ? `${targetMinutes} MENIT`
+                      : `${loopCount}X PUTAR`}
+                  </div>
+                  <div className="text-[10px] font-black tracking-widest bg-orange-500/10 text-orange-500 px-3 py-1.5 rounded-full border border-orange-500/20">
+                    EST:{" "}
+                    {formatDuration(
+                      ((loopMode === "loop"
+                        ? endMs -
+                          startMs -
+                          Math.min(2000, (endMs - startMs) * 0.3)
+                        : (endMs - startMs) * 2) *
+                        loopCount) /
+                        1000
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {useDurationMode ? (
+                <div className="px-1">
+                  <Input
+                    type="number"
+                    placeholder="Contoh: 10"
+                    value={targetMinutes.toString()}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setTargetMinutes(Number(v));
+                      const unitMs =
+                        endMs -
+                        startMs -
+                        Math.min(2000, (endMs - startMs) * 0.3);
+                      const targetMs = Number(v) * 60 * 1000;
+                      setLoopCount(Math.ceil(targetMs / unitMs));
+                    }}
+                    className="h-12 rounded-xl bg-muted/20 border-border/50 font-bold"
+                  />
+                </div>
+              ) : (
+                <Slider
+                  min={1}
+                  max={
+                    loopMode === "boomerang"
+                      ? Math.max(1, Math.floor(60000 / ((endMs - startMs) * 2)))
+                      : 100
+                  }
+                  step={1}
+                  value={[loopCount]}
+                  onValueChange={(v: number[]) => setLoopCount(v[0] ?? 1)}
+                  className="py-2"
+                />
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Processing State */}
         {isProcessing && (
-          <div className="space-y-2 p-3 rounded-lg bg-primary/5">
-            <Progress value={undefined} className="animate-pulse" />
-            <p className="text-sm text-center text-muted-foreground">
+          <div className="space-y-3 p-5 rounded-3xl bg-secondary/10 border border-secondary/20">
+            <div className="flex items-center justify-between text-xs font-bold uppercase tracking-widest mb-1">
+              <span className="text-primary animate-pulse">
+                Memproses Video...
+              </span>
+              <span>75%</span>
+            </div>
+            <Progress value={75} className="h-2 bg-muted transition-all" />
+            <p className="text-[10px] text-muted-foreground text-center font-medium uppercase tracking-wider">
               {processingStatus}
             </p>
           </div>
         )}
 
-        {/* Action Buttons */}
-        <div className="flex gap-3">
+        {/* Final Action Button */}
+        <div className="flex flex-col sm:flex-row gap-3 pt-4">
           <Button
-            className="flex-1"
-            disabled={
-              !hasVideo || isProcessing || (loopCount > 5000 && useDurationMode)
-            }
+            size="lg"
+            className="w-full flex-1 h-14 md:h-12 rounded-2xl font-black uppercase tracking-[0.2em] text-sm transition-all active:scale-[0.98]"
+            disabled={!hasVideo || isProcessing}
             isLoading={isProcessing}
             onClick={onProcess}
-            size="lg"
           >
-            {!isProcessing && <currentModeConfig.icon size={18} />}
-            {loopMode === "gif"
-              ? "Buat GIF"
-              : loopMode === "boomerang"
-              ? "Buat Boomerang"
-              : "Buat Loop"}
+            {!isProcessing && (
+              <currentModeConfig.icon size={18} className="mr-2" />
+            )}
+            {loopMode === "gif" ? "Render GIF" : "Proses Video Loop"}
           </Button>
 
           {resultUrl && (
-            <Button asChild variant="secondary" size="lg">
+            <Button
+              asChild
+              variant="secondary"
+              className="h-14 md:h-12 rounded-2xl px-8 font-black uppercase tracking-[0.2em] text-sm border-border/40 hover:bg-muted"
+            >
               <a href={resultUrl} download>
-                <Download size={18} />
-                Download
+                <Download size={18} className="mr-2" />
+                Simpan
               </a>
             </Button>
           )}

@@ -10,8 +10,8 @@ export function AiDirectorPage() {
   const { step } = useDirectorStore();
 
   return (
-    <div className="min-h-screen bg-black text-white p-4 md:p-8 font-sans pb-32">
-      <div className="max-w-6xl mx-auto space-y-8">
+    <div className="min-h-screen bg-background text-foreground p-4 md:p-8 font-sans pb-32">
+      <div className="max-w-[1600px] mx-auto space-y-8">
         {/* Header */}
         <StepIndicator />
 

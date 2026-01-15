@@ -7,6 +7,7 @@ import {
   SelectContent,
   SelectItem,
   Textarea,
+  Divider,
 } from "@/components/ui";
 import { SelectionGrid } from "@/components/ui/SelectionGrid";
 import { ImageFormData } from "../types";
@@ -35,105 +36,177 @@ export function ImageForm({ data, onChange }: ImageFormProps) {
   };
 
   return (
-    <Card>
-      <CardBody className="p-4 space-y-6">
+    <Card className="bg-card/60 backdrop-blur-xl border-border/50 shadow-2xl shadow-primary/5">
+      <CardBody className="p-8 space-y-10">
         <TargetModelSelector
           promptType="IMAGE"
           value={data.targetModel}
           onChange={(v) => handleChange("targetModel", v)}
         />
-        <h3 className="font-medium">Detail Image Generation</h3>
 
-        <SelectionGrid
-          label="Tujuan / Purpose"
-          options={imagePurposes}
-          value={data.purpose}
-          onChange={(v) => handleChange("purpose", v)}
-          columns={5}
-        />
-
-        <SelectionGrid
-          label="Subject/Objek"
-          options={imageSubjects}
-          value={data.subject}
-          onChange={(v) => handleChange("subject", v)}
-          columns={5}
-        />
-
-        <div className="grid sm:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <label className="text-sm text-muted-foreground">Style</label>
-            <Select
-              value={data.style}
-              onValueChange={(v) => handleChange("style", v)}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {imageStyles.map((s) => (
-                  <SelectItem key={s.key} value={s.key}>
-                    {s.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+        {/* Section: Objective */}
+        <div className="space-y-6">
+          <div className="flex items-center gap-3">
+            <div className="w-1.5 h-6 bg-primary rounded-full" />
+            <h3 className="text-sm font-black uppercase tracking-[0.2em] text-foreground">
+              Objective & Subject
+            </h3>
           </div>
 
-          <div className="space-y-2">
-            <label className="text-sm text-muted-foreground">
-              Aspect Ratio
-            </label>
-            <Select
-              value={data.aspectRatio}
-              onValueChange={(v) => handleChange("aspectRatio", v)}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {aspectRatios.map((a) => (
-                  <SelectItem key={a.key} value={a.key}>
-                    {a.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            <div className="space-y-3">
+              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+                Tujuan Gambar
+              </label>
+              <Select
+                value={data.purpose}
+                onValueChange={(v) => handleChange("purpose", v)}
+              >
+                <SelectTrigger className="h-14 rounded-2xl bg-muted/10 border-border/50 font-bold px-5 text-sm">
+                  <SelectValue placeholder="Pilih Tujuan" />
+                </SelectTrigger>
+                <SelectContent className="rounded-2xl border-border/50">
+                  {imagePurposes.map((p) => (
+                    <SelectItem
+                      key={p.key}
+                      value={p.key}
+                      className="font-bold text-xs uppercase tracking-widest py-3"
+                    >
+                      {p.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-3">
+              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+                Subjek / Objek Utama
+              </label>
+              <Select
+                value={data.subject}
+                onValueChange={(v) => handleChange("subject", v)}
+              >
+                <SelectTrigger className="h-14 rounded-2xl bg-muted/10 border-border/50 font-bold px-5 text-sm">
+                  <SelectValue placeholder="Pilih Subjek" />
+                </SelectTrigger>
+                <SelectContent className="rounded-2xl border-border/50">
+                  {imageSubjects.map((s) => (
+                    <SelectItem
+                      key={s.key}
+                      value={s.key}
+                      className="font-bold text-xs uppercase tracking-widest py-3"
+                    >
+                      {s.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
 
-        <SelectionGrid
-          label="Mood/Suasana"
-          options={moodOptions}
-          value={data.mood}
-          onChange={(v) => handleChange("mood", v)}
-          columns={5}
-        />
+        <Divider className="opacity-30" />
 
-        <SelectionGrid
-          label="Warna"
-          options={colorOptions}
-          value={data.colors}
-          onChange={(v) => handleChange("colors", v)}
-          columns={5}
-        />
+        {/* Section: Artistic Direction */}
+        <div className="space-y-8">
+          <div className="flex items-center gap-3">
+            <div className="w-1.5 h-6 bg-orange-500 rounded-full" />
+            <h3 className="text-sm font-black uppercase tracking-[0.2em] text-foreground">
+              Artistic Direction
+            </h3>
+          </div>
 
-        <SelectionGrid
-          label="Text Overlay"
-          options={textOverlayOptions}
-          value={data.textOverlay}
-          onChange={(v) => handleChange("textOverlay", v)}
-          columns={4}
-        />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            <div className="space-y-3">
+              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+                Gaya Visual (Style)
+              </label>
+              <Select
+                value={data.style}
+                onValueChange={(v) => handleChange("style", v)}
+              >
+                <SelectTrigger className="h-14 rounded-2xl bg-muted/10 border-border/50 font-bold px-5 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="rounded-2xl border-border/50">
+                  {imageStyles.map((s) => (
+                    <SelectItem
+                      key={s.key}
+                      value={s.key}
+                      className="font-bold text-xs uppercase tracking-widest py-3"
+                    >
+                      {s.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-        <Textarea
-          label="Detail Tambahan (opsional)"
-          placeholder="Detail spesifik lainnya..."
-          value={data.additionalDetails}
-          onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-            handleChange("additionalDetails", e.target.value)
-          }
-        />
+            <div className="space-y-3">
+              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+                Aspect Ratio
+              </label>
+              <Select
+                value={data.aspectRatio}
+                onValueChange={(v) => handleChange("aspectRatio", v)}
+              >
+                <SelectTrigger className="h-14 rounded-2xl bg-muted/10 border-border/50 font-bold px-5 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="rounded-2xl border-border/50">
+                  {aspectRatios.map((a) => (
+                    <SelectItem
+                      key={a.key}
+                      value={a.key}
+                      className="font-bold text-xs uppercase tracking-widest py-3"
+                    >
+                      {a.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <SelectionGrid
+            label="Mood & Suasana"
+            options={moodOptions}
+            value={data.mood}
+            onChange={(v) => handleChange("mood", v)}
+            columns={3}
+          />
+
+          <SelectionGrid
+            label="Skema Warna"
+            options={colorOptions}
+            value={data.colors}
+            onChange={(v) => handleChange("colors", v)}
+            columns={3}
+          />
+
+          <SelectionGrid
+            label="Text Overlay"
+            options={textOverlayOptions}
+            value={data.textOverlay}
+            onChange={(v) => handleChange("textOverlay", v)}
+            columns={3}
+          />
+
+          <div className="space-y-3 pt-4">
+            <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+              Detail Tambahan (opsional)
+            </label>
+            <Textarea
+              placeholder="Detail spesifik lainnya..."
+              value={data.additionalDetails}
+              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+                handleChange("additionalDetails", e.target.value)
+              }
+              className="min-h-[140px] rounded-3xl bg-muted/10 border-border/50 font-bold p-6 focus:bg-muted/20 transition-all leading-relaxed"
+            />
+          </div>
+        </div>
       </CardBody>
     </Card>
   );

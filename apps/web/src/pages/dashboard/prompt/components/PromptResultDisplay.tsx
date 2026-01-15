@@ -7,9 +7,10 @@ import {
   TabsList,
   Tab,
   TabsContent,
+  Divider,
 } from "@/components/ui";
-import { Copy, Check, Sparkles } from "lucide-react";
-import { motion } from "framer-motion";
+import { Copy, Check, Sparkles, Terminal } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface PromptResultDisplayProps {
   generatedPrompt: string | null;
@@ -28,7 +29,6 @@ export function PromptResultDisplay({
     }
   };
 
-  // Smart Parsing Logic
   const parsePrompt = () => {
     if (!generatedPrompt) return null;
 
@@ -59,94 +59,155 @@ export function PromptResultDisplay({
   const parsed = parsePrompt();
 
   return (
-    <motion.div
-      initial={{ opacity: 0, x: 20 }}
-      animate={{ opacity: 1, x: 0 }}
-      className="lg:sticky lg:top-6 lg:self-start"
-    >
-      <Card className="h-[calc(100vh-12rem)] overflow-hidden">
-        <CardBody className="p-0 flex flex-col">
-          <div className="flex items-center justify-between p-4 border-b border-border">
-            <h3 className="font-medium">Hasil Prompt</h3>
-            {generatedPrompt && (
-              <Button size="sm" variant="secondary" onClick={handleCopy}>
-                {copied ? <Check size={16} /> : <Copy size={16} />}
-                {copied ? "Disalin!" : "Salin Semua"}
-              </Button>
-            )}
+    <div className="h-full">
+      <Card className="bg-card/70 backdrop-blur-xl border-border/50 h-[calc(100vh-14rem)] min-h-[500px] overflow-hidden flex flex-col group/result">
+        {/* Card Header */}
+        <div className="flex items-center justify-between p-6 border-b border-border/50 bg-muted/10">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center border border-primary/20">
+              <Terminal size={16} className="text-primary" />
+            </div>
+            <h3 className="font-black text-xs uppercase tracking-[0.2em] text-foreground/80">
+              Hasil Arsitektur Prompt
+            </h3>
           </div>
-
-          <div className="flex-1 overflow-auto p-4">
-            {parsed ? (
-              parsed.type === "plain" ? (
-                <pre className="whitespace-pre-wrap text-sm font-mono text-muted-foreground font-sans">
-                  {parsed.content}
-                </pre>
-              ) : (
-                <div className="space-y-4">
-                  {parsed.intro && (
-                    <div className="text-sm text-muted-foreground bg-muted p-3 rounded-lg whitespace-pre-wrap">
-                      {parsed.intro.trim()}
-                    </div>
+          <AnimatePresence>
+            {generatedPrompt && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+              >
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={handleCopy}
+                  className="h-9 px-4 rounded-xl font-black uppercase tracking-widest text-[10px] bg-primary text-white border-none transition-all active:scale-95"
+                >
+                  {copied ? (
+                    <Check size={14} className="mr-2" />
+                  ) : (
+                    <Copy size={14} className="mr-2" />
                   )}
+                  {copied ? "Disalin!" : "Salin Semua"}
+                </Button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
 
-                  <Tabs
-                    defaultValue={parsed.sections[0]?.title || "0"}
-                    className="w-full"
-                  >
-                    <TabsList className="w-full justify-start border-b border-border bg-transparent">
+        <div className="flex-1 overflow-auto p-6">
+          <AnimatePresence mode="wait">
+            {parsed ? (
+              <motion.div
+                key="content"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="space-y-6"
+              >
+                {parsed.type === "plain" ? (
+                  <div className="relative group">
+                    <div className="absolute inset-0 bg-primary/5 blur-2xl rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <pre className="relative whitespace-pre-wrap text-sm font-medium text-foreground/90 font-sans leading-relaxed bg-muted/20 p-6 rounded-3xl border border-border/50">
+                      {parsed.content}
+                    </pre>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {parsed.intro && (
+                      <div className="text-xs font-bold text-muted-foreground bg-muted/20 p-5 rounded-2xl border border-border/40 leading-relaxed italic">
+                        {parsed.intro.trim()}
+                      </div>
+                    )}
+
+                    <Tabs
+                      defaultValue={parsed.sections[0]?.title || "0"}
+                      className="w-full"
+                    >
+                      <TabsList className="w-full justify-start border-b border-border/50 bg-transparent mb-6 overflow-x-auto scrollbar-hide py-1">
+                        {parsed.sections.map((section, idx) => (
+                          <Tab
+                            key={idx}
+                            value={section.title || String(idx)}
+                            className="bg-transparent data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:text-primary transition-all px-6 font-black uppercase tracking-widest text-[9px]"
+                          >
+                            {section.title}
+                          </Tab>
+                        ))}
+                      </TabsList>
+
                       {parsed.sections.map((section, idx) => (
-                        <Tab
+                        <TabsContent
                           key={idx}
                           value={section.title || String(idx)}
-                          className="data-[state=active]:border-b-2 data-[state=active]:border-primary"
                         >
-                          {section.title}
-                        </Tab>
-                      ))}
-                    </TabsList>
-
-                    {parsed.sections.map((section, idx) => (
-                      <TabsContent
-                        key={idx}
-                        value={section.title || String(idx)}
-                      >
-                        <div className="relative mt-2">
-                          <Card className="bg-muted/50 border border-border/50 shadow-none">
-                            <CardBody className="p-3">
-                              <pre className="whitespace-pre-wrap text-sm text-foreground/90 font-sans">
-                                {section.content}
-                              </pre>
-                            </CardBody>
-                          </Card>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="absolute top-2 right-2 opacity-50 hover:opacity-100"
-                            onClick={() => {
-                              navigator.clipboard.writeText(section.content);
-                            }}
+                          <motion.div
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="relative group"
                           >
-                            <Copy size={14} />
-                          </Button>
-                        </div>
-                      </TabsContent>
-                    ))}
-                  </Tabs>
-                </div>
-              )
+                            <div className="absolute inset-x-0 -bottom-4 h-24 bg-gradient-to-t from-primary/10 to-transparent blur-3xl opacity-0 group-hover:opacity-100 transition-opacity -z-10" />
+                            <Card className="bg-muted/30 border border-border/40 shadow-none rounded-3xl overflow-hidden">
+                              <CardBody className="p-8">
+                                <pre className="whitespace-pre-wrap text-[13px] font-bold text-foreground/90 font-sans leading-relaxed">
+                                  {section.content}
+                                </pre>
+                              </CardBody>
+                            </Card>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="absolute top-4 right-4 h-10 w-10 rounded-xl bg-background/50 backdrop-blur-md border border-border/50 opacity-0 group-hover:opacity-100 transition-all active:scale-90"
+                              onClick={() => {
+                                navigator.clipboard.writeText(section.content);
+                              }}
+                            >
+                              <Copy size={16} className="text-primary" />
+                            </Button>
+                          </motion.div>
+                        </TabsContent>
+                      ))}
+                    </Tabs>
+                  </div>
+                )}
+              </motion.div>
             ) : (
-              <div className="h-full flex items-center justify-center text-muted-foreground">
-                <div className="text-center">
-                  <Sparkles size={48} className="mx-auto mb-4 opacity-50" />
-                  <p>Hasil prompt akan muncul di sini</p>
-                  <p className="text-sm mt-1">Isi form dan klik Generate</p>
+              <motion.div
+                key="empty"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="h-full flex items-center justify-center text-muted-foreground"
+              >
+                <div className="text-center space-y-6">
+                  <div className="relative inline-flex">
+                    <div className="absolute inset-0 bg-primary/20 blur-3xl rounded-full opacity-20" />
+                    <div className="relative w-24 h-24 rounded-[2rem] bg-muted/20 flex items-center justify-center border border-border/50">
+                      <Sparkles size={40} className="text-primary/40" />
+                    </div>
+                  </div>
+                  <div>
+                    <h4 className="text-lg font-black uppercase tracking-tighter mb-2">
+                      Architecting Logic
+                    </h4>
+                    <p className="text-[11px] font-black uppercase tracking-widest opacity-60">
+                      Hasil rancangan prompt akan muncul di sini
+                    </p>
+                    <div className="mt-4 flex items-center justify-center gap-2">
+                      <Divider className="w-8 opacity-20" />
+                      <span className="text-[9px] font-black tracking-[0.2em] opacity-30">
+                        VIBE CREATOR
+                      </span>
+                      <Divider className="w-8 opacity-20" />
+                    </div>
+                  </div>
                 </div>
-              </div>
+              </motion.div>
             )}
-          </div>
-        </CardBody>
+          </AnimatePresence>
+        </div>
       </Card>
-    </motion.div>
+    </div>
   );
 }

@@ -6,13 +6,24 @@ import {
   DialogTitle,
   DialogFooter,
   Input,
+  Badge,
 } from "@/components/ui";
 import { VoiceRecorderModal } from "@/components/editor/VoiceRecorderModal";
 import { TextOverlayEditor } from "@/components/editor/TextOverlayEditor";
 import { ExportModal } from "@/components/editor/ExportModal";
+import {
+  Globe,
+  CheckCircle2,
+  Loader2,
+  Sparkles,
+  Youtube,
+  Instagram,
+  Twitter,
+  Facebook,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface EditorModalsProps {
-  // URL Modal
   isUrlModalOpen: boolean;
   closeUrlModal: () => void;
   urlInput: string;
@@ -20,17 +31,11 @@ interface EditorModalsProps {
   isDownloading: boolean;
   downloadStep: number;
   handleUrlDownload: () => void;
-
-  // Voice Modal
   isVoiceModalOpen: boolean;
   closeVoiceModal: () => void;
   handleVoiceSave: (blob: Blob, duration: number) => void;
-
-  // Text Modal
   isTextModalOpen: boolean;
   closeTextModal: () => void;
-
-  // Export Modal
   isExportModalOpen: boolean;
   setIsExportModalOpen: (open: boolean) => void;
   handleExportConfirm: (settings: {
@@ -68,195 +73,162 @@ export const EditorModals = ({
         open={isUrlModalOpen}
         onOpenChange={(open) => !open && closeUrlModal()}
       >
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Import dari URL</DialogTitle>
+        <DialogContent className="max-w-lg bg-background/60 backdrop-blur-3xl border-white/10 p-0 overflow-hidden shadow-2xl">
+          <DialogHeader className="p-8 pb-4 border-b border-white/5 bg-white/5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 flex items-center justify-center text-emerald-400 shadow-lg shadow-emerald-500/10">
+                  <Globe size={24} />
+                </div>
+                <DialogTitle className="text-xl font-black uppercase tracking-tight">
+                  Universal Stream
+                </DialogTitle>
+              </div>
+              <Badge
+                variant="outline"
+                className="h-6 font-black border-emerald-500/20 bg-emerald-500/5 text-emerald-400"
+              >
+                PRO_EXTRACTOR
+              </Badge>
+            </div>
           </DialogHeader>
 
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Input
-                label="URL Video"
-                placeholder="https://youtube.com/watch?v=... atau TikTok/Instagram/Sora"
-                value={urlInput}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                  setUrlInput(e.target.value)
-                }
-                disabled={isDownloading}
-              />
-              <p className="text-xs text-muted-foreground">
-                Mendukung: YouTube, TikTok, Instagram, Twitter, Facebook, Sora
-                AI
-              </p>
+          <div className="p-8 space-y-6">
+            <div className="space-y-4">
+              <div className="relative group">
+                <Input
+                  placeholder="Paste link from YouTube, TikTok, Reels..."
+                  value={urlInput}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                    setUrlInput(e.target.value)
+                  }
+                  disabled={isDownloading}
+                  className="h-16 pl-12 bg-background/40 border-border/40 rounded-2xl font-bold text-base focus:ring-emerald-500/40"
+                />
+                <Globe
+                  size={18}
+                  className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground/40 group-focus-within:text-emerald-400 transition-colors"
+                />
+              </div>
+
+              <div className="flex items-center gap-4 flex-wrap px-2">
+                <span className="text-[9px] font-black text-muted-foreground/40 uppercase tracking-widest">
+                  Supports:
+                </span>
+                {[Youtube, Instagram, Twitter, Facebook].map((Icon, i) => (
+                  <Icon
+                    key={i}
+                    size={14}
+                    className="text-muted-foreground/30 hover:text-foreground transition-colors"
+                  />
+                ))}
+              </div>
             </div>
 
-            {/* URL Preview Embed */}
-            {urlInput &&
-              !isDownloading &&
-              (() => {
-                const url = urlInput.trim();
-
-                // TikTok - 100% supported
-                if (url.includes("tiktok.com")) {
-                  return (
-                    <div className="rounded-lg overflow-hidden bg-green-500/10 border border-green-500/30 p-4">
-                      <div className="flex items-start gap-3">
-                        <div className="text-green-500 text-xl">✅</div>
-                        <div>
-                          <p className="font-medium text-green-500 mb-1">
-                            TikTok Siap Download
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            Video TikTok akan didownload dan langsung
-                            ditambahkan ke timeline.
-                          </p>
-                        </div>
-                      </div>
+            {/* Smart Detection Feedback */}
+            {urlInput && !isDownloading && (
+              <div className="animate-in fade-in slide-in-from-bottom duration-500">
+                <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-6 space-y-4 shadow-xl shadow-emerald-500/5">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-500 flex items-center justify-center text-white shadow-lg">
+                      <CheckCircle2 size={24} />
                     </div>
-                  );
-                }
-
-                // Instagram - 100% supported
-                if (url.includes("instagram.com")) {
-                  return (
-                    <div className="rounded-lg overflow-hidden bg-green-500/10 border border-green-500/30 p-4">
-                      <div className="flex items-start gap-3">
-                        <div className="text-green-500 text-xl">✅</div>
-                        <div>
-                          <p className="font-medium text-green-500 mb-1">
-                            Instagram Siap Download
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            Video/Reels Instagram akan didownload dan
-                            ditambahkan ke timeline.
-                          </p>
-                        </div>
-                      </div>
+                    <div>
+                      <p className="text-sm font-black uppercase tracking-tight text-emerald-400">
+                        Target Synchronized
+                      </p>
+                      <p className="text-[10px] font-bold text-muted-foreground leading-snug">
+                        The capture engine is ready to extract high-quality
+                        video artifacts from this link.
+                      </p>
                     </div>
-                  );
-                }
-
-                // Twitter/X - supported
-                if (url.includes("twitter.com") || url.includes("x.com")) {
-                  return (
-                    <div className="rounded-lg overflow-hidden bg-green-500/10 border border-green-500/30 p-4">
-                      <div className="flex items-start gap-3">
-                        <div className="text-green-500 text-xl">✅</div>
-                        <div>
-                          <p className="font-medium text-green-500 mb-1">
-                            Twitter/X Siap Download
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            Video Twitter/X akan didownload dan ditambahkan ke
-                            timeline.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                }
-
-                // Facebook - supported
-                if (url.includes("facebook.com") || url.includes("fb.watch")) {
-                  return (
-                    <div className="rounded-lg overflow-hidden bg-green-500/10 border border-green-500/30 p-4">
-                      <div className="flex items-start gap-3">
-                        <div className="text-green-500 text-xl">✅</div>
-                        <div>
-                          <p className="font-medium text-green-500 mb-1">
-                            Facebook Siap Download
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            Video Facebook akan didownload dan ditambahkan ke
-                            timeline.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                }
-
-                // Sora AI - supported
-                if (url.includes("sora.chatgpt.com")) {
-                  return (
-                    <div className="rounded-lg overflow-hidden bg-green-500/10 border border-green-500/30 p-4">
-                      <div className="flex items-start gap-3">
-                        <div className="text-green-500 text-xl">✨</div>
-                        <div>
-                          <p className="font-medium text-green-500 mb-1">
-                            Sora AI Video Siap Download
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            Video AI dari OpenAI Sora akan didownload dan
-                            ditambahkan ke timeline.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                }
-
-                return null;
-              })()}
+                  </div>
+                  <div className="p-3 bg-black/20 rounded-xl border border-white/5 flex items-center gap-2">
+                    <Sparkles size={12} className="text-amber-400" />
+                    <span className="text-[9px] font-black uppercase tracking-widest text-white/60">
+                      AI Resolution Enhancement Active
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {isDownloading && downloadStep > 0 && (
-              <div className="mt-4 space-y-2">
+              <div className="space-y-4 py-4">
                 {[
-                  { step: 1, label: "Mengirim request..." },
-                  { step: 2, label: "Mendownload video..." },
-                  { step: 3, label: "Mengambil file..." },
-                  { step: 4, label: "Menambahkan ke timeline..." },
+                  { step: 1, label: "Initializing Handshake..." },
+                  { step: 2, label: "Extracting Data Stream..." },
+                  { step: 3, label: "Verifying Integrity..." },
+                  { step: 4, label: "Injecting to Timeline..." },
                 ].map(({ step, label }) => (
-                  <div key={step} className="flex items-center gap-3">
+                  <div key={step} className="flex items-center gap-4 group">
                     <div
-                      className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold
-                      ${
+                      className={cn(
+                        "w-8 h-8 rounded-xl flex items-center justify-center text-xs font-black transition-all",
                         downloadStep > step
-                          ? "bg-green-500 text-white"
+                          ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20"
                           : downloadStep === step
                           ? "bg-primary text-white animate-pulse"
-                          : "bg-muted text-muted-foreground"
-                      }`}
+                          : "bg-white/5 text-muted-foreground/20"
+                      )}
                     >
-                      {downloadStep > step ? "✓" : step}
+                      {downloadStep > step ? <CheckCircle2 size={16} /> : step}
                     </div>
-                    <span
-                      className={`text-sm ${
-                        downloadStep >= step
-                          ? "text-foreground"
-                          : "text-muted-foreground"
-                      }`}
-                    >
-                      {label}
-                    </span>
+                    <div className="flex-1">
+                      <span
+                        className={cn(
+                          "text-xs font-black uppercase tracking-widest",
+                          downloadStep >= step
+                            ? "text-foreground"
+                            : "text-muted-foreground/20"
+                        )}
+                      >
+                        {label}
+                      </span>
+                      {downloadStep === step && (
+                        <div className="h-0.5 w-full bg-primary/20 mt-1 rounded-full overflow-hidden">
+                          <div className="h-full bg-primary animate-progress-indefinite" />
+                        </div>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
             )}
           </div>
 
-          <DialogFooter>
-            <Button variant="ghost" onClick={closeUrlModal}>
-              Batal
+          <DialogFooter className="p-8 pt-4 bg-white/5 border-t border-white/5 flex gap-4">
+            <Button
+              variant="ghost"
+              onClick={closeUrlModal}
+              className="h-12 px-8 rounded-2xl font-black uppercase tracking-widest text-[10px]"
+            >
+              Abandon
             </Button>
-            <Button onClick={handleUrlDownload} isLoading={isDownloading}>
-              Download
+            <Button
+              onClick={handleUrlDownload}
+              disabled={isDownloading || !urlInput}
+              className="h-12 flex-1 rounded-2xl font-black uppercase tracking-widest text-[10px] shadow-xl shadow-emerald-500/20 bg-emerald-500 hover:bg-emerald-600 active:scale-95 transition-all"
+            >
+              {isDownloading ? (
+                <Loader2 size={14} className="mr-2 animate-spin" />
+              ) : (
+                <Sparkles size={14} className="mr-2" />
+              )}
+              Begin Extraction
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Voice Recorder Modal */}
       <VoiceRecorderModal
         isOpen={isVoiceModalOpen}
         onClose={closeVoiceModal}
         onSave={handleVoiceSave}
       />
 
-      {/* Text Overlay Editor Modal */}
       <TextOverlayEditor isOpen={isTextModalOpen} onClose={closeTextModal} />
 
-      {/* Export Modal */}
       <ExportModal
         isOpen={isExportModalOpen}
         onOpenChange={setIsExportModalOpen}

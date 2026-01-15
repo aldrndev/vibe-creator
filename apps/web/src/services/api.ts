@@ -1,7 +1,22 @@
-import type { ApiResponse } from '@vibe-creator/shared';
-import { useAuthStore } from '@/stores/auth-store';
+import type { ApiResponse } from "@vibe-creator/shared";
+import { useAuthStore } from "@/stores/auth-store";
 
-const API_BASE_URL = '/api/v1';
+/** API host (without /api/v1) */
+export const API_HOST = import.meta.env.VITE_API_URL || "http://localhost:3000";
+
+const API_BASE_URL = `${API_HOST}/api/v1`;
+
+/**
+ * Helper to convert relative API paths to absolute URLs.
+ * Use this for static assets like video/image src attributes.
+ * @example getApiUrl('/api/v1/director/static-assets/file.mp4')
+ */
+export function getApiUrl(path: string): string {
+  if (path.startsWith("/api/v1")) {
+    return `${API_HOST}${path}`;
+  }
+  return path;
+}
 
 class ApiClient {
   private baseUrl: string;
@@ -14,12 +29,12 @@ class ApiClient {
 
   private getHeaders(): HeadersInit {
     const headers: HeadersInit = {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
     };
 
     const accessToken = useAuthStore.getState().accessToken;
     if (accessToken) {
-      headers['Authorization'] = `Bearer ${accessToken}`;
+      headers["Authorization"] = `Bearer ${accessToken}`;
     }
 
     return headers;
@@ -44,8 +59,9 @@ class ApiClient {
       return {
         success: false,
         error: {
-          code: 'RATE_LIMIT_EXCEEDED',
-          message: data.message || 'Terlalu banyak permintaan. Mohon tunggu sebentar.',
+          code: "RATE_LIMIT_EXCEEDED",
+          message:
+            data.message || "Terlalu banyak permintaan. Mohon tunggu sebentar.",
         },
       };
     }
@@ -55,16 +71,16 @@ class ApiClient {
       return {
         success: false,
         error: {
-          code: data.error || 'UNKNOWN_ERROR',
+          code: data.error || "UNKNOWN_ERROR",
           message: data.message,
         },
       };
     }
 
     // Handle token expiration - auto refresh
-    if (response.status === 401 && data.error?.code !== 'INVALID_CREDENTIALS') {
+    if (response.status === 401 && data.error?.code !== "INVALID_CREDENTIALS") {
       // Don't refresh for auth endpoints
-      if (endpoint.startsWith('/auth/')) {
+      if (endpoint.startsWith("/auth/")) {
         return data;
       }
 
@@ -79,7 +95,7 @@ class ApiClient {
       if (!this.isRefreshing) {
         this.isRefreshing = true;
         this.refreshPromise = useAuthStore.getState().refreshAccessToken();
-        
+
         try {
           const refreshed = await this.refreshPromise;
           this.isRefreshing = false;
@@ -91,9 +107,14 @@ class ApiClient {
               method,
               headers: this.getHeaders(),
               body: body ? JSON.stringify(body) : undefined,
-              credentials: 'include',
+              credentials: "include",
             });
-            return this.handleResponse<T>(retryResponse, endpoint, method, body);
+            return this.handleResponse<T>(
+              retryResponse,
+              endpoint,
+              method,
+              body
+            );
           } else {
             // Refresh failed - just return the original 401 response
             // ProtectedRoute will handle redirect to login
@@ -108,27 +129,27 @@ class ApiClient {
       } else {
         // Wait for ongoing refresh
         await this.waitForRefresh();
-        
+
         // Check if we're authenticated after refresh
         const newToken = useAuthStore.getState().accessToken;
         if (!newToken) {
           // Refresh failed, return original error
           return data;
         }
-        
+
         // Retry with potentially new token
         const retryResponse = await fetch(`${this.baseUrl}${endpoint}`, {
           method,
           headers: this.getHeaders(),
           body: body ? JSON.stringify(body) : undefined,
-          credentials: 'include',
+          credentials: "include",
         });
         return this.handleResponse<T>(retryResponse, endpoint, method, body);
       }
     }
 
     // Handle session invalidation (logged in from another device)
-    if (response.status === 401 && data.error?.code === 'SESSION_INVALIDATED') {
+    if (response.status === 401 && data.error?.code === "SESSION_INVALIDATED") {
       await useAuthStore.getState().logout();
     }
 
@@ -137,40 +158,40 @@ class ApiClient {
 
   async get<T>(endpoint: string): Promise<ApiResponse<T>> {
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
-      method: 'GET',
+      method: "GET",
       headers: this.getHeaders(),
-      credentials: 'include',
+      credentials: "include",
     });
-    return this.handleResponse<T>(response, endpoint, 'GET');
+    return this.handleResponse<T>(response, endpoint, "GET");
   }
 
   async post<T>(endpoint: string, body?: unknown): Promise<ApiResponse<T>> {
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
-      method: 'POST',
+      method: "POST",
       headers: this.getHeaders(),
       body: body ? JSON.stringify(body) : undefined,
-      credentials: 'include',
+      credentials: "include",
     });
-    return this.handleResponse<T>(response, endpoint, 'POST', body);
+    return this.handleResponse<T>(response, endpoint, "POST", body);
   }
 
   async patch<T>(endpoint: string, body: unknown): Promise<ApiResponse<T>> {
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
-      method: 'PATCH',
+      method: "PATCH",
       headers: this.getHeaders(),
       body: JSON.stringify(body),
-      credentials: 'include',
+      credentials: "include",
     });
-    return this.handleResponse<T>(response, endpoint, 'PATCH', body);
+    return this.handleResponse<T>(response, endpoint, "PATCH", body);
   }
 
   async delete<T>(endpoint: string): Promise<ApiResponse<T>> {
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
-      method: 'DELETE',
+      method: "DELETE",
       headers: this.getHeaders(),
-      credentials: 'include',
+      credentials: "include",
     });
-    return this.handleResponse<T>(response, endpoint, 'DELETE');
+    return this.handleResponse<T>(response, endpoint, "DELETE");
   }
 }
 
@@ -185,18 +206,22 @@ export async function authFetch(
   options: RequestInit = {}
 ): Promise<Response> {
   const token = useAuthStore.getState().accessToken;
-  
+
+  // Convert relative /api/v1 paths to absolute URLs
+  const API_HOST = import.meta.env.VITE_API_URL || "http://localhost:3000";
+  const fullUrl = url.startsWith("/api/v1") ? `${API_HOST}${url}` : url;
+
   const headers = new Headers(options.headers);
-  if (token && !headers.has('Authorization')) {
-    headers.set('Authorization', `Bearer ${token}`);
+  if (token && !headers.has("Authorization")) {
+    headers.set("Authorization", `Bearer ${token}`);
   }
-  
-  const response = await fetch(url, {
+
+  const response = await fetch(fullUrl, {
     ...options,
     headers,
-    credentials: 'include',
+    credentials: "include",
   });
-  
+
   // Handle 401 - try refresh token
   if (response.status === 401) {
     const refreshed = await useAuthStore.getState().refreshAccessToken();
@@ -204,16 +229,16 @@ export async function authFetch(
       const newToken = useAuthStore.getState().accessToken;
       const retryHeaders = new Headers(options.headers);
       if (newToken) {
-        retryHeaders.set('Authorization', `Bearer ${newToken}`);
+        retryHeaders.set("Authorization", `Bearer ${newToken}`);
       }
-      
-      return fetch(url, {
+
+      return fetch(fullUrl, {
         ...options,
         headers: retryHeaders,
-        credentials: 'include',
+        credentials: "include",
       });
     }
   }
-  
+
   return response;
 }

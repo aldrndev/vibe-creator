@@ -44,11 +44,7 @@ const DownloadsPage = lazy(() =>
     default: m.DownloadsPage,
   }))
 );
-const SettingsPage = lazy(() =>
-  import("@/pages/dashboard/SettingsPage").then((m) => ({
-    default: m.SettingsPage,
-  }))
-);
+const SettingsPage = lazy(() => import("@/pages/dashboard/SettingsPage"));
 const PricingPage = lazy(() =>
   import("@/pages/dashboard/PricingPage").then((m) => ({
     default: m.PricingPage,
@@ -60,6 +56,11 @@ const AdminPage = lazy(() =>
 const CommunityPage = lazy(() =>
   import("@/pages/dashboard/CommunityPage").then((m) => ({
     default: m.CommunityPage,
+  }))
+);
+const TrendingPage = lazy(() =>
+  import("@/pages/dashboard/TrendingPage").then((m) => ({
+    default: m.TrendingPage,
   }))
 );
 
@@ -289,6 +290,14 @@ export default function App() {
               element={
                 <Suspense fallback={<PageLoader />}>
                   <AdminPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/dashboard/trending"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <TrendingPage />
                 </Suspense>
               }
             />

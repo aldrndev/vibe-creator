@@ -84,41 +84,56 @@ export const AnalyzeStep = () => {
 
   return (
     <div className="max-w-2xl mx-auto w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <Card className="bg-zinc-900/50 border-zinc-800 backdrop-blur-md">
-        <CardBody className="p-8 flex flex-col items-center text-center gap-6">
-          <div className="w-20 h-20 rounded-full bg-secondary/10 flex items-center justify-center mb-2 animate-pulse">
-            <Sparkles className="w-10 h-10 text-secondary-foreground" />
+      <Card className="bg-card/70 border-border/50 backdrop-blur-xl relative overflow-hidden group">
+        <CardBody className="p-8 sm:p-12 flex flex-col items-center text-center gap-8">
+          <div className="w-24 h-24 rounded-3xl bg-gradient-to-br from-primary via-orange-500 to-rose-600 flex items-center justify-center mb-2 relative">
+            <Sparkles className="w-12 h-12 text-white drop-shadow-sm" />
           </div>
 
-          <div>
-            <h2 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-zinc-400 mb-2">
-              Analyzing Content
+          <div className="space-y-3">
+            <h2 className="text-3xl font-black tracking-tight bg-clip-text text-transparent bg-gradient-to-br from-primary via-orange-500 to-rose-600">
+              Menganalisis Konten
             </h2>
-            <p className="text-zinc-400 max-w-md mx-auto leading-relaxed">
-              AI sedang menonton videomu... <br />
-              Mencari momen viral terbaik untuk dijadikan Shorts.
+            <p className="text-muted-foreground max-w-md mx-auto leading-relaxed font-medium">
+              AI kami sedang mempelajari video kamu untuk menemukan momen-momen
+              yang paling berpotensi viral. 🎬
             </p>
           </div>
 
           {/* Terminal Logs */}
-          <div className="w-full max-w-md bg-black/50 rounded-lg p-4 font-mono text-xs text-left h-48 overflow-hidden flex flex-col justify-end border border-zinc-800 relative">
-            <div className="absolute top-2 right-2">
-              <Loader2 className="w-4 h-4 text-zinc-600 animate-spin" />
+          <div className="w-full max-w-md bg-zinc-950/80 rounded-3xl p-6 font-mono text-[11px] text-left h-52 overflow-hidden flex flex-col justify-end border border-border/40 relative shadow-inner">
+            <div className="absolute top-4 right-4 flex items-center gap-2">
+              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                Processing
+              </span>
+              <Loader2 className="w-3.5 h-3.5 text-primary animate-spin" />
             </div>
-            {analysisLogs.map((log, i) => (
-              <div
-                key={i}
-                className="text-zinc-400 truncate animate-in slide-in-from-left-2 fade-in duration-300"
-              >
-                <span className="text-zinc-600 mr-2">$</span>
-                {log}
+
+            <div className="space-y-1.5">
+              {analysisLogs.map((log, i) => (
+                <div
+                  key={i}
+                  className="text-foreground/60 truncate animate-in slide-in-from-left-2 fade-in duration-300 flex gap-2"
+                >
+                  <span className="text-primary/40 font-bold shrink-0">
+                    [{i + 1}]
+                  </span>
+                  <span className="truncate">{log}</span>
+                </div>
+              ))}
+              <div className="pt-2 flex items-center gap-2">
+                <span className="text-primary font-bold">➜</span>
+                <span className="text-foreground/40 italic">
+                  Mengekstrak metadata visual...
+                </span>
+                <span className="w-1.5 h-4 bg-primary animate-pulse inline-block rounded-sm" />
               </div>
-            ))}
-            <div className="mt-1 flex items-center gap-1">
-              <span className="text-primary mr-2">➜</span>
-              <span className="w-2 h-4 bg-primary animate-pulse inline-block" />
             </div>
           </div>
+
+          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/40 animate-pulse">
+            Estimasi waktu: 30-60 detik
+          </p>
         </CardBody>
       </Card>
     </div>

@@ -9,7 +9,7 @@ import { useRef, useEffect, useState, useCallback } from "react";
 import { logger } from "@/lib/logger";
 import { useModernEditorStore } from "@/stores/modern-editor-store";
 import type { Layer, AudioLayer } from "@vibe-creator/shared";
-import { clsx } from "clsx";
+import { cn } from "@/lib/utils";
 import { LayerRenderer } from "./canvas/LayerRenderer";
 import { AudioLayerContent } from "./canvas/AudioLayerContent";
 
@@ -94,15 +94,16 @@ export function EditorCanvas({ className }: EditorCanvasProps) {
   return (
     <div
       ref={containerRef}
-      className={clsx(
-        "flex-1 flex items-center justify-center bg-content2/50 overflow-hidden p-6",
+      className={cn(
+        "flex-1 flex items-center justify-center bg-muted/20 overflow-hidden p-6 relative",
+        "bg-[radial-gradient(hsl(var(--muted-foreground)/0.15)_1px,transparent_1px)] [background-size:24px_24px]",
         className
       )}
       onClick={handleCanvasClick}
     >
       {/* Canvas */}
       <div
-        className="relative bg-black shadow-2xl"
+        className="relative bg-black"
         style={{
           width: settings.width * scale,
           height: settings.height * scale,
@@ -139,7 +140,7 @@ export function EditorCanvas({ className }: EditorCanvasProps) {
 
         {/* Empty state */}
         {visibleLayers.length === 0 && (
-          <div className="absolute inset-0 flex items-center justify-center text-white/30">
+          <div className="absolute inset-0 flex items-center justify-center text-muted-foreground">
             <div className="text-center">
               <p className="text-lg font-medium">Canvas Kosong</p>
               <p className="text-sm">

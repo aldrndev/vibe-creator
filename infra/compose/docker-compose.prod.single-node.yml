@@ -41,21 +41,27 @@ services:
           cpus: "0.25"
           memory: 256M
 
-  server:
-    image: vibe-creator-server:${SERVER_IMAGE_TAG}
-    container_name: vibe-creator-server-prod
+  api:
+    build:
+      context: ../..
+      dockerfile: apps/api/Dockerfile
+      target: runner
+    image: vibe-creator-api:${IMAGE_TAG:-latest}
+    container_name: vibe-creator-api-prod
     ports:
       - "3000:3000"
     env_file:
       - apps/api/.env.docker
     environment:
       NODE_ENV: production
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-password}@postgres:5432/vibe_creator?schema=public
+      REDIS_URL: redis://redis:6379
       FFMPEG_PATH: /usr/bin/ffmpeg
       MEDIA_INPUT_DIR: /app/uploads
       TEMP_DIR: /app/uploads/temp
       OUTPUT_DIR: /app/uploads/exports
     volumes:
-      - server_uploads_prod:/app/uploads
+      - api_uploads_prod:/app/uploads
     depends_on:
       postgres:
         condition: service_healthy
@@ -76,4 +82,4 @@ services:
 volumes:
   postgres_data_prod:
   redis_data_prod:
-  server_uploads_prod:
+  api_uploads_prod:

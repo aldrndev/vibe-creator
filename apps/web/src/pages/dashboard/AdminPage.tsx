@@ -1,6 +1,5 @@
 import { useEffect } from "react";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui";
-import { Users, Megaphone } from "lucide-react";
+
 import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "@/stores/auth-store";
 import { AdminHeader } from "@/components/dashboard/admin/AdminHeader";
@@ -48,26 +47,14 @@ export function AdminPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="pb-20 pt-6 px-6 w-full mx-auto space-y-10">
       <AdminHeader />
 
       <SystemStats stats={stats} />
 
-      {/* Tabs for Users and Announcements */}
-      <Tabs defaultValue="users" className="w-full">
-        <TabsList>
-          <TabsTrigger value="users" className="flex items-center gap-2">
-            <Users size={16} /> Users
-          </TabsTrigger>
-          <TabsTrigger
-            value="announcements"
-            className="flex items-center gap-2"
-          >
-            <Megaphone size={16} /> Pengumuman
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="users" className="mt-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+        {/* Left Column: Users Table (2/3) */}
+        <div className="lg:col-span-2">
           <UsersTable
             users={users}
             isLoading={isLoading}
@@ -79,9 +66,10 @@ export function AdminPage() {
               editModal.onOpen();
             }}
           />
-        </TabsContent>
+        </div>
 
-        <TabsContent value="announcements" className="mt-4">
+        {/* Right Column: Announcements (1/3) */}
+        <div className="lg:col-span-1">
           <AnnouncementsPanel
             announcements={announcements}
             isLoading={announcementsLoading}
@@ -89,8 +77,8 @@ export function AdminPage() {
             onUpdate={updateAnnouncement}
             onDelete={deleteAnnouncement}
           />
-        </TabsContent>
-      </Tabs>
+        </div>
+      </div>
 
       <EditSubscriptionModal
         isOpen={editModal.isOpen}

@@ -6,6 +6,7 @@ import {
   SelectItem,
 } from "@/components/ui";
 import { PromptType, AIModel, getModelsForType } from "@vibe-creator/shared";
+import { Cpu } from "lucide-react";
 
 interface TargetModelSelectorProps {
   promptType: PromptType;
@@ -21,21 +22,30 @@ export function TargetModelSelector({
   const models = getModelsForType(promptType);
 
   return (
-    <div className="bg-muted/50 p-4 rounded-xl border border-border/50 mb-6">
-      <div className="space-y-2">
-        <label className="text-sm font-medium">
-          Target AI Model / Model AI
-        </label>
+    <div className="bg-primary/5 p-5 rounded-2xl border border-primary/20 mb-8 relative overflow-hidden group">
+      <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+        <Cpu size={40} className="text-primary" />
+      </div>
+
+      <div className="space-y-4 relative z-10">
+        <div className="flex flex-col gap-1">
+          <label className="text-[10px] font-black uppercase tracking-widest text-primary/80 ml-1">
+            Engine Optimasi AI
+          </label>
+        </div>
+
         <Select value={value} onValueChange={(v) => onChange(v as AIModel)}>
-          <SelectTrigger className="border-primary">
-            <SelectValue placeholder="Select AI Model / Pilih Model AI" />
+          <SelectTrigger className="h-12 rounded-xl bg-background/50 border-primary/30 font-bold focus:ring-primary/20">
+            <SelectValue placeholder="Pilih Model AI" />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="rounded-xl border-border/50">
             {models.map((model) => (
               <SelectItem key={model.id} value={model.id}>
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-sm font-medium">{model.label}</span>
-                  <span className="text-xs text-muted-foreground">
+                <div className="flex flex-col gap-0.5 py-1">
+                  <span className="text-[11px] font-black uppercase tracking-wider">
+                    {model.label}
+                  </span>
+                  <span className="text-[10px] font-medium text-muted-foreground leading-tight">
                     {model.description}
                   </span>
                 </div>
@@ -43,8 +53,10 @@ export function TargetModelSelector({
             ))}
           </SelectContent>
         </Select>
-        <p className="text-xs text-muted-foreground">
-          Kami akan mengoptimalkan sintaks prompt secara khusus untuk model ini.
+
+        <p className="text-[10px] font-medium text-muted-foreground/80 leading-relaxed italic ml-1">
+          * Sintaks akan dioptimalkan secara presisi untuk karakteristik model{" "}
+          {value}.
         </p>
       </div>
     </div>

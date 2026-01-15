@@ -4,24 +4,42 @@ import { cn } from "@/lib/utils";
 interface SkeletonCardProps {
   count?: number;
   type?: "card" | "row" | "stat";
+  className?: string;
 }
 
 /**
  * Skeleton placeholder with shimmer animation
  */
 function Skeleton({ className }: { className?: string }) {
-  return <div className={cn("animate-pulse rounded-md bg-muted", className)} />;
+  return (
+    <div
+      className={cn(
+        "relative overflow-hidden rounded-md bg-muted/40 animate-pulse",
+        "after:absolute after:inset-0 after:-translate-x-full after:animate-[shimmer_2s_infinite] after:bg-gradient-to-r after:from-transparent after:via-white/5 after:to-transparent",
+        className
+      )}
+    />
+  );
 }
 
 /**
  * Reusable skeleton loader for cards
  */
-export function SkeletonCard({ count = 1, type = "card" }: SkeletonCardProps) {
+export function SkeletonCard({
+  count = 1,
+  type = "card",
+  className,
+}: SkeletonCardProps) {
   const items = Array.from({ length: count }, (_, i) => i);
 
   if (type === "stat") {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div
+        className={cn(
+          "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4",
+          className
+        )}
+      >
         {items.map((i) => (
           <Card key={i}>
             <CardBody className="flex flex-row items-center gap-4">
@@ -39,7 +57,7 @@ export function SkeletonCard({ count = 1, type = "card" }: SkeletonCardProps) {
 
   if (type === "row") {
     return (
-      <div className="space-y-3">
+      <div className={cn("space-y-3", className)}>
         {items.map((i) => (
           <Card key={i}>
             <CardBody className="flex items-center gap-4 p-4">
@@ -58,7 +76,12 @@ export function SkeletonCard({ count = 1, type = "card" }: SkeletonCardProps) {
 
   // Default card grid
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div
+      className={cn(
+        "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4",
+        className
+      )}
+    >
       {items.map((i) => (
         <Card key={i}>
           <CardBody className="space-y-3 p-4">

@@ -39,7 +39,10 @@ type RateLimitRequest = {
   auth?: { userId: string; tenantId: string } | null;
 };
 
-const buildRateLimitKey = (scope: string, request: RateLimitRequest): string => {
+const buildRateLimitKey = (
+  scope: string,
+  request: RateLimitRequest
+): string => {
   const routeKey = request.url?.split("?")[0] || scope;
   const tenantId = request.auth?.tenantId || request.user?.id;
   const userId = request.auth?.userId || request.user?.id;
@@ -59,9 +62,7 @@ export const registerRateLimit = {
   config: {
     rateLimit: {
       max: isRateLimitTestMode() ? TEST_RATE_LIMIT.max : 3,
-      timeWindow: isRateLimitTestMode()
-        ? TEST_RATE_LIMIT.timeWindow
-        : "1 hour",
+      timeWindow: isRateLimitTestMode() ? TEST_RATE_LIMIT.timeWindow : "1 hour",
       keyGenerator: (request: RateLimitRequest) =>
         buildRateLimitKey("register", request),
       errorResponseBuilder: () => ({

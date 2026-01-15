@@ -1,23 +1,15 @@
-import { clsx } from "clsx";
+import { cn } from "@/lib/utils";
 
 interface SafeAreaGuide {
   id: string;
   name: string;
-  /** Top safe area in percentage */
   top: number;
-  /** Bottom safe area in percentage */
   bottom: number;
-  /** Left safe area in percentage */
   left: number;
-  /** Right safe area in percentage */
   right: number;
-  /** Color of the guide lines */
   color: string;
 }
 
-/**
- * Safe area guides for different social platforms
- */
 const SAFE_AREA_GUIDES: SafeAreaGuide[] = [
   {
     id: "none",
@@ -42,8 +34,8 @@ const SAFE_AREA_GUIDES: SafeAreaGuide[] = [
     name: "TikTok",
     top: 15,
     bottom: 20,
-    left: 5,
-    right: 5,
+    left: 8,
+    right: 8,
     color: "#00f2ea",
   },
   {
@@ -71,7 +63,7 @@ const SAFE_AREA_GUIDES: SafeAreaGuide[] = [
     bottom: 10,
     left: 5,
     right: 5,
-    color: "#1da1f2",
+    color: "#ffffff",
   },
   {
     id: "broadcast",
@@ -80,7 +72,7 @@ const SAFE_AREA_GUIDES: SafeAreaGuide[] = [
     bottom: 10,
     left: 10,
     right: 10,
-    color: "#ffffff",
+    color: "#fbbf24",
   },
 ];
 
@@ -90,10 +82,6 @@ interface SafeAreaOverlayProps {
   className?: string;
 }
 
-/**
- * SafeAreaOverlay component
- * Renders safe area guides on the video preview
- */
 export function SafeAreaOverlay({
   guideId,
   visible,
@@ -105,46 +93,45 @@ export function SafeAreaOverlay({
   if (!guide) return null;
 
   return (
-    <div className={clsx("absolute inset-0 pointer-events-none", className)}>
-      {/* Top danger zone */}
+    <div
+      className={cn(
+        "absolute inset-0 pointer-events-none z-40 animate-in fade-in duration-500",
+        className
+      )}
+    >
+      {/* Danger Zones Overlays */}
       <div
-        className="absolute top-0 left-0 right-0"
+        className="absolute top-0 left-0 right-0 mix-blend-overlay"
         style={{
           height: `${guide.top}%`,
-          background: `linear-gradient(to bottom, ${guide.color}30, transparent)`,
+          background: `linear-gradient(to bottom, ${guide.color}40, transparent)`,
         }}
       />
-
-      {/* Bottom danger zone */}
       <div
-        className="absolute bottom-0 left-0 right-0"
+        className="absolute bottom-0 left-0 right-0 mix-blend-overlay"
         style={{
           height: `${guide.bottom}%`,
-          background: `linear-gradient(to top, ${guide.color}30, transparent)`,
+          background: `linear-gradient(to top, ${guide.color}40, transparent)`,
         }}
       />
-
-      {/* Left danger zone */}
       <div
-        className="absolute top-0 bottom-0 left-0"
+        className="absolute top-0 bottom-0 left-0 mix-blend-overlay"
         style={{
           width: `${guide.left}%`,
-          background: `linear-gradient(to right, ${guide.color}30, transparent)`,
+          background: `linear-gradient(to right, ${guide.color}40, transparent)`,
         }}
       />
-
-      {/* Right danger zone */}
       <div
-        className="absolute top-0 bottom-0 right-0"
+        className="absolute top-0 bottom-0 right-0 mix-blend-overlay"
         style={{
           width: `${guide.right}%`,
-          background: `linear-gradient(to left, ${guide.color}30, transparent)`,
+          background: `linear-gradient(to left, ${guide.color}40, transparent)`,
         }}
       />
 
-      {/* Safe area border */}
+      {/* Safe area boundary lines */}
       <div
-        className="absolute border-2 border-dashed"
+        className="absolute border-2 border-dashed mix-blend-difference opacity-60 shadow-[0_0_10px_rgba(0,0,0,0.5)]"
         style={{
           top: `${guide.top}%`,
           bottom: `${guide.bottom}%`,
@@ -154,18 +141,34 @@ export function SafeAreaOverlay({
         }}
       />
 
-      {/* Platform label */}
+      {/* Crosshair Center */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 pointer-events-none opacity-20">
+        <div className="absolute top-1/2 left-0 right-0 h-px bg-white mix-blend-difference" />
+        <div className="absolute left-1/2 top-0 bottom-0 w-px bg-white mix-blend-difference" />
+      </div>
+
+      {/* Navigation & Platform Label */}
       <div
-        className="absolute text-[10px] font-medium px-1.5 py-0.5 rounded"
+        className="absolute flex items-center gap-2 px-3 py-1.5 rounded-full shadow-2xl backdrop-blur-md border border-white/10"
         style={{
           top: `${guide.top}%`,
           left: `${guide.left}%`,
-          transform: "translateY(-100%)",
-          backgroundColor: guide.color,
-          color: "#ffffff",
+          transform: "translateY(-120%)",
+          backgroundColor: `${guide.color}CC`,
         }}
       >
-        {guide.name} Safe Area
+        <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
+        <span className="text-[10px] font-black uppercase tracking-widest text-white whitespace-nowrap">
+          {guide.name} SAFE_ZONE
+        </span>
+      </div>
+
+      {/* Bottom info */}
+      <div
+        className="absolute px-2 py-0.5 text-[8px] font-black uppercase text-white/40 tracking-tighter mix-blend-difference"
+        style={{ bottom: `${guide.bottom + 2}%`, right: `${guide.right + 2}%` }}
+      >
+        {guide.top}% T / {guide.bottom}% B
       </div>
     </div>
   );

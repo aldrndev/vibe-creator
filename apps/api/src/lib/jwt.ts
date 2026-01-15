@@ -71,9 +71,16 @@ export async function initializeKeyRing(): Promise<void> {
       verifyKeys.set(kid, jwk);
     }
 
-    // Ensure signing key is in verify keys
+    // Ensure signing key's PUBLIC key is in verify keys
+    // For EC keys, we need to strip the 'd' (private) component for verification
     if (signingKey) {
-      verifyKeys.set(signingKey.kid, signingKey.key);
+      const publicKeyJWK = { ...signingKey.key };
+      // Remove private key component 'd' to get public key only
+      // ES256 verification requires public key, not private key
+      if ("d" in publicKeyJWK) {
+        delete (publicKeyJWK as Record<string, unknown>)["d"];
+      }
+      verifyKeys.set(signingKey.kid, publicKeyJWK);
     }
 
     logger.info(

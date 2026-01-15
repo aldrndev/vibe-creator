@@ -6,6 +6,7 @@
  */
 
 import { Card, CardBody, Button } from "@/components/ui";
+import { cn } from "@/lib/utils";
 import {
   Eye,
   EyeOff,
@@ -21,7 +22,6 @@ import {
 } from "lucide-react";
 import { useModernEditorStore } from "@/stores/modern-editor-store";
 import type { Layer } from "@vibe-creator/shared";
-import { clsx } from "clsx";
 
 interface LayerStackProps {
   className?: string;
@@ -37,6 +37,7 @@ export function LayerStack({ className }: LayerStackProps) {
     removeLayer,
     duplicateLayer,
     reorderLayer,
+    assets,
   } = useModernEditorStore();
 
   // Reverse order for display (top layer first)
@@ -56,14 +57,16 @@ export function LayerStack({ className }: LayerStackProps) {
   };
 
   const getLayerLabel = (layer: Layer) => {
-    switch (layer.type) {
-      case "text":
-        return layer.data.text.slice(0, 20) || "Text";
-      default:
-        return `${
-          layer.type.charAt(0).toUpperCase() + layer.type.slice(1)
-        } Layer`;
+    if (layer.type === "text") {
+      return layer.data.text.slice(0, 30) || "Text Layer";
     }
+
+    if ("assetId" in layer && layer.assetId) {
+      const asset = assets.find((a) => a.id === layer.assetId);
+      if (asset) return asset.name;
+    }
+
+    return `${layer.type.charAt(0).toUpperCase() + layer.type.slice(1)} Layer`;
   };
 
   const handleDragStart = (e: React.DragEvent, layerId: string) => {
@@ -87,7 +90,7 @@ export function LayerStack({ className }: LayerStackProps) {
 
   if (displayOrder.length === 0) {
     return (
-      <Card className={clsx("bg-card/50", className)}>
+      <Card className={cn("bg-card/70", className)}>
         <CardBody className="p-4 text-center text-muted-foreground text-sm">
           <p>Belum ada layer.</p>
           <p className="text-xs mt-1">Tambahkan video, gambar, atau text.</p>
@@ -97,8 +100,8 @@ export function LayerStack({ className }: LayerStackProps) {
   }
 
   return (
-    <Card className={clsx("bg-card/50", className)}>
-      <CardBody className="p-2 space-y-1 max-h-[400px] overflow-y-auto">
+    <Card className={cn("bg-card/70", className)}>
+      <CardBody className="p-2 space-y-1 max-h-[400px] overflow-y-auto scrollbar-hide">
         {displayOrder.map((layerId) => {
           const layer = layersById[layerId];
           if (!layer) return null;
@@ -113,52 +116,77 @@ export function LayerStack({ className }: LayerStackProps) {
               onDragOver={handleDragOver}
               onDrop={(e) => handleDrop(e, layerId)}
               onClick={() => selectLayer(layerId)}
-              className={clsx(
-                "flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors group",
+              className={cn(
+                "flex flex-col gap-2 p-3 rounded-xl cursor-pointer transition-all group relative border",
                 isSelected
-                  ? "bg-primary/20 border border-primary"
-                  : "hover:bg-muted border border-transparent"
+                  ? "bg-primary/15 border-primary z-10"
+                  : "bg-card/50 border-transparent hover:bg-card/70 hover:border-border/60"
               )}
             >
-              {/* Drag handle */}
-              <GripVertical
-                size={14}
-                className="text-muted-foreground cursor-grab active:cursor-grabbing"
-              />
-
-              {/* Type icon */}
-              <div
-                className={clsx(
-                  "w-8 h-8 rounded flex items-center justify-center flex-shrink-0",
-                  layer.visible
-                    ? "bg-muted text-muted-foreground"
-                    : "bg-muted/50 text-muted-foreground/50"
-                )}
-              >
-                {getLayerIcon(layer.type)}
-              </div>
-
-              {/* Layer name */}
-              <div className="flex-1 min-w-0">
-                <p
-                  className={clsx(
-                    "text-sm font-medium truncate",
-                    !layer.visible && "text-muted-foreground"
+              {/* Top Row: Icon, Name/Time, and Status Flags */}
+              <div className="flex items-center gap-3">
+                {/* Drag handle */}
+                <div
+                  className={cn(
+                    "opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0",
+                    isSelected && "opacity-100"
                   )}
                 >
-                  {getLayerLabel(layer)}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {(layer.startMs / 1000).toFixed(1)}s -{" "}
-                  {(layer.endMs / 1000).toFixed(1)}s
-                </p>
+                  <GripVertical
+                    size={14}
+                    className="text-muted-foreground/40"
+                  />
+                </div>
+
+                {/* Type icon */}
+                <div
+                  className={cn(
+                    "w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 transition-colors bg-muted/60 text-primary",
+                    !layer.visible && "text-muted-foreground/50 bg-muted/20"
+                  )}
+                >
+                  {getLayerIcon(layer.type)}
+                </div>
+
+                {/* Info Container */}
+                <div className="flex-1 min-w-0 overflow-hidden">
+                  <p
+                    className={cn(
+                      "text-sm font-bold line-clamp-1 tracking-tight mb-1",
+                      !layer.visible && "text-muted-foreground/60"
+                    )}
+                  >
+                    {getLayerLabel(layer)}
+                  </p>
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-[10px] font-black font-mono text-muted-foreground/60 bg-muted/20 px-1.5 py-0.5 rounded">
+                      {(layer.startMs / 1000).toFixed(1)}s
+                    </p>
+                    <span className="text-[10px] text-muted-foreground/20">
+                      —
+                    </span>
+                    <p className="text-[10px] font-black font-mono text-muted-foreground/60 bg-muted/20 px-1.5 py-0.5 rounded">
+                      {(layer.endMs / 1000).toFixed(1)}s
+                    </p>
+                    {layer.locked && (
+                      <Lock size={10} className="text-primary/60 ml-1" />
+                    )}
+                    {!layer.visible && (
+                      <EyeOff
+                        size={10}
+                        className="text-muted-foreground/40 ml-1"
+                      />
+                    )}
+                  </div>
+                </div>
               </div>
 
-              {/* Actions */}
-              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              {/* Bottom Row: Actions - Always visible */}
+              <div className="flex items-center gap-1 pt-2 border-t border-border/10">
                 <Button
                   size="icon"
                   variant="ghost"
+                  className="h-8 w-8 hover:bg-primary/20 hover:text-primary transition-colors"
                   onClick={(e) => {
                     e.stopPropagation();
                     updateLayer(layerId, { visible: !layer.visible });
@@ -169,6 +197,7 @@ export function LayerStack({ className }: LayerStackProps) {
                 <Button
                   size="icon"
                   variant="ghost"
+                  className="h-8 w-8 hover:bg-primary/20 hover:text-primary transition-colors"
                   onClick={(e) => {
                     e.stopPropagation();
                     updateLayer(layerId, { locked: !layer.locked });
@@ -179,6 +208,7 @@ export function LayerStack({ className }: LayerStackProps) {
                 <Button
                   size="icon"
                   variant="ghost"
+                  className="h-8 w-8 hover:bg-muted-foreground/10"
                   onClick={(e) => {
                     e.stopPropagation();
                     duplicateLayer(layerId);
@@ -189,6 +219,7 @@ export function LayerStack({ className }: LayerStackProps) {
                 <Button
                   size="icon"
                   variant="ghost"
+                  className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive ml-auto"
                   onClick={(e) => {
                     e.stopPropagation();
                     removeLayer(layerId);

@@ -8,7 +8,7 @@ import { verifyAccessToken } from "@/lib/jwt";
 import { env } from "@/config/env";
 import { audit, AuditAction } from "@/lib/audit";
 
-declare module 'fastify' {
+declare module "fastify" {
   interface FastifyRequest {
     user: User | null;
     session: UserSession | null;
@@ -17,8 +17,8 @@ declare module 'fastify' {
 }
 
 export async function authPlugin(fastify: FastifyInstance): Promise<void> {
-  fastify.decorateRequest('user', null);
-  fastify.decorateRequest('session', null);
+  fastify.decorateRequest("user", null);
+  fastify.decorateRequest("session", null);
   fastify.decorateRequest("auth", null);
 
   fastify.addHook("onRequest", async (request: FastifyRequest) => {
@@ -72,7 +72,10 @@ export async function authPlugin(fastify: FastifyInstance): Promise<void> {
       }
 
       logger.warn(
-        { userId: session.userId, err: error instanceof Error ? error.message : "unknown" },
+        {
+          userId: session.userId,
+          err: error instanceof Error ? error.message : "unknown",
+        },
         "Legacy session auth fallback"
       );
       request.user = session.user;
@@ -82,40 +85,48 @@ export async function authPlugin(fastify: FastifyInstance): Promise<void> {
   });
 }
 
-export function requireAuth(
+export async function requireAuth(
   request: FastifyRequest,
   reply: FastifyReply
-): Promise<void> | void {
+): Promise<FastifyReply | void> {
   if (!request.user) {
-    void audit({
+    await audit({
       requestId: request.id,
       action: AuditAction.ACCESS_DENIED,
       ipAddress: request.ip,
       userAgent: request.headers["user-agent"] ?? undefined,
       metadata: { reason: "unauthenticated" },
     });
-    sendError(reply, ERROR_CODES.UNAUTHORIZED, 'Autentikasi diperlukan', 401);
-    return;
+    return sendError(
+      reply,
+      ERROR_CODES.UNAUTHORIZED,
+      "Autentikasi diperlukan",
+      401
+    );
   }
 }
 
-export function requireAdmin(
+export async function requireAdmin(
   request: FastifyRequest,
   reply: FastifyReply
-): Promise<void> | void {
+): Promise<FastifyReply | void> {
   if (!request.user) {
-    void audit({
+    await audit({
       requestId: request.id,
       action: AuditAction.ACCESS_DENIED,
       ipAddress: request.ip,
       userAgent: request.headers["user-agent"] ?? undefined,
       metadata: { reason: "unauthenticated_admin" },
     });
-    sendError(reply, ERROR_CODES.UNAUTHORIZED, 'Autentikasi diperlukan', 401);
-    return;
+    return sendError(
+      reply,
+      ERROR_CODES.UNAUTHORIZED,
+      "Autentikasi diperlukan",
+      401
+    );
   }
-  if (request.user.role !== 'ADMIN') {
-    void audit({
+  if (request.user.role !== "ADMIN") {
+    await audit({
       requestId: request.id,
       userId: request.user.id,
       tenantId: request.user.id,
@@ -124,7 +135,11 @@ export function requireAdmin(
       userAgent: request.headers["user-agent"] ?? undefined,
       metadata: { reason: "forbidden_admin" },
     });
-    sendError(reply, ERROR_CODES.FORBIDDEN, 'Akses admin diperlukan', 403);
-    return;
+    return sendError(
+      reply,
+      ERROR_CODES.FORBIDDEN,
+      "Akses admin diperlukan",
+      403
+    );
   }
 }

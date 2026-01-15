@@ -39,18 +39,19 @@ export function LiveStreamPage() {
   } = useLiveStream();
 
   return (
-    <PageTransition className="min-h-screen bg-background p-6">
-      <div className="max-w-4xl mx-auto">
+    <PageTransition className="min-h-screen bg-background pb-20 lg:pb-10 pt-6 px-4 md:px-8">
+      <div className="max-w-[1400px] mx-auto space-y-6 lg:space-y-8">
         <LiveStreamHeader isStreaming={isStreaming} />
 
-        <LiveStreamPlatformSelector
-          platform={platform}
-          setPlatform={setPlatform}
-          isStreaming={isStreaming}
-        />
+        <div className="grid grid-cols-12 gap-4 lg:gap-10">
+          {/* Main Content Area */}
+          <div className="col-span-12 lg:col-span-7 xl:col-span-8 space-y-6 lg:space-y-8">
+            <LiveStreamPlatformSelector
+              platform={platform}
+              setPlatform={setPlatform}
+              isStreaming={isStreaming}
+            />
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div>
             <LiveStreamPreview
               videoUrl={videoUrl}
               isStreaming={isStreaming}
@@ -58,7 +59,8 @@ export function LiveStreamPage() {
             />
           </div>
 
-          <div>
+          {/* Settings Sidebar */}
+          <div className="col-span-12 lg:col-span-5 xl:col-span-4 lg:sticky lg:top-24 h-fit">
             <LiveStreamSettings
               platform={platform}
               streamKey={streamKey}

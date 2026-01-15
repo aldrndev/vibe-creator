@@ -1,19 +1,30 @@
 import { NavLink, useMatch, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
-  FolderOpen,
-  Download,
-  Settings,
-  Plus,
+  Sparkles,
+  Wand2,
+  Repeat,
+  MessageSquareReply,
 } from "lucide-react";
 import { clsx } from "clsx";
+import { cn } from "@/lib/utils";
+import { motion } from "framer-motion";
 
 const navItems = [
   { name: "Home", href: "/dashboard", icon: LayoutDashboard, end: true },
-  { name: "Exports", href: "/dashboard/exports", icon: FolderOpen },
-  { name: "Create", href: "/dashboard/prompts", icon: Plus, isMain: true },
-  { name: "Downloads", href: "/dashboard/downloads", icon: Download },
-  { name: "Settings", href: "/dashboard/settings", icon: Settings },
+  { name: "AI Director", href: "/tools/ai-director", icon: Sparkles },
+  {
+    name: "Video Studio",
+    href: "/tools/modern-editor",
+    icon: Wand2,
+    isMain: true,
+  },
+  { name: "Loop Creator", href: "/tools/loop-creator", icon: Repeat },
+  {
+    name: "Reaction",
+    href: "/tools/reaction-creator",
+    icon: MessageSquareReply,
+  },
 ];
 
 export function MobileBottomNav() {
@@ -30,25 +41,23 @@ export function MobileBottomNav() {
   }
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-content1/95 backdrop-blur-lg border-t border-divider safe-area-bottom">
-      <div className="flex items-center justify-around h-16 px-2">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-card/80 backdrop-blur-xl border-t border-border/50 safe-area-bottom shadow-[0_-4px_20px_-10px_rgba(0,0,0,0.1)]">
+      <div className="flex items-center justify-around h-16 px-4">
         {navItems.map((item) => {
           if (item.isMain) {
-            // Use same pattern as other items - no Button component
             return (
               <NavLink
                 key={item.name}
                 to={item.href}
-                className="flex items-center justify-center"
+                className="flex items-center justify-center relative z-10"
               >
-                <div className="w-12 h-12 rounded-full bg-primary text-primary-foreground shadow-lg -mt-4 flex items-center justify-center">
-                  <item.icon size={24} />
+                <div className="w-14 h-14 rounded-full bg-gradient-to-br from-primary via-orange-500 to-rose-600 text-white shadow-lg shadow-primary/30 -mt-10 flex items-center justify-center border-4 border-background transition-transform active:scale-90">
+                  <item.icon size={26} strokeWidth={3} />
                 </div>
               </NavLink>
             );
           }
 
-          // Use NavLink's className function for isActive - exactly like sidebar
           return (
             <NavLink
               key={item.name}
@@ -56,17 +65,33 @@ export function MobileBottomNav() {
               end={item.end}
               className={({ isActive }) =>
                 clsx(
-                  "flex-1 flex flex-col items-center justify-center py-2 gap-0.5 transition-colors relative",
-                  isActive ? "text-primary" : "text-foreground/50"
+                  "flex-1 flex flex-col items-center justify-center py-2 gap-1 transition-all relative active:scale-95",
+                  isActive ? "text-primary" : "text-muted-foreground"
                 )
               }
             >
               {({ isActive }) => (
                 <>
-                  <item.icon size={20} />
-                  <span className="text-[10px] font-medium">{item.name}</span>
+                  <item.icon
+                    size={22}
+                    className={cn(
+                      "transition-transform",
+                      isActive && "scale-110"
+                    )}
+                  />
+                  <span
+                    className={cn(
+                      "text-[10px] font-bold tracking-tight uppercase transition-colors",
+                      isActive ? "text-primary" : "text-muted-foreground/70"
+                    )}
+                  >
+                    {item.name}
+                  </span>
                   {isActive && (
-                    <div className="absolute -bottom-0 w-8 h-0.5 bg-primary rounded-full" />
+                    <motion.div
+                      layoutId="bottomNavIndicator"
+                      className="absolute -bottom-1 w-6 h-1 bg-primary rounded-full shadow-[0_0_10px_rgba(var(--primary),0.5)]"
+                    />
                   )}
                 </>
               )}

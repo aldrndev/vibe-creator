@@ -8,6 +8,7 @@ import {
   SelectContent,
   SelectItem,
   Badge,
+  Divider,
 } from "@/components/ui";
 import { SelectionGrid } from "@/components/ui/SelectionGrid";
 import { CreativeScanFormData } from "../types";
@@ -28,59 +29,117 @@ export function CreativeScanForm({ data, onChange }: CreativeScanFormProps) {
   };
 
   return (
-    <Card>
-      <CardBody className="p-4 space-y-6">
+    <Card className="bg-card/60 backdrop-blur-xl border-border/50 shadow-2xl shadow-primary/5">
+      <CardBody className="p-8 space-y-10">
         <TargetModelSelector
           promptType="CREATIVE_SCAN"
           value={data.targetModel}
           onChange={(v) => handleChange("targetModel", v)}
         />
-        <h3 className="font-medium">Detail Creative Scan</h3>
-        <Badge variant="secondary">Analisis video kompetitor</Badge>
 
-        <Input
-          label="URL Video"
-          placeholder="Masukkan URL YouTube/TikTok/Instagram"
-          value={data.sourceUrl}
-          onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-            handleChange("sourceUrl", e.target.value)
-          }
-        />
+        <div className="space-y-6">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-1.5 h-6 bg-primary rounded-full" />
+              <h3 className="text-sm font-black uppercase tracking-[0.2em] text-foreground">
+                Source & Method
+              </h3>
+            </div>
+            <Badge
+              variant="secondary"
+              className="bg-primary/10 text-primary border-primary/20 font-black uppercase text-[9px] tracking-widest px-3 py-1"
+            >
+              Analisis Kompetitor
+            </Badge>
+          </div>
 
-        <div className="space-y-2">
-          <label className="text-sm text-muted-foreground">Tipe Analisis</label>
-          <Select
-            value={data.analysisType}
-            onValueChange={(v) => handleChange("analysisType", v)}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {analysisTypes.map((a) => (
-                <SelectItem key={a.key} value={a.key}>
-                  {a.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="grid grid-cols-1 gap-6">
+            <div className="space-y-3">
+              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+                URL Video / Source
+              </label>
+              <Input
+                placeholder="Masukkan URL YouTube/TikTok/Instagram"
+                value={data.sourceUrl}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                  handleChange("sourceUrl", e.target.value)
+                }
+                className="h-14 rounded-2xl bg-muted/10 border-border/50 font-bold px-6 text-sm focus:bg-muted/20 transition-all"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              <div className="space-y-3">
+                <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+                  Jenis Konten (Niche)
+                </label>
+                <Select
+                  value={data.niche}
+                  onValueChange={(v) => handleChange("niche", v)}
+                >
+                  <SelectTrigger className="h-14 rounded-2xl bg-muted/10 border-border/50 font-bold px-5 text-sm">
+                    <SelectValue placeholder="Pilih Niche" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-2xl border-border/50 max-h-[300px]">
+                    {niches.map((n) => (
+                      <SelectItem
+                        key={n.key}
+                        value={n.key}
+                        className="font-bold text-xs uppercase tracking-widest py-3"
+                      >
+                        {n.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-3">
+                <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+                  Tipe Analisis
+                </label>
+                <Select
+                  value={data.analysisType}
+                  onValueChange={(v) => handleChange("analysisType", v)}
+                >
+                  <SelectTrigger className="h-14 rounded-2xl bg-muted/10 border-border/50 font-bold px-5 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-2xl border-border/50">
+                    {analysisTypes.map((a) => (
+                      <SelectItem
+                        key={a.key}
+                        value={a.key}
+                        className="font-bold text-xs uppercase tracking-widest py-3"
+                      >
+                        {a.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
         </div>
 
-        <SelectionGrid
-          label="Niche"
-          options={niches}
-          value={data.niche}
-          onChange={(v) => handleChange("niche", v)}
-          columns={5}
-        />
+        <Divider className="opacity-30" />
 
-        <SelectionGrid
-          label="Fokus Analisis"
-          options={focusAreas}
-          value={data.focusAreas}
-          onChange={(v) => handleChange("focusAreas", v)}
-          columns={3}
-        />
+        <div className="space-y-8">
+          <div className="flex items-center gap-3">
+            <div className="w-1.5 h-6 bg-orange-500 rounded-full" />
+            <h3 className="text-sm font-black uppercase tracking-[0.2em] text-foreground">
+              Deep Focus
+            </h3>
+          </div>
+
+          <SelectionGrid
+            label="Fokus Analisis"
+            options={focusAreas}
+            value={data.focusAreas}
+            onChange={(v) => handleChange("focusAreas", v)}
+            columns={3}
+          />
+        </div>
       </CardBody>
     </Card>
   );

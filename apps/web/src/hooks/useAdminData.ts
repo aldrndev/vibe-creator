@@ -19,6 +19,7 @@ export interface UserData {
   name: string;
   role: string;
   createdAt: string;
+  avatarUrl?: string | null;
   subscription: {
     tier: string;
     status: string;

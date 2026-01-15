@@ -829,3 +829,55 @@ model AuditLog {
   @@index([sessionId])
   @@map("audit_logs")
 }
+
+// ============================================================================
+// TRENDING (YouTube/Google Trends)
+// ============================================================================
+
+/// Best-effort trending data from YouTube/Google Trends
+model TrendingItem {
+  id              String   @id @default(cuid())
+  platform        String   @default("YOUTUBE") // YOUTUBE only for v1
+  type            String   // HASHTAG, TOPIC, SEARCH, VIDEO
+  externalId      String   @map("external_id")
+  externalUrlHash String   @map("external_url_hash") // SHA256 hash, NOT NULL for dedupe
+  title           String   @db.VarChar(200)
+  description     String?  @db.VarChar(500)
+  thumbnailUrl    String?  @map("thumbnail_url")
+  externalUrl     String?  @map("external_url")
+  rank            Int?
+  metrics         Json     @default("{}")
+  category        String?
+  region          String   @default("ID")
+  fetchedAt       DateTime @default(now()) @map("fetched_at")
+  expiresAt       DateTime @map("expires_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  // Dedupe constraint: same item from same source won't duplicate
+  @@unique([platform, type, region, externalUrlHash], name: "trending_items_unique")
+
+  // Cursor pagination index (ORDER BY fetched_at DESC, id DESC)
+  @@index([fetchedAt(sort: Desc), id(sort: Desc)], name: "idx_trending_cursor")
+
+  // Retention cleanup index
+  @@index([expiresAt], name: "idx_trending_expires")
+
+  @@map("trending_items")
+}
+
+/// Platform status for degradable service
+model TrendingPlatformStatus {
+  id            String   @id @default(cuid())
+  platform      String   @default("YOUTUBE")
+  region        String   @default("ID")
+  status        String   @default("ok") // ok, degraded, down
+  lastSuccessAt DateTime? @map("last_success_at")
+  lastFailureAt DateTime? @map("last_failure_at")
+  errorMessage  String?  @map("error_message")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@unique([platform, region], name: "trending_platform_status_unique")
+  @@map("trending_platform_status")
+}
+
