@@ -1,9 +1,9 @@
 /**
  * Prisma Mock Factory
- * 
+ *
  * ✅ REQUIRED: Use this for all service tests
  * ❌ FORBIDDEN: Import real prisma client in tests
- * 
+ *
  * Usage:
  * ```ts
  * const mockPrisma = createMockPrisma();
@@ -11,14 +11,13 @@
  * ```
  */
 
-import { vi } from 'vitest';
 import type { PrismaClient } from '@prisma/client';
+import { vi } from 'vitest';
 
 type MockPrismaClient = {
   [K in keyof PrismaClient]: K extends `$${string}`
     ? PrismaClient[K]
     : {
-         
         [M in keyof PrismaClient[K]]: ReturnType<typeof vi.fn>;
       };
 };

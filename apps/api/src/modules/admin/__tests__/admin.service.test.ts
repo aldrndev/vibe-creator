@@ -1,12 +1,12 @@
 /**
  * Admin Service Unit Tests
- * 
+ *
  * ✅ Happy path
  * ❌ Negative/error cases
  * 🔄 Edge cases
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Use vi.hoisted to create mocks that can be used in vi.mock factory
 const { mockPrisma, mockLogger } = vi.hoisted(() => ({
@@ -99,8 +99,8 @@ describe('adminService', () => {
       mockPrisma.exportHistory.count.mockResolvedValue(200);
       mockPrisma.paymentHistory.count.mockResolvedValue(30);
       mockPrisma.subscription.count
-        .mockResolvedValueOnce(70)  // FREE
-        .mockResolvedValueOnce(20)  // CREATOR
+        .mockResolvedValueOnce(70) // FREE
+        .mockResolvedValueOnce(20) // CREATOR
         .mockResolvedValueOnce(10); // PRO
       mockPrisma.paymentHistory.findMany.mockResolvedValue([
         { amount: 100000 },
@@ -182,7 +182,7 @@ describe('adminService', () => {
           where: expect.objectContaining({
             OR: expect.any(Array),
           }),
-        })
+        }),
       );
       expect(result.users).toHaveLength(1);
     });
@@ -214,7 +214,7 @@ describe('adminService', () => {
         expect.objectContaining({
           skip: 40,
           take: 20,
-        })
+        }),
       );
     });
   });
@@ -243,7 +243,7 @@ describe('adminService', () => {
       expect(mockPrisma.user.findUnique).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: 'user-123' },
-        })
+        }),
       );
     });
 
@@ -275,7 +275,7 @@ describe('adminService', () => {
           where: { userId: 'user-123' },
           create: expect.objectContaining({ tier: 'CREATOR' }),
           update: expect.objectContaining({ tier: 'CREATOR' }),
-        })
+        }),
       );
     });
 
@@ -291,7 +291,7 @@ describe('adminService', () => {
       expect(mockPrisma.subscription.upsert).toHaveBeenCalledWith(
         expect.objectContaining({
           create: expect.objectContaining({ exportsLimit: 999999 }),
-        })
+        }),
       );
     });
 
@@ -307,7 +307,7 @@ describe('adminService', () => {
       expect(mockPrisma.subscription.upsert).toHaveBeenCalledWith(
         expect.objectContaining({
           create: expect.objectContaining({ validUntil: null }),
-        })
+        }),
       );
     });
   });

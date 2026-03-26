@@ -1,24 +1,13 @@
-import { useState } from "react";
-import {
-  Button,
-  Card,
-  CardBody,
-  Tabs,
-  TabsList,
-  Tab,
-  TabsContent,
-  Divider,
-} from "@/components/ui";
-import { Copy, Check, Sparkles, Terminal } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { AnimatePresence, motion } from 'framer-motion';
+import { Check, Copy, Sparkles, Terminal } from 'lucide-react';
+import { useState } from 'react';
+import { Button, Card, CardBody, Divider, Tab, Tabs, TabsContent, TabsList } from '@/components/ui';
 
 interface PromptResultDisplayProps {
   generatedPrompt: string | null;
 }
 
-export function PromptResultDisplay({
-  generatedPrompt,
-}: PromptResultDisplayProps) {
+export function PromptResultDisplay({ generatedPrompt }: PromptResultDisplayProps) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
@@ -33,27 +22,26 @@ export function PromptResultDisplay({
     if (!generatedPrompt) return null;
 
     const parts = generatedPrompt.split(/(?=###)/g);
-    const hasSections =
-      parts.length > 1 && parts.some((p) => p.trim().startsWith("###"));
+    const hasSections = parts.length > 1 && parts.some((p) => p.trim().startsWith('###'));
 
     if (!hasSections) {
-      return { type: "plain" as const, content: generatedPrompt };
+      return { type: 'plain' as const, content: generatedPrompt };
     }
 
-    const intro = parts.find((p) => !p.trim().startsWith("###")) || "";
+    const intro = parts.find((p) => !p.trim().startsWith('###')) || '';
     const sections = parts
-      .filter((p) => p.trim().startsWith("###"))
+      .filter((p) => p.trim().startsWith('###'))
       .map((section) => {
-        const lines = section.trim().split("\n");
-        const title = (lines[0] || "")
-          .replace(/^###\s*/, "")
-          .replace(/:.*$/, "")
+        const lines = section.trim().split('\n');
+        const title = (lines[0] || '')
+          .replace(/^###\s*/, '')
+          .replace(/:.*$/, '')
           .trim();
-        const content = lines.slice(1).join("\n").trim();
+        const content = lines.slice(1).join('\n').trim();
         return { title, content, raw: section };
       });
 
-    return { type: "sections" as const, intro, sections };
+    return { type: 'sections' as const, intro, sections };
   };
 
   const parsed = parsePrompt();
@@ -89,7 +77,7 @@ export function PromptResultDisplay({
                   ) : (
                     <Copy size={14} className="mr-2" />
                   )}
-                  {copied ? "Disalin!" : "Salin Semua"}
+                  {copied ? 'Disalin!' : 'Salin Semua'}
                 </Button>
               </motion.div>
             )}
@@ -106,7 +94,7 @@ export function PromptResultDisplay({
                 exit={{ opacity: 0 }}
                 className="space-y-6"
               >
-                {parsed.type === "plain" ? (
+                {parsed.type === 'plain' ? (
                   <div className="relative group">
                     <div className="absolute inset-0 bg-primary/5 blur-2xl rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity" />
                     <pre className="relative whitespace-pre-wrap text-sm font-medium text-foreground/90 font-sans leading-relaxed bg-muted/20 p-6 rounded-3xl border border-border/50">
@@ -121,14 +109,11 @@ export function PromptResultDisplay({
                       </div>
                     )}
 
-                    <Tabs
-                      defaultValue={parsed.sections[0]?.title || "0"}
-                      className="w-full"
-                    >
+                    <Tabs defaultValue={parsed.sections[0]?.title || '0'} className="w-full">
                       <TabsList className="w-full justify-start border-b border-border/50 bg-transparent mb-6 overflow-x-auto scrollbar-hide py-1">
                         {parsed.sections.map((section, idx) => (
                           <Tab
-                            key={idx}
+                            key={section.title || section.content}
                             value={section.title || String(idx)}
                             className="bg-transparent data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:text-primary transition-all px-6 font-black uppercase tracking-widest text-[9px]"
                           >
@@ -139,7 +124,7 @@ export function PromptResultDisplay({
 
                       {parsed.sections.map((section, idx) => (
                         <TabsContent
-                          key={idx}
+                          key={section.title || section.content}
                           value={section.title || String(idx)}
                         >
                           <motion.div

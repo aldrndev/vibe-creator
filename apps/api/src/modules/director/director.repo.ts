@@ -3,8 +3,8 @@
  * Tenant-scoped data access for Director module
  */
 
-import { prisma } from "@/lib/prisma";
-import { Prisma, DirectorStep } from "@prisma/client";
+import { DirectorStep, type Prisma } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 
 // Comprehensive type including all relations needed for the UI
 export type DirectorSessionWithDetails = Prisma.DirectorSessionGetPayload<{
@@ -31,10 +31,7 @@ export const directorRepo = {
    * Find a session by ID and User ID (Tenant Scoped)
    * Includes all necessary relations for the full dashboard view
    */
-  async findSession(
-    sessionId: string,
-    userId: string
-  ): Promise<DirectorSessionWithDetails | null> {
+  async findSession(sessionId: string, userId: string): Promise<DirectorSessionWithDetails | null> {
     return prisma.directorSession.findFirst({
       where: {
         id: sessionId,
@@ -45,7 +42,7 @@ export const directorRepo = {
         analysisJob: {
           include: {
             candidates: {
-              orderBy: { rank: "asc" },
+              orderBy: { rank: 'asc' },
             },
           },
         },
@@ -54,7 +51,7 @@ export const directorRepo = {
             candidate: true,
             transcript: true,
           },
-          orderBy: { orderIndex: "asc" },
+          orderBy: { orderIndex: 'asc' },
         },
         transcribeJob: true,
         exportJob: true,
@@ -111,7 +108,7 @@ export const directorRepo = {
         where: { id: sessionId, userId },
         data: { step },
       });
-      if (count === 0) throw new Error("Session not found or access denied");
+      if (count === 0) throw new Error('Session not found or access denied');
       return { id: sessionId, step };
     }
   },
@@ -135,7 +132,7 @@ export const directorRepo = {
       fontSize?: number;
       position?: string;
       animation?: string;
-    }
+    },
   ) {
     return prisma.directorSubtitleStyle.upsert({
       where: { sessionId },
@@ -155,6 +152,17 @@ export const directorRepo = {
     return prisma.directorAsset.findUnique({ where: { sessionId } });
   },
 
+  async findAssetByIdForUser(assetId: string, userId: string) {
+    return prisma.directorAsset.findFirst({
+      where: {
+        id: assetId,
+        session: {
+          userId,
+        },
+      },
+    });
+  },
+
   async createAsset(data: Prisma.DirectorAssetUncheckedCreateInput) {
     return prisma.directorAsset.create({ data });
   },
@@ -171,9 +179,7 @@ export const directorRepo = {
   // ANALYSIS METHODS
   // ===========================================================================
 
-  async createAnalysisJob(
-    data: Prisma.DirectorAnalysisJobUncheckedCreateInput
-  ) {
+  async createAnalysisJob(data: Prisma.DirectorAnalysisJobUncheckedCreateInput) {
     return prisma.directorAnalysisJob.create({ data });
   },
 
@@ -185,17 +191,15 @@ export const directorRepo = {
     return prisma.directorSelectedClip.deleteMany({ where: { sessionId } });
   },
 
-  async createSelectedClips(
-    clips: Prisma.DirectorSelectedClipUncheckedCreateInput[]
-  ) {
+  async createSelectedClips(clips: Prisma.DirectorSelectedClipUncheckedCreateInput[]) {
     // Transactional create to ensure atomic selection
     return prisma.$transaction(
       clips.map((clip) =>
         prisma.directorSelectedClip.create({
           data: clip,
           include: { candidate: true },
-        })
-      )
+        }),
+      ),
     );
   },
 
@@ -205,10 +209,7 @@ export const directorRepo = {
     });
   },
 
-  async updateSelectedClip(
-    clipId: string,
-    data: Prisma.DirectorSelectedClipUpdateInput
-  ) {
+  async updateSelectedClip(clipId: string, data: Prisma.DirectorSelectedClipUpdateInput) {
     return prisma.directorSelectedClip.update({
       where: { id: clipId },
       data,
@@ -230,16 +231,11 @@ export const directorRepo = {
   // TRANSCRIBE METHODS
   // ===========================================================================
 
-  async createTranscribeJob(
-    data: Prisma.DirectorTranscribeJobUncheckedCreateInput
-  ) {
+  async createTranscribeJob(data: Prisma.DirectorTranscribeJobUncheckedCreateInput) {
     return prisma.directorTranscribeJob.create({ data });
   },
 
-  async updateTranscribeJob(
-    id: string,
-    data: Prisma.DirectorTranscribeJobUpdateInput
-  ) {
+  async updateTranscribeJob(id: string, data: Prisma.DirectorTranscribeJobUpdateInput) {
     return prisma.directorTranscribeJob.update({
       where: { id },
       data,

@@ -1,9 +1,9 @@
-export type PromptType = 
-  | 'SCRIPT' 
-  | 'VOICE' 
-  | 'VIDEO_GEN' 
-  | 'IMAGE' 
-  | 'RELAXING' 
+export type PromptType =
+  | 'SCRIPT'
+  | 'VOICE'
+  | 'VIDEO_GEN'
+  | 'IMAGE'
+  | 'RELAXING'
   | 'CREATIVE_SCAN'
   | 'TIMELAPSE';
 
@@ -28,7 +28,7 @@ export interface PromptVersion {
 }
 
 // Input data types for each prompt type
-export type PromptInputData = 
+export type PromptInputData =
   | ScriptPromptInput
   | VoicePromptInput
   | VideoGenPromptInput
@@ -95,7 +95,16 @@ export interface ImagePromptInput {
 
 export interface RelaxingPromptInput {
   type: 'RELAXING';
-  environment: 'rain' | 'forest' | 'ocean' | 'fireplace' | 'cafe' | 'city' | 'space' | 'underwater' | 'custom';
+  environment:
+    | 'rain'
+    | 'forest'
+    | 'ocean'
+    | 'fireplace'
+    | 'cafe'
+    | 'city'
+    | 'space'
+    | 'underwater'
+    | 'custom';
   customEnvironment?: string;
   primarySound: string;
   secondarySounds: string[];
@@ -125,59 +134,54 @@ export interface ExtractedFrame {
 }
 
 // Timelapse types for Sora AI
-export type TimelapseCategory = 
-  | 'home-decor' 
-  | 'road-repair' 
-  | 'food' 
-  | 'nature' 
-  | 'industrial' 
-  | 'construction' 
-  | 'art' 
+export type TimelapseCategory =
+  | 'home-decor'
+  | 'road-repair'
+  | 'food'
+  | 'nature'
+  | 'industrial'
+  | 'construction'
+  | 'art'
   | 'weather';
 
-export type TimelapseTransformation = 
-  | 'before-after' 
-  | 'growth' 
-  | 'decay' 
-  | 'construction' 
-  | 'repair' 
-  | 'cooking' 
+export type TimelapseTransformation =
+  | 'before-after'
+  | 'growth'
+  | 'decay'
+  | 'construction'
+  | 'repair'
+  | 'cooking'
   | 'blooming';
 
-export type TimelapseStyle = 
-  | 'realistic' 
-  | 'cinematic' 
-  | 'aerial' 
-  | 'documentary' 
-  | 'artistic';
+export type TimelapseStyle = 'realistic' | 'cinematic' | 'aerial' | 'documentary' | 'artistic';
 
-export type TimelapseCameraMovement = 
-  | 'static' 
-  | 'slow-pan' 
-  | 'zoom-out' 
-  | 'orbit' 
+export type TimelapseCameraMovement =
+  | 'static'
+  | 'slow-pan'
+  | 'zoom-out'
+  | 'orbit'
   | 'drone-flyover';
 
-export type TimelapseLighting = 
-  | 'natural-progression' 
-  | 'golden-hour' 
-  | 'day-to-night' 
-  | 'night-to-day' 
+export type TimelapseLighting =
+  | 'natural-progression'
+  | 'golden-hour'
+  | 'day-to-night'
+  | 'night-to-day'
   | 'consistent';
 
 export interface TimelapseScene {
-  description: string;        // 1-300 chars
-  durationSeconds: number;    // 3-8 range
+  description: string; // 1-300 chars
+  durationSeconds: number; // 3-8 range
 }
 
 export interface TimelapsePromptInput {
   type: 'TIMELAPSE';
   category: TimelapseCategory;
-  subject: string;            // 1-200 chars
+  subject: string; // 1-200 chars
   transformation: TimelapseTransformation;
   mode: 'single' | 'storyboard';
   totalDurationSeconds: 5 | 10 | 15 | 20 | 25;
-  scenes?: TimelapseScene[];  // required for storyboard mode
+  scenes?: TimelapseScene[]; // required for storyboard mode
   style: TimelapseStyle;
   speedMultiplier: 10 | 50 | 100 | 500 | 1000;
   camera: TimelapseCameraMovement;

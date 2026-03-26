@@ -3,9 +3,9 @@
  * Handles client-side FFmpeg export, server-side export, and cancellation
  */
 
-import { useState, useCallback } from "react";
-import { logger } from "@/lib/logger";
-import { exportApi } from "@/services/export-api";
+import { useCallback, useState } from 'react';
+import { logger } from '@/lib/logger';
+import { exportApi } from '@/services/export-api';
 
 // Full clip data with transforms and effects for server-side processing
 export interface ClipTransforms {
@@ -70,12 +70,12 @@ export function useExport(options: UseExportOptions = {}) {
       setExportSuccess(false);
 
       if (clips.length === 0) {
-        setExportError("Tidak ada klip untuk di-export");
+        setExportError('Tidak ada klip untuk di-export');
         return;
       }
 
       if (!concatenateClips) {
-        setExportError("FFmpeg tidak tersedia");
+        setExportError('FFmpeg tidak tersedia');
         return;
       }
 
@@ -88,7 +88,7 @@ export function useExport(options: UseExportOptions = {}) {
 
         setExportProgress(1);
         const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
+        const a = document.createElement('a');
         a.href = url;
         a.download = `export-${Date.now()}.mp4`;
         a.click();
@@ -96,13 +96,13 @@ export function useExport(options: UseExportOptions = {}) {
 
         setExportSuccess(true);
       } catch (e) {
-        logger.error("Export failed", e);
-        setExportError("Export gagal. Coba lagi.");
+        logger.error('Export failed', e);
+        setExportError('Export gagal. Coba lagi.');
       } finally {
         setIsExporting(false);
       }
     },
-    [concatenateClips, onPause]
+    [concatenateClips, onPause],
   );
 
   /**
@@ -113,18 +113,18 @@ export function useExport(options: UseExportOptions = {}) {
       clips: ClipData[],
       textOverlays?: TextOverlayData[],
       exportOptions?: {
-        format: "MP4" | "WEBM" | "MOV";
-        resolution: "SD" | "HD" | "UHD";
+        format: 'MP4' | 'WEBM' | 'MOV';
+        resolution: 'SD' | 'HD' | 'UHD';
         width?: number;
         height?: number;
         fps?: number;
-      }
+      },
     ) => {
       setExportError(null);
       setExportSuccess(false);
 
       if (clips.length === 0) {
-        setExportError("Tidak ada file video untuk diupload");
+        setExportError('Tidak ada file video untuk diupload');
         return;
       }
 
@@ -149,7 +149,7 @@ export function useExport(options: UseExportOptions = {}) {
           setExportProgress((i / clips.length) * 0.3);
           const uploaded = await exportApi.uploadVideo(clipFile.file);
           uploadedFiles.push({
-            localPath: uploaded.filepath,
+            localPath: uploaded.uploadToken,
             startTime: clipFile.startTime,
             endTime: clipFile.endTime,
             transforms: clipFile.transforms,
@@ -161,9 +161,9 @@ export function useExport(options: UseExportOptions = {}) {
 
         // Step 2: Create export job with backend-compatible settings
         const job = await exportApi.createExportJob({
-          projectId: projectId || "default",
-          format: exportOptions?.format || "MP4",
-          resolution: exportOptions?.resolution || "HD",
+          projectId: projectId || 'default',
+          format: exportOptions?.format || 'MP4',
+          resolution: exportOptions?.resolution || 'HD',
           addWatermark: false, // No watermark by default
           timelineData: {
             clips: uploadedFiles,
@@ -180,29 +180,28 @@ export function useExport(options: UseExportOptions = {}) {
         setExportProgress(0.4);
 
         // Step 3: Poll for completion
-        const finalStatus = await exportApi.waitForCompletion(
-          job.jobId,
-          (progress) => setExportProgress(0.4 + progress * 0.5)
+        const finalStatus = await exportApi.waitForCompletion(job.jobId, (progress) =>
+          setExportProgress(0.4 + progress * 0.5),
         );
 
         setExportProgress(1);
 
         // Step 4: Download using authenticated fetch (href doesn't include auth)
         if (!finalStatus.downloadUrl) {
-          throw new Error("Download URL not available");
+          throw new Error('Download URL not available');
         }
 
         // Use authFetch to get the file with authentication
-        const { authFetch } = await import("@/services/api");
+        const { authFetch } = await import('@/services/api');
         const response = await authFetch(finalStatus.downloadUrl);
 
         if (!response.ok) {
-          throw new Error("Failed to download export file");
+          throw new Error('Failed to download export file');
         }
 
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);
-        const a = document.createElement("a");
+        const a = document.createElement('a');
         a.href = url;
         a.download = `export-${Date.now()}.mp4`;
         a.click();
@@ -210,18 +209,14 @@ export function useExport(options: UseExportOptions = {}) {
 
         setExportSuccess(true);
       } catch (e) {
-        logger.error("Server export failed", e);
-        setExportError(
-          `Server export gagal: ${
-            e instanceof Error ? e.message : "Unknown error"
-          }`
-        );
+        logger.error('Server export failed', e);
+        setExportError(`Server export gagal: ${e instanceof Error ? e.message : 'Unknown error'}`);
       } finally {
         setIsExporting(false);
         setExportJobId(null);
       }
     },
-    [projectId, onPause]
+    [projectId, onPause],
   );
 
   /**
@@ -236,8 +231,8 @@ export function useExport(options: UseExportOptions = {}) {
       setIsExporting(false);
       setExportJobId(null);
     } catch (e) {
-      logger.error("Cancel export failed", e);
-      setExportError("Gagal membatalkan export");
+      logger.error('Cancel export failed', e);
+      setExportError('Gagal membatalkan export');
     }
   }, [exportJobId]);
 

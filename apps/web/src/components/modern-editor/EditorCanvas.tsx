@@ -5,19 +5,19 @@
  * Displays video/image/text layers with proper z-ordering.
  */
 
-import { useRef, useEffect, useState, useCallback } from "react";
-import { logger } from "@/lib/logger";
-import { useModernEditorStore } from "@/stores/modern-editor-store";
-import type { Layer, AudioLayer } from "@vibe-creator/shared";
-import { cn } from "@/lib/utils";
-import { LayerRenderer } from "./canvas/LayerRenderer";
-import { AudioLayerContent } from "./canvas/AudioLayerContent";
+import type { AudioLayer, Layer } from '@vibe-creator/shared';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { logger } from '@/lib/logger';
+import { cn } from '@/lib/utils';
+import { useModernEditorStore } from '@/stores/modern-editor-store';
+import { AudioLayerContent } from './canvas/AudioLayerContent';
+import { LayerRenderer } from './canvas/LayerRenderer';
 
 interface EditorCanvasProps {
-  className?: string;
+  readonly className?: string;
 }
 
-export function EditorCanvas({ className }: EditorCanvasProps) {
+export function EditorCanvas({ className }: Readonly<EditorCanvasProps>) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
 
@@ -46,8 +46,8 @@ export function EditorCanvas({ className }: EditorCanvasProps) {
     };
 
     updateScale();
-    window.addEventListener("resize", updateScale);
-    return () => window.removeEventListener("resize", updateScale);
+    window.addEventListener('resize', updateScale);
+    return () => window.removeEventListener('resize', updateScale);
   }, [settings.width, settings.height]);
 
   // Get visible layers at current time
@@ -68,7 +68,7 @@ export function EditorCanvas({ className }: EditorCanvasProps) {
 
     // Debug: log if layers exist but none visible
     if (allLayers.length > 0 && visible.length === 0) {
-      logger.debug("Layers exist but none visible", {
+      logger.debug('Layers exist but none visible', {
         currentTimeMs,
         layers: allLayers.map((l) => ({
           id: l.id,
@@ -95,15 +95,20 @@ export function EditorCanvas({ className }: EditorCanvasProps) {
     <div
       ref={containerRef}
       className={cn(
-        "flex-1 flex items-center justify-center bg-muted/20 overflow-hidden p-6 relative",
-        "bg-[radial-gradient(hsl(var(--muted-foreground)/0.15)_1px,transparent_1px)] [background-size:24px_24px]",
-        className
+        'flex-1 flex items-center justify-center bg-muted/20 overflow-hidden p-6 relative',
+        'bg-[radial-gradient(hsl(var(--muted-foreground)/0.15)_1px,transparent_1px)] bg-size-[24px_24px]',
+        className,
       )}
-      onClick={handleCanvasClick}
     >
+      <button
+        type="button"
+        aria-label="Deselect selected layer"
+        className="absolute inset-0 z-0 cursor-default"
+        onClick={handleCanvasClick}
+      />
       {/* Canvas */}
       <div
-        className="relative bg-black"
+        className="relative z-10 bg-black"
         style={{
           width: settings.width * scale,
           height: settings.height * scale,
@@ -112,7 +117,7 @@ export function EditorCanvas({ className }: EditorCanvasProps) {
       >
         {/* Audio Layers (Invisible) */}
         {visibleLayers
-          .filter((l) => l.type === "audio")
+          .filter((l) => l.type === 'audio')
           .map((layer) => (
             <AudioLayerContent
               key={layer.id}
@@ -143,9 +148,7 @@ export function EditorCanvas({ className }: EditorCanvasProps) {
           <div className="absolute inset-0 flex items-center justify-center text-muted-foreground">
             <div className="text-center">
               <p className="text-lg font-medium">Canvas Kosong</p>
-              <p className="text-sm">
-                Drop file atau tambah layer dari sidebar
-              </p>
+              <p className="text-sm">Drop file atau tambah layer dari sidebar</p>
             </div>
           </div>
         )}

@@ -6,7 +6,7 @@
  * 🔄 Edge cases
  */
 
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Mock modules with vi.hoisted
 const { mockPrisma, mockLogger, mockFfmpegProcessor } = vi.hoisted(() => ({
@@ -33,54 +33,54 @@ const { mockPrisma, mockLogger, mockFfmpegProcessor } = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("@/lib/prisma", () => ({
+vi.mock('@/lib/prisma', () => ({
   prisma: mockPrisma,
 }));
 
-vi.mock("@/lib/logger", () => ({
+vi.mock('@/lib/logger', () => ({
   logger: mockLogger,
 }));
 
-vi.mock("./ffmpeg.processor", () => ({
+vi.mock('./ffmpeg.processor', () => ({
   ffmpegProcessor: mockFfmpegProcessor,
 }));
 
 // Mock fs/promises
-vi.mock("fs/promises", () => ({
+vi.mock('fs/promises', () => ({
   mkdir: vi.fn().mockResolvedValue(undefined),
   unlink: vi.fn().mockResolvedValue(undefined),
   copyFile: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock("fs", () => ({
+vi.mock('fs', () => ({
   existsSync: vi.fn().mockReturnValue(true),
 }));
 
 // Import after mocks
-import { exportService } from "../export.service";
+import { exportService } from '../export.service';
 
 // Test data factories
 function createMockExportJob(overrides = {}) {
   return {
-    id: "export-123",
-    userId: "user-123",
-    projectId: "project-123",
-    format: "MP4",
-    resolution: "HD",
-    status: "QUEUED",
+    id: 'export-123',
+    userId: 'user-123',
+    projectId: 'project-123',
+    format: 'MP4',
+    resolution: 'HD',
+    status: 'QUEUED',
     progress: 0,
     timelineData: {
-      clips: [{ localPath: "/tmp/video.mp4", startTime: 0, endTime: 5 }],
+      clips: [{ localPath: '/tmp/video.mp4', startTime: 0, endTime: 5 }],
       settings: { width: 1920, height: 1080, fps: 30 },
     },
     localPath: null,
     errorMessage: null,
-    createdAt: new Date("2024-01-01"),
+    createdAt: new Date('2024-01-01'),
     ...overrides,
   };
 }
 
-describe("exportService", () => {
+describe('exportService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -88,8 +88,8 @@ describe("exportService", () => {
   // ============================================================================
   // createJob
   // ============================================================================
-  describe("createJob", () => {
-    it("should create export job with default settings", async () => {
+  describe('createJob', () => {
+    it('should create export job with default settings', async () => {
       // Arrange
       mockPrisma.exportHistory.count.mockResolvedValue(0); // No pending jobs
       const job = createMockExportJob();
@@ -97,72 +97,72 @@ describe("exportService", () => {
 
       // Act
       const result = await exportService.createJob({
-        userId: "user-123",
-        projectId: "project-123",
+        userId: 'user-123',
+        projectId: 'project-123',
         timelineData: {
-          clips: [{ localPath: "/tmp/video.mp4", startTime: 0, endTime: 5 }],
+          clips: [{ localPath: '/tmp/video.mp4', startTime: 0, endTime: 5 }],
           settings: { width: 1920, height: 1080, fps: 30 },
         },
       });
 
       // Assert
-      expect(result.id).toBe("export-123");
+      expect(result.id).toBe('export-123');
       expect(mockPrisma.exportHistory.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
-            userId: "user-123",
-            projectId: "project-123",
-            format: "MP4",
-            resolution: "HD",
-            status: "QUEUED",
+            userId: 'user-123',
+            projectId: 'project-123',
+            format: 'MP4',
+            resolution: 'HD',
+            status: 'QUEUED',
           }),
-        })
+        }),
       );
     });
 
-    it("should throw error when rate limit exceeded", async () => {
+    it('should throw error when rate limit exceeded', async () => {
       // Arrange - 3 pending jobs (limit)
       mockPrisma.exportHistory.count.mockResolvedValue(3);
 
       // Act & Assert
       await expect(
         exportService.createJob({
-          userId: "user-123",
-          projectId: "project-123",
+          userId: 'user-123',
+          projectId: 'project-123',
           timelineData: {
             clips: [],
             settings: { width: 1920, height: 1080, fps: 30 },
           },
-        })
-      ).rejects.toThrow("Too many pending export jobs");
+        }),
+      ).rejects.toThrow('Too many pending export jobs');
     });
 
-    it("should allow custom format and resolution", async () => {
+    it('should allow custom format and resolution', async () => {
       // Arrange
       mockPrisma.exportHistory.count.mockResolvedValue(0);
-      const job = createMockExportJob({ format: "WEBM", resolution: "UHD" });
+      const job = createMockExportJob({ format: 'WEBM', resolution: 'UHD' });
       mockPrisma.exportHistory.create.mockResolvedValue(job);
 
       // Act
       await exportService.createJob({
-        userId: "user-123",
-        projectId: "project-123",
+        userId: 'user-123',
+        projectId: 'project-123',
         timelineData: {
           clips: [],
           settings: { width: 3840, height: 2160, fps: 60 },
         },
-        format: "WEBM",
-        resolution: "UHD",
+        format: 'WEBM',
+        resolution: 'UHD',
       });
 
       // Assert
       expect(mockPrisma.exportHistory.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
-            format: "WEBM",
-            resolution: "UHD",
+            format: 'WEBM',
+            resolution: 'UHD',
           }),
-        })
+        }),
       );
     });
   });
@@ -170,45 +170,42 @@ describe("exportService", () => {
   // ============================================================================
   // getJobStatus
   // ============================================================================
-  describe("getJobStatus", () => {
-    it("should return job status", async () => {
+  describe('getJobStatus', () => {
+    it('should return job status', async () => {
       // Arrange
-      const job = createMockExportJob({ status: "COMPLETED", progress: 100 });
+      const job = createMockExportJob({ status: 'COMPLETED', progress: 100 });
       mockPrisma.exportHistory.findFirst.mockResolvedValue(job);
 
       // Act
-      const result = await exportService.getJobStatus("export-123", "user-123");
+      const result = await exportService.getJobStatus('export-123', 'user-123');
 
       // Assert
-      expect(result.status).toBe("COMPLETED");
+      expect(result.status).toBe('COMPLETED');
       expect(result.progress).toBe(100);
     });
 
-    it("should throw error when job not found", async () => {
+    it('should throw error when job not found', async () => {
       // Arrange
       mockPrisma.exportHistory.findFirst.mockResolvedValue(null);
 
       // Act & Assert
-      await expect(
-        exportService.getJobStatus("nonexistent", "user-123")
-      ).rejects.toThrow("Export job not found");
+      await expect(exportService.getJobStatus('nonexistent', 'user-123')).rejects.toThrow(
+        'Export job not found',
+      );
     });
   });
 
   // ============================================================================
   // getHistory
   // ============================================================================
-  describe("getHistory", () => {
-    it("should return export history for user with cursor pagination format", async () => {
+  describe('getHistory', () => {
+    it('should return export history for user with cursor pagination format', async () => {
       // Arrange
-      const jobs = [
-        createMockExportJob({ id: "job-1" }),
-        createMockExportJob({ id: "job-2" }),
-      ];
+      const jobs = [createMockExportJob({ id: 'job-1' }), createMockExportJob({ id: 'job-2' })];
       mockPrisma.exportHistory.findMany.mockResolvedValue(jobs);
 
       // Act
-      const result = await exportService.getHistory("user-123", 10);
+      const result = await exportService.getHistory('user-123', 10);
 
       // Assert - service now returns cursor pagination format
       expect(result.items).toHaveLength(2);
@@ -216,25 +213,25 @@ describe("exportService", () => {
       expect(result.nextCursor).toBe(null);
       expect(mockPrisma.exportHistory.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: expect.objectContaining({ userId: "user-123" }),
+          where: expect.objectContaining({ userId: 'user-123' }),
           take: 11, // limit + 1 for cursor pagination
-          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-        })
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        }),
       );
     });
 
-    it("should use default limit of 10", async () => {
+    it('should use default limit of 10', async () => {
       // Arrange
       mockPrisma.exportHistory.findMany.mockResolvedValue([]);
 
       // Act
-      await exportService.getHistory("user-123");
+      await exportService.getHistory('user-123');
 
       // Assert - cursor pagination fetches limit + 1
       expect(mockPrisma.exportHistory.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           take: 11, // default limit (10) + 1
-        })
+        }),
       );
     });
   });

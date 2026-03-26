@@ -1,22 +1,22 @@
-import { create } from "zustand";
-import { devtools } from "zustand/middleware";
+import { create } from 'zustand';
+import { devtools } from 'zustand/middleware';
 
 export type DirectorStep =
-  | "IMPORT"
-  | "ANALYZING"
-  | "PICKING"
-  | "EDITING"
-  | "EXPORTING"
-  | "COMPLETED";
+  | 'IMPORT'
+  | 'ANALYZING'
+  | 'PICKING'
+  | 'EDITING'
+  | 'EXPORTING'
+  | 'COMPLETED';
 
 export interface DirectorSession {
   id: string;
   step: DirectorStep;
   asset?: {
     id: string;
-    origin: "UPLOAD" | "URL_IMPORT";
+    origin: 'UPLOAD' | 'URL_IMPORT';
     sourceUrlNormalized?: string;
-    ingestStatus: "UPLOADING" | "READY" | "FAILED";
+    ingestStatus: 'UPLOADING' | 'READY' | 'FAILED';
     storageKey: string;
     mimeType?: string;
   };
@@ -50,8 +50,8 @@ export interface SubtitleStyle {
 }
 
 export interface ExportSettings {
-  aspectRatio: "9:16" | "16:9" | "1:1";
-  quality: "720p" | "1080p";
+  aspectRatio: '9:16' | '16:9' | '1:1';
+  quality: '720p' | '1080p';
   includeSubtitles: boolean;
 }
 
@@ -111,11 +111,7 @@ interface DirectorState {
   setTranscribeJob: (job: { status: string } | null) => void;
   updateSubtitleStyle: (style: Partial<SubtitleStyle>) => void;
   setRefineSettings: (settings: Record<string, RefineSettings>) => void;
-  updateRefineSetting: (
-    clipId: string,
-    key: keyof RefineSettings,
-    value: boolean | string
-  ) => void;
+  updateRefineSetting: (clipId: string, key: keyof RefineSettings, value: boolean | string) => void;
   setExportSettings: (settings: Partial<ExportSettings>) => void;
   setExportJob: (job: ExportJob | null) => void;
   setAnalysisLogs: (logs: string[]) => void;
@@ -128,26 +124,26 @@ interface DirectorState {
 export const useDirectorStore = create<DirectorState>()(
   devtools((set) => ({
     activeSession: null,
-    step: "IMPORT",
+    step: 'IMPORT',
     isLoading: false,
     error: null,
     isWaitingForAsset: false,
-    importUrl: "",
+    importUrl: '',
     candidates: [],
     selectedCandidateIds: new Set(),
     selectedClips: [],
     playingClipId: null,
     transcribeJob: null,
     subtitleStyle: {
-      fontToken: "F_INTER",
+      fontToken: 'F_INTER',
       fontSize: 24,
-      textColorToken: "C_WHITE",
-      bgColorToken: "C_BLACK",
+      textColorToken: 'C_WHITE',
+      bgColorToken: 'C_BLACK',
     },
     refineSettings: {},
     exportSettings: {
-      aspectRatio: "9:16",
-      quality: "1080p",
+      aspectRatio: '9:16',
+      quality: '1080p',
       includeSubtitles: true,
     },
     exportJob: null,
@@ -183,8 +179,7 @@ export const useDirectorStore = create<DirectorState>()(
               removeSilence: true,
               stabilize: false,
             }),
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            [key]: value as any, // Cast because conditional types are hard for zustand inference or complex union
+            [key]: value as RefineSettings[keyof RefineSettings],
           },
         },
       })),
@@ -203,14 +198,14 @@ export const useDirectorStore = create<DirectorState>()(
     reset: () =>
       set({
         activeSession: null,
-        step: "IMPORT",
+        step: 'IMPORT',
         isLoading: false,
         error: null,
-        importUrl: "",
+        importUrl: '',
         candidates: [],
         selectedCandidateIds: new Set(),
         selectedClips: [],
         analysisLogs: [],
       }),
-  }))
+  })),
 );

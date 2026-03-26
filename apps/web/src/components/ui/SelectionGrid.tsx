@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils";
+import { cn } from '@/lib/utils';
 
 interface SelectionOption {
   key: string;
@@ -26,28 +26,29 @@ export function SelectionGrid({
   return (
     <div className="space-y-3">
       {label && (
-        <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+        <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
           {label}
-        </label>
+        </div>
       )}
       <div
         className={cn(
-          "grid gap-2",
-          columns === 2 && "grid-cols-2",
-          columns === 3 && "grid-cols-2 sm:grid-cols-3",
-          columns === 4 && "grid-cols-2 sm:grid-cols-4",
-          columns === 5 && "grid-cols-2 sm:grid-cols-3 md:grid-cols-5"
+          'grid gap-2',
+          columns === 2 && 'grid-cols-2',
+          columns === 3 && 'grid-cols-2 sm:grid-cols-3',
+          columns === 4 && 'grid-cols-2 sm:grid-cols-4',
+          columns === 5 && 'grid-cols-2 sm:grid-cols-3 md:grid-cols-5',
         )}
       >
         {options.map((opt) => (
           <button
+            type="button"
             key={opt.key}
             onClick={() => onChange(opt.key)}
             className={cn(
-              "relative px-3 py-4 rounded-xl border transition-all duration-300 active:scale-95 text-center flex flex-col items-center justify-center gap-1 group",
+              'relative px-3 py-4 rounded-xl border transition-all duration-300 active:scale-95 text-center flex flex-col items-center justify-center gap-1 group',
               value === opt.key
-                ? "bg-primary/10 border-primary shadow-lg shadow-primary/5"
-                : "bg-muted/10 border-border/50 hover:border-primary/30 hover:bg-muted/20"
+                ? 'bg-primary/10 border-primary shadow-lg shadow-primary/5'
+                : 'bg-muted/10 border-border/50 hover:border-primary/30 hover:bg-muted/20',
             )}
           >
             {value === opt.key && (
@@ -55,17 +56,17 @@ export function SelectionGrid({
             )}
             <p
               className={cn(
-                "text-[11px] font-black uppercase tracking-tight transition-colors",
+                'text-[11px] font-black uppercase tracking-tight transition-colors',
                 value === opt.key
-                  ? "text-primary"
-                  : "text-foreground/80 group-hover:text-primary/80"
+                  ? 'text-primary'
+                  : 'text-foreground/80 group-hover:text-primary/80',
               )}
             >
-              {opt.label.split(" / ")[0]}
+              {opt.label.split(' / ')[0]}
             </p>
-            {opt.label.includes(" / ") && (
+            {opt.label.includes(' / ') && (
               <p className="text-[9px] font-medium text-muted-foreground leading-tight line-clamp-1">
-                {opt.label.split(" / ")[1]}
+                {opt.label.split(' / ')[1]}
               </p>
             )}
           </button>
@@ -107,9 +108,9 @@ export function MultiSelectGrid({
     <div className="space-y-3">
       {label && (
         <div className="flex items-center justify-between ml-1">
-          <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+          <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
             {label}
-          </label>
+          </div>
           {maxSelections > 1 && (
             <span className="text-[9px] font-black text-primary/40 uppercase tracking-widest">
               Max {maxSelections}
@@ -119,22 +120,23 @@ export function MultiSelectGrid({
       )}
       <div
         className={cn(
-          "grid gap-2",
-          columns === 2 && "grid-cols-2",
-          columns === 3 && "grid-cols-2 sm:grid-cols-3",
-          columns === 4 && "grid-cols-2 sm:grid-cols-4",
-          columns === 5 && "grid-cols-2 sm:grid-cols-3 md:grid-cols-5"
+          'grid gap-2',
+          columns === 2 && 'grid-cols-2',
+          columns === 3 && 'grid-cols-2 sm:grid-cols-3',
+          columns === 4 && 'grid-cols-2 sm:grid-cols-4',
+          columns === 5 && 'grid-cols-2 sm:grid-cols-3 md:grid-cols-5',
         )}
       >
         {options.map((opt) => (
           <button
+            type="button"
             key={opt.key}
             onClick={() => handleToggle(opt.key)}
             className={cn(
-              "relative px-4 py-4 rounded-xl border transition-all duration-300 active:scale-95 text-center flex flex-col items-center justify-center gap-1 group",
+              'relative px-4 py-4 rounded-xl border transition-all duration-300 active:scale-95 text-center flex flex-col items-center justify-center gap-1 group',
               values.includes(opt.key)
-                ? "bg-primary/10 border-primary shadow-lg shadow-primary/5"
-                : "bg-muted/10 border-border/50 hover:border-primary/30 hover:bg-muted/20"
+                ? 'bg-primary/10 border-primary shadow-lg shadow-primary/5'
+                : 'bg-muted/10 border-border/50 hover:border-primary/30 hover:bg-muted/20',
             )}
           >
             {values.includes(opt.key) && (
@@ -142,17 +144,17 @@ export function MultiSelectGrid({
             )}
             <p
               className={cn(
-                "text-[11px] font-black uppercase tracking-tight transition-colors",
+                'text-[11px] font-black uppercase tracking-tight transition-colors',
                 values.includes(opt.key)
-                  ? "text-primary"
-                  : "text-foreground/80 group-hover:text-primary/80"
+                  ? 'text-primary'
+                  : 'text-foreground/80 group-hover:text-primary/80',
               )}
             >
-              {opt.label.split(" / ")[0]}
+              {opt.label.split(' / ')[0]}
             </p>
-            {opt.label.includes(" / ") && (
+            {opt.label.includes(' / ') && (
               <p className="text-[9px] font-medium text-muted-foreground leading-tight line-clamp-1">
-                {opt.label.split(" / ")[1]}
+                {opt.label.split(' / ')[1]}
               </p>
             )}
           </button>

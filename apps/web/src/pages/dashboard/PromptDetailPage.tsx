@@ -1,71 +1,72 @@
-import { useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { AnimatePresence, motion } from 'framer-motion';
 import {
+  ArrowLeft,
+  Check,
+  Clock,
+  Copy,
+  Edit,
+  FileText,
+  History,
+  MoreVertical,
+  RefreshCw,
+  Sparkles,
+  Terminal,
+  Trash,
+} from 'lucide-react';
+import { useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import {
+  Badge,
   Button,
   Card,
   CardBody,
-  Badge,
-  Tabs,
-  TabsList,
-  Tab,
-  TabsContent,
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
-  Input,
   Divider,
-} from "@/components/ui";
-import { motion, AnimatePresence } from "framer-motion";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  Input,
+  Tab,
+  Tabs,
+  TabsContent,
+  TabsList,
+} from '@/components/ui';
+import { PageTransition } from '@/components/ui/PageTransition';
 import {
-  ArrowLeft,
-  Copy,
-  Check,
-  Clock,
-  MoreVertical,
-  Edit,
-  Trash,
-  RefreshCw,
-  Sparkles,
-  History,
-  FileText,
-  Terminal,
-} from "lucide-react";
-import {
-  usePrompt,
-  useUpdatePrompt,
   useDeletePrompt,
+  usePrompt,
   useRegeneratePrompt,
-} from "@/hooks/use-prompts";
-import { PageTransition } from "@/components/ui/PageTransition";
-import { cn } from "@/lib/utils";
+  useUpdatePrompt,
+} from '@/hooks/use-prompts';
+import { cn } from '@/lib/utils';
 
 const promptTypeLabels: Record<string, string> = {
-  SCRIPT: "Script / Ide",
-  VOICE: "Voice / TTS",
-  VIDEO_GEN: "Video Generation",
-  IMAGE: "Image / Thumbnail",
-  RELAXING: "Relaxing / Ambient",
-  CREATIVE_SCAN: "Creative Scan",
-  TIMELAPSE: "Timelapse / Sora",
+  SCRIPT: 'Script / Ide',
+  VOICE: 'Voice / TTS',
+  VIDEO_GEN: 'Video Generation',
+  IMAGE: 'Image / Thumbnail',
+  RELAXING: 'Relaxing / Ambient',
+  CREATIVE_SCAN: 'Creative Scan',
+  TIMELAPSE: 'Timelapse / Sora',
 };
 
 export function PromptDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const promptId = id ?? '';
   const navigate = useNavigate();
-  const { data: prompt, isLoading, error } = usePrompt(id!);
-  const updatePrompt = useUpdatePrompt(id!);
+  const { data: prompt, isLoading, error } = usePrompt(promptId);
+  const updatePrompt = useUpdatePrompt(promptId);
   const deletePrompt = useDeletePrompt();
-  const regeneratePrompt = useRegeneratePrompt(id!);
+  const regeneratePrompt = useRegeneratePrompt(promptId);
 
   const [selectedVersion, setSelectedVersion] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [newTitle, setNewTitle] = useState("");
+  const [newTitle, setNewTitle] = useState('');
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
 
@@ -85,9 +86,13 @@ export function PromptDetailPage() {
   };
 
   const handleDelete = async () => {
+    if (!promptId) {
+      return;
+    }
+
     try {
-      await deletePrompt.mutateAsync(id!);
-      navigate("/dashboard/prompts");
+      await deletePrompt.mutateAsync(promptId);
+      navigate('/dashboard/prompts');
     } catch {
       // Error is logged by mutation
     }
@@ -126,7 +131,7 @@ export function PromptDetailPage() {
           </div>
           <Button
             variant="outline"
-            onClick={() => navigate("/dashboard/prompts")}
+            onClick={() => navigate('/dashboard/prompts')}
             className="rounded-full px-8 border-border/50 font-black uppercase text-[10px] tracking-widest h-11"
           >
             Kembali ke Prompts
@@ -151,7 +156,7 @@ export function PromptDetailPage() {
                 size="icon"
                 variant="ghost"
                 className="rounded-full w-10 h-10 bg-muted/20 border border-border/50"
-                onClick={() => navigate("/dashboard/prompts")}
+                onClick={() => navigate('/dashboard/prompts')}
               >
                 <ArrowLeft size={18} />
               </Button>
@@ -173,8 +178,7 @@ export function PromptDetailPage() {
                   </span>
                   <div className="w-1 h-1 rounded-full bg-muted-foreground/30" />
                   <span className="flex items-center gap-1.5">
-                    <Clock size={12} />{" "}
-                    {new Date(prompt.createdAt).toLocaleDateString("id-ID")}
+                    <Clock size={12} /> {new Date(prompt.createdAt).toLocaleDateString('id-ID')}
                   </span>
                 </div>
               </div>
@@ -242,27 +246,26 @@ export function PromptDetailPage() {
                 <CardBody className="p-3 space-y-2">
                   {prompt.versions.map((version) => (
                     <button
+                      type="button"
                       key={version.id}
                       onClick={() => setSelectedVersion(version.id)}
                       className={cn(
-                        "w-full p-4 rounded-xl border transition-all duration-300 group/v text-left flex flex-col gap-2",
+                        'w-full p-4 rounded-xl border transition-all duration-300 group/v text-left flex flex-col gap-2',
                         selectedVersion === version.id ||
-                          (!selectedVersion &&
-                            version.id === prompt.versions[0]?.id)
-                          ? "bg-primary/10 border-primary shadow-lg shadow-primary/5"
-                          : "bg-muted/10 border-transparent hover:border-border/50 hover:bg-muted/20"
+                          (!selectedVersion && version.id === prompt.versions[0]?.id)
+                          ? 'bg-primary/10 border-primary shadow-lg shadow-primary/5'
+                          : 'bg-muted/10 border-transparent hover:border-border/50 hover:bg-muted/20',
                       )}
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <span
                             className={cn(
-                              "text-xs font-black uppercase tracking-widest",
+                              'text-xs font-black uppercase tracking-widest',
                               selectedVersion === version.id ||
-                                (!selectedVersion &&
-                                  version.id === prompt.versions[0]?.id)
-                                ? "text-primary"
-                                : "text-foreground"
+                                (!selectedVersion && version.id === prompt.versions[0]?.id)
+                                ? 'text-primary'
+                                : 'text-foreground',
                             )}
                           >
                             Versi {version.version}
@@ -282,18 +285,18 @@ export function PromptDetailPage() {
                       </div>
                       <div className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-widest text-muted-foreground/80">
                         <Clock size={10} />
-                        {new Date(version.createdAt).toLocaleString("id-ID", {
-                          day: "numeric",
-                          month: "short",
-                          hour: "2-digit",
-                          minute: "2-digit",
+                        {new Date(version.createdAt).toLocaleString('id-ID', {
+                          day: 'numeric',
+                          month: 'short',
+                          hour: '2-digit',
+                          minute: '2-digit',
                         })}
                       </div>
                       <AnimatePresence>
                         {version.userNotes && (
                           <motion.p
                             initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: "auto", opacity: 1 }}
+                            animate={{ height: 'auto', opacity: 1 }}
                             className="text-[10px] font-medium text-muted-foreground line-clamp-2 mt-1 italic border-l-2 border-muted-foreground/20 pl-2"
                           >
                             {version.userNotes}
@@ -327,10 +330,7 @@ export function PromptDetailPage() {
                     </Tab>
                   </TabsList>
 
-                  <TabsContent
-                    value="prompt"
-                    className="p-0 flex-1 flex flex-col"
-                  >
+                  <TabsContent value="prompt" className="p-0 flex-1 flex flex-col">
                     <div className="p-6 flex items-center justify-between bg-muted/5 border-b border-border/30">
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
@@ -344,26 +344,24 @@ export function PromptDetailPage() {
                         size="sm"
                         variant="ghost"
                         className={cn(
-                          "rounded-full h-9 px-4 font-black uppercase text-[10px] tracking-widest transition-all",
+                          'rounded-full h-9 px-4 font-black uppercase text-[10px] tracking-widest transition-all',
                           copied
-                            ? "text-success bg-success/10"
-                            : "text-primary hover:bg-primary/10"
+                            ? 'text-success bg-success/10'
+                            : 'text-primary hover:bg-primary/10',
                         )}
-                        onClick={() =>
-                          handleCopy(currentVersion?.generatedPrompt || "")
-                        }
+                        onClick={() => handleCopy(currentVersion?.generatedPrompt || '')}
                       >
                         {copied ? (
                           <Check size={14} className="mr-2" />
                         ) : (
                           <Copy size={14} className="mr-2" />
                         )}
-                        {copied ? "Disalin!" : "Salin Prompt"}
+                        {copied ? 'Disalin!' : 'Salin Prompt'}
                       </Button>
                     </div>
                     <div className="p-6 flex-1 bg-muted/20">
                       <pre className="whitespace-pre-wrap text-sm font-mono text-foreground leading-relaxed selection:bg-primary/20 p-6 rounded-2xl bg-card border border-border/50 shadow-inner min-h-[400px]">
-                        {currentVersion?.generatedPrompt || "Tidak ada prompt"}
+                        {currentVersion?.generatedPrompt || 'Tidak ada prompt'}
                       </pre>
                     </div>
                   </TabsContent>
@@ -374,11 +372,7 @@ export function PromptDetailPage() {
                   >
                     <div className="p-6 flex-1 bg-muted/10">
                       <pre className="whitespace-pre-wrap text-xs font-mono text-muted-foreground p-6 rounded-2xl bg-card/40 border border-border/50 shadow-inner">
-                        {JSON.stringify(
-                          currentVersion?.inputData || {},
-                          null,
-                          2
-                        )}
+                        {JSON.stringify(currentVersion?.inputData || {}, null, 2)}
                       </pre>
                     </div>
                   </TabsContent>
@@ -399,15 +393,13 @@ export function PromptDetailPage() {
           </DialogHeader>
           <div className="p-6 space-y-4">
             <div className="space-y-2">
-              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+              <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
                 Nama Prompt Baru
-              </label>
+              </div>
               <Input
                 placeholder="Masukkan judul baru"
                 value={newTitle}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                  setNewTitle(e.target.value)
-                }
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewTitle(e.target.value)}
                 className="h-12 rounded-xl bg-muted/20 border-border/50 font-bold px-4"
               />
             </div>
@@ -444,8 +436,8 @@ export function PromptDetailPage() {
           </DialogHeader>
           <div className="p-8">
             <p className="text-muted-foreground font-medium text-center">
-              Apakah kamu yakin ingin menghapus prompt ini? Tindakan ini tidak
-              dapat dibatalkan dan semua riwayat versi akan hilang.
+              Apakah kamu yakin ingin menghapus prompt ini? Tindakan ini tidak dapat dibatalkan dan
+              semua riwayat versi akan hilang.
             </p>
           </div>
           <DialogFooter className="p-6 bg-muted/5 border-t border-border/30 flex-row gap-3">

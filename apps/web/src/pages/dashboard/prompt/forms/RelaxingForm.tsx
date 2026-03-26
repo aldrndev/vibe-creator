@@ -1,25 +1,25 @@
 import {
   Card,
   CardBody,
+  Divider,
+  Input,
   Select,
-  SelectTrigger,
-  SelectValue,
   SelectContent,
   SelectItem,
-  Input,
-  Divider,
-} from "@/components/ui";
-import { SelectionGrid } from "@/components/ui/SelectionGrid";
-import { RelaxingFormData } from "../types";
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui';
+import { SelectionGrid } from '@/components/ui/SelectionGrid';
+import { TargetModelSelector } from '../components/TargetModelSelector';
 import {
   environments,
   primarySounds,
-  secondarySounds,
   relaxingDurations,
   relaxingMoods,
+  secondarySounds,
   visualStyles,
-} from "../constants";
-import { TargetModelSelector } from "../components/TargetModelSelector";
+} from '../constants';
+import type { RelaxingFormData } from '../types';
 
 interface RelaxingFormProps {
   data: RelaxingFormData;
@@ -29,7 +29,7 @@ interface RelaxingFormProps {
 export function RelaxingForm({ data, onChange }: RelaxingFormProps) {
   const handleChange = (
     key: keyof RelaxingFormData,
-    value: RelaxingFormData[keyof RelaxingFormData]
+    value: RelaxingFormData[keyof RelaxingFormData],
   ) => {
     onChange({ ...data, [key]: value });
   };
@@ -40,7 +40,7 @@ export function RelaxingForm({ data, onChange }: RelaxingFormProps) {
         <TargetModelSelector
           promptType="RELAXING"
           value={data.targetModel}
-          onChange={(v) => handleChange("targetModel", v)}
+          onChange={(v) => handleChange('targetModel', v)}
         />
 
         {/* Section: Audio Environment */}
@@ -53,13 +53,10 @@ export function RelaxingForm({ data, onChange }: RelaxingFormProps) {
           </div>
 
           <div className="space-y-3">
-            <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+            <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
               Lingkungan (Environment)
-            </label>
-            <Select
-              value={data.environment}
-              onValueChange={(v) => handleChange("environment", v)}
-            >
+            </div>
+            <Select value={data.environment} onValueChange={(v) => handleChange('environment', v)}>
               <SelectTrigger className="h-14 rounded-2xl bg-muted/10 border-border/50 font-bold px-5 text-sm">
                 <SelectValue />
               </SelectTrigger>
@@ -81,7 +78,7 @@ export function RelaxingForm({ data, onChange }: RelaxingFormProps) {
             label="Suara Utama (Primary)"
             options={primarySounds}
             value={data.primarySound}
-            onChange={(v) => handleChange("primarySound", v)}
+            onChange={(v) => handleChange('primarySound', v)}
             columns={3}
           />
 
@@ -89,7 +86,7 @@ export function RelaxingForm({ data, onChange }: RelaxingFormProps) {
             label="Suara Sekunder (Background)"
             options={secondarySounds}
             value={data.secondarySounds}
-            onChange={(v) => handleChange("secondarySounds", v)}
+            onChange={(v) => handleChange('secondarySounds', v)}
             columns={3}
           />
         </div>
@@ -107,13 +104,10 @@ export function RelaxingForm({ data, onChange }: RelaxingFormProps) {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <div className="space-y-3">
-              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+              <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
                 Durasi Relaxing
-              </label>
-              <Select
-                value={data.duration}
-                onValueChange={(v) => handleChange("duration", v)}
-              >
+              </div>
+              <Select value={data.duration} onValueChange={(v) => handleChange('duration', v)}>
                 <SelectTrigger className="h-14 rounded-2xl bg-muted/10 border-border/50 font-bold px-5 text-sm">
                   <SelectValue />
                 </SelectTrigger>
@@ -132,13 +126,10 @@ export function RelaxingForm({ data, onChange }: RelaxingFormProps) {
             </div>
 
             <div className="space-y-3">
-              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+              <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
                 Mood & Suasana
-              </label>
-              <Select
-                value={data.mood}
-                onValueChange={(v) => handleChange("mood", v)}
-              >
+              </div>
+              <Select value={data.mood} onValueChange={(v) => handleChange('mood', v)}>
                 <SelectTrigger className="h-14 rounded-2xl bg-muted/10 border-border/50 font-bold px-5 text-sm">
                   <SelectValue />
                 </SelectTrigger>
@@ -161,19 +152,19 @@ export function RelaxingForm({ data, onChange }: RelaxingFormProps) {
             label="Visual Style (untuk video)"
             options={visualStyles}
             value={data.visualStyle}
-            onChange={(v) => handleChange("visualStyle", v)}
+            onChange={(v) => handleChange('visualStyle', v)}
             columns={3}
           />
 
           <div className="space-y-3 pt-4">
-            <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+            <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
               Detail Ambient (pisahkan dengan koma)
-            </label>
+            </div>
             <Input
               placeholder="Contoh: suara burung, angin sepoi-sepoi, bel sekolah"
               value={data.ambientDetails}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                handleChange("ambientDetails", e.target.value)
+                handleChange('ambientDetails', e.target.value)
               }
               className="h-14 rounded-2xl bg-muted/10 border-border/50 font-bold px-6 focus:bg-muted/20 transition-all"
             />

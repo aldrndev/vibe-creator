@@ -3,7 +3,7 @@
  * Shared Zod schemas for API response validation
  */
 
-import { z } from "zod";
+import { z } from 'zod';
 
 // ============================================================================
 // BASE RESPONSE WRAPPERS
@@ -66,12 +66,12 @@ export const userSchema = z.object({
   email: z.email(),
   name: z.string(),
   avatarUrl: z.string().nullable(),
-  role: z.enum(["USER", "ADMIN"]),
+  role: z.enum(['USER', 'ADMIN']),
 });
 
 export const subscriptionSchema = z.object({
-  tier: z.enum(["FREE", "CREATOR", "PRO"]),
-  status: z.enum(["ACTIVE", "EXPIRED", "CANCELLED"]),
+  tier: z.enum(['FREE', 'CREATOR', 'PRO']),
+  status: z.enum(['ACTIVE', 'EXPIRED', 'CANCELLED']),
   exportsUsed: z.number(),
   exportsLimit: z.number(),
   validUntil: z.date().nullable(),
@@ -111,7 +111,7 @@ export const meResponseSchema = successResponseSchema(
   z.object({
     user: userSchema,
     subscription: subscriptionSchema.nullable(),
-  })
+  }),
 );
 
 // ============================================================================
@@ -122,9 +122,7 @@ export const projectListResponseSchema = paginatedResponseSchema(projectSchema);
 export const projectDetailResponseSchema = successResponseSchema(projectSchema);
 export const projectCreateResponseSchema = successResponseSchema(projectSchema);
 export const projectUpdateResponseSchema = successResponseSchema(projectSchema);
-export const projectDeleteResponseSchema = successResponseSchema(
-  z.object({ message: z.string() })
-);
+export const projectDeleteResponseSchema = successResponseSchema(z.object({ message: z.string() }));
 
 // ============================================================================
 // PROMPT RESPONSE SCHEMAS
@@ -142,7 +140,7 @@ export const invoiceResponseSchema = successResponseSchema(
   z.object({
     invoiceUrl: z.string(),
     paymentId: z.string(),
-  })
+  }),
 );
 
 export const subscriptionResponseSchema = successResponseSchema(
@@ -154,7 +152,7 @@ export const subscriptionResponseSchema = successResponseSchema(
     validUntil: z.date().nullable(),
     price: z.number(),
     isUnlimited: z.boolean(),
-  })
+  }),
 );
 
 export const paymentHistorySchema = z.object({
@@ -165,9 +163,7 @@ export const paymentHistorySchema = z.object({
   createdAt: z.date(),
 });
 
-export const paymentHistoryResponseSchema = successResponseSchema(
-  z.array(paymentHistorySchema)
-);
+export const paymentHistoryResponseSchema = successResponseSchema(z.array(paymentHistorySchema));
 
 // ============================================================================
 // ADMIN RESPONSE SCHEMAS
@@ -197,7 +193,7 @@ export const adminUsersResponseSchema = successResponseSchema(
     total: z.number(),
     page: z.number(),
     limit: z.number(),
-  })
+  }),
 );
 
 // ============================================================================
@@ -206,23 +202,18 @@ export const adminUsersResponseSchema = successResponseSchema(
 
 export const exportJobSchema = z.object({
   id: z.string(),
-  status: z.enum(["PENDING", "PROCESSING", "COMPLETED", "FAILED"]),
+  status: z.enum(['PENDING', 'PROCESSING', 'COMPLETED', 'FAILED']),
   progress: z.number(),
   outputUrl: z.string().nullable(),
   error: z.string().nullable(),
   createdAt: z.date(),
 });
 
-export const exportStartResponseSchema = successResponseSchema(
-  z.object({ jobId: z.string() })
-);
+export const exportStartResponseSchema = successResponseSchema(z.object({ jobId: z.string() }));
 
-export const exportStatusResponseSchema =
-  successResponseSchema(exportJobSchema);
+export const exportStatusResponseSchema = successResponseSchema(exportJobSchema);
 
-export const exportHistoryResponseSchema = successResponseSchema(
-  z.array(exportJobSchema)
-);
+export const exportHistoryResponseSchema = successResponseSchema(z.array(exportJobSchema));
 
 // ============================================================================
 // DOWNLOAD RESPONSE SCHEMAS
@@ -242,12 +233,10 @@ export const downloadStartResponseSchema = successResponseSchema(
   z.object({
     downloadId: z.string(),
     status: z.string(),
-  })
+  }),
 );
 
-export const downloadHistoryResponseSchema = successResponseSchema(
-  z.array(downloadSchema)
-);
+export const downloadHistoryResponseSchema = successResponseSchema(z.array(downloadSchema));
 
 // ============================================================================
 // STREAM RESPONSE SCHEMAS
@@ -256,23 +245,19 @@ export const downloadHistoryResponseSchema = successResponseSchema(
 export const streamSessionSchema = z.object({
   id: z.string(),
   platform: z.string(),
-  status: z.enum(["STARTING", "LIVE", "ENDED", "FAILED"]),
+  status: z.enum(['STARTING', 'LIVE', 'ENDED', 'FAILED']),
   startedAt: z.date(),
   endedAt: z.date().nullable(),
   durationMinutesBilled: z.number().nullable(),
 });
 
-export const streamStartResponseSchema = successResponseSchema(
-  z.object({ streamId: z.string() })
-);
+export const streamStartResponseSchema = successResponseSchema(z.object({ streamId: z.string() }));
 
 export const streamStatusResponseSchema = successResponseSchema(
-  streamSessionSchema.extend({ isActive: z.boolean() })
+  streamSessionSchema.extend({ isActive: z.boolean() }),
 );
 
-export const streamHistoryResponseSchema = successResponseSchema(
-  z.array(streamSessionSchema)
-);
+export const streamHistoryResponseSchema = successResponseSchema(z.array(streamSessionSchema));
 
 // ============================================================================
 // DIRECTOR RESPONSE SCHEMAS
@@ -286,11 +271,9 @@ export const directorSessionSchema = z.object({
   updatedAt: z.date(),
 });
 
-export const directorSessionResponseSchema = successResponseSchema(
-  directorSessionSchema
-);
+export const directorSessionResponseSchema = successResponseSchema(directorSessionSchema);
 export const directorSessionListResponseSchema = successResponseSchema(
-  z.array(directorSessionSchema)
+  z.array(directorSessionSchema),
 );
 
 // ============================================================================
@@ -306,8 +289,7 @@ export const quotaCycleSchema = z.object({
   endsAt: z.date(),
 });
 
-export const billingQuotaResponseSchema =
-  successResponseSchema(quotaCycleSchema);
+export const billingQuotaResponseSchema = successResponseSchema(quotaCycleSchema);
 
 // ============================================================================
 // ANNOUNCEMENT RESPONSE SCHEMAS
@@ -321,24 +303,19 @@ export const announcementSchema = z.object({
   createdAt: z.date(),
 });
 
-export const announcementListResponseSchema = successResponseSchema(
-  z.array(announcementSchema)
-);
+export const announcementListResponseSchema = successResponseSchema(z.array(announcementSchema));
 
-export const announcementResponseSchema =
-  successResponseSchema(announcementSchema);
+export const announcementResponseSchema = successResponseSchema(announcementSchema);
 
 // ============================================================================
 // GENERIC RESPONSE SCHEMAS
 // ============================================================================
 
-export const messageResponseSchema = successResponseSchema(
-  z.object({ message: z.string() })
-);
+export const messageResponseSchema = successResponseSchema(z.object({ message: z.string() }));
 
 export const healthResponseSchema = successResponseSchema(
   z.object({
-    status: z.literal("ok"),
+    status: z.literal('ok'),
     timestamp: z.string(),
-  })
+  }),
 );

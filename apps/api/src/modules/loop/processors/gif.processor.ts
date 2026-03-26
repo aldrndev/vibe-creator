@@ -1,10 +1,10 @@
-import { join } from "path";
-import { unlink } from "fs/promises";
-import { randomUUID } from "crypto";
-import { spawn } from "child_process";
-import { getFFmpegPath } from "@/modules/export/ffmpeg/ffmpeg-binary";
-import { logger } from "@/lib/logger";
-import { LOOPS_DIR, ensureLoopsDir, getVideoDuration } from "../loop.utils";
+import { spawn } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
+import { unlink } from 'node:fs/promises';
+import { join } from 'node:path';
+import { logger } from '@/lib/logger';
+import { getFFmpegPath } from '@/modules/export/ffmpeg/ffmpeg-binary';
+import { ensureLoopsDir, getVideoDuration, LOOPS_DIR } from '../loop.utils';
 
 export interface CreateGifInput {
   inputPath: string;
@@ -21,7 +21,7 @@ export async function processGif(input: CreateGifInput): Promise<string> {
   // Gate: Check Source Duration
   const durationSec = await getVideoDuration(inputPath);
   if (durationSec > 300) {
-    throw new Error("Video duration exceeds limit (Max 5 Minutes)");
+    throw new Error('Video duration exceeds limit (Max 5 Minutes)');
   }
 
   const outputId = randomUUID();
@@ -29,7 +29,7 @@ export async function processGif(input: CreateGifInput): Promise<string> {
   const outputPath = join(LOOPS_DIR, `${outputId}.gif`);
 
   const startSec = startMs / 1000;
-  let trimFilter = "";
+  let trimFilter = '';
 
   if (endMs) {
     const duration = (endMs - startMs) / 1000;
@@ -42,42 +42,42 @@ export async function processGif(input: CreateGifInput): Promise<string> {
   return new Promise((resolve, reject) => {
     // Pass 1: Generate palette
     const paletteArgs = [
-      "-i",
+      '-i',
       inputPath,
-      "-vf",
+      '-vf',
       `${trimFilter}fps=${fps},scale=${width}:-1:flags=lanczos,palettegen`,
-      "-y",
+      '-y',
       palettePath,
     ];
 
     const paletteProcess = spawn(getFFmpegPath(), paletteArgs);
 
-    paletteProcess.on("close", (paletteCode) => {
+    paletteProcess.on('close', (paletteCode) => {
       if (paletteCode !== 0) {
-        reject(new Error("Palette generation failed"));
+        reject(new Error('Palette generation failed'));
         return;
       }
 
       // Pass 2: Create GIF with palette
       const gifArgs = [
-        "-i",
+        '-i',
         inputPath,
-        "-i",
+        '-i',
         palettePath,
-        "-filter_complex",
+        '-filter_complex',
         `${trimFilter}fps=${fps},scale=${width}:-1:flags=lanczos[x];[x][1:v]paletteuse`,
-        "-y",
+        '-y',
         outputPath,
       ];
 
       const gifProcess = spawn(getFFmpegPath(), gifArgs);
-      let errorOutput = "";
+      let errorOutput = '';
 
-      gifProcess.stderr.on("data", (data) => {
+      gifProcess.stderr.on('data', (data) => {
         errorOutput += data.toString();
       });
 
-      gifProcess.on("close", async (code) => {
+      gifProcess.on('close', async (code) => {
         // Clean up palette file
         try {
           await unlink(palettePath);
@@ -86,20 +86,20 @@ export async function processGif(input: CreateGifInput): Promise<string> {
         }
 
         if (code === 0) {
-          logger.info({ outputPath }, "GIF created");
+          logger.info({ outputPath }, 'GIF created');
           resolve(outputPath);
         } else {
-          logger.error({ code, errorOutput }, "GIF creation failed");
+          logger.error({ code, errorOutput }, 'GIF creation failed');
           reject(new Error(`FFmpeg failed with code ${code}`));
         }
       });
 
-      gifProcess.on("error", (err) => {
+      gifProcess.on('error', (err) => {
         reject(new Error(`FFmpeg not found: ${err.message}`));
       });
     });
 
-    paletteProcess.on("error", (err) => {
+    paletteProcess.on('error', (err) => {
       reject(new Error(`FFmpeg not found: ${err.message}`));
     });
   });

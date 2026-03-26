@@ -12,7 +12,9 @@ interface TurnstileWidgetProps {
   onExpire?: () => void;
 }
 
-const SITE_KEY = (import.meta as unknown as { env: Record<string, string> }).env.VITE_TURNSTILE_SITE_KEY || '1x00000000000000000000AA'; // Test key for development
+const SITE_KEY =
+  (import.meta as unknown as { env: Record<string, string> }).env.VITE_TURNSTILE_SITE_KEY ||
+  '1x00000000000000000000AA'; // Test key for development
 
 export const TurnstileWidget = forwardRef<TurnstileWidgetRef, TurnstileWidgetProps>(
   ({ onVerify, onError, onExpire }, ref) => {
@@ -51,7 +53,7 @@ export const TurnstileWidget = forwardRef<TurnstileWidgetRef, TurnstileWidgetPro
         />
       </div>
     );
-  }
+  },
 );
 
 TurnstileWidget.displayName = 'TurnstileWidget';

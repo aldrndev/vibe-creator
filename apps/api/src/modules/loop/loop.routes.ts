@@ -1,16 +1,17 @@
-import { FastifyPluginAsync, FastifyRequest, FastifyReply } from "fastify";
-import { z } from "zod";
-import { loopService } from "./loop.service";
-import { createReadStream, existsSync, statSync } from "fs";
-import path from "path";
-import { env } from "@/config/env";
+import { createReadStream, existsSync, statSync } from 'node:fs';
+import path from 'node:path';
+import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
+import { z } from 'zod';
+import { env } from '@/config/env';
+import { resolveTempUploadReference } from '@/utils/temp-upload';
+import { loopService } from './loop.service';
 
 const createLoopSchema = z.object({
   inputPath: z.string(),
   startMs: z.number().optional(),
   endMs: z.number().optional(),
   loopCount: z.number().min(1).max(5000).default(3), // increased max for long duration
-  aspectRatio: z.enum(["16:9", "9:16", "1:1", "4:5", ""]).optional(),
+  aspectRatio: z.enum(['16:9', '9:16', '1:1', '4:5', '']).optional(),
   crossfade: z.boolean().optional(),
 });
 
@@ -32,13 +33,16 @@ const createGifSchema = z.object({
 export const loopRoutes: FastifyPluginAsync = async (fastify) => {
   // --- JANITOR: Auto Cleanup ---
   // Run every 30 minutes, delete files older than 1 hour.
-  const cleanupInterval = setInterval(() => {
-    loopService.cleanupOldLoops(60 * 60 * 1000).catch((err) => {
-      fastify.log.error({ err }, "Loop Janitor Error");
-    });
-  }, 30 * 60 * 1000);
+  const cleanupInterval = setInterval(
+    () => {
+      loopService.cleanupOldLoops(60 * 60 * 1000).catch((err) => {
+        fastify.log.error({ err }, 'Loop Janitor Error');
+      });
+    },
+    30 * 60 * 1000,
+  );
 
-  fastify.addHook("onClose", (_instance, done) => {
+  fastify.addHook('onClose', (_instance, done) => {
     clearInterval(cleanupInterval);
     done();
   });
@@ -46,104 +50,21 @@ export const loopRoutes: FastifyPluginAsync = async (fastify) => {
   /**
    * Create looped video
    */
-  fastify.post(
-    "/create",
-    async (request: FastifyRequest, reply: FastifyReply) => {
-      const user = request.user;
-      if (!user) {
-        return reply.status(401).send({
-          success: false,
-          error: { code: "UNAUTHORIZED", message: "Authentication required" },
-        });
-      }
-
-      try {
-        const body = createLoopSchema.parse(request.body);
-        const outputPath = await loopService.createLoop(body);
-
-        return reply.send({
-          success: true,
-          data: { outputPath },
-        });
-      } catch (err) {
-        if (err instanceof z.ZodError) {
-          return reply.status(400).send({
-            success: false,
-            error: {
-              code: "VALIDATION_ERROR",
-              message: err.issues[0]?.message,
-            },
-          });
-        }
-
-        const message =
-          err instanceof Error ? err.message : "Loop creation failed";
-        return reply.status(500).send({
-          success: false,
-          error: { code: "LOOP_ERROR", message },
-        });
-      }
-    }
-  );
-
-  /**
-   * Create boomerang effect
-   */
-  fastify.post(
-    "/boomerang",
-    async (request: FastifyRequest, reply: FastifyReply) => {
-      const user = request.user;
-      if (!user) {
-        return reply.status(401).send({
-          success: false,
-          error: { code: "UNAUTHORIZED", message: "Authentication required" },
-        });
-      }
-
-      try {
-        const body = createBoomerangSchema.parse(request.body);
-        const outputPath = await loopService.createBoomerang(body);
-
-        return reply.send({
-          success: true,
-          data: { outputPath },
-        });
-      } catch (err) {
-        if (err instanceof z.ZodError) {
-          return reply.status(400).send({
-            success: false,
-            error: {
-              code: "VALIDATION_ERROR",
-              message: err.issues[0]?.message,
-            },
-          });
-        }
-
-        const message =
-          err instanceof Error ? err.message : "Boomerang creation failed";
-        return reply.status(500).send({
-          success: false,
-          error: { code: "BOOMERANG_ERROR", message },
-        });
-      }
-    }
-  );
-
-  /**
-   * Create GIF from video
-   */
-  fastify.post("/gif", async (request: FastifyRequest, reply: FastifyReply) => {
+  fastify.post('/create', async (request: FastifyRequest, reply: FastifyReply) => {
     const user = request.user;
     if (!user) {
       return reply.status(401).send({
         success: false,
-        error: { code: "UNAUTHORIZED", message: "Authentication required" },
+        error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
       });
     }
 
     try {
-      const body = createGifSchema.parse(request.body);
-      const outputPath = await loopService.createGif(body);
+      const body = createLoopSchema.parse(request.body);
+      const outputPath = await loopService.createLoop({
+        ...body,
+        inputPath: resolveTempUploadReference(body.inputPath),
+      });
 
       return reply.send({
         success: true,
@@ -153,15 +74,98 @@ export const loopRoutes: FastifyPluginAsync = async (fastify) => {
       if (err instanceof z.ZodError) {
         return reply.status(400).send({
           success: false,
-          error: { code: "VALIDATION_ERROR", message: err.issues[0]?.message },
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: err.issues[0]?.message,
+          },
         });
       }
 
-      const message =
-        err instanceof Error ? err.message : "GIF creation failed";
+      const message = err instanceof Error ? err.message : 'Loop creation failed';
       return reply.status(500).send({
         success: false,
-        error: { code: "GIF_ERROR", message },
+        error: { code: 'LOOP_ERROR', message },
+      });
+    }
+  });
+
+  /**
+   * Create boomerang effect
+   */
+  fastify.post('/boomerang', async (request: FastifyRequest, reply: FastifyReply) => {
+    const user = request.user;
+    if (!user) {
+      return reply.status(401).send({
+        success: false,
+        error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+      });
+    }
+
+    try {
+      const body = createBoomerangSchema.parse(request.body);
+      const outputPath = await loopService.createBoomerang({
+        ...body,
+        inputPath: resolveTempUploadReference(body.inputPath),
+      });
+
+      return reply.send({
+        success: true,
+        data: { outputPath },
+      });
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return reply.status(400).send({
+          success: false,
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: err.issues[0]?.message,
+          },
+        });
+      }
+
+      const message = err instanceof Error ? err.message : 'Boomerang creation failed';
+      return reply.status(500).send({
+        success: false,
+        error: { code: 'BOOMERANG_ERROR', message },
+      });
+    }
+  });
+
+  /**
+   * Create GIF from video
+   */
+  fastify.post('/gif', async (request: FastifyRequest, reply: FastifyReply) => {
+    const user = request.user;
+    if (!user) {
+      return reply.status(401).send({
+        success: false,
+        error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+      });
+    }
+
+    try {
+      const body = createGifSchema.parse(request.body);
+      const outputPath = await loopService.createGif({
+        ...body,
+        inputPath: resolveTempUploadReference(body.inputPath),
+      });
+
+      return reply.send({
+        success: true,
+        data: { outputPath },
+      });
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return reply.status(400).send({
+          success: false,
+          error: { code: 'VALIDATION_ERROR', message: err.issues[0]?.message },
+        });
+      }
+
+      const message = err instanceof Error ? err.message : 'GIF creation failed';
+      return reply.status(500).send({
+        success: false,
+        error: { code: 'GIF_ERROR', message },
       });
     }
   });
@@ -170,16 +174,13 @@ export const loopRoutes: FastifyPluginAsync = async (fastify) => {
    * Download generated file
    */
   fastify.get<{ Params: { filename: string } }>(
-    "/download/:filename",
-    async (
-      request: FastifyRequest<{ Params: { filename: string } }>,
-      reply: FastifyReply
-    ) => {
+    '/download/:filename',
+    async (request: FastifyRequest<{ Params: { filename: string } }>, reply: FastifyReply) => {
       const user = request.user;
       if (!user) {
         return reply.status(401).send({
           success: false,
-          error: { code: "UNAUTHORIZED", message: "Authentication required" },
+          error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
         });
       }
 
@@ -191,43 +192,40 @@ export const loopRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(400).send({
           success: false,
           error: {
-            code: "INVALID_FILENAME",
-            message: "Invalid filename format",
+            code: 'INVALID_FILENAME',
+            message: 'Invalid filename format',
           },
         });
       }
 
-      const uploadsDir = path.resolve(env.MEDIA_INPUT_DIR, "loops");
+      const uploadsDir = path.resolve(env.MEDIA_INPUT_DIR, 'loops');
       const filePath = path.join(uploadsDir, sanitizedFilename);
 
       // Security: Verify resolved path is within allowed directory
       if (!path.resolve(filePath).startsWith(uploadsDir)) {
         return reply.status(400).send({
           success: false,
-          error: { code: "INVALID_PATH", message: "Invalid file path" },
+          error: { code: 'INVALID_PATH', message: 'Invalid file path' },
         });
       }
 
       if (!existsSync(filePath)) {
         return reply.status(404).send({
           success: false,
-          error: { code: "NOT_FOUND", message: "File not found" },
+          error: { code: 'NOT_FOUND', message: 'File not found' },
         });
       }
 
       const stat = statSync(filePath);
-      const isGif = filePath.endsWith(".gif");
+      const isGif = filePath.endsWith('.gif');
       const stream = createReadStream(filePath);
 
       return reply
-        .header("Content-Type", isGif ? "image/gif" : "video/mp4")
-        .header(
-          "Content-Disposition",
-          `attachment; filename="${sanitizedFilename}"`
-        )
-        .header("Content-Length", stat.size)
-        .header("X-Content-Type-Options", "nosniff")
+        .header('Content-Type', isGif ? 'image/gif' : 'video/mp4')
+        .header('Content-Disposition', `attachment; filename="${sanitizedFilename}"`)
+        .header('Content-Length', stat.size)
+        .header('X-Content-Type-Options', 'nosniff')
         .send(stream);
-    }
+    },
   );
 };

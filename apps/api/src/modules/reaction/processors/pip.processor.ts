@@ -1,16 +1,16 @@
-import { join } from "path";
-import { randomUUID } from "crypto";
-import { spawn } from "child_process";
-import { getFFmpegPath } from "@/modules/export/ffmpeg/ffmpeg-binary";
-import { getVideoDuration, getVideoResolution } from "@/utils/video-info";
-import { logger } from "@/lib/logger";
+import { spawn } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
+import { join } from 'node:path';
+import { logger } from '@/lib/logger';
+import { getFFmpegPath } from '@/modules/export/ffmpeg/ffmpeg-binary';
+import { getVideoDuration, getVideoResolution } from '@/utils/video-info';
 import {
-  REACTIONS_DIR,
-  RESOLUTIONS,
   ensureReactionsDir,
   getOverlayPosition,
-  OverlayPosition,
-} from "../reaction.utils";
+  type OverlayPosition,
+  REACTIONS_DIR,
+  RESOLUTIONS,
+} from '../reaction.utils';
 
 export interface CreateReactionInput {
   mainVideoPath: string;
@@ -25,9 +25,7 @@ export interface CreateReactionInput {
   circular?: boolean;
 }
 
-export async function processReaction(
-  input: CreateReactionInput
-): Promise<string> {
+export async function processReaction(input: CreateReactionInput): Promise<string> {
   await ensureReactionsDir();
 
   const {
@@ -39,7 +37,7 @@ export async function processReaction(
     reactionVolume = 0.8,
     mainVolume = 1.0,
     circular,
-    aspectRatio = "16:9",
+    aspectRatio = '16:9',
   } = input;
 
   // Validate Duration (Max 5 mins)
@@ -47,21 +45,21 @@ export async function processReaction(
     getVideoDuration(mainVideoPath),
     getVideoDuration(reactionVideoPath),
   ]);
-  if (d1 > 300 * 1000 || d2 > 300 * 1000)
-    throw new Error("Video duration exceeds 5 minutes limit");
+  if (d1 > 300 * 1000 || d2 > 300 * 1000) throw new Error('Video duration exceeds 5 minutes limit');
 
   const outputId = randomUUID();
   const outputPath = join(REACTIONS_DIR, `${outputId}.mp4`);
   const ffmpegPath = getFFmpegPath();
+  const targetResolution = RESOLUTIONS[aspectRatio] ?? RESOLUTIONS['16:9'];
+  if (!targetResolution) {
+    throw new Error('Default reaction resolution is not configured');
+  }
 
-  const { w: targetW, h: targetH } =
-    RESOLUTIONS[aspectRatio] || RESOLUTIONS["16:9"]!;
+  const { w: targetW, h: targetH } = targetResolution;
   const overlayPos = getOverlayPosition(position, margin, input.customPosition);
 
   // Smart Scaling Logic
-  const { width: pipSrcW, height: pipSrcH } = await getVideoResolution(
-    reactionVideoPath
-  );
+  const { width: pipSrcW, height: pipSrcH } = await getVideoResolution(reactionVideoPath);
   const pipSrcAspect = pipSrcW / pipSrcH;
   const targetAspect = targetW / targetH;
 
@@ -77,14 +75,14 @@ export async function processReaction(
 
   // Step 1: Smart Blur Main Video [main]
   const mainFilter = [
-    `[0:v]split[bg][fg]`,
+    '[0:v]split[bg][fg]',
     `[bg]scale=${targetW}:${targetH}:force_original_aspect_ratio=increase,crop=${targetW}:${targetH},boxblur=20:10[bg_blurred]`,
     `[fg]scale=${targetW}:${targetH}:force_original_aspect_ratio=decrease[fg_scaled]`,
-    `[bg_blurred][fg_scaled]overlay=(W-w)/2:(H-h)/2[main]`,
-  ].join(";");
+    '[bg_blurred][fg_scaled]overlay=(W-w)/2:(H-h)/2[main]',
+  ].join(';');
 
   // Step 2: Prepare PiP [pip]
-  let pipFilter = "";
+  let pipFilter = '';
 
   if (circular) {
     pipFilter = `[1:v]crop='min(iw,ih):min(iw,ih):(iw-ow)/2:(ih-oh)/2',scale=${pipW}:${pipW}[pip_square];[pip_square]format=rgba,geq='r=r(X,Y):a=if(lte(hypot(X-W/2,Y-H/2),W/2),255,0)'[pip]`;
@@ -100,48 +98,48 @@ export async function processReaction(
 
   return new Promise((resolve, reject) => {
     const args = [
-      "-i",
+      '-i',
       mainVideoPath,
-      "-i",
+      '-i',
       reactionVideoPath,
-      "-filter_complex",
+      '-filter_complex',
       filterComplex,
-      "-map",
-      "[v]",
-      "-map",
-      "[a]",
-      "-c:v",
-      "libx264",
-      "-preset",
-      "ultrafast",
-      "-crf",
-      "23",
-      "-c:a",
-      "aac",
-      "-b:a",
-      "128k",
-      "-y",
+      '-map',
+      '[v]',
+      '-map',
+      '[a]',
+      '-c:v',
+      'libx264',
+      '-preset',
+      'ultrafast',
+      '-crf',
+      '23',
+      '-c:a',
+      'aac',
+      '-b:a',
+      '128k',
+      '-y',
       outputPath,
     ];
 
     const process = spawn(ffmpegPath, args);
-    let errorOutput = "";
+    let errorOutput = '';
 
-    process.stderr.on("data", (data) => {
+    process.stderr.on('data', (data) => {
       errorOutput += data.toString();
     });
 
-    process.on("close", (code) => {
+    process.on('close', (code) => {
       if (code === 0) {
-        logger.info({ outputPath }, "Reaction video created");
+        logger.info({ outputPath }, 'Reaction video created');
         resolve(outputPath);
       } else {
-        logger.error({ code, errorOutput }, "Reaction creation failed");
+        logger.error({ code, errorOutput }, 'Reaction creation failed');
         reject(new Error(`FFmpeg failed with code ${code}`));
       }
     });
 
-    process.on("error", (err) => {
+    process.on('error', (err) => {
       reject(new Error(`FFmpeg not found: ${err.message}`));
     });
   });

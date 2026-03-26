@@ -1,14 +1,14 @@
-import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
-import { prisma } from "@/lib/prisma";
-import { sendError } from "@/utils/response";
-import { ERROR_CODES } from "@vibe-creator/shared";
-import { logger } from "@/lib/logger";
-import type { User, UserSession } from "@prisma/client";
-import { verifyAccessToken } from "@/lib/jwt";
-import { env } from "@/config/env";
-import { audit, AuditAction } from "@/lib/audit";
+import type { User, UserSession } from '@prisma/client';
+import { ERROR_CODES } from '@vibe-creator/shared';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import { env } from '@/config/env';
+import { AuditAction, audit } from '@/lib/audit';
+import { verifyAccessToken } from '@/lib/jwt';
+import { logger } from '@/lib/logger';
+import { prisma } from '@/lib/prisma';
+import { sendError } from '@/utils/response';
 
-declare module "fastify" {
+declare module 'fastify' {
   interface FastifyRequest {
     user: User | null;
     session: UserSession | null;
@@ -17,22 +17,16 @@ declare module "fastify" {
 }
 
 export async function authPlugin(fastify: FastifyInstance): Promise<void> {
-  fastify.decorateRequest("user", null);
-  fastify.decorateRequest("session", null);
-  fastify.decorateRequest("auth", null);
+  fastify.decorateRequest('user', null);
+  fastify.decorateRequest('session', null);
+  fastify.decorateRequest('auth', null);
 
-  fastify.addHook("onRequest", async (request: FastifyRequest) => {
+  fastify.addHook('onRequest', async (request: FastifyRequest) => {
     const authHeader = request.headers.authorization;
     let token: string | undefined;
 
-    if (authHeader?.startsWith("Bearer ")) {
+    if (authHeader?.startsWith('Bearer ')) {
       token = authHeader.slice(7);
-    } else {
-      // Allow token in query param for file downloads/media
-      const query = request.query as { token?: string };
-      if (query?.token) {
-        token = query.token;
-      }
     }
 
     if (!token) {
@@ -74,9 +68,9 @@ export async function authPlugin(fastify: FastifyInstance): Promise<void> {
       logger.warn(
         {
           userId: session.userId,
-          err: error instanceof Error ? error.message : "unknown",
+          err: error instanceof Error ? error.message : 'unknown',
         },
-        "Legacy session auth fallback"
+        'Legacy session auth fallback',
       );
       request.user = session.user;
       request.session = session;
@@ -87,59 +81,44 @@ export async function authPlugin(fastify: FastifyInstance): Promise<void> {
 
 export async function requireAuth(
   request: FastifyRequest,
-  reply: FastifyReply
-): Promise<FastifyReply | void> {
+  reply: FastifyReply,
+): Promise<FastifyReply | undefined> {
   if (!request.user) {
     await audit({
       requestId: request.id,
       action: AuditAction.ACCESS_DENIED,
       ipAddress: request.ip,
-      userAgent: request.headers["user-agent"] ?? undefined,
-      metadata: { reason: "unauthenticated" },
+      userAgent: request.headers['user-agent'] ?? undefined,
+      metadata: { reason: 'unauthenticated' },
     });
-    return sendError(
-      reply,
-      ERROR_CODES.UNAUTHORIZED,
-      "Autentikasi diperlukan",
-      401
-    );
+    return sendError(reply, ERROR_CODES.UNAUTHORIZED, 'Autentikasi diperlukan', 401);
   }
 }
 
 export async function requireAdmin(
   request: FastifyRequest,
-  reply: FastifyReply
-): Promise<FastifyReply | void> {
+  reply: FastifyReply,
+): Promise<FastifyReply | undefined> {
   if (!request.user) {
     await audit({
       requestId: request.id,
       action: AuditAction.ACCESS_DENIED,
       ipAddress: request.ip,
-      userAgent: request.headers["user-agent"] ?? undefined,
-      metadata: { reason: "unauthenticated_admin" },
+      userAgent: request.headers['user-agent'] ?? undefined,
+      metadata: { reason: 'unauthenticated_admin' },
     });
-    return sendError(
-      reply,
-      ERROR_CODES.UNAUTHORIZED,
-      "Autentikasi diperlukan",
-      401
-    );
+    return sendError(reply, ERROR_CODES.UNAUTHORIZED, 'Autentikasi diperlukan', 401);
   }
-  if (request.user.role !== "ADMIN") {
+  if (request.user.role !== 'ADMIN') {
     await audit({
       requestId: request.id,
       userId: request.user.id,
       tenantId: request.user.id,
       action: AuditAction.ACCESS_DENIED,
       ipAddress: request.ip,
-      userAgent: request.headers["user-agent"] ?? undefined,
-      metadata: { reason: "forbidden_admin" },
+      userAgent: request.headers['user-agent'] ?? undefined,
+      metadata: { reason: 'forbidden_admin' },
     });
-    return sendError(
-      reply,
-      ERROR_CODES.FORBIDDEN,
-      "Akses admin diperlukan",
-      403
-    );
+    return sendError(reply, ERROR_CODES.NOT_FOUND, 'Resource tidak ditemukan', 404);
   }
 }

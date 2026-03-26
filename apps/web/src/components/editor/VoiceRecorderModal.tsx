@@ -1,15 +1,15 @@
+import { Check, Mic, Pause, Play, Radio, Square, Trash2 } from 'lucide-react';
 import {
+  Badge,
   Button,
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
-  Badge,
-} from "@/components/ui";
-import { Mic, Square, Pause, Play, Trash2, Check, Radio } from "lucide-react";
-import { useVoiceRecorder } from "@/hooks/use-voice-recorder";
-import { cn } from "@/lib/utils";
+} from '@/components/ui';
+import { useVoiceRecorder } from '@/hooks/use-voice-recorder';
+import { cn } from '@/lib/utils';
 
 interface VoiceRecorderModalProps {
   isOpen: boolean;
@@ -21,16 +21,10 @@ function formatDuration(ms: number): string {
   const seconds = Math.floor(ms / 1000);
   const minutes = Math.floor(seconds / 60);
   const remainingSeconds = seconds % 60;
-  return `${minutes.toString().padStart(2, "0")}:${remainingSeconds
-    .toString()
-    .padStart(2, "0")}`;
+  return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
 }
 
-export function VoiceRecorderModal({
-  isOpen,
-  onClose,
-  onSave,
-}: VoiceRecorderModalProps) {
+export function VoiceRecorderModal({ isOpen, onClose, onSave }: VoiceRecorderModalProps) {
   const {
     isRecording,
     isPaused,
@@ -104,20 +98,15 @@ export function VoiceRecorderModal({
                 <div className="flex items-center justify-center gap-3">
                   <Radio
                     size={14}
-                    className={cn(
-                      "text-destructive",
-                      !isPaused && "animate-pulse"
-                    )}
+                    className={cn('text-destructive', !isPaused && 'animate-pulse')}
                   />
                   <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                    {isPaused
-                      ? "Captor Suspended"
-                      : "Capturing Audio Signal..."}
+                    {isPaused ? 'Captor Suspended' : 'Capturing Audio Signal...'}
                   </span>
                 </div>
               ) : (
                 <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/40">
-                  {audioBlob ? "Capture Successful" : "Ready to Capture"}
+                  {audioBlob ? 'Capture Successful' : 'Ready to Capture'}
                 </p>
               )}
             </div>
@@ -126,11 +115,9 @@ export function VoiceRecorderModal({
           {/* Audio preview */}
           {audioUrl && !isRecording && (
             <div className="bg-background/40 border border-border/40 rounded-2xl p-4 overflow-hidden shadow-inner">
-              <audio
-                src={audioUrl}
-                controls
-                className="w-full h-10 [color-scheme:dark]"
-              />
+              <audio src={audioUrl} controls className="w-full h-10 [color-scheme:dark]">
+                <track kind="captions" label="Voice recording preview" />
+              </audio>
             </div>
           )}
 
@@ -142,10 +129,7 @@ export function VoiceRecorderModal({
                 className="w-20 h-20 rounded-full shadow-2xl shadow-destructive/30 hover:scale-110 active:scale-95 transition-all group"
                 onClick={startRecording}
               >
-                <Mic
-                  size={32}
-                  className="group-hover:rotate-12 transition-transform"
-                />
+                <Mic size={32} className="group-hover:rotate-12 transition-transform" />
               </Button>
             )}
 

@@ -1,8 +1,8 @@
-import { useState, useCallback, useRef, useEffect } from "react";
-import { WaveformDisplay } from "./WaveformDisplay";
-import { useEditorStore, type EditorClip } from "@/stores/editor-store";
-import { cn } from "@/lib/utils";
-import { Volume2, VolumeX, Music } from "lucide-react";
+import { Music, Volume2, VolumeX } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { cn } from '@/lib/utils';
+import { type EditorClip, useEditorStore } from '@/stores/editor-store';
+import { WaveformDisplay } from './WaveformDisplay';
 
 interface AudioClipProps {
   clip: EditorClip;
@@ -12,13 +12,7 @@ interface AudioClipProps {
   onSelect: () => void;
 }
 
-export function AudioClip({
-  clip,
-  trackId,
-  pixelsPerMs,
-  isSelected,
-  onSelect,
-}: AudioClipProps) {
+export function AudioClip({ clip, trackId, pixelsPerMs, isSelected, onSelect }: AudioClipProps) {
   const { updateClip } = useEditorStore();
 
   const [isDraggingFadeIn, setIsDraggingFadeIn] = useState(false);
@@ -38,15 +32,12 @@ export function AudioClip({
       if (!clipRef.current || !isDraggingFadeIn) return;
       const rect = clipRef.current.getBoundingClientRect();
       const x = e.clientX - rect.left;
-      const fadeMs = Math.max(
-        0,
-        Math.min(x / pixelsPerMs, clip.endMs - clip.startMs - fadeOutMs)
-      );
+      const fadeMs = Math.max(0, Math.min(x / pixelsPerMs, clip.endMs - clip.startMs - fadeOutMs));
       updateClip(trackId, clip.id, {
         effects: { ...clip.effects, fadeIn: Math.round(fadeMs) },
       });
     },
-    [isDraggingFadeIn, pixelsPerMs, clip, trackId, updateClip, fadeOutMs]
+    [isDraggingFadeIn, pixelsPerMs, clip, trackId, updateClip, fadeOutMs],
   );
 
   const handleFadeOutDrag = useCallback(
@@ -54,15 +45,12 @@ export function AudioClip({
       if (!clipRef.current || !isDraggingFadeOut) return;
       const rect = clipRef.current.getBoundingClientRect();
       const x = rect.right - e.clientX;
-      const fadeMs = Math.max(
-        0,
-        Math.min(x / pixelsPerMs, clip.endMs - clip.startMs - fadeInMs)
-      );
+      const fadeMs = Math.max(0, Math.min(x / pixelsPerMs, clip.endMs - clip.startMs - fadeInMs));
       updateClip(trackId, clip.id, {
         effects: { ...clip.effects, fadeOut: Math.round(fadeMs) },
       });
     },
-    [isDraggingFadeOut, pixelsPerMs, clip, trackId, updateClip, fadeInMs]
+    [isDraggingFadeOut, pixelsPerMs, clip, trackId, updateClip, fadeInMs],
   );
 
   const handleMouseUp = useCallback(() => {
@@ -72,44 +60,46 @@ export function AudioClip({
 
   useEffect(() => {
     if (isDraggingFadeIn || isDraggingFadeOut) {
-      window.addEventListener(
-        "mousemove",
-        isDraggingFadeIn ? handleFadeInDrag : handleFadeOutDrag
-      );
-      window.addEventListener("mouseup", handleMouseUp);
+      window.addEventListener('mousemove', isDraggingFadeIn ? handleFadeInDrag : handleFadeOutDrag);
+      window.addEventListener('mouseup', handleMouseUp);
       return () => {
         window.removeEventListener(
-          "mousemove",
-          isDraggingFadeIn ? handleFadeInDrag : handleFadeOutDrag
+          'mousemove',
+          isDraggingFadeIn ? handleFadeInDrag : handleFadeOutDrag,
         );
-        window.removeEventListener("mouseup", handleMouseUp);
+        window.removeEventListener('mouseup', handleMouseUp);
       };
     }
-  }, [
-    isDraggingFadeIn,
-    isDraggingFadeOut,
-    handleFadeInDrag,
-    handleFadeOutDrag,
-    handleMouseUp,
-  ]);
+  }, [isDraggingFadeIn, isDraggingFadeOut, handleFadeInDrag, handleFadeOutDrag, handleMouseUp]);
 
   const fadeInWidth = fadeInMs * pixelsPerMs;
   const fadeOutWidth = fadeOutMs * pixelsPerMs;
 
+  const handleClipKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      onSelect();
+    }
+  };
+
   return (
     <div
       ref={clipRef}
+      role="option"
+      tabIndex={0}
+      aria-selected={isSelected}
       className={cn(
-        "absolute top-2 bottom-2 rounded-xl overflow-hidden cursor-pointer transition-all duration-300 border backdrop-blur-sm",
+        'absolute top-2 bottom-2 rounded-xl overflow-hidden cursor-pointer transition-all duration-300 border backdrop-blur-sm',
         isSelected
-          ? "bg-emerald-500/30 border-emerald-500 ring-2 ring-emerald-500/50 shadow-lg shadow-emerald-500/20"
-          : "bg-emerald-500/10 border-emerald-500/20 hover:bg-emerald-500/20 hover:border-emerald-500/40"
+          ? 'bg-emerald-500/30 border-emerald-500 ring-2 ring-emerald-500/50 shadow-lg shadow-emerald-500/20'
+          : 'bg-emerald-500/10 border-emerald-500/20 hover:bg-emerald-500/20 hover:border-emerald-500/40',
       )}
       style={{
         left: clipLeft,
         width: Math.max(clipWidth, 40),
       }}
       onClick={onSelect}
+      onKeyDown={handleClipKeyDown}
     >
       <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/10 to-transparent pointer-events-none" />
 
@@ -121,7 +111,7 @@ export function AudioClip({
             assetId={clip.assetId ?? clip.id}
             width={Math.max(clipWidth, 50)}
             height={44}
-            color={isMuted ? "#4b5563" : "#10b981"}
+            color={isMuted ? '#4b5563' : '#10b981'}
             className="absolute inset-0"
             startMs={clip.trimStartMs}
             endMs={clip.trimStartMs + (clip.endMs - clip.startMs)}
@@ -135,8 +125,7 @@ export function AudioClip({
           className="absolute top-0 bottom-0 left-0 pointer-events-none transition-all duration-300"
           style={{
             width: fadeInWidth,
-            background:
-              "linear-gradient(to right, rgba(0,0,0,0.6), transparent)",
+            background: 'linear-gradient(to right, rgba(0,0,0,0.6), transparent)',
           }}
         />
       )}
@@ -145,8 +134,7 @@ export function AudioClip({
           className="absolute top-0 bottom-0 right-0 pointer-events-none transition-all duration-300"
           style={{
             width: fadeOutWidth,
-            background:
-              "linear-gradient(to left, rgba(0,0,0,0.6), transparent)",
+            background: 'linear-gradient(to left, rgba(0,0,0,0.6), transparent)',
           }}
         />
       )}
@@ -156,7 +144,7 @@ export function AudioClip({
         <div className="flex items-center gap-1.5 min-w-0">
           <Music size={10} className="text-emerald-400 flex-shrink-0" />
           <span className="text-[9px] font-black uppercase tracking-tight text-white/80 truncate">
-            {clip.asset?.name || "Audio Signal"}
+            {clip.asset?.name || 'Audio Signal'}
           </span>
         </div>
         <div className="flex items-center gap-1 bg-black/40 px-1.5 py-0.5 rounded-md backdrop-blur-md">
@@ -166,7 +154,7 @@ export function AudioClip({
             <Volume2 size={8} className="text-emerald-400" />
           )}
           <span className="text-[8px] font-black text-white/60">
-            {isMuted ? "MUTE" : `${Math.round(volume * 100)}%`}
+            {isMuted ? 'MUTE' : `${Math.round(volume * 100)}%`}
           </span>
         </div>
       </div>
@@ -174,7 +162,9 @@ export function AudioClip({
       {/* Fade Handles */}
       {isSelected && (
         <>
-          <div
+          <button
+            type="button"
+            aria-label="Adjust fade in"
             className="absolute top-0 bottom-0 w-4 cursor-ew-resize group/fadein z-20 flex items-center justify-center -translate-x-2"
             style={{ left: fadeInWidth }}
             onMouseDown={(e) => {
@@ -183,8 +173,10 @@ export function AudioClip({
             }}
           >
             <div className="w-1.5 h-6 bg-emerald-400 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.5)] group-hover/fadein:scale-125 transition-transform border border-white/20" />
-          </div>
-          <div
+          </button>
+          <button
+            type="button"
+            aria-label="Adjust fade out"
             className="absolute top-0 bottom-0 w-4 cursor-ew-resize group/fadeout z-20 flex items-center justify-center translate-x-2"
             style={{ right: fadeOutWidth }}
             onMouseDown={(e) => {
@@ -193,7 +185,7 @@ export function AudioClip({
             }}
           >
             <div className="w-1.5 h-6 bg-emerald-400 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.5)] group-hover/fadeout:scale-125 transition-transform border border-white/20" />
-          </div>
+          </button>
         </>
       )}
     </div>

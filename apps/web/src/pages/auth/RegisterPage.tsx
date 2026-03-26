@@ -1,22 +1,11 @@
-import { Link, useNavigate } from "react-router-dom";
-import { Button, Input } from "@/components/ui";
-import { useForm } from "react-hook-form";
-import {
-  Eye,
-  EyeOff,
-  Mail,
-  Lock,
-  User,
-  UserPlus,
-  AlertCircle,
-} from "lucide-react";
-import { useState, useRef } from "react";
-import { api } from "@/services/api";
-import { useAuthStore } from "@/stores/auth-store";
-import {
-  TurnstileWidget,
-  type TurnstileWidgetRef,
-} from "@/components/ui/turnstile-widget";
+import { AlertCircle, Eye, EyeOff, Lock, Mail, User, UserPlus } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { Link, useNavigate } from 'react-router-dom';
+import { Button, Input } from '@/components/ui';
+import { TurnstileWidget, type TurnstileWidgetRef } from '@/components/ui/turnstile-widget';
+import { api } from '@/services/api';
+import { useAuthStore } from '@/stores/auth-store';
 
 interface AuthApiResponse {
   user: {
@@ -24,11 +13,11 @@ interface AuthApiResponse {
     email: string;
     name: string;
     avatarUrl: string | null;
-    role: "USER" | "ADMIN";
+    role: 'USER' | 'ADMIN';
   };
   subscription: {
-    tier: "FREE" | "CREATOR" | "PRO";
-    status: "ACTIVE" | "EXPIRED" | "CANCELLED";
+    tier: 'FREE' | 'CREATOR' | 'PRO';
+    status: 'ACTIVE' | 'EXPIRED' | 'CANCELLED';
     exportsUsed: number;
     exportsLimit: number;
     validUntil: string | null;
@@ -60,19 +49,19 @@ export function RegisterPage() {
     formState: { errors },
   } = useForm<RegisterForm>();
 
-  const password = watch("password");
+  const password = watch('password');
 
   const onSubmit = async (data: RegisterForm) => {
     setErrorMessage(null);
 
     if (!turnstileToken) {
-      setErrorMessage("Harap selesaikan verifikasi captcha");
+      setErrorMessage('Harap selesaikan verifikasi captcha');
       return;
     }
 
     setIsLoading(true);
     try {
-      const response = await api.post<AuthApiResponse>("/auth/register", {
+      const response = await api.post<AuthApiResponse>('/auth/register', {
         name: data.name,
         email: data.email,
         password: data.password,
@@ -81,14 +70,14 @@ export function RegisterPage() {
 
       if (response.success) {
         setAuth(response.data);
-        navigate("/dashboard");
+        navigate('/dashboard');
       } else {
         setErrorMessage(response.error.message);
         turnstileRef.current?.reset();
         setTurnstileToken(undefined);
       }
     } catch {
-      setErrorMessage("Terjadi kesalahan. Silakan coba lagi.");
+      setErrorMessage('Terjadi kesalahan. Silakan coba lagi.');
       turnstileRef.current?.reset();
       setTurnstileToken(undefined);
     } finally {
@@ -99,9 +88,7 @@ export function RegisterPage() {
   return (
     <div>
       <div className="mb-10 text-center sm:text-left">
-        <h1 className="text-3xl font-black tracking-tight mb-2">
-          Buat Akun Baru
-        </h1>
+        <h1 className="text-3xl font-black tracking-tight mb-2">Buat Akun Baru</h1>
         <p className="text-muted-foreground font-medium">
           Daftar untuk mulai membangun masa depan konten digital kamu.
         </p>
@@ -121,11 +108,11 @@ export function RegisterPage() {
           placeholder="Nama kamu"
           leftIcon={<User size={20} />}
           error={errors.name?.message}
-          {...register("name", {
-            required: "Nama diperlukan",
+          {...register('name', {
+            required: 'Nama diperlukan',
             minLength: {
               value: 2,
-              message: "Nama minimal 2 karakter",
+              message: 'Nama minimal 2 karakter',
             },
           })}
         />
@@ -136,18 +123,18 @@ export function RegisterPage() {
           placeholder="nama@email.com"
           leftIcon={<Mail size={20} />}
           error={errors.email?.message}
-          {...register("email", {
-            required: "Email diperlukan",
+          {...register('email', {
+            required: 'Email diperlukan',
             pattern: {
               value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
-              message: "Email tidak valid",
+              message: 'Email tidak valid',
             },
           })}
         />
 
         <Input
           label="Password"
-          type={showPassword ? "text" : "password"}
+          type={showPassword ? 'text' : 'password'}
           placeholder="Minimal 8 karakter"
           leftIcon={<Lock size={20} />}
           rightIcon={
@@ -160,24 +147,24 @@ export function RegisterPage() {
             </button>
           }
           error={errors.password?.message}
-          {...register("password", {
-            required: "Password diperlukan",
+          {...register('password', {
+            required: 'Password diperlukan',
             minLength: {
               value: 8,
-              message: "Password minimal 8 karakter",
+              message: 'Password minimal 8 karakter',
             },
           })}
         />
 
         <Input
           label="Konfirmasi Password"
-          type={showPassword ? "text" : "password"}
+          type={showPassword ? 'text' : 'password'}
           placeholder="Ulangi password"
           leftIcon={<Lock size={20} />}
           error={errors.confirmPassword?.message}
-          {...register("confirmPassword", {
-            required: "Konfirmasi password diperlukan",
-            validate: (value) => value === password || "Password tidak cocok",
+          {...register('confirmPassword', {
+            required: 'Konfirmasi password diperlukan',
+            validate: (value) => value === password || 'Password tidak cocok',
           })}
         />
 
@@ -200,7 +187,7 @@ export function RegisterPage() {
       </form>
 
       <p className="mt-8 text-center text-sm font-medium text-muted-foreground">
-        Sudah punya akun?{" "}
+        Sudah punya akun?{' '}
         <Link to="/login" className="text-primary font-bold hover:underline">
           Masuk ke Akun
         </Link>

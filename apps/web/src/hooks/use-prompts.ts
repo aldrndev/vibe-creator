@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { PromptType } from '@vibe-creator/shared';
 import { api } from '@/services/api';
 import { useAuthStore } from '@/stores/auth-store';
-import type { PromptType } from '@vibe-creator/shared';
 
 interface Prompt {
   id: string;
@@ -53,7 +53,7 @@ interface CreateVersionInput {
 // Queries
 export function usePrompts(params?: ListPromptsParams) {
   const { isAuthenticated } = useAuthStore();
-  
+
   return useQuery({
     queryKey: ['prompts', params],
     queryFn: async () => {
@@ -61,7 +61,7 @@ export function usePrompts(params?: ListPromptsParams) {
       if (params?.page) searchParams.set('page', params.page.toString());
       if (params?.limit) searchParams.set('limit', params.limit.toString());
       if (params?.type) searchParams.set('type', params.type);
-      
+
       const response = await api.get<Prompt[]>(`/prompts?${searchParams.toString()}`);
       if (!response.success) throw new Error(response.error.message);
       return response;
@@ -98,10 +98,13 @@ export function usePromptVersion(promptId: string, version: number) {
 // Mutations
 export function useCreatePrompt() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: async (input: CreatePromptInput) => {
-      const response = await api.post<PromptDetail & { generatedPrompt: string }>('/prompts', input);
+      const response = await api.post<PromptDetail & { generatedPrompt: string }>(
+        '/prompts',
+        input,
+      );
       if (!response.success) throw new Error(response.error.message);
       return response.data;
     },
@@ -113,12 +116,12 @@ export function useCreatePrompt() {
 
 export function useCreateVersion(promptId: string) {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: async (input: CreateVersionInput) => {
       const response = await api.post<PromptVersion & { generatedPrompt: string }>(
         `/prompts/${promptId}/versions`,
-        input
+        input,
       );
       if (!response.success) throw new Error(response.error.message);
       return response.data;
@@ -132,7 +135,7 @@ export function useCreateVersion(promptId: string) {
 
 export function useUpdatePrompt(promptId: string) {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: async (input: { title: string }) => {
       const response = await api.patch<PromptDetail>(`/prompts/${promptId}`, input);
@@ -148,7 +151,7 @@ export function useUpdatePrompt(promptId: string) {
 
 export function useDeletePrompt() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: async (promptId: string) => {
       const response = await api.delete(`/prompts/${promptId}`);
@@ -164,7 +167,7 @@ export function useRegeneratePrompt(promptId: string) {
   return useMutation({
     mutationFn: async () => {
       const response = await api.post<{ generatedPrompt: string; version: number }>(
-        `/prompts/${promptId}/regenerate`
+        `/prompts/${promptId}/regenerate`,
       );
       if (!response.success) throw new Error(response.error.message);
       return response.data;

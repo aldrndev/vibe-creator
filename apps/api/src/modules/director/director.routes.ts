@@ -1,12 +1,12 @@
 /**
  * Director Routes - Aggregator
  */
-import { FastifyPluginAsync } from "fastify";
-import { sessionRoutes } from "./routes/session.routes";
-import { assetRoutes } from "./routes/asset.routes";
-import { analysisRoutes } from "./routes/analysis.routes";
-import { transcribeRoutes } from "./routes/transcribe.routes";
-import { exportRoutes } from "./routes/export.routes";
+import type { FastifyPluginAsync } from 'fastify';
+import { analysisRoutes } from './routes/analysis.routes';
+import { assetRoutes } from './routes/asset.routes';
+import { exportRoutes } from './routes/export.routes';
+import { sessionRoutes } from './routes/session.routes';
+import { transcribeRoutes } from './routes/transcribe.routes';
 
 export const directorRoutes: FastifyPluginAsync = async (fastify) => {
   // Register modular routes

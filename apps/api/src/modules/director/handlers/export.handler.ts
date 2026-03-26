@@ -11,15 +11,15 @@
  * Job Type: EXPORT
  */
 
-import { Job } from "bullmq";
-import { join } from "path";
-import { mkdir } from "fs/promises";
-import { existsSync } from "fs";
-import { prisma } from "@/lib/prisma";
-import { logger } from "@/lib/logger";
-import { env } from "@/config/env";
-import { DirectorExportJobData } from "../director.queue";
-import { directorProcessor } from "../director.processor";
+import { existsSync } from 'node:fs';
+import { mkdir } from 'node:fs/promises';
+import { basename, join } from 'node:path';
+import type { Job } from 'bullmq';
+import { env } from '@/config/env';
+import { logger } from '@/lib/logger';
+import { prisma } from '@/lib/prisma';
+import { directorProcessor } from '../director.processor';
+import type { DirectorExportJobData } from '../director.queue';
 
 /**
  * Processes a video export job for the AI Director.
@@ -31,8 +31,8 @@ import { directorProcessor } from "../director.processor";
 
 export async function processExportJob(job: Job<DirectorExportJobData>) {
   const { sessionId, options } = job.data;
-  const logCtx = { jobId: job.id, sessionId, type: "EXPORT" };
-  logger.info(logCtx, "Processing export job");
+  const logCtx = { jobId: job.id, sessionId, type: 'EXPORT' };
+  logger.info(logCtx, 'Processing export job');
 
   await job.updateProgress(10);
 
@@ -44,14 +44,14 @@ export async function processExportJob(job: Job<DirectorExportJobData>) {
           candidate: true,
           transcript: true,
         },
-        orderBy: { orderIndex: "asc" },
+        orderBy: { orderIndex: 'asc' },
       },
       exportJob: true,
     },
   });
 
   if (!session || !session.exportJob) {
-    throw new Error("Session or export job not found");
+    throw new Error('Session or export job not found');
   }
 
   const exportJobId = session.exportJob.id;
@@ -59,7 +59,7 @@ export async function processExportJob(job: Job<DirectorExportJobData>) {
   try {
     await prisma.directorExportJob.update({
       where: { id: exportJobId },
-      data: { status: "PROCESSING" },
+      data: { status: 'PROCESSING' },
     });
 
     const asset = await prisma.directorAsset.findUnique({
@@ -67,11 +67,11 @@ export async function processExportJob(job: Job<DirectorExportJobData>) {
     });
 
     if (!asset) {
-      throw new Error("Session asset not found");
+      throw new Error('Session asset not found');
     }
 
-    const fileName = asset.storageKey.split("/").pop()!;
-    const sourcePath = join(env.MEDIA_INPUT_DIR, "director", fileName);
+    const fileName = basename(asset.storageKey);
+    const sourcePath = join(env.MEDIA_INPUT_DIR, 'director', fileName);
 
     if (!existsSync(sourcePath)) {
       throw new Error(`Asset file missing: ${sourcePath}`);
@@ -111,16 +111,12 @@ export async function processExportJob(job: Job<DirectorExportJobData>) {
 
     await job.updateProgress(30);
 
-    const outputDir = join(env.MEDIA_INPUT_DIR, "director", "exports");
+    const outputDir = join(env.MEDIA_INPUT_DIR, 'director', 'exports');
     if (!existsSync(outputDir)) {
       await mkdir(outputDir, { recursive: true });
     }
 
-    const finalFile = await directorProcessor.exportVideo(
-      clipsToExport,
-      outputDir,
-      options
-    );
+    const finalFile = await directorProcessor.exportVideo(clipsToExport, outputDir, options);
 
     await job.updateProgress(100);
 
@@ -128,21 +124,21 @@ export async function processExportJob(job: Job<DirectorExportJobData>) {
     await prisma.directorExportJob.update({
       where: { id: exportJobId },
       data: {
-        status: "COMPLETED",
+        status: 'COMPLETED',
         outputStorageKey,
       },
     });
 
-    logger.info({ ...logCtx, finalFile }, "Export job completed");
+    logger.info({ ...logCtx, finalFile }, 'Export job completed');
     return { output: finalFile };
   } catch (err) {
-    logger.error({ ...logCtx, err }, "Export job failed");
+    logger.error({ ...logCtx, err }, 'Export job failed');
 
     await prisma.directorExportJob.update({
       where: { id: exportJobId },
       data: {
-        status: "FAILED",
-        errorMessage: err instanceof Error ? err.message : "Unknown error",
+        status: 'FAILED',
+        errorMessage: err instanceof Error ? err.message : 'Unknown error',
       },
     });
     throw err;

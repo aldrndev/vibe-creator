@@ -1,6 +1,6 @@
-import { Card, CardBody } from "@/components/ui";
-import { Users, DollarSign, FileVideo, TrendingUp } from "lucide-react";
-import { AdminStats } from "@/hooks/useAdminData";
+import { DollarSign, FileVideo, TrendingUp, Users } from 'lucide-react';
+import { Card, CardBody } from '@/components/ui';
+import type { AdminStats } from '@/hooks/useAdminData';
 
 interface SystemStatsProps {
   stats: AdminStats | null;
@@ -8,9 +8,9 @@ interface SystemStatsProps {
 
 export function SystemStats({ stats }: SystemStatsProps) {
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("id-ID", {
-      style: "currency",
-      currency: "IDR",
+    return new Intl.NumberFormat('id-ID', {
+      style: 'currency',
+      currency: 'IDR',
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(amount);
@@ -53,10 +53,7 @@ export function SystemStats({ stats }: SystemStatsProps) {
               {formatCurrency(stats?.revenue.total || 0)}
             </h3>
             <p className="text-[10px] text-muted-foreground mt-1 font-medium">
-              From{" "}
-              <span className="font-bold text-foreground">
-                {stats?.revenue.payments || 0}
-              </span>{" "}
+              From <span className="font-bold text-foreground">{stats?.revenue.payments || 0}</span>{' '}
               payments
             </p>
             <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mt-1">
@@ -112,10 +109,8 @@ export function SystemStats({ stats }: SystemStatsProps) {
                   className="h-full bg-muted-foreground/30"
                   style={{
                     width: `${Math.min(
-                      ((stats?.users.byTier.free || 0) /
-                        (stats?.users.total || 1)) *
-                        100,
-                      100
+                      ((stats?.users.byTier.free || 0) / (stats?.users.total || 1)) * 100,
+                      100,
                     )}%`,
                   }}
                 />
@@ -126,19 +121,15 @@ export function SystemStats({ stats }: SystemStatsProps) {
             <div className="space-y-1.5">
               <div className="flex items-center justify-between text-[10px] font-bold">
                 <span className="text-orange-500">Creator</span>
-                <span className="text-orange-500">
-                  {stats?.users.byTier.creator || 0}
-                </span>
+                <span className="text-orange-500">{stats?.users.byTier.creator || 0}</span>
               </div>
               <div className="w-full h-1.5 bg-muted/50 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-orange-500"
                   style={{
                     width: `${Math.min(
-                      ((stats?.users.byTier.creator || 0) /
-                        (stats?.users.total || 1)) *
-                        100,
-                      100
+                      ((stats?.users.byTier.creator || 0) / (stats?.users.total || 1)) * 100,
+                      100,
                     )}%`,
                   }}
                 />
@@ -149,19 +140,15 @@ export function SystemStats({ stats }: SystemStatsProps) {
             <div className="space-y-1.5">
               <div className="flex items-center justify-between text-[10px] font-bold">
                 <span className="text-purple-500">Pro</span>
-                <span className="text-purple-500">
-                  {stats?.users.byTier.pro || 0}
-                </span>
+                <span className="text-purple-500">{stats?.users.byTier.pro || 0}</span>
               </div>
               <div className="w-full h-1.5 bg-muted/50 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-purple-500"
                   style={{
                     width: `${Math.min(
-                      ((stats?.users.byTier.pro || 0) /
-                        (stats?.users.total || 1)) *
-                        100,
-                      100
+                      ((stats?.users.byTier.pro || 0) / (stats?.users.total || 1)) * 100,
+                      100,
                     )}%`,
                   }}
                 />

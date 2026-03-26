@@ -1,13 +1,6 @@
-import {
-  Wand2,
-  Upload,
-  Scissors,
-  Captions,
-  Download,
-  CheckCircle2,
-} from "lucide-react";
-import { cn } from "@/lib/utils";
-import { useDirectorStore, DirectorStep } from "@/stores/director-store";
+import { Captions, CheckCircle2, Download, Scissors, Upload, Wand2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { type DirectorStep, useDirectorStore } from '@/stores/director-store';
 
 export const StepIndicator = () => {
   const { step } = useDirectorStore();
@@ -21,11 +14,11 @@ export const StepIndicator = () => {
       strokeWidth?: number;
     }>;
   }[] = [
-    { id: "IMPORT", label: "Impor", icon: Upload },
-    { id: "ANALYZING", label: "Analisis", icon: Wand2 },
-    { id: "PICKING", label: "Pilih", icon: Scissors },
-    { id: "EDITING", label: "Edit", icon: Captions },
-    { id: "EXPORTING", label: "Ekspor", icon: Download },
+    { id: 'IMPORT', label: 'Impor', icon: Upload },
+    { id: 'ANALYZING', label: 'Analisis', icon: Wand2 },
+    { id: 'PICKING', label: 'Pilih', icon: Scissors },
+    { id: 'EDITING', label: 'Edit', icon: Captions },
+    { id: 'EXPORTING', label: 'Ekspor', icon: Download },
   ];
 
   const currentIdx = steps.findIndex((s) => s.id === step);
@@ -38,7 +31,7 @@ export const StepIndicator = () => {
 
         {/* Progress Line - Active Filling */}
         <div
-          className="absolute left-0 top-5 sm:top-6 -translate-y-1/2 h-[2px] bg-gradient-to-r from-primary via-orange-500 to-rose-600 z-0 rounded-full transition-all duration-700 ease-in-out"
+          className="absolute left-0 top-5 sm:top-6 -translate-y-1/2 h-[2px] bg-linear-to-r from-primary via-orange-500 to-rose-600 z-0 rounded-full transition-all duration-700 ease-in-out"
           style={{ width: `${(currentIdx / (steps.length - 1)) * 100}%` }}
         />
 
@@ -46,19 +39,24 @@ export const StepIndicator = () => {
           const isCompleted = idx < currentIdx;
           const isActive = idx === currentIdx;
 
+          let stateClasses = 'border-border/50 bg-background text-muted-foreground';
+          if (isActive) stateClasses = 'border-primary bg-card text-primary scale-110 z-20';
+          else if (isCompleted) stateClasses = 'border-primary bg-primary text-white scale-95';
+
+          let labelClasses = 'text-muted-foreground/40';
+          if (isActive) labelClasses = 'text-primary translate-y-1';
+          else if (isCompleted) labelClasses = 'text-foreground/60';
+
+          let dotClasses = 'bg-muted-foreground/20';
+          if (isActive) dotClasses = 'bg-primary scale-150';
+          else if (isCompleted) dotClasses = 'bg-primary/60';
+
           return (
-            <div
-              key={s.id}
-              className="flex flex-col items-center gap-3 relative z-10"
-            >
+            <div key={s.id} className="flex flex-col items-center gap-3 relative z-10">
               <div
                 className={cn(
-                  "w-10 h-10 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center border-2 transition-all duration-500",
-                  isActive
-                    ? "border-primary bg-card text-primary scale-110 z-20"
-                    : isCompleted
-                    ? "border-primary bg-primary text-white scale-95"
-                    : "border-border/50 bg-background text-muted-foreground"
+                  'w-10 h-10 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center border-2 transition-all duration-500',
+                  stateClasses,
                 )}
               >
                 {isCompleted ? (
@@ -69,12 +67,8 @@ export const StepIndicator = () => {
               </div>
               <span
                 className={cn(
-                  "hidden sm:block text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all duration-300",
-                  isActive
-                    ? "text-primary translate-y-1"
-                    : isCompleted
-                    ? "text-foreground/60"
-                    : "text-muted-foreground/40"
+                  'hidden sm:block text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all duration-300',
+                  labelClasses,
                 )}
               >
                 {s.label}
@@ -82,12 +76,8 @@ export const StepIndicator = () => {
               {/* Mobile Mobile Identifier Dot */}
               <div
                 className={cn(
-                  "sm:hidden w-1.5 h-1.5 rounded-full transition-all duration-500",
-                  isActive
-                    ? "bg-primary scale-150"
-                    : isCompleted
-                    ? "bg-primary/60"
-                    : "bg-muted-foreground/20"
+                  'sm:hidden w-1.5 h-1.5 rounded-full transition-all duration-500',
+                  dotClasses,
                 )}
               />
             </div>

@@ -8,17 +8,17 @@
  * - Admin auth + IP allowlist if enabled in production
  */
 
-import type { FastifyInstance } from "fastify";
-import swagger from "@fastify/swagger";
-import swaggerUi from "@fastify/swagger-ui";
-import { env } from "@/config/env";
-import { logger } from "@/lib/logger";
-import { verifyAccessToken } from "@/lib/jwt";
-import { prisma } from "@/lib/prisma";
-import { audit, AuditAction } from "@/lib/audit";
-import { sendError } from "@/utils/response";
-import { ERROR_CODES } from "@vibe-creator/shared";
-import { jsonSchemaTransform } from "fastify-type-provider-zod";
+import swagger from '@fastify/swagger';
+import swaggerUi from '@fastify/swagger-ui';
+import { ERROR_CODES } from '@vibe-creator/shared';
+import type { FastifyInstance } from 'fastify';
+import { jsonSchemaTransform } from 'fastify-type-provider-zod';
+import { env } from '@/config/env';
+import { AuditAction, audit } from '@/lib/audit';
+import { verifyAccessToken } from '@/lib/jwt';
+import { logger } from '@/lib/logger';
+import { prisma } from '@/lib/prisma';
+import { sendError } from '@/utils/response';
 
 /**
  * Register Swagger documentation plugin
@@ -30,20 +30,20 @@ import { jsonSchemaTransform } from "fastify-type-provider-zod";
  */
 export async function registerSwagger(fastify: FastifyInstance): Promise<void> {
   // Production protection (Digitesia Standard H1)
-  if (env.NODE_ENV === "production" && !env.ENABLE_SWAGGER) {
-    logger.info("OpenAPI documentation disabled in production");
+  if (env.NODE_ENV === 'production' && !env.ENABLE_SWAGGER) {
+    logger.info('OpenAPI documentation disabled in production');
     return;
   }
 
-  const allowedIps = (env.SWAGGER_ALLOWED_IPS || "")
-    .split(",")
+  const allowedIps = (env.SWAGGER_ALLOWED_IPS || '')
+    .split(',')
     .map((ip) => ip.trim())
     .filter(Boolean);
 
-  if (env.NODE_ENV === "production") {
-    fastify.addHook("onRequest", async (request, reply) => {
-      const url = request.raw.url || "";
-      if (!url.startsWith("/documentation") && !url.startsWith("/openapi.json")) {
+  if (env.NODE_ENV === 'production') {
+    fastify.addHook('onRequest', async (request, reply) => {
+      const url = request.raw.url || '';
+      if (!url.startsWith('/documentation') && !url.startsWith('/openapi.json')) {
         return;
       }
 
@@ -52,32 +52,22 @@ export async function registerSwagger(fastify: FastifyInstance): Promise<void> {
           requestId: request.id,
           action: AuditAction.ACCESS_DENIED,
           ipAddress: request.ip,
-          userAgent: request.headers["user-agent"] ?? undefined,
-          metadata: { route: url, reason: "ip_not_allowed" },
+          userAgent: request.headers['user-agent'] ?? undefined,
+          metadata: { route: url, reason: 'ip_not_allowed' },
         });
-        return sendError(
-          reply,
-          ERROR_CODES.FORBIDDEN,
-          "Access denied",
-          403
-        );
+        return sendError(reply, ERROR_CODES.FORBIDDEN, 'Access denied', 403);
       }
 
       const authHeader = request.headers.authorization;
-      if (!authHeader?.startsWith("Bearer ")) {
+      if (!authHeader?.startsWith('Bearer ')) {
         await audit({
           requestId: request.id,
           action: AuditAction.ACCESS_DENIED,
           ipAddress: request.ip,
-          userAgent: request.headers["user-agent"] ?? undefined,
-          metadata: { route: url, reason: "missing_auth" },
+          userAgent: request.headers['user-agent'] ?? undefined,
+          metadata: { route: url, reason: 'missing_auth' },
         });
-        return sendError(
-          reply,
-          ERROR_CODES.UNAUTHORIZED,
-          "Authentication required",
-          401
-        );
+        return sendError(reply, ERROR_CODES.UNAUTHORIZED, 'Authentication required', 401);
       }
 
       const token = authHeader.slice(7);
@@ -87,22 +77,17 @@ export async function registerSwagger(fastify: FastifyInstance): Promise<void> {
           where: { id: payload.sub },
         });
 
-        if (!user || user.role !== "ADMIN") {
+        if (!user || user.role !== 'ADMIN') {
           await audit({
             requestId: request.id,
             userId: payload.sub,
             tenantId: payload.tid,
             action: AuditAction.ACCESS_DENIED,
             ipAddress: request.ip,
-            userAgent: request.headers["user-agent"] ?? undefined,
-            metadata: { route: url, reason: "not_admin" },
+            userAgent: request.headers['user-agent'] ?? undefined,
+            metadata: { route: url, reason: 'not_admin' },
           });
-          return sendError(
-            reply,
-            ERROR_CODES.FORBIDDEN,
-            "Access denied",
-            403
-          );
+          return sendError(reply, ERROR_CODES.FORBIDDEN, 'Access denied', 403);
         }
 
         await audit({
@@ -111,16 +96,11 @@ export async function registerSwagger(fastify: FastifyInstance): Promise<void> {
           tenantId: payload.tid,
           action: AuditAction.ADMIN_ACTION,
           ipAddress: request.ip,
-          userAgent: request.headers["user-agent"] ?? undefined,
-          metadata: { route: url, action: "swagger_access" },
+          userAgent: request.headers['user-agent'] ?? undefined,
+          metadata: { route: url, action: 'swagger_access' },
         });
       } catch {
-        return sendError(
-          reply,
-          ERROR_CODES.UNAUTHORIZED,
-          "Authentication required",
-          401
-        );
+        return sendError(reply, ERROR_CODES.UNAUTHORIZED, 'Authentication required', 401);
       }
     });
   }
@@ -130,29 +110,29 @@ export async function registerSwagger(fastify: FastifyInstance): Promise<void> {
     transform: jsonSchemaTransform,
     openapi: {
       info: {
-        title: "Vibe Creator API",
-        description: "Content creation and video editing API",
-        version: "1.0.0",
+        title: 'Vibe Creator API',
+        description: 'Content creation and video editing API',
+        version: '1.0.0',
       },
       servers: [
         {
           url: `http://localhost:${env.PORT}`,
-          description: "Development server",
+          description: 'Development server',
         },
       ],
       components: {
         securitySchemes: {
           bearerAuth: {
-            type: "http",
-            scheme: "bearer",
-            bearerFormat: "JWT",
-            description: "JWT access token (15-minute lifetime)",
+            type: 'http',
+            scheme: 'bearer',
+            bearerFormat: 'JWT',
+            description: 'JWT access token (15-minute lifetime)',
           },
           cookieAuth: {
-            type: "apiKey",
-            in: "cookie",
-            name: "refreshToken",
-            description: "Refresh token for obtaining new access tokens",
+            type: 'apiKey',
+            in: 'cookie',
+            name: 'refreshToken',
+            description: 'Refresh token for obtaining new access tokens',
           },
         },
       },
@@ -163,24 +143,24 @@ export async function registerSwagger(fastify: FastifyInstance): Promise<void> {
       ],
       tags: [
         {
-          name: "Authentication",
-          description: "User authentication and session management",
+          name: 'Authentication',
+          description: 'User authentication and session management',
         },
-        { name: "Projects", description: "Project management" },
-        { name: "Prompts", description: "AI prompt generation" },
-        { name: "Media", description: "File upload and download" },
-        { name: "Exports", description: "Video export operations" },
-        { name: "Billing", description: "Subscription and payments" },
-        { name: "Admin", description: "Administrative operations" },
+        { name: 'Projects', description: 'Project management' },
+        { name: 'Prompts', description: 'AI prompt generation' },
+        { name: 'Media', description: 'File upload and download' },
+        { name: 'Exports', description: 'Video export operations' },
+        { name: 'Billing', description: 'Subscription and payments' },
+        { name: 'Admin', description: 'Administrative operations' },
       ],
     },
   });
 
   // Register Swagger UI
   await fastify.register(swaggerUi, {
-    routePrefix: "/documentation",
+    routePrefix: '/documentation',
     uiConfig: {
-      docExpansion: "list", // Show operations collapsed
+      docExpansion: 'list', // Show operations collapsed
       deepLinking: true, // Enable deep linking to operations
       filter: true, // Enable filtering by tags/operations
       tryItOutEnabled: true, // Enable "Try it out" by default
@@ -189,9 +169,9 @@ export async function registerSwagger(fastify: FastifyInstance): Promise<void> {
     transformStaticCSP: (header) => header,
   });
 
-  fastify.get("/openapi.json", async (_request, reply) => {
+  fastify.get('/openapi.json', async (_request, reply) => {
     return reply.send(fastify.swagger());
   });
 
-  logger.info({ route: "/documentation" }, "OpenAPI documentation enabled");
+  logger.info({ route: '/documentation' }, 'OpenAPI documentation enabled');
 }

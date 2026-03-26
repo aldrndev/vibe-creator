@@ -1,8 +1,8 @@
-import { PrismaClient } from "@prisma/client";
-import { PrismaPg } from "@prisma/adapter-pg";
-import { Pool } from "pg";
-import { env } from "@/config/env";
-import { logger } from "@/lib/logger";
+import { PrismaPg } from '@prisma/adapter-pg';
+import { PrismaClient } from '@prisma/client';
+import { Pool } from 'pg';
+import { env } from '@/config/env';
+import { logger } from '@/lib/logger';
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
@@ -31,8 +31,7 @@ export const prisma =
   globalForPrisma.prisma ??
   new PrismaClient({
     adapter,
-    log:
-      env.NODE_ENV === "development" ? ["query", "error", "warn"] : ["error"],
+    log: env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
     transactionOptions: {
       maxWait: 5000,
       timeout: 30000,
@@ -40,20 +39,20 @@ export const prisma =
   });
 
 // Log slow queries in development
-if (env.NODE_ENV === "development") {
-  prisma.$on("query" as never, (e: { query: string; duration: number }) => {
+if (env.NODE_ENV === 'development') {
+  prisma.$on('query' as never, (e: { query: string; duration: number }) => {
     if (e.duration > 1000) {
       logger.warn(
         {
           query: e.query,
           duration: e.duration,
         },
-        "Slow query detected"
+        'Slow query detected',
       );
     }
   });
 }
 
-if (env.NODE_ENV !== "production") {
+if (env.NODE_ENV !== 'production') {
   globalForPrisma.prisma = prisma;
 }

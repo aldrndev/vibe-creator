@@ -1,14 +1,13 @@
-import * as React from "react";
-import { cn } from "@/lib/utils";
+import * as React from 'react';
+import { cn } from '@/lib/utils';
 
-export interface InputProps
-  extends React.InputHTMLAttributes<HTMLInputElement> {
+export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   /** Error message to display below input */
   error?: string;
   /** Label for the input field */
   label?: string;
   /** Background color override */
-  variant?: "default" | "filled";
+  variant?: 'default' | 'filled';
   /** Left icon element */
   leftIcon?: React.ReactNode;
   /** Right icon element */
@@ -20,18 +19,8 @@ export interface InputProps
  */
 const Input = React.forwardRef<HTMLInputElement, InputProps>(
   (
-    {
-      className,
-      type,
-      error,
-      label,
-      id,
-      variant = "default",
-      leftIcon,
-      rightIcon,
-      ...props
-    },
-    ref
+    { className, type, error, label, id, variant = 'default', leftIcon, rightIcon, ...props },
+    ref,
   ) => {
     const generatedId = React.useId();
     const inputId = id ?? generatedId;
@@ -39,10 +28,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
     return (
       <div className="w-full space-y-2">
         {label && (
-          <label
-            htmlFor={inputId}
-            className="block text-sm font-bold text-foreground/80 ml-1"
-          >
+          <label htmlFor={inputId} className="block text-sm font-bold text-foreground/80 ml-1">
             {label}
           </label>
         )}
@@ -57,18 +43,17 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
             type={type}
             id={inputId}
             className={cn(
-              "flex h-14 w-full rounded-2xl border bg-background px-4 py-3 text-base transition-all duration-200",
-              "border-border/50 shadow-sm",
-              "placeholder:text-muted-foreground/50 placeholder:font-medium",
-              "focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/10 focus-visible:border-primary",
-              "disabled:cursor-not-allowed disabled:opacity-50",
-              leftIcon && "pl-12",
-              rightIcon && "pr-12",
+              'flex h-14 w-full rounded-2xl border bg-background px-4 py-3 text-base transition-all duration-200',
+              'border-border/50 shadow-sm',
+              'placeholder:text-muted-foreground/50 placeholder:font-medium',
+              'focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/10 focus-visible:border-primary',
+              'disabled:cursor-not-allowed disabled:opacity-50',
+              leftIcon && 'pl-12',
+              rightIcon && 'pr-12',
               error &&
-                "border-destructive focus-visible:ring-destructive/10 focus-visible:border-destructive",
-              variant === "filled" &&
-                "bg-muted/30 border-transparent focus:bg-background",
-              className
+                'border-destructive focus-visible:ring-destructive/10 focus-visible:border-destructive',
+              variant === 'filled' && 'bg-muted/30 border-transparent focus:bg-background',
+              className,
             )}
             ref={ref}
             aria-invalid={!!error}
@@ -94,8 +79,8 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
         )}
       </div>
     );
-  }
+  },
 );
-Input.displayName = "Input";
+Input.displayName = 'Input';
 
 export { Input };

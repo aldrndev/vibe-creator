@@ -3,17 +3,10 @@
  * Audio mixing and processing operations
  */
 
-import { validateInputPath, validateOutputPath } from "../ffmpeg-path-guard";
-import type { FFmpegCommand } from "./basic.builder";
+import { validateInputPath, validateOutputPath } from '../ffmpeg-path-guard';
+import type { FFmpegCommand } from './basic.builder';
 
-const STANDARD_FLAGS = [
-  "-nostdin",
-  "-hide_banner",
-  "-loglevel",
-  "error",
-  "-progress",
-  "pipe:1",
-];
+const STANDARD_FLAGS = ['-nostdin', '-hide_banner', '-loglevel', 'error', '-progress', 'pipe:1'];
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
@@ -24,14 +17,14 @@ function clamp(value: number, min: number, max: number): number {
  */
 export function buildAudioMixCommand(
   inputs: Array<{ path: string; volume: number }>,
-  output: string
+  output: string,
 ): FFmpegCommand {
   const validInputs = inputs.map(({ path }) => validateInputPath(path));
   const validOutput = validateOutputPath(output);
 
   const inputArgs: string[] = [];
   inputs.forEach(({ path }) => {
-    inputArgs.push("-i", validateInputPath(path));
+    inputArgs.push('-i', validateInputPath(path));
   });
 
   const filterParts: string[] = [];
@@ -40,22 +33,22 @@ export function buildAudioMixCommand(
     filterParts.push(`[${i}:a]volume=${clampedVolume}[a${i}]`);
   });
 
-  const mixInputs = inputs.map((_, i) => `[a${i}]`).join("");
-  const filterComplex = `${filterParts.join(";")};${mixInputs}amix=inputs=${
+  const mixInputs = inputs.map((_, i) => `[a${i}]`).join('');
+  const filterComplex = `${filterParts.join(';')};${mixInputs}amix=inputs=${
     inputs.length
   }:duration=longest[out]`;
 
   const args = [
     ...STANDARD_FLAGS,
     ...inputArgs,
-    "-filter_complex",
+    '-filter_complex',
     filterComplex,
-    "-map",
-    "[out]",
-    "-c:a",
-    "aac",
-    "-b:a",
-    "192k",
+    '-map',
+    '[out]',
+    '-c:a',
+    'aac',
+    '-b:a',
+    '192k',
     validOutput,
   ];
 

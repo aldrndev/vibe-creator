@@ -1,6 +1,6 @@
-import { Card, CardBody, Button, Badge, Switch } from "@/components/ui";
-import { Plus, Trash2, Megaphone } from "lucide-react";
-import { Announcement } from "@/hooks/useAdminData";
+import { Megaphone, Plus, Trash2 } from 'lucide-react';
+import { Badge, Button, Card, CardBody, Switch } from '@/components/ui';
+import type { Announcement } from '@/hooks/useAdminData';
 
 interface AnnouncementsPanelProps {
   announcements: Announcement[];
@@ -58,18 +58,16 @@ export function AnnouncementsPanel({
               >
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-3 mb-1.5">
-                    <h3 className="font-bold text-sm tracking-tight">
-                      {a.title}
-                    </h3>
+                    <h3 className="font-bold text-sm tracking-tight">{a.title}</h3>
                     <Badge
                       variant="outline"
                       className={
                         a.isActive
-                          ? "bg-green-500/10 text-green-600 border-none text-[9px] font-black h-4.5 px-1.5"
-                          : "bg-muted text-muted-foreground border-none text-[9px] font-black h-4.5 px-1.5"
+                          ? 'bg-green-500/10 text-green-600 border-none text-[9px] font-black h-4.5 px-1.5'
+                          : 'bg-muted text-muted-foreground border-none text-[9px] font-black h-4.5 px-1.5'
                       }
                     >
-                      {a.isActive ? "ACTIVE" : "INACTIVE"}
+                      {a.isActive ? 'ACTIVE' : 'INACTIVE'}
                     </Badge>
                   </div>
                   <p className="text-sm text-muted-foreground leading-relaxed line-clamp-2">
@@ -77,10 +75,10 @@ export function AnnouncementsPanel({
                   </p>
                   <div className="flex items-center gap-3 mt-3">
                     <span className="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-widest">
-                      {new Date(a.createdAt).toLocaleDateString("id-ID", {
-                        day: "numeric",
-                        month: "short",
-                        year: "numeric",
+                      {new Date(a.createdAt).toLocaleDateString('id-ID', {
+                        day: 'numeric',
+                        month: 'short',
+                        year: 'numeric',
                       })}
                     </span>
                   </div>
@@ -92,9 +90,7 @@ export function AnnouncementsPanel({
                     </span>
                     <Switch
                       checked={a.isActive}
-                      onCheckedChange={(checked: boolean) =>
-                        onUpdate(a.id, { isActive: checked })
-                      }
+                      onCheckedChange={(checked: boolean) => onUpdate(a.id, { isActive: checked })}
                       className="scale-90"
                     />
                   </div>

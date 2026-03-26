@@ -1,18 +1,15 @@
-import { useRef, useEffect, useState, useMemo } from "react";
-import { Button, Slider } from "@/components/ui";
-import { Play, Pause } from "lucide-react";
-import type { EditorTimeline } from "@/stores/editor-store";
-import { FILTER_PRESETS } from "@/components/editor/InspectorPanel";
+import { Pause, Play } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { FILTER_PRESETS } from '@/components/editor/InspectorPanel';
+import { Button, Slider } from '@/components/ui';
+import type { EditorTimeline } from '@/stores/editor-store';
 
 interface PreviewPlayerProps {
   timeline: EditorTimeline;
   aspectRatio?: number;
 }
 
-export function PreviewPlayer({
-  timeline,
-  aspectRatio = 9 / 16,
-}: PreviewPlayerProps) {
+export function PreviewPlayer({ timeline, aspectRatio = 9 / 16 }: PreviewPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTimeMs, setCurrentTimeMs] = useState(0);
@@ -60,11 +57,9 @@ export function PreviewPlayer({
 
   // Find active clip
   const activeClip = useMemo(() => {
-    const videoTrack = timeline.tracks.find((t) => t.type === "VIDEO");
+    const videoTrack = timeline.tracks.find((t) => t.type === 'VIDEO');
     if (!videoTrack) return null;
-    return videoTrack.clips.find(
-      (c) => currentTimeMs >= c.startMs && currentTimeMs < c.endMs
-    );
+    return videoTrack.clips.find((c) => currentTimeMs >= c.startMs && currentTimeMs < c.endMs);
   }, [timeline, currentTimeMs]);
 
   // Calculate Styles
@@ -80,7 +75,7 @@ export function PreviewPlayer({
     };
     const effects = activeClip.effects || { filters: [], speed: 1, volume: 1 };
 
-    let filterCss = "";
+    let filterCss = '';
     if (effects.filters && effects.filters.length > 0) {
       const preset = FILTER_PRESETS.find((p) => p.id === effects.filters[0]);
       if (preset) filterCss = preset.css;
@@ -90,10 +85,10 @@ export function PreviewPlayer({
       filter: filterCss || undefined,
       transform: `translate(${transforms.x}px, ${transforms.y}px) scale(${transforms.scale}) rotate(${transforms.rotation}deg)`,
       opacity: transforms.opacity,
-      transformOrigin: "center center",
-      width: "100%",
-      height: "100%",
-      objectFit: "contain" as const,
+      transformOrigin: 'center center',
+      width: '100%',
+      height: '100%',
+      objectFit: 'contain' as const,
     };
   }, [activeClip]);
 
@@ -102,8 +97,7 @@ export function PreviewPlayer({
     if (!videoRef.current || !activeClip?.asset?.url) return;
 
     const video = videoRef.current;
-    const clipTimeMs =
-      currentTimeMs - activeClip.startMs + (activeClip.trimStartMs || 0);
+    const clipTimeMs = currentTimeMs - activeClip.startMs + (activeClip.trimStartMs || 0);
     const videoTimeSec = clipTimeMs / 1000;
 
     if (video.src !== activeClip.asset.url) {
@@ -147,7 +141,7 @@ export function PreviewPlayer({
       {/* Controls Overlay */}
       <div
         className={`absolute inset-0 bg-black/20 flex flex-col justify-end p-4 transition-opacity ${
-          isPlaying ? "opacity-0 hover:opacity-100" : "opacity-100"
+          isPlaying ? 'opacity-0 hover:opacity-100' : 'opacity-100'
         }`}
       >
         <div className="flex items-center gap-2">

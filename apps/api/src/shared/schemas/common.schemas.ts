@@ -3,7 +3,7 @@
  * Common response patterns for API documentation
  */
 
-import { z } from "zod";
+import { z } from 'zod';
 
 // ============================================================================
 // Common Error Response
@@ -72,12 +72,12 @@ export const userSchema = z.object({
   email: z.string(),
   name: z.string(),
   avatarUrl: z.string().nullable(),
-  role: z.enum(["USER", "ADMIN"]),
+  role: z.enum(['USER', 'ADMIN']),
 });
 
 export const subscriptionSchema = z
   .object({
-    tier: z.enum(["FREE", "CREATOR", "PRO"]),
+    tier: z.enum(['FREE', 'CREATOR', 'PRO']),
     status: z.string(),
     exportsUsed: z.number(),
     exportsLimit: z.number(),

@@ -4,9 +4,9 @@
  * Fetches trending data from Google Trends API (free, no puppeteer)
  */
 
-import googleTrends from "google-trends-api";
-import type { ScrapedItem, ScraperResult } from "../trending.schema";
-import { TRENDING_TYPES, PLATFORM_STATUS } from "../trending.constants";
+import googleTrends from 'google-trends-api';
+import { PLATFORM_STATUS, TRENDING_TYPES } from '../trending.constants';
+import type { ScrapedItem, ScraperResult } from '../trending.schema';
 
 // ============================================================================
 // TYPES
@@ -63,38 +63,38 @@ interface RelatedTopicsResult {
 
 // Category ID Map (Standard YouTube IDs)
 const CATEGORY_MAP: Record<string, string> = {
-  "1": "Film & Animation",
-  "2": "Autos & Vehicles",
-  "10": "Music",
-  "15": "Pets & Animals",
-  "17": "Sports",
-  "18": "Short Movies",
-  "19": "Travel & Events",
-  "20": "Gaming",
-  "21": "Videoblogging",
-  "22": "People & Blogs",
-  "23": "Comedy",
-  "24": "Entertainment",
-  "25": "News & Politics",
-  "26": "Howto & Style",
-  "27": "Education",
-  "28": "Science & Technology",
-  "29": "Nonprofits & Activism",
-  "30": "Movies",
-  "31": "Anime/Animation",
-  "32": "Action/Adventure",
-  "33": "Classics",
-  "34": "Comedy",
-  "35": "Documentary",
-  "36": "Drama",
-  "37": "Family",
-  "38": "Foreign",
-  "39": "Horror",
-  "40": "Sci-Fi/Fantasy",
-  "41": "Thriller",
-  "42": "Shorts",
-  "43": "Shows",
-  "44": "Trailers",
+  '1': 'Film & Animation',
+  '2': 'Autos & Vehicles',
+  '10': 'Music',
+  '15': 'Pets & Animals',
+  '17': 'Sports',
+  '18': 'Short Movies',
+  '19': 'Travel & Events',
+  '20': 'Gaming',
+  '21': 'Videoblogging',
+  '22': 'People & Blogs',
+  '23': 'Comedy',
+  '24': 'Entertainment',
+  '25': 'News & Politics',
+  '26': 'Howto & Style',
+  '27': 'Education',
+  '28': 'Science & Technology',
+  '29': 'Nonprofits & Activism',
+  '30': 'Movies',
+  '31': 'Anime/Animation',
+  '32': 'Action/Adventure',
+  '33': 'Classics',
+  '34': 'Comedy',
+  '35': 'Documentary',
+  '36': 'Drama',
+  '37': 'Family',
+  '38': 'Foreign',
+  '39': 'Horror',
+  '40': 'Sci-Fi/Fantasy',
+  '41': 'Thriller',
+  '42': 'Shorts',
+  '43': 'Shows',
+  '44': 'Trailers',
 };
 
 export const youtubeScraper = {
@@ -110,7 +110,7 @@ export const youtubeScraper = {
         try {
           // Fetch Trending Videos (mostPopular) for the region
           const response = await fetch(
-            `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&chart=mostPopular&regionCode=${region}&maxResults=50&key=${process.env.YOUTUBE_API_KEY}`
+            `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&chart=mostPopular&regionCode=${region}&maxResults=50&key=${process.env.YOUTUBE_API_KEY}`,
           );
 
           if (!response.ok) {
@@ -148,17 +148,13 @@ export const youtubeScraper = {
                 title: video.snippet.title,
                 description: video.snippet.channelTitle, // Use channel name as description context
                 thumbnailUrl:
-                  video.snippet.thumbnails?.high?.url ||
-                  video.snippet.thumbnails?.medium?.url,
+                  video.snippet.thumbnails?.high?.url || video.snippet.thumbnails?.medium?.url,
                 rank: rank++,
                 metrics: {
-                  traffic: parseInt(
-                    video.statistics?.viewCount || "0"
-                  ).toLocaleString(),
-                  value: parseInt(video.statistics?.likeCount || "0"),
+                  traffic: parseInt(video.statistics?.viewCount || '0', 10).toLocaleString(),
+                  value: parseInt(video.statistics?.likeCount || '0', 10),
                 },
-                category:
-                  CATEGORY_MAP[video.snippet.categoryId] || "Entertainment",
+                category: CATEGORY_MAP[video.snippet.categoryId] || 'Entertainment',
                 type: TRENDING_TYPES.VIDEO,
               });
             }
@@ -168,8 +164,9 @@ export const youtubeScraper = {
               items,
             };
           }
-        } catch (apiErr: any) {
-          console.error("Official YouTube API Failed:", apiErr.message);
+        } catch (apiErr: unknown) {
+          const message = apiErr instanceof Error ? apiErr.message : 'Unknown error';
+          console.error('Official YouTube API Failed:', message);
           // Fallthrough to legacy scraper/fallback
         }
       }
@@ -184,16 +181,10 @@ export const youtubeScraper = {
       let dailyTrends: GoogleTrendsResult;
       try {
         dailyTrends = JSON.parse(dailyTrendsRaw) as GoogleTrendsResult;
-      } catch (parseErr) {
-        console.error(
-          "Failed to parse dailyTrends:",
-          dailyTrendsRaw.substring(0, 200)
-        );
+      } catch (_parseErr) {
+        console.error('Failed to parse dailyTrends:', dailyTrendsRaw.substring(0, 200));
         throw new Error(
-          `Google Trends returned invalid JSON: ${dailyTrendsRaw.substring(
-            0,
-            50
-          )}...`
+          `Google Trends returned invalid JSON: ${dailyTrendsRaw.substring(0, 50)}...`,
         );
       }
 
@@ -202,20 +193,15 @@ export const youtubeScraper = {
       for (const day of dailyTrends.default.trendingSearchesDays) {
         for (const trend of day.trendingSearches) {
           items.push({
-            externalId: `google-trend-${trend.title.query
-              .toLowerCase()
-              .replace(/\s+/g, "-")}`,
+            externalId: `google-trend-${trend.title.query.toLowerCase().replace(/\s+/g, '-')}`,
             externalUrl: `https://trends.google.com${trend.title.exploreLink}`,
             title: trend.title.query,
             description: trend.articles?.[0]?.snippet,
-            thumbnailUrl:
-              trend.image?.imageUrl ?? trend.articles?.[0]?.image?.imageUrl,
+            thumbnailUrl: trend.image?.imageUrl ?? trend.articles?.[0]?.image?.imageUrl,
             rank: rank++,
             metrics: {
               traffic: trend.formattedTraffic,
-              relatedQueries: trend.relatedQueries
-                .slice(0, 5)
-                .map((q) => q.query),
+              relatedQueries: trend.relatedQueries.slice(0, 5).map((q) => q.query),
             },
             type: TRENDING_TYPES.SEARCH,
           });
@@ -229,7 +215,7 @@ export const youtubeScraper = {
       // Fetch YouTube-related topics if available
       try {
         const relatedRaw = await googleTrends.relatedTopics({
-          keyword: "YouTube",
+          keyword: 'YouTube',
           geo: region,
         });
 
@@ -239,9 +225,7 @@ export const youtubeScraper = {
         for (const list of related.default.rankedList) {
           for (const keyword of list.rankedKeyword.slice(0, 20)) {
             items.push({
-              externalId: `google-topic-${keyword.topic.title
-                .toLowerCase()
-                .replace(/\s+/g, "-")}`,
+              externalId: `google-topic-${keyword.topic.title.toLowerCase().replace(/\s+/g, '-')}`,
               externalUrl: `https://trends.google.com${keyword.link}`,
               title: keyword.topic.title,
               description: keyword.topic.type,
@@ -259,98 +243,87 @@ export const youtubeScraper = {
       }
 
       return {
-        status:
-          items.length > 0 ? PLATFORM_STATUS.OK : PLATFORM_STATUS.DEGRADED,
+        status: items.length > 0 ? PLATFORM_STATUS.OK : PLATFORM_STATUS.DEGRADED,
         items,
       };
     } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : "Scraping failed";
+      const errorMessage = err instanceof Error ? err.message : 'Scraping failed';
 
-      console.warn(
-        `Scraping failed (${errorMessage}), returning mock data for degraded mode.`
-      );
+      console.warn(`Scraping failed (${errorMessage}), returning mock data for degraded mode.`);
 
       // Fallback: Snapshot Real Data (Curated for 2026 Context due to IP Blocking)
       const MOCK_ITEMS: ScrapedItem[] = [
         {
-          externalId: "snapshot-timnas-2026",
-          title: "Highlights: Timnas Indonesia vs Korea Selatan",
-          description: "Kualifikasi Piala Dunia 2026 - Pertandingan Dramatis!",
+          externalId: 'snapshot-timnas-2026',
+          title: 'Highlights: Timnas Indonesia vs Korea Selatan',
+          description: 'Kualifikasi Piala Dunia 2026 - Pertandingan Dramatis!',
           rank: 1,
-          metrics: { traffic: "5M+" },
+          metrics: { traffic: '5M+' },
           type: TRENDING_TYPES.SEARCH,
-          category: "Sports",
-          externalUrl:
-            "https://www.youtube.com/results?search_query=timnas+indonesia+vs+korea",
-          thumbnailUrl: "https://img.youtube.com/vi/placeholder1/hqdefault.jpg",
+          category: 'Sports',
+          externalUrl: 'https://www.youtube.com/results?search_query=timnas+indonesia+vs+korea',
+          thumbnailUrl: 'https://img.youtube.com/vi/placeholder1/hqdefault.jpg',
         },
         {
-          externalId: "snapshot-tech-iphone17",
-          title: "Review iPhone 17 Pro Max",
-          description: "Upgrade kamera terbesar? GadgetIn Review",
+          externalId: 'snapshot-tech-iphone17',
+          title: 'Review iPhone 17 Pro Max',
+          description: 'Upgrade kamera terbesar? GadgetIn Review',
           rank: 2,
-          metrics: { traffic: "2.5M+" },
+          metrics: { traffic: '2.5M+' },
           type: TRENDING_TYPES.SEARCH,
-          category: "Science & Technology",
-          externalUrl:
-            "https://www.youtube.com/results?search_query=iphone+17+review",
-          thumbnailUrl: "https://img.youtube.com/vi/placeholder2/hqdefault.jpg",
+          category: 'Science & Technology',
+          externalUrl: 'https://www.youtube.com/results?search_query=iphone+17+review',
+          thumbnailUrl: 'https://img.youtube.com/vi/placeholder2/hqdefault.jpg',
         },
         {
-          externalId: "snapshot-mpl-s16",
-          title: "RRQ vs ONIC - Grand Final MPL ID S16",
-          description: "El Clasico terpanas musim ini",
+          externalId: 'snapshot-mpl-s16',
+          title: 'RRQ vs ONIC - Grand Final MPL ID S16',
+          description: 'El Clasico terpanas musim ini',
           rank: 3,
-          metrics: { traffic: "1.8M+" },
+          metrics: { traffic: '1.8M+' },
           type: TRENDING_TYPES.TOPIC,
-          category: "Gaming",
-          externalUrl:
-            "https://www.youtube.com/results?search_query=rrq+vs+onic+mpl+s16",
+          category: 'Gaming',
+          externalUrl: 'https://www.youtube.com/results?search_query=rrq+vs+onic+mpl+s16',
         },
         {
-          externalId: "snapshot-jkt48-new",
-          title: "JKT48 - Original Single Launch",
-          description: "Live Performance at Gelora Bung Karno",
+          externalId: 'snapshot-jkt48-new',
+          title: 'JKT48 - Original Single Launch',
+          description: 'Live Performance at Gelora Bung Karno',
           rank: 4,
-          metrics: { traffic: "1.2M+" },
+          metrics: { traffic: '1.2M+' },
           type: TRENDING_TYPES.SEARCH,
-          category: "Music",
-          externalUrl:
-            "https://www.youtube.com/results?search_query=jkt48+new+single",
+          category: 'Music',
+          externalUrl: 'https://www.youtube.com/results?search_query=jkt48+new+single',
         },
         {
-          externalId: "snapshot-food-viral",
-          title: "Resep Rendang Viral TikTok",
-          description: "Cara masak rendang empuk dalam 30 menit",
+          externalId: 'snapshot-food-viral',
+          title: 'Resep Rendang Viral TikTok',
+          description: 'Cara masak rendang empuk dalam 30 menit',
           rank: 5,
-          metrics: { traffic: "900K+" },
+          metrics: { traffic: '900K+' },
           type: TRENDING_TYPES.SEARCH,
-          category: "Howto & Style",
-          externalUrl:
-            "https://www.youtube.com/results?search_query=resep+rendang+viral",
+          category: 'Howto & Style',
+          externalUrl: 'https://www.youtube.com/results?search_query=resep+rendang+viral',
         },
         {
-          externalId: "snapshot-deddy-podcast",
-          title: "Deddy Corbuzier - Tamu Internasional",
-          description: "Podcast eksklusif yang mengguncang internet",
+          externalId: 'snapshot-deddy-podcast',
+          title: 'Deddy Corbuzier - Tamu Internasional',
+          description: 'Podcast eksklusif yang mengguncang internet',
           rank: 6,
-          metrics: { traffic: "3M+" },
+          metrics: { traffic: '3M+' },
           type: TRENDING_TYPES.SEARCH,
-          category: "Entertainment",
-          externalUrl:
-            "https://www.youtube.com/results?search_query=deddy+corbuzier+podcast",
+          category: 'Entertainment',
+          externalUrl: 'https://www.youtube.com/results?search_query=deddy+corbuzier+podcast',
         },
         {
-          externalId: "snapshot-game-windah",
-          title: "WINDAH BASUDARA - TAMAT",
-          description: "Live Streaming ending game horor terbaru",
+          externalId: 'snapshot-game-windah',
+          title: 'WINDAH BASUDARA - TAMAT',
+          description: 'Live Streaming ending game horor terbaru',
           rank: 7,
-          metrics: { traffic: "1.5M+" },
+          metrics: { traffic: '1.5M+' },
           type: TRENDING_TYPES.SEARCH,
-          category: "Gaming",
-          externalUrl:
-            "https://www.youtube.com/results?search_query=windah+basudara",
+          category: 'Gaming',
+          externalUrl: 'https://www.youtube.com/results?search_query=windah+basudara',
         },
       ];
 

@@ -8,59 +8,59 @@
  * - requestId → jobId correlation support
  */
 
-import pino from "pino";
-import { env } from "@/config/env";
+import pino from 'pino';
+import { env } from '@/config/env';
 
 /**
  * Paths to redact from logs (secrets, tokens, PII)
  */
 const REDACT_PATHS = [
   // Request headers
-  "req.headers.authorization",
-  "req.headers.cookie",
+  'req.headers.authorization',
+  'req.headers.cookie',
   "req.headers['x-api-key']",
   // Common sensitive fields
-  "password",
-  "token",
-  "secret",
-  "apiKey",
-  "api_key",
-  "accessToken",
-  "refreshToken",
-  "creditCard",
-  "creditCardNumber",
+  'password',
+  'token',
+  'secret',
+  'apiKey',
+  'api_key',
+  'accessToken',
+  'refreshToken',
+  'creditCard',
+  'creditCardNumber',
   // Nested patterns
-  "*.password",
-  "*.token",
-  "*.secret",
-  "*.apiKey",
-  "*.accessToken",
-  "*.refreshToken",
+  '*.password',
+  '*.token',
+  '*.secret',
+  '*.apiKey',
+  '*.accessToken',
+  '*.refreshToken',
   // Auth related
-  "body.password",
-  "body.token",
-  "data.password",
-  "data.token",
+  'body.password',
+  'body.token',
+  'data.password',
+  'data.token',
 ];
 
 /**
  * Get package version from environment or default
  */
 const getVersion = (): string => {
-  return process.env.npm_package_version || "0.0.0";
+  return process.env.npm_package_version || '0.0.0';
 };
 
 /**
  * Base logger instance with required fields and redaction
  */
 export const logger = pino({
-  level: env.NODE_ENV === "development" ? "debug" : "info",
+  level: env.NODE_ENV === 'development' ? 'debug' : 'info',
   redact: {
     paths: REDACT_PATHS,
-    censor: "[REDACTED]",
+    censor: '[REDACTED]',
   },
   base: {
-    service: "vibe-creator-api",
+    service: 'vibe-creator-api',
     env: env.NODE_ENV,
     version: getVersion(),
   },
@@ -68,13 +68,13 @@ export const logger = pino({
     level: (label) => ({ level: label }),
   },
   transport:
-    env.NODE_ENV === "development"
+    env.NODE_ENV === 'development'
       ? {
-          target: "pino-pretty",
+          target: 'pino-pretty',
           options: {
             colorize: true,
-            translateTime: "SYS:standard",
-            ignore: "pid,hostname",
+            translateTime: 'SYS:standard',
+            ignore: 'pid,hostname',
           },
         }
       : undefined,
@@ -146,7 +146,7 @@ export function getJobLogger(ctx: JobLogContext): pino.Logger {
 export function logWithLatency(
   log: pino.Logger,
   message: string,
-  data?: Record<string, unknown>
+  data?: Record<string, unknown>,
 ): () => void {
   const start = Date.now();
   return () => {

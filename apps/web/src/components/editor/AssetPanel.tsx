@@ -1,41 +1,33 @@
-import { ScrollArea, Card, CardBody, Badge } from "@/components/ui";
-import {
-  Film,
-  Music,
-  Image as ImageIcon,
-  Trash2,
-  Plus,
-  Search,
-} from "lucide-react";
-import { useEditorStore } from "@/stores/editor-store";
-import { cn } from "@/lib/utils";
+import { Film, Image as ImageIcon, Music, Plus, Search, Trash2 } from 'lucide-react';
+import { Badge, Card, CardBody, ScrollArea } from '@/components/ui';
+import { cn } from '@/lib/utils';
+import { useEditorStore } from '@/stores/editor-store';
 
 interface AssetPanelProps {
-  className?: string;
+  readonly className?: string;
 }
 
-export function AssetPanel({ className }: AssetPanelProps) {
+export function AssetPanel({ className }: Readonly<AssetPanelProps>) {
   const { assets, removeAsset, timeline, addClip } = useEditorStore();
 
-  const getIcon = (type: "VIDEO" | "AUDIO" | "IMAGE") => {
+  const getIcon = (type: 'VIDEO' | 'AUDIO' | 'IMAGE') => {
     switch (type) {
-      case "VIDEO":
+      case 'VIDEO':
         return <Film size={18} className="text-blue-400" />;
-      case "AUDIO":
+      case 'AUDIO':
         return <Music size={18} className="text-emerald-400" />;
-      case "IMAGE":
+      case 'IMAGE':
         return <ImageIcon size={18} className="text-amber-400" />;
     }
   };
 
   const handleAddToTimeline = (asset: (typeof assets)[0]) => {
-    const trackType = asset.type === "AUDIO" ? "AUDIO" : "VIDEO";
+    const trackType = asset.type === 'AUDIO' ? 'AUDIO' : 'VIDEO';
     const track = timeline.tracks.find((t) => t.type === trackType);
 
     if (!track) return;
 
-    const lastClipEnd =
-      track.clips.length > 0 ? Math.max(...track.clips.map((c) => c.endMs)) : 0;
+    const lastClipEnd = track.clips.length > 0 ? Math.max(...track.clips.map((c) => c.endMs)) : 0;
 
     addClip(track.id, {
       assetId: asset.id,
@@ -50,18 +42,18 @@ export function AssetPanel({ className }: AssetPanelProps) {
   };
 
   const formatDuration = (ms?: number) => {
-    if (!ms) return "00:00";
+    if (!ms) return '00:00';
     const seconds = Math.floor(ms / 1000);
     const minutes = Math.floor(seconds / 60);
     const secs = seconds % 60;
-    return `${minutes}:${secs.toString().padStart(2, "0")}`;
+    return `${minutes}:${secs.toString().padStart(2, '0')}`;
   };
 
   return (
     <div
       className={cn(
-        "w-full md:w-72 flex flex-col bg-background border-r border-border flex-shrink-0 animate-in slide-in-from-left duration-500",
-        className
+        'w-full md:w-72 flex flex-col bg-background border-r border-border shrink-0 animate-in slide-in-from-left duration-500',
+        className,
       )}
     >
       <div className="p-4 md:p-6 border-b border-border space-y-4">
@@ -80,7 +72,7 @@ export function AssetPanel({ className }: AssetPanelProps) {
           <input
             type="text"
             placeholder="Search..."
-            className="w-full bg-muted/40 border-input border h-9 rounded-md pl-9 pr-4 text-xs focus:outline-none focus:ring-1 focus:ring-ring transition-all placeholder:text-muted-foreground/60"
+            className="w-full bg-muted/40 border-input border h-9 rounded-lg pl-9 pr-4 text-xs focus:outline-none focus:ring-1 focus:ring-ring transition-all placeholder:text-muted-foreground/60"
           />
         </div>
       </div>
@@ -105,8 +97,8 @@ export function AssetPanel({ className }: AssetPanelProps) {
               >
                 <CardBody className="p-2">
                   <div className="flex items-start gap-3">
-                    <div className="relative w-16 h-16 md:w-14 md:h-14 rounded-md bg-muted flex items-center justify-center border border-border/50 overflow-hidden flex-shrink-0 group/thumb">
-                      {asset.type === "IMAGE" && (
+                    <div className="relative w-16 h-16 md:w-14 md:h-14 rounded-lg bg-muted flex items-center justify-center border border-border/50 overflow-hidden shrink-0 group/thumb">
+                      {asset.type === 'IMAGE' && (
                         <div
                           className="absolute inset-0 bg-cover bg-center opacity-80"
                           style={{ backgroundImage: `url(${asset.url})` }}
@@ -114,9 +106,9 @@ export function AssetPanel({ className }: AssetPanelProps) {
                       )}
                       <div
                         className={cn(
-                          "relative z-10 transition-opacity duration-200",
-                          asset.type === "IMAGE" &&
-                            "drop-shadow-md text-white group-hover/thumb:opacity-0"
+                          'relative z-10 transition-opacity duration-200',
+                          asset.type === 'IMAGE' &&
+                            'drop-shadow-md text-white group-hover/thumb:opacity-0',
                         )}
                       >
                         {getIcon(asset.type)}
@@ -125,6 +117,7 @@ export function AssetPanel({ className }: AssetPanelProps) {
                       {/* Thumbnail Overlay Actions */}
                       <div className="absolute inset-0 bg-black/60 opacity-0 group-hover/thumb:opacity-100 transition-opacity flex items-center justify-center gap-2 backdrop-blur-[1px]">
                         <button
+                          type="button"
                           className="h-6 w-6 rounded-full bg-white/90 text-black flex items-center justify-center hover:scale-110 transition-transform shadow-sm"
                           onClick={() => handleAddToTimeline(asset)}
                         >
@@ -135,9 +128,7 @@ export function AssetPanel({ className }: AssetPanelProps) {
 
                     <div className="flex-1 min-w-0 py-0.5 flex flex-col justify-between h-full">
                       <div>
-                        <p className="text-xs font-medium truncate text-foreground">
-                          {asset.name}
-                        </p>
+                        <p className="text-xs font-medium truncate text-foreground">{asset.name}</p>
                         <div className="flex items-center gap-2 mt-1">
                           <Badge
                             variant="outline"
@@ -156,6 +147,7 @@ export function AssetPanel({ className }: AssetPanelProps) {
                       {/* Delete button (only shows on row hover) */}
                       <div className="flex justify-end opacity-0 group-hover:opacity-100 transition-opacity md:translate-y-1">
                         <button
+                          type="button"
                           className="text-muted-foreground hover:text-destructive transition-colors p-1"
                           onClick={() => removeAsset(asset.id)}
                         >

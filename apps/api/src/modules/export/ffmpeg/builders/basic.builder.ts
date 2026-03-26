@@ -3,7 +3,7 @@
  * Simple operations: trim, encode, mux
  */
 
-import { validateInputPath, validateOutputPath } from "../ffmpeg-path-guard";
+import { validateInputPath, validateOutputPath } from '../ffmpeg-path-guard';
 
 export interface FFmpegCommand {
   args: string[];
@@ -11,29 +11,22 @@ export interface FFmpegCommand {
   inputs: string[];
 }
 
-export type Resolution = "720p" | "1080p" | "2160p";
-export type ExportPreset = "fast" | "balanced" | "quality";
+export type Resolution = '720p' | '1080p' | '2160p';
+export type ExportPreset = 'fast' | 'balanced' | 'quality';
 
 const RESOLUTION_MAP: Record<Resolution, { width: number; height: number }> = {
-  "720p": { width: 1280, height: 720 },
-  "1080p": { width: 1920, height: 1080 },
-  "2160p": { width: 3840, height: 2160 },
+  '720p': { width: 1280, height: 720 },
+  '1080p': { width: 1920, height: 1080 },
+  '2160p': { width: 3840, height: 2160 },
 };
 
 const PRESET_MAP: Record<ExportPreset, string> = {
-  fast: "veryfast",
-  balanced: "medium",
-  quality: "slow",
+  fast: 'veryfast',
+  balanced: 'medium',
+  quality: 'slow',
 };
 
-const STANDARD_FLAGS = [
-  "-nostdin",
-  "-hide_banner",
-  "-loglevel",
-  "error",
-  "-progress",
-  "pipe:1",
-];
+const STANDARD_FLAGS = ['-nostdin', '-hide_banner', '-loglevel', 'error', '-progress', 'pipe:1'];
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
@@ -47,7 +40,7 @@ export function buildTrimCommand(
   output: string,
   startMs: number,
   endMs: number,
-  durationMs: number
+  durationMs: number,
 ): FFmpegCommand {
   const validInput = validateInputPath(input);
   const validOutput = validateOutputPath(output);
@@ -58,14 +51,14 @@ export function buildTrimCommand(
 
   const args = [
     ...STANDARD_FLAGS,
-    "-ss",
+    '-ss',
     startSec.toFixed(3),
-    "-i",
+    '-i',
     validInput,
-    "-t",
+    '-t',
     duration.toFixed(3),
-    "-c",
-    "copy",
+    '-c',
+    'copy',
     validOutput,
   ];
 
@@ -83,7 +76,7 @@ export function buildEncodeCommand(
   input: string,
   output: string,
   preset: ExportPreset,
-  resolution: Resolution
+  resolution: Resolution,
 ): FFmpegCommand {
   const validInput = validateInputPath(input);
   const validOutput = validateOutputPath(output);
@@ -93,21 +86,21 @@ export function buildEncodeCommand(
 
   const args = [
     ...STANDARD_FLAGS,
-    "-i",
+    '-i',
     validInput,
-    "-vf",
+    '-vf',
     `scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2`,
-    "-c:v",
-    "libx264",
-    "-preset",
+    '-c:v',
+    'libx264',
+    '-preset',
     ffmpegPreset,
-    "-crf",
-    "23",
-    "-pix_fmt",
-    "yuv420p",
-    "-movflags",
-    "+faststart",
-    "-an",
+    '-crf',
+    '23',
+    '-pix_fmt',
+    'yuv420p',
+    '-movflags',
+    '+faststart',
+    '-an',
     validOutput,
   ];
 
@@ -124,7 +117,7 @@ export function buildEncodeCommand(
 export function buildMuxCommand(
   videoInput: string,
   audioInput: string,
-  output: string
+  output: string,
 ): FFmpegCommand {
   const validVideoInput = validateInputPath(videoInput);
   const validAudioInput = validateInputPath(audioInput);
@@ -132,16 +125,16 @@ export function buildMuxCommand(
 
   const args = [
     ...STANDARD_FLAGS,
-    "-i",
+    '-i',
     validVideoInput,
-    "-i",
+    '-i',
     validAudioInput,
-    "-c",
-    "copy",
-    "-map",
-    "0:v:0",
-    "-map",
-    "1:a:0",
+    '-c',
+    'copy',
+    '-map',
+    '0:v:0',
+    '-map',
+    '1:a:0',
     validOutput,
   ];
 
@@ -163,12 +156,12 @@ export function buildTextOverlayCommand(
   y: number,
   fontSize: number,
   fontColor: string,
-  fontFile?: string
+  fontFile?: string,
 ): FFmpegCommand {
   const validInput = validateInputPath(videoInput);
   const validOutput = validateOutputPath(output);
 
-  const escapedText = text.replace(/[:\\]/g, "\\$&").replace(/'/g, "\\'");
+  const escapedText = text.replace(/[:\\]/g, '\\$&').replace(/'/g, "\\'");
 
   let drawtextFilter = `drawtext=text='${escapedText}':x=${x}:y=${y}:fontsize=${fontSize}:fontcolor=${fontColor}`;
 
@@ -179,12 +172,12 @@ export function buildTextOverlayCommand(
 
   const args = [
     ...STANDARD_FLAGS,
-    "-i",
+    '-i',
     validInput,
-    "-vf",
+    '-vf',
     drawtextFilter,
-    "-c:a",
-    "copy",
+    '-c:a',
+    'copy',
     validOutput,
   ];
 

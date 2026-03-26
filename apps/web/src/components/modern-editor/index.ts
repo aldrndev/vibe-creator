@@ -1,6 +1,7 @@
 // Modern Editor Components
-export { EditorCanvas } from "./EditorCanvas";
-export { AssetSidebar } from "./AssetSidebar";
-export { PropertiesPanel } from "./PropertiesPanel";
-export { LayerStack } from "./LayerStack";
-export { PlaybackBar } from "./PlaybackBar";
+
+export { AssetSidebar } from './AssetSidebar';
+export { EditorCanvas } from './EditorCanvas';
+export { LayerStack } from './LayerStack';
+export { PlaybackBar } from './PlaybackBar';
+export { PropertiesPanel } from './PropertiesPanel';

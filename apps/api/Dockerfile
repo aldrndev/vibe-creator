@@ -33,14 +33,14 @@ WORKDIR /app
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 COPY packages ./packages
 COPY apps/api/package.json ./apps/api/
+COPY apps/api/prisma ./apps/api/prisma
+COPY apps/api/prisma.config.ts ./apps/api/prisma.config.ts
 
 # Install ALL dependencies (including dev)
 RUN pnpm install --frozen-lockfile
 
 # Generate Prisma Client
 WORKDIR /app/apps/api
-COPY apps/api/prisma ./prisma
-COPY apps/api/prisma.config.ts ./prisma.config.ts
 RUN pnpm prisma generate
 
 # Go back to root for dev command context

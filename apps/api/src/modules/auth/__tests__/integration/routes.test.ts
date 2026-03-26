@@ -8,21 +8,9 @@
  * - Tests auth hooks and rate limiting
  */
 
-import {
-  describe,
-  it,
-  expect,
-  vi,
-  beforeAll,
-  afterAll,
-  beforeEach,
-} from "vitest";
-import Fastify, {
-  FastifyInstance,
-  FastifyReply,
-  FastifyRequest,
-} from "fastify";
-import { z } from "zod";
+import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { z } from 'zod';
 
 // Mock dependencies before importing routes
 const mockPrisma = {
@@ -45,23 +33,23 @@ const mockLogger = {
   debug: vi.fn(),
 };
 
-vi.mock("@/lib/prisma", () => ({
+vi.mock('@/lib/prisma', () => ({
   prisma: mockPrisma,
 }));
 
-vi.mock("@/lib/logger", () => ({
+vi.mock('@/lib/logger', () => ({
   logger: mockLogger,
 }));
 
-vi.mock("@/lib/turnstile", () => ({
+vi.mock('@/lib/turnstile', () => ({
   verifyTurnstileToken: vi.fn().mockResolvedValue(true),
 }));
 
-vi.mock("@/utils/crypto", () => ({
-  hashPassword: vi.fn().mockResolvedValue("hashed-password"),
+vi.mock('@/utils/crypto', () => ({
+  hashPassword: vi.fn().mockResolvedValue('hashed-password'),
   verifyPassword: vi.fn().mockResolvedValue(true),
-  generateToken: vi.fn().mockReturnValue("mock-token-123"),
-  hashToken: vi.fn().mockReturnValue("hashed-token"),
+  generateToken: vi.fn().mockReturnValue('mock-token-123'),
+  hashToken: vi.fn().mockReturnValue('hashed-token'),
 }));
 
 // Create mock Fastify app for testing
@@ -71,77 +59,72 @@ async function buildApp(): Promise<FastifyInstance> {
   });
 
   // Global error handler - hides internal errors
-  app.setErrorHandler(
-    (_error: unknown, _request: FastifyRequest, reply: FastifyReply) => {
-      // Never expose internal error details
-      reply.status(500).send({
-        success: false,
-        error: {
-          code: "INTERNAL_ERROR",
-          message: "An unexpected error occurred",
-        },
-      });
-    }
-  );
+  app.setErrorHandler((_error: unknown, _request: FastifyRequest, reply: FastifyReply) => {
+    // Never expose internal error details
+    reply.status(500).send({
+      success: false,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'An unexpected error occurred',
+      },
+    });
+  });
 
   // Register test routes (simplified auth routes)
-  app.post(
-    "/register",
-    async (request: FastifyRequest, reply: FastifyReply) => {
-      const schema = z.object({
-        email: z.email(),
-        password: z.string().min(8),
-        name: z.string().min(2),
-        turnstileToken: z.string().min(1),
+  app.post('/register', async (request: FastifyRequest, reply: FastifyReply) => {
+    const schema = z.object({
+      email: z.email(),
+      password: z.string().min(8),
+      name: z.string().min(2),
+      turnstileToken: z.string().min(1),
+    });
+
+    try {
+      const body = schema.parse(request.body);
+
+      // Check existing user
+      const existing = await mockPrisma.user.findUnique({
+        where: { email: body.email },
       });
 
-      try {
-        const body = schema.parse(request.body);
-
-        // Check existing user
-        const existing = await mockPrisma.user.findUnique({
-          where: { email: body.email },
+      if (existing) {
+        return reply.status(400).send({
+          success: false,
+          error: { code: 'VALIDATION_ERROR', message: 'User exists' },
         });
-
-        if (existing) {
-          return reply.status(400).send({
-            success: false,
-            error: { code: "VALIDATION_ERROR", message: "User exists" },
-          });
-        }
-
-        // Create user
-        const user = await mockPrisma.user.create({
-          data: {
-            email: body.email,
-            password: "hashed",
-            name: body.name,
-          },
-        });
-
-        return reply.status(201).send({
-          success: true,
-          data: {
-            user: { id: user.id, email: user.email, name: user.name },
-            accessToken: "access-token",
-          },
-        });
-      } catch (err) {
-        if (err instanceof z.ZodError) {
-          return reply.status(400).send({
-            success: false,
-            error: {
-              code: "VALIDATION_ERROR",
-              message: err.issues[0]?.message,
-            },
-          });
-        }
-        throw err;
       }
-    }
-  );
 
-  app.post("/login", async (request: FastifyRequest, reply: FastifyReply) => {
+      // Create user
+      const user = await mockPrisma.user.create({
+        data: {
+          email: body.email,
+          password: 'hashed',
+          name: body.name,
+        },
+      });
+
+      return reply.status(201).send({
+        success: true,
+        data: {
+          user: { id: user.id, email: user.email, name: user.name },
+          accessToken: 'access-token',
+        },
+      });
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return reply.status(400).send({
+          success: false,
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: err.issues[0]?.message,
+          },
+        });
+      }
+      throw err;
+    }
+  });
+
+  app.post('/login', async (request: FastifyRequest, reply: FastifyReply) => {
     const schema = z.object({
       email: z.email(),
       password: z.string().min(1),
@@ -159,8 +142,8 @@ async function buildApp(): Promise<FastifyInstance> {
         return reply.status(401).send({
           success: false,
           error: {
-            code: "INVALID_CREDENTIALS",
-            message: "Invalid credentials",
+            code: 'INVALID_CREDENTIALS',
+            message: 'Invalid credentials',
           },
         });
       }
@@ -169,14 +152,14 @@ async function buildApp(): Promise<FastifyInstance> {
         success: true,
         data: {
           user: { id: user.id, email: user.email, name: user.name },
-          accessToken: "access-token",
+          accessToken: 'access-token',
         },
       });
     } catch (err) {
       if (err instanceof z.ZodError) {
         return reply.status(400).send({
           success: false,
-          error: { code: "VALIDATION_ERROR", message: err.issues[0]?.message },
+          error: { code: 'VALIDATION_ERROR', message: err.issues[0]?.message },
         });
       }
       throw err;
@@ -187,7 +170,7 @@ async function buildApp(): Promise<FastifyInstance> {
   return app;
 }
 
-describe("auth routes integration", () => {
+describe('auth routes integration', () => {
   let app: FastifyInstance;
 
   beforeAll(async () => {
@@ -202,25 +185,25 @@ describe("auth routes integration", () => {
     vi.clearAllMocks();
   });
 
-  describe("POST /register", () => {
+  describe('POST /register', () => {
     const validPayload = {
-      email: "new@example.com",
-      password: "password123",
-      name: "John Doe",
-      turnstileToken: "token123",
+      email: 'new@example.com',
+      password: 'password123',
+      name: 'John Doe',
+      turnstileToken: 'token123',
     };
 
-    it("should create new user successfully", async () => {
+    it('should create new user successfully', async () => {
       mockPrisma.user.findUnique.mockResolvedValue(null);
       mockPrisma.user.create.mockResolvedValue({
-        id: "user-123",
+        id: 'user-123',
         email: validPayload.email,
         name: validPayload.name,
       });
 
       const response = await app.inject({
-        method: "POST",
-        url: "/register",
+        method: 'POST',
+        url: '/register',
         payload: validPayload,
       });
 
@@ -231,16 +214,16 @@ describe("auth routes integration", () => {
       expect(body.data.accessToken).toBeDefined();
     });
 
-    it("should reject existing email", async () => {
+    it('should reject existing email', async () => {
       mockPrisma.user.findUnique.mockResolvedValue({
-        id: "existing-user",
+        id: 'existing-user',
         email: validPayload.email,
-        name: "Test User",
+        name: 'Test User',
       }); // Fixed: existing user check returns user object not rejection
 
       const response = await app.inject({
-        method: "POST",
-        url: "/register",
+        method: 'POST',
+        url: '/register',
         payload: validPayload,
       });
 
@@ -249,55 +232,55 @@ describe("auth routes integration", () => {
       expect(body.success).toBe(false);
     });
 
-    it("should reject invalid email format", async () => {
+    it('should reject invalid email format', async () => {
       const response = await app.inject({
-        method: "POST",
-        url: "/register",
-        payload: { ...validPayload, email: "invalid" },
+        method: 'POST',
+        url: '/register',
+        payload: { ...validPayload, email: 'invalid' },
       });
 
       expect(response.statusCode).toBe(400);
     });
 
-    it("should reject short password", async () => {
+    it('should reject short password', async () => {
       const response = await app.inject({
-        method: "POST",
-        url: "/register",
-        payload: { ...validPayload, password: "short" },
+        method: 'POST',
+        url: '/register',
+        payload: { ...validPayload, password: 'short' },
       });
 
       expect(response.statusCode).toBe(400);
     });
 
-    it("should reject missing captcha", async () => {
+    it('should reject missing captcha', async () => {
       const response = await app.inject({
-        method: "POST",
-        url: "/register",
-        payload: { ...validPayload, turnstileToken: "" },
+        method: 'POST',
+        url: '/register',
+        payload: { ...validPayload, turnstileToken: '' },
       });
 
       expect(response.statusCode).toBe(400);
     });
   });
 
-  describe("POST /login", () => {
+  describe('POST /login', () => {
     const validPayload = {
-      email: "user@example.com",
-      password: "password123",
-      turnstileToken: "token123",
+      email: 'user@example.com',
+      password: 'password123',
+      turnstileToken: 'token123',
     };
 
-    it("should login successfully with valid credentials", async () => {
+    it('should login successfully with valid credentials', async () => {
       mockPrisma.user.findUnique.mockResolvedValue({
-        id: "user-123",
+        id: 'user-123',
         email: validPayload.email,
-        name: "Test User",
-        password: "hashed-password",
+        name: 'Test User',
+        password: 'hashed-password',
       });
 
       const response = await app.inject({
-        method: "POST",
-        url: "/login",
+        method: 'POST',
+        url: '/login',
         payload: validPayload,
       });
 
@@ -307,67 +290,67 @@ describe("auth routes integration", () => {
       expect(body.data.accessToken).toBeDefined();
     });
 
-    it("should reject non-existent user", async () => {
+    it('should reject non-existent user', async () => {
       mockPrisma.user.findUnique.mockResolvedValue(null);
 
       const response = await app.inject({
-        method: "POST",
-        url: "/login",
+        method: 'POST',
+        url: '/login',
         payload: validPayload,
       });
 
       expect(response.statusCode).toBe(401);
       const body = JSON.parse(response.body);
       expect(body.success).toBe(false);
-      expect(body.error.code).toBe("INVALID_CREDENTIALS");
+      expect(body.error.code).toBe('INVALID_CREDENTIALS');
     });
 
-    it("should not leak whether user exists (same error for both cases)", async () => {
+    it('should not leak whether user exists (same error for both cases)', async () => {
       // Test non-existent user
       mockPrisma.user.findUnique.mockResolvedValue(null);
       const response1 = await app.inject({
-        method: "POST",
-        url: "/login",
+        method: 'POST',
+        url: '/login',
         payload: validPayload,
       });
 
       const body1 = JSON.parse(response1.body);
 
       // Both should return INVALID_CREDENTIALS (no user enumeration)
-      expect(body1.error.code).toBe("INVALID_CREDENTIALS");
+      expect(body1.error.code).toBe('INVALID_CREDENTIALS');
     });
 
-    it("should reject invalid email format", async () => {
+    it('should reject invalid email format', async () => {
       const response = await app.inject({
-        method: "POST",
-        url: "/login",
-        payload: { ...validPayload, email: "not-email" },
+        method: 'POST',
+        url: '/login',
+        payload: { ...validPayload, email: 'not-email' },
       });
 
       expect(response.statusCode).toBe(400);
     });
   });
 
-  describe("Security", () => {
-    it("should not expose internal errors", async () => {
+  describe('Security', () => {
+    it('should not expose internal errors', async () => {
       // Force internal error
-      mockPrisma.user.findUnique.mockRejectedValue(new Error("DB Error"));
+      mockPrisma.user.findUnique.mockRejectedValue(new Error('DB Error'));
 
       const response = await app.inject({
-        method: "POST",
-        url: "/login",
+        method: 'POST',
+        url: '/login',
         payload: {
-          email: "test@test.com",
-          password: "password",
-          turnstileToken: "token",
+          email: 'test@test.com',
+          password: 'password',
+          turnstileToken: 'token',
         },
       });
 
       // Should return 500, not expose DB error details
       expect(response.statusCode).toBe(500);
       const body = JSON.parse(response.body);
-      expect(body.error.message).not.toContain("DB Error");
-      expect(body.error.code).toBe("INTERNAL_ERROR");
+      expect(body.error.message).not.toContain('DB Error');
+      expect(body.error.code).toBe('INTERNAL_ERROR');
     });
   });
 });

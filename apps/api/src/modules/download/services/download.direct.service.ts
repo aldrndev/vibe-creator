@@ -1,6 +1,6 @@
-import { createWriteStream } from "fs";
-import { writeFile, stat } from "fs/promises";
-import { assertSafeUrl } from "@/utils/ssrf";
+import { createWriteStream } from 'node:fs';
+import { stat, writeFile } from 'node:fs/promises';
+import { assertSafeUrl } from '@/utils/ssrf';
 
 export const downloadDirectService = {
   /**
@@ -9,7 +9,7 @@ export const downloadDirectService = {
   async downloadDirectUrl(
     url: string,
     outputPath: string,
-    onProgress?: (percent: number) => void
+    onProgress?: (percent: number) => void,
   ): Promise<{ title: string; metadata: Record<string, unknown> }> {
     await assertSafeUrl(url);
     const response = await fetch(url);
@@ -17,7 +17,7 @@ export const downloadDirectService = {
       throw new Error(`Failed to download direct URL: ${response.status}`);
     }
 
-    const contentLength = response.headers.get("content-length");
+    const contentLength = response.headers.get('content-length');
     const total = contentLength ? parseInt(contentLength, 10) : 0;
 
     // If we can't track progress or response.body is null, fallback to buffer
@@ -25,17 +25,17 @@ export const downloadDirectService = {
       if (onProgress) onProgress(10);
       const arrayBuffer = await response.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
-      if (buffer.length === 0) throw new Error("Downloaded file is empty");
+      if (buffer.length === 0) throw new Error('Downloaded file is empty');
       await writeFile(outputPath, buffer);
       if (onProgress) onProgress(100);
 
       const fileStats = await stat(outputPath);
-      const urlParts = url.split("/");
-      const filename = urlParts[urlParts.length - 1] || "Downloaded Video";
+      const urlParts = url.split('/');
+      const filename = urlParts[urlParts.length - 1] || 'Downloaded Video';
 
       return {
-        title: filename.replace(/[?#].*$/, ""),
-        metadata: { source: "direct", size: fileStats.size },
+        title: filename.replace(/[?#].*$/, ''),
+        metadata: { source: 'direct', size: fileStats.size },
       };
     }
 
@@ -55,22 +55,22 @@ export const downloadDirectService = {
 
       // Write chunk
       if (!fileStream.write(value)) {
-        await new Promise((resolve) => fileStream.once("drain", resolve));
+        await new Promise((resolve) => fileStream.once('drain', resolve));
       }
     }
 
     fileStream.end();
-    await new Promise((resolve) => fileStream.on("finish", resolve));
+    await new Promise((resolve) => fileStream.on('finish', resolve));
 
     if (onProgress) onProgress(100);
 
     const fileStats = await stat(outputPath);
-    const urlParts = url.split("/");
-    const filename = urlParts[urlParts.length - 1] || "Downloaded Video";
+    const urlParts = url.split('/');
+    const filename = urlParts[urlParts.length - 1] || 'Downloaded Video';
 
     return {
-      title: filename.replace(/[?#].*$/, ""),
-      metadata: { source: "direct", size: fileStats.size },
+      title: filename.replace(/[?#].*$/, ''),
+      metadata: { source: 'direct', size: fileStats.size },
     };
   },
 };

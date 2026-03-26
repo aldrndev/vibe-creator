@@ -1,26 +1,26 @@
-import type { FastifyInstance } from "fastify";
-import { prisma } from "@/lib/prisma";
-import { requireAuth } from "@/plugins/auth";
-import { Prisma } from "@prisma/client";
-import { MAX_LIMIT } from "@vibe-creator/shared";
-import { audit, AuditAction } from "@/lib/audit";
-import { enforceQueryBudget } from "@/utils/query-budget";
-import { performance } from "node:perf_hooks";
-import { decodeCursor, createCursorResult } from "@/utils/cursor-pagination";
+import { performance } from 'node:perf_hooks';
+import type { Prisma } from '@prisma/client';
+import { MAX_LIMIT } from '@vibe-creator/shared';
+import type { FastifyInstance } from 'fastify';
+import { AuditAction, audit } from '@/lib/audit';
+import { prisma } from '@/lib/prisma';
+import { requireAuth } from '@/plugins/auth';
+import { createCursorResult, decodeCursor } from '@/utils/cursor-pagination';
+import { enforceQueryBudget } from '@/utils/query-budget';
 import {
   createProjectRequestSchema,
-  updateProjectRequestSchema,
-  listProjectsRouteSchema,
-  getProjectRouteSchema,
   createProjectRouteSchema,
-  updateProjectRouteSchema,
   deleteProjectRouteSchema,
-} from "./project.schemas";
+  getProjectRouteSchema,
+  listProjectsRouteSchema,
+  updateProjectRequestSchema,
+  updateProjectRouteSchema,
+} from './project.schemas';
 
 export async function projectRoutes(fastify: FastifyInstance): Promise<void> {
   // List projects with cursor pagination
   fastify.get(
-    "/",
+    '/',
     {
       preHandler: [requireAuth],
       schema: listProjectsRouteSchema,
@@ -33,7 +33,7 @@ export async function projectRoutes(fastify: FastifyInstance): Promise<void> {
       };
 
       const limit = Math.min(Number(query.limit) || 20, MAX_LIMIT);
-      const userId = request.user!.id;
+      const userId = request.user?.id;
 
       // If cursor provided, use cursor pagination
       if (query.cursor) {
@@ -51,7 +51,7 @@ export async function projectRoutes(fastify: FastifyInstance): Promise<void> {
         const start = performance.now();
         const projects = await prisma.project.findMany({
           where: cursorWhere,
-          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
           take: limit + 1,
           include: { _count: { select: { assets: true } } },
         });
@@ -73,7 +73,7 @@ export async function projectRoutes(fastify: FastifyInstance): Promise<void> {
       const [projects, total] = await Promise.all([
         prisma.project.findMany({
           where: { userId },
-          orderBy: { updatedAt: "desc" },
+          orderBy: { updatedAt: 'desc' },
           skip,
           take: limit,
           include: { _count: { select: { assets: true } } },
@@ -91,12 +91,12 @@ export async function projectRoutes(fastify: FastifyInstance): Promise<void> {
         data: projects,
         meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
       });
-    }
+    },
   );
 
   // Get single project
   fastify.get(
-    "/:id",
+    '/:id',
     {
       preHandler: [requireAuth],
       schema: getProjectRouteSchema,
@@ -105,10 +105,10 @@ export async function projectRoutes(fastify: FastifyInstance): Promise<void> {
       const { id } = request.params as { id: string };
 
       const project = await prisma.project.findFirst({
-        where: { id, userId: request.user!.id },
+        where: { id, userId: request.user?.id },
         include: {
           assets: {
-            orderBy: { createdAt: "desc" },
+            orderBy: { createdAt: 'desc' },
           },
         },
       });
@@ -116,39 +116,44 @@ export async function projectRoutes(fastify: FastifyInstance): Promise<void> {
       if (!project) {
         return reply.status(404).send({
           success: false,
-          error: { code: "NOT_FOUND", message: "Project not found" },
+          error: { code: 'NOT_FOUND', message: 'Project not found' },
         });
       }
 
       return reply.send({ success: true, data: project });
-    }
+    },
   );
 
   // Create project
   fastify.post(
-    "/",
+    '/',
     {
       preHandler: [requireAuth],
       schema: createProjectRouteSchema,
     },
     async (request, reply) => {
       const body = createProjectRequestSchema.parse(request.body);
+      const userId = request.user?.id;
+
+      if (!userId) {
+        throw new Error('Authenticated user missing on project creation');
+      }
 
       const project = await prisma.project.create({
         data: {
           ...body,
           storyData: body.storyData as Prisma.InputJsonValue,
-          userId: request.user!.id,
+          userId,
         },
       });
 
       return reply.status(201).send({ success: true, data: project });
-    }
+    },
   );
 
   // Update project
   fastify.patch(
-    "/:id",
+    '/:id',
     {
       preHandler: [requireAuth],
       schema: updateProjectRouteSchema,
@@ -158,13 +163,13 @@ export async function projectRoutes(fastify: FastifyInstance): Promise<void> {
       const body = updateProjectRequestSchema.parse(request.body);
 
       const existing = await prisma.project.findFirst({
-        where: { id, userId: request.user!.id },
+        where: { id, userId: request.user?.id },
       });
 
       if (!existing) {
         return reply.status(404).send({
           success: false,
-          error: { code: "NOT_FOUND", message: "Project not found" },
+          error: { code: 'NOT_FOUND', message: 'Project not found' },
         });
       }
 
@@ -177,12 +182,12 @@ export async function projectRoutes(fastify: FastifyInstance): Promise<void> {
       });
 
       return reply.send({ success: true, data: project });
-    }
+    },
   );
 
   // Delete project
   fastify.delete(
-    "/:id",
+    '/:id',
     {
       preHandler: [requireAuth],
       schema: deleteProjectRouteSchema,
@@ -191,13 +196,13 @@ export async function projectRoutes(fastify: FastifyInstance): Promise<void> {
       const { id } = request.params as { id: string };
 
       const existing = await prisma.project.findFirst({
-        where: { id, userId: request.user!.id },
+        where: { id, userId: request.user?.id },
       });
 
       if (!existing) {
         return reply.status(404).send({
           success: false,
-          error: { code: "NOT_FOUND", message: "Project not found" },
+          error: { code: 'NOT_FOUND', message: 'Project not found' },
         });
       }
 
@@ -209,14 +214,14 @@ export async function projectRoutes(fastify: FastifyInstance): Promise<void> {
           userId: request.user.id,
           tenantId: request.user.id,
           action: AuditAction.PROJECT_DELETED,
-          resourceType: "project",
+          resourceType: 'project',
           resourceId: id,
           ipAddress: request.ip,
-          userAgent: request.headers["user-agent"] ?? undefined,
+          userAgent: request.headers['user-agent'] ?? undefined,
         });
       }
 
       return reply.send({ success: true, data: null });
-    }
+    },
   );
 }

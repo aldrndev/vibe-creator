@@ -1,10 +1,11 @@
-import { FastifyPluginAsync, FastifyRequest, FastifyReply } from "fastify";
-import { z } from "zod";
-import { exportService } from "./export.service";
-import { paymentService } from "@/modules/payment/payment.service";
-import { createReadStream, existsSync, statSync } from "fs";
-import { requireRateLimitReady } from "@/lib/rate-limit";
-import { audit, AuditAction } from "@/lib/audit";
+import { createReadStream, existsSync, statSync } from 'node:fs';
+import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
+import { z } from 'zod';
+import { AuditAction, audit } from '@/lib/audit';
+import { requireRateLimitReady } from '@/lib/rate-limit';
+import { paymentService } from '@/modules/payment/payment.service';
+import { isTempUploadToken, resolveTempUploadToken } from '@/utils/temp-upload';
+import { exportService } from './export.service';
 
 const createExportSchema = z.object({
   projectId: z.string(),
@@ -32,7 +33,7 @@ const createExportSchema = z.object({
             fadeOut: z.number(),
           })
           .optional(),
-      })
+      }),
     ),
     textOverlays: z
       .array(
@@ -47,7 +48,7 @@ const createExportSchema = z.object({
           fontFamily: z.string(),
           color: z.string(),
           backgroundColor: z.string().optional(),
-        })
+        }),
       )
       .optional(),
     settings: z.object({
@@ -56,13 +57,13 @@ const createExportSchema = z.object({
       fps: z.number().default(30),
     }),
   }),
-  format: z.enum(["MP4", "WEBM", "MOV"]).optional().default("MP4"),
-  resolution: z.enum(["SD", "HD", "UHD"]).optional().default("HD"),
+  format: z.enum(['MP4', 'WEBM', 'MOV']).optional().default('MP4'),
+  resolution: z.enum(['SD', 'HD', 'UHD']).optional().default('HD'),
   addWatermark: z.boolean().optional().default(true),
 });
 
 export const exportRoutes: FastifyPluginAsync = async (fastify) => {
-  fastify.addHook("preHandler", async (request, reply) => {
+  fastify.addHook('preHandler', async (request, reply) => {
     const result = requireRateLimitReady(request, reply);
     if (result) {
       return result;
@@ -73,14 +74,14 @@ export const exportRoutes: FastifyPluginAsync = async (fastify) => {
     config: {
       rateLimit: {
         max: 10,
-        timeWindow: "1 hour",
+        timeWindow: '1 hour',
         keyGenerator: (request: {
           user?: { id: string } | null;
           auth?: { userId: string; tenantId: string } | null;
           ip: string;
           url?: string;
         }) => {
-          const routeKey = request.url?.split("?")[0] || "export";
+          const routeKey = request.url?.split('?')[0] || 'export';
           const tenantId = request.auth?.tenantId || request.user?.id;
           const userId = request.auth?.userId || request.user?.id;
           if (tenantId && userId) {
@@ -91,8 +92,8 @@ export const exportRoutes: FastifyPluginAsync = async (fastify) => {
         errorResponseBuilder: () => ({
           success: false,
           error: {
-            code: "RATE_LIMIT_EXCEEDED",
-            message: "Too many export requests. Please try again later.",
+            code: 'RATE_LIMIT_EXCEEDED',
+            message: 'Too many export requests. Please try again later.',
           },
         }),
       },
@@ -103,14 +104,14 @@ export const exportRoutes: FastifyPluginAsync = async (fastify) => {
    * Create export job
    */
   fastify.post(
-    "/request",
+    '/request',
     exportRateLimit,
     async (request: FastifyRequest, reply: FastifyReply) => {
       const user = request.user;
       if (!user) {
         return reply.status(401).send({
           success: false,
-          error: { code: "UNAUTHORIZED", message: "Authentication required" },
+          error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
         });
       }
 
@@ -118,7 +119,7 @@ export const exportRoutes: FastifyPluginAsync = async (fastify) => {
         const body = createExportSchema.parse(request.body);
 
         // Admin bypass - no quota check, no watermark, full resolution
-        const isAdmin = user.role === "ADMIN";
+        const isAdmin = user.role === 'ADMIN';
 
         let shouldAddWatermark = body.addWatermark;
         let maxResolution = body.resolution;
@@ -127,14 +128,14 @@ export const exportRoutes: FastifyPluginAsync = async (fastify) => {
         if (!isAdmin) {
           // Check subscription and export quota for non-admin users
           const subscription = await paymentService.getSubscription(user.id);
-          const exportResult = await paymentService.useExport(user.id);
+          const exportResult = await paymentService.consumeExportQuota(user.id);
 
           if (!exportResult.allowed) {
             return reply.status(403).send({
               success: false,
               error: {
-                code: "QUOTA_EXCEEDED",
-                message: "Export quota exceeded. Please upgrade your plan.",
+                code: 'QUOTA_EXCEEDED',
+                message: 'Export quota exceeded. Please upgrade your plan.',
                 remaining: 0,
               },
             });
@@ -143,24 +144,30 @@ export const exportRoutes: FastifyPluginAsync = async (fastify) => {
           remaining = exportResult.remaining;
 
           // Force watermark for FREE tier
-          shouldAddWatermark =
-            subscription.tier === "FREE" ? true : body.addWatermark;
+          shouldAddWatermark = subscription.tier === 'FREE' ? true : body.addWatermark;
 
           // Check resolution limits based on tier
-          if (subscription.tier === "FREE" && maxResolution === "UHD") {
-            maxResolution = "SD"; // Limit to SD for free
-          } else if (
-            subscription.tier === "CREATOR" &&
-            maxResolution === "UHD"
-          ) {
-            maxResolution = "HD"; // Limit to HD for creator
+          if (subscription.tier === 'FREE' && maxResolution === 'UHD') {
+            maxResolution = 'SD'; // Limit to SD for free
+          } else if (subscription.tier === 'CREATOR' && maxResolution === 'UHD') {
+            maxResolution = 'HD'; // Limit to HD for creator
           }
         }
+
+        const normalizedTimelineData = {
+          ...body.timelineData,
+          clips: body.timelineData.clips.map((clip) => ({
+            ...clip,
+            localPath: isTempUploadToken(clip.localPath)
+              ? resolveTempUploadToken(clip.localPath)
+              : clip.localPath,
+          })),
+        };
 
         const job = await exportService.createJob({
           userId: user.id,
           projectId: body.projectId,
-          timelineData: body.timelineData,
+          timelineData: normalizedTimelineData,
           format: body.format,
           resolution: maxResolution,
           addWatermark: shouldAddWatermark,
@@ -171,10 +178,10 @@ export const exportRoutes: FastifyPluginAsync = async (fastify) => {
           userId: user.id,
           tenantId: user.id,
           action: AuditAction.EXPORT_CREATED,
-          resourceType: "export",
+          resourceType: 'export',
           resourceId: job.id,
           ipAddress: request.ip,
-          userAgent: request.headers["user-agent"] ?? undefined,
+          userAgent: request.headers['user-agent'] ?? undefined,
           metadata: {
             projectId: body.projectId,
             format: body.format,
@@ -197,181 +204,155 @@ export const exportRoutes: FastifyPluginAsync = async (fastify) => {
           return reply.status(400).send({
             success: false,
             error: {
-              code: "VALIDATION_ERROR",
+              code: 'VALIDATION_ERROR',
               message: err.issues[0]?.message,
             },
           });
         }
 
-        const message = err instanceof Error ? err.message : "Export failed";
+        const message = err instanceof Error ? err.message : 'Export failed';
         return reply.status(400).send({
           success: false,
-          error: { code: "EXPORT_ERROR", message },
+          error: { code: 'EXPORT_ERROR', message },
         });
       }
-    }
+    },
   );
 
   /**
    * Get export job status
    */
   fastify.get<{ Params: { jobId: string } }>(
-    "/:jobId/status",
-    async (
-      request: FastifyRequest<{ Params: { jobId: string } }>,
-      reply: FastifyReply
-    ) => {
+    '/:jobId/status',
+    async (request: FastifyRequest<{ Params: { jobId: string } }>, reply: FastifyReply) => {
       const user = request.user;
       if (!user) {
         return reply.status(401).send({
           success: false,
-          error: { code: "UNAUTHORIZED", message: "Authentication required" },
+          error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
         });
       }
 
       try {
-        const status = await exportService.getJobStatus(
-          request.params.jobId,
-          user.id
-        );
+        const status = await exportService.getJobStatus(request.params.jobId, user.id);
 
         return reply.send({
           success: true,
           data: status,
         });
       } catch (err) {
-        const message =
-          err instanceof Error ? err.message : "Status check failed";
+        const message = err instanceof Error ? err.message : 'Status check failed';
         return reply.status(404).send({
           success: false,
-          error: { code: "NOT_FOUND", message },
+          error: { code: 'NOT_FOUND', message },
         });
       }
-    }
+    },
   );
 
   /**
    * Download exported video
    */
   fastify.get<{ Params: { jobId: string } }>(
-    "/:jobId/download",
-    async (
-      request: FastifyRequest<{ Params: { jobId: string } }>,
-      reply: FastifyReply
-    ) => {
+    '/:jobId/download',
+    async (request: FastifyRequest<{ Params: { jobId: string } }>, reply: FastifyReply) => {
       const user = request.user;
       if (!user) {
         return reply.status(401).send({
           success: false,
-          error: { code: "UNAUTHORIZED", message: "Authentication required" },
+          error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
         });
       }
 
       try {
-        const status = await exportService.getJobStatus(
-          request.params.jobId,
-          user.id
-        );
+        const job = await exportService.getOwnedJob(request.params.jobId, user.id);
 
-        if (status.status !== "COMPLETED" || !status.localPath) {
+        if (job.status !== 'COMPLETED' || !job.localPath) {
           return reply.status(400).send({
             success: false,
-            error: { code: "NOT_READY", message: "Export not completed yet" },
+            error: { code: 'NOT_READY', message: 'Export not completed yet' },
           });
         }
 
-        if (!existsSync(status.localPath)) {
+        if (!existsSync(job.localPath)) {
           return reply.status(404).send({
             success: false,
-            error: { code: "FILE_NOT_FOUND", message: "Export file not found" },
+            error: { code: 'FILE_NOT_FOUND', message: 'Export file not found' },
           });
         }
 
-        const stat = statSync(status.localPath);
-        const stream = createReadStream(status.localPath);
+        const stat = statSync(job.localPath);
+        const stream = createReadStream(job.localPath);
 
         return reply
-          .header("Content-Type", "video/mp4")
+          .header('Content-Type', 'video/mp4')
           .header(
-            "Content-Disposition",
-            `attachment; filename="export-${request.params.jobId}.mp4"`
+            'Content-Disposition',
+            `attachment; filename="export-${request.params.jobId}.mp4"`,
           )
-          .header("Content-Length", stat.size)
+          .header('Content-Length', stat.size)
           .send(stream);
       } catch (err) {
-        const message = err instanceof Error ? err.message : "Download failed";
+        const message = err instanceof Error ? err.message : 'Download failed';
         return reply.status(500).send({
           success: false,
-          error: { code: "DOWNLOAD_ERROR", message },
+          error: { code: 'DOWNLOAD_ERROR', message },
         });
       }
-    }
+    },
   );
 
   /**
    * Cancel an export job
    */
   fastify.post<{ Params: { jobId: string } }>(
-    "/:jobId/cancel",
-    async (
-      request: FastifyRequest<{ Params: { jobId: string } }>,
-      reply: FastifyReply
-    ) => {
+    '/:jobId/cancel',
+    async (request: FastifyRequest<{ Params: { jobId: string } }>, reply: FastifyReply) => {
       const user = request.user;
       if (!user) {
         return reply.status(401).send({
           success: false,
-          error: { code: "UNAUTHORIZED", message: "Authentication required" },
+          error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
         });
       }
 
       try {
-        const result = await exportService.cancelJob(
-          request.params.jobId,
-          user.id
-        );
+        const result = await exportService.cancelJob(request.params.jobId, user.id);
 
         return reply.send({
           success: true,
           data: result,
         });
       } catch (err) {
-        const message = err instanceof Error ? err.message : "Cancel failed";
+        const message = err instanceof Error ? err.message : 'Cancel failed';
         return reply.status(400).send({
           success: false,
-          error: { code: "CANCEL_ERROR", message },
+          error: { code: 'CANCEL_ERROR', message },
         });
       }
-    }
+    },
   );
 
   /**
    * Get user's export history with cursor pagination
    */
-  fastify.get(
-    "/history",
-    async (request: FastifyRequest, reply: FastifyReply) => {
-      const user = request.user;
-      if (!user) {
-        return reply.status(401).send({
-          success: false,
-          error: { code: "UNAUTHORIZED", message: "Authentication required" },
-        });
-      }
-
-      const query = request.query as { limit?: string; cursor?: string };
-      const limit = Math.min(parseInt(query.limit || "10", 10), 100);
-
-      const result = await exportService.getHistory(
-        user.id,
-        limit,
-        query.cursor
-      );
-
-      return reply.send({
-        success: true,
-        data: result,
+  fastify.get('/history', async (request: FastifyRequest, reply: FastifyReply) => {
+    const user = request.user;
+    if (!user) {
+      return reply.status(401).send({
+        success: false,
+        error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
       });
     }
-  );
+
+    const query = request.query as { limit?: string; cursor?: string };
+    const limit = Math.min(parseInt(query.limit || '10', 10), 100);
+
+    const result = await exportService.getHistory(user.id, limit, query.cursor);
+
+    return reply.send({
+      success: true,
+      data: result,
+    });
+  });
 };

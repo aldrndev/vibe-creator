@@ -9,19 +9,14 @@
  * - Two-pass encoding for high loop counts (>5)
  */
 
-import { join } from "path";
-import { unlink } from "fs/promises";
-import { existsSync } from "fs";
-import { randomUUID } from "crypto";
-import { spawn } from "child_process";
-import { getFFmpegPath } from "@/modules/export/ffmpeg/ffmpeg-binary";
-import { logger } from "@/lib/logger";
-import {
-  LOOPS_DIR,
-  RESOLUTIONS,
-  ensureLoopsDir,
-  getVideoDuration,
-} from "../loop.utils";
+import { spawn } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
+import { existsSync } from 'node:fs';
+import { unlink } from 'node:fs/promises';
+import { join } from 'node:path';
+import { logger } from '@/lib/logger';
+import { getFFmpegPath } from '@/modules/export/ffmpeg/ffmpeg-binary';
+import { ensureLoopsDir, getVideoDuration, LOOPS_DIR, RESOLUTIONS } from '../loop.utils';
 
 /**
  * Input parameters for creating a looping video.
@@ -36,7 +31,7 @@ export interface CreateLoopInput {
   /** Number of times to loop the video (minimum 1) */
   loopCount: number;
   /** Target aspect ratio for output. Leave empty to preserve original. */
-  aspectRatio?: "16:9" | "9:16" | "1:1" | "4:5" | "";
+  aspectRatio?: '16:9' | '9:16' | '1:1' | '4:5' | '';
   /** Enable seamless crossfade for perfect loop transitions */
   crossfade?: boolean;
 }
@@ -67,7 +62,7 @@ export async function processLoop(input: CreateLoopInput): Promise<string> {
   // Gate 1: Check Duration
   const durationSec = await getVideoDuration(inputPath);
   if (durationSec > 300) {
-    throw new Error("Video duration exceeds limit (Max 5 Minutes)");
+    throw new Error('Video duration exceeds limit (Max 5 Minutes)');
   }
 
   const outputId = randomUUID();
@@ -78,12 +73,11 @@ export async function processLoop(input: CreateLoopInput): Promise<string> {
   let segDuration = 0;
   if (endMs) segDuration = (endMs - (startMs || 0)) / 1000;
 
-  let baseFilter = "";
-  let vLabel = "[v_base]";
-  let aLabel = "[a_base]";
+  let baseFilter = '';
+  let vLabel = '[v_base]';
+  const aLabel = '[a_base]';
 
-  const isSeamless =
-    input.crossfade && endMs && startMs !== undefined && segDuration > 0;
+  const isSeamless = input.crossfade && endMs && startMs !== undefined && segDuration > 0;
 
   if (isSeamless) {
     // Shift & Dissolve Logic (Perfect Loop)
@@ -91,14 +85,14 @@ export async function processLoop(input: CreateLoopInput): Promise<string> {
     const midPoint = segDuration / 2;
     const xfadeOffset = segDuration - midPoint - overlap;
 
-    baseFilter += `[0:v]split[vA_raw][vB_raw];`;
+    baseFilter += '[0:v]split[vA_raw][vB_raw];';
     baseFilter += `[vA_raw]trim=start=${startSec}:duration=${midPoint},setpts=PTS-STARTPTS[vPartA];`;
     baseFilter += `[vB_raw]trim=start=${startSec + midPoint}:duration=${
       segDuration - midPoint
     },setpts=PTS-STARTPTS[vPartB];`;
     baseFilter += `[vPartB][vPartA]xfade=transition=fade:duration=${overlap}:offset=${xfadeOffset}${vLabel};`;
 
-    baseFilter += `[0:a]asplit[aA_raw][aB_raw];`;
+    baseFilter += '[0:a]asplit[aA_raw][aB_raw];';
     baseFilter += `[aA_raw]atrim=start=${startSec}:duration=${midPoint},asetpts=PTS-STARTPTS[aPartA];`;
     baseFilter += `[aB_raw]atrim=start=${startSec + midPoint}:duration=${
       segDuration - midPoint
@@ -116,10 +110,11 @@ export async function processLoop(input: CreateLoopInput): Promise<string> {
   }
 
   // Aspect Ratio Scaling
-  let scaleFilter = "";
-  if (input.aspectRatio && RESOLUTIONS[input.aspectRatio]) {
-    const { w, h } = RESOLUTIONS[input.aspectRatio]!;
-    const vScaled = "[v_scaled]";
+  let scaleFilter = '';
+  const targetResolution = input.aspectRatio ? RESOLUTIONS[input.aspectRatio] : undefined;
+  if (targetResolution) {
+    const { w, h } = targetResolution;
+    const vScaled = '[v_scaled]';
     scaleFilter =
       `${vLabel}split[bg][fg];` +
       `[bg]scale=${w}:${h}:force_original_aspect_ratio=increase,crop=${w}:${h},boxblur=20:10[bg_blurred];` +
@@ -143,54 +138,48 @@ export async function processLoop(input: CreateLoopInput): Promise<string> {
     try {
       await new Promise<void>((resolve, reject) => {
         const args = [
-          "-i",
+          '-i',
           inputPath,
-          "-filter_complex",
+          '-filter_complex',
           pass1Filter,
-          "-map",
-          "[v]",
-          "-map",
-          "[a]",
-          "-c:v",
-          "libx264",
-          "-c:a",
-          "aac",
-          "-y",
+          '-map',
+          '[v]',
+          '-map',
+          '[a]',
+          '-c:v',
+          'libx264',
+          '-c:a',
+          'aac',
+          '-y',
           basePath,
         ];
         const p = spawn(getFFmpegPath(), args);
-        p.on("close", (code) =>
-          code === 0 ? resolve() : reject(new Error(`Pass 1 failed: ${code}`))
+        p.on('close', (code) =>
+          code === 0 ? resolve() : reject(new Error(`Pass 1 failed: ${code}`)),
         );
-        p.stderr.on("data", (d) =>
-          logger.debug({ data: d.toString() }, "Pass 1 stderr")
-        );
+        p.stderr.on('data', (d) => logger.debug({ data: d.toString() }, 'Pass 1 stderr'));
       });
 
       // --- PASS 2: Stream Copy Extend ---
       await new Promise<void>((resolve, reject) => {
         const args = [
-          "-stream_loop",
+          '-stream_loop',
           repeats.toString(),
-          "-i",
+          '-i',
           basePath,
-          "-c",
-          "copy",
-          "-y",
+          '-c',
+          'copy',
+          '-y',
           outputPath,
         ];
         const p = spawn(getFFmpegPath(), args);
-        p.on("close", (code) =>
-          code === 0 ? resolve() : reject(new Error(`Pass 2 failed: ${code}`))
+        p.on('close', (code) =>
+          code === 0 ? resolve() : reject(new Error(`Pass 2 failed: ${code}`)),
         );
-        p.stderr.on("data", (d) =>
-          logger.debug({ data: d.toString() }, "Pass 2 stderr")
-        );
+        p.stderr.on('data', (d) => logger.debug({ data: d.toString() }, 'Pass 2 stderr'));
       });
 
-      await unlink(basePath).catch((e) =>
-        logger.warn({ err: e }, "Failed to cleanup base loop")
-      );
+      await unlink(basePath).catch((e) => logger.warn({ err: e }, 'Failed to cleanup base loop'));
 
       return outputPath;
     } catch (error) {
@@ -204,41 +193,41 @@ export async function processLoop(input: CreateLoopInput): Promise<string> {
 
     return new Promise((resolve, reject) => {
       const args = [
-        "-i",
+        '-i',
         inputPath,
-        "-filter_complex",
+        '-filter_complex',
         filterComplex,
-        "-map",
-        "[v]",
-        "-map",
-        "[a]",
-        "-c:v",
-        "libx264",
-        "-c:a",
-        "aac",
-        "-y",
+        '-map',
+        '[v]',
+        '-map',
+        '[a]',
+        '-c:v',
+        'libx264',
+        '-c:a',
+        'aac',
+        '-y',
         outputPath,
       ];
 
       const process = spawn(getFFmpegPath(), args);
-      let errorOutput = "";
+      let errorOutput = '';
 
-      process.stderr.on("data", (data) => {
+      process.stderr.on('data', (data) => {
         errorOutput += data.toString();
-        logger.debug({ data: data.toString() }, "ffmpeg loop stderr");
+        logger.debug({ data: data.toString() }, 'ffmpeg loop stderr');
       });
 
-      process.on("close", (code) => {
+      process.on('close', (code) => {
         if (code === 0) {
-          logger.info({ outputPath }, "Loop video created");
+          logger.info({ outputPath }, 'Loop video created');
           resolve(outputPath);
         } else {
-          logger.error({ code, errorOutput }, "Loop creation failed");
+          logger.error({ code, errorOutput }, 'Loop creation failed');
           reject(new Error(`FFmpeg failed with code ${code}`));
         }
       });
 
-      process.on("error", (err) => {
+      process.on('error', (err) => {
         reject(new Error(`FFmpeg not found: ${err.message}`));
       });
     });

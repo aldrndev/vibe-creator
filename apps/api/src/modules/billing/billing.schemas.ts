@@ -3,7 +3,7 @@
  * API documentation for billing endpoints
  */
 
-import { z } from "zod";
+import { z } from 'zod';
 
 // ============================================================================
 // Request Schemas
@@ -62,9 +62,9 @@ export const errorResponseSchema = z.object({
 // ============================================================================
 
 export const getQuotaRouteSchema = {
-  tags: ["Billing"],
-  summary: "Get user quota",
-  description: "Get current billing cycle quota information.",
+  tags: ['Billing'],
+  summary: 'Get user quota',
+  description: 'Get current billing cycle quota information.',
   response: {
     200: quotaResponseSchema,
     401: errorResponseSchema,
@@ -73,9 +73,9 @@ export const getQuotaRouteSchema = {
 };
 
 export const getPackagesRouteSchema = {
-  tags: ["Billing"],
-  summary: "Get available packages",
-  description: "List all available stream minute packages.",
+  tags: ['Billing'],
+  summary: 'Get available packages',
+  description: 'List all available stream minute packages.',
   security: [], // Public
   response: {
     200: packagesResponseSchema,
@@ -83,9 +83,9 @@ export const getPackagesRouteSchema = {
 };
 
 export const createTopupRouteSchema = {
-  tags: ["Billing"],
-  summary: "Request topup invoice",
-  description: "Create an invoice for purchasing stream minutes.",
+  tags: ['Billing'],
+  summary: 'Request topup invoice',
+  description: 'Create an invoice for purchasing stream minutes.',
   body: topupRequestSchema,
   response: {
     200: topupResponseSchema,
@@ -96,9 +96,9 @@ export const createTopupRouteSchema = {
 };
 
 export const webhookRouteSchema = {
-  tags: ["Billing"],
-  summary: "Xendit webhook",
-  description: "Handle payment provider webhooks.",
+  tags: ['Billing'],
+  summary: 'Xendit webhook',
+  description: 'Handle payment provider webhooks.',
   security: [], // Uses signature verification
   response: {
     200: webhookResponseSchema,

@@ -1,62 +1,98 @@
-
-import { exec } from 'child_process';
-import { getFFprobePath } from '@/modules/export/ffmpeg/ffmpeg-binary';
+import { spawn } from 'node:child_process';
 import { logger } from '@/lib/logger';
+import { getFFprobePath } from '@/modules/export/ffmpeg/ffmpeg-binary';
 
-/**
- * Get video duration in milliseconds
- */
-export async function getVideoDuration(inputPath: string): Promise<number> {
-  const ffprobePath = getFFprobePath();
-  
+function runFfprobe(args: string[], errorMessage: string): Promise<string> {
   return new Promise((resolve, reject) => {
-    // Command to get duration in seconds
-    const cmd = `"${ffprobePath}" -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${inputPath}"`;
-    
-    exec(cmd, (error, stdout, stderr) => {
-      if (error) {
-        logger.error({ error, stderr }, 'Failed to get video duration');
-        return reject(error);
+    const process = spawn(getFFprobePath(), args, {
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+
+    let stdout = '';
+    let stderr = '';
+
+    process.stdout.on('data', (chunk) => {
+      stdout += chunk.toString();
+    });
+
+    process.stderr.on('data', (chunk) => {
+      stderr += chunk.toString();
+    });
+
+    process.on('error', (error) => {
+      logger.error({ error }, errorMessage);
+      reject(error);
+    });
+
+    process.on('close', (code) => {
+      if (code !== 0) {
+        logger.error({ code, stderr }, errorMessage);
+        reject(new Error(errorMessage));
+        return;
       }
-      
-      const durationSec = parseFloat(stdout.trim());
-      if (isNaN(durationSec)) {
-        return reject(new Error('Invalid duration returned by ffprobe'));
-      }
-      
-      resolve(durationSec * 1000); // Convert to ms
+
+      resolve(stdout.trim());
     });
   });
 }
 
 /**
+ * Get video duration in milliseconds
+ */
+export async function getVideoDuration(inputPath: string): Promise<number> {
+  const stdout = await runFfprobe(
+    [
+      '-v',
+      'error',
+      '-show_entries',
+      'format=duration',
+      '-of',
+      'default=noprint_wrappers=1:nokey=1',
+      inputPath,
+    ],
+    'Failed to get video duration',
+  );
+
+  const durationSec = parseFloat(stdout);
+  if (Number.isNaN(durationSec)) {
+    throw new Error('Invalid duration returned by ffprobe');
+  }
+
+  return durationSec * 1000;
+}
+
+/**
  * Get video resolution (width, height)
  */
-export async function getVideoResolution(inputPath: string): Promise<{ width: number; height: number }> {
-    const ffprobePath = getFFprobePath();
+export async function getVideoResolution(
+  inputPath: string,
+): Promise<{ width: number; height: number }> {
+  const stdout = await runFfprobe(
+    [
+      '-v',
+      'error',
+      '-select_streams',
+      'v:0',
+      '-show_entries',
+      'stream=width,height',
+      '-of',
+      'csv=s=x:p=0',
+      inputPath,
+    ],
+    'Failed to get video resolution',
+  );
 
-    return new Promise((resolve, reject) => {
-        const cmd = `"${ffprobePath}" -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 "${inputPath}"`;
+  const parts = stdout.split('x');
+  if (parts.length !== 2) {
+    throw new Error('Invalid resolution format');
+  }
 
-        exec(cmd, (error, stdout, stderr) => {
-            if (error) {
-                logger.error({ error, stderr }, 'Failed to get video resolution');
-                return reject(error);
-            }
+  const width = parseInt(parts[0] || '0', 10);
+  const height = parseInt(parts[1] || '0', 10);
 
-            const parts = stdout.trim().split('x');
-            if (parts.length !== 2) {
-                return reject(new Error('Invalid resolution format'));
-            }
+  if (Number.isNaN(width) || Number.isNaN(height)) {
+    throw new Error('Invalid width/height');
+  }
 
-            const width = parseInt(parts[0] || '0', 10);
-            const height = parseInt(parts[1] || '0', 10);
-
-            if (isNaN(width) || isNaN(height)) {
-                return reject(new Error('Invalid width/height'));
-            }
-
-            resolve({ width, height });
-        });
-    });
+  return { width, height };
 }

@@ -1,5 +1,5 @@
-import { useState, useRef, useCallback, useEffect } from "react";
-import type { Layer, TextLayer } from "@vibe-creator/shared";
+import type { Layer, TextLayer } from '@vibe-creator/shared';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 interface UseLayerInteractionProps {
   layer: Layer;
@@ -44,7 +44,7 @@ export function useLayerInteraction({
       width: layer.width,
       height: layer.height,
       rotation: layer.rotation,
-      fontSize: layer.type === "text" ? (layer as TextLayer).data.fontSize : 0,
+      fontSize: layer.type === 'text' ? (layer as TextLayer).data.fontSize : 0,
     });
   };
 
@@ -64,11 +64,7 @@ export function useLayerInteraction({
     handleDragStart(touch.clientX, touch.clientY);
   };
 
-  const handleResizeStartRaw = (
-    clientX: number,
-    clientY: number,
-    handle: string
-  ) => {
+  const handleResizeStartRaw = (clientX: number, clientY: number, handle: string) => {
     setIsResizing(handle);
     setDragStart({ x: clientX, y: clientY });
     setLayerStart({
@@ -77,7 +73,7 @@ export function useLayerInteraction({
       width: layer.width,
       height: layer.height,
       rotation: layer.rotation,
-      fontSize: layer.type === "text" ? (layer as TextLayer).data.fontSize : 0,
+      fontSize: layer.type === 'text' ? (layer as TextLayer).data.fontSize : 0,
     });
   };
 
@@ -143,35 +139,32 @@ export function useLayerInteraction({
         let newFontSize = layerStart.fontSize;
 
         // Corner scaling
-        if (["nw", "ne", "sw", "se"].includes(isResizing)) {
+        if (['nw', 'ne', 'sw', 'se'].includes(isResizing)) {
           let widthChange = 0;
-          if (isResizing.includes("e")) widthChange = dx;
+          if (isResizing.includes('e')) widthChange = dx;
           else widthChange = -dx;
 
-          const scaleFactor = Math.max(
-            0.1,
-            (layerStart.width + widthChange) / layerStart.width
-          );
+          const scaleFactor = Math.max(0.1, (layerStart.width + widthChange) / layerStart.width);
 
           newWidth = layerStart.width * scaleFactor;
           newHeight = layerStart.height * scaleFactor;
 
-          if (layer.type === "text") {
+          if (layer.type === 'text') {
             newFontSize = layerStart.fontSize * scaleFactor;
           }
         }
         // Side stretching
         else {
-          if (isResizing === "e") {
+          if (isResizing === 'e') {
             newWidth = Math.max(1, layerStart.width + dx);
             onUpdate({ x: layerStart.x + dx / 2 });
-          } else if (isResizing === "w") {
+          } else if (isResizing === 'w') {
             newWidth = Math.max(1, layerStart.width - dx);
             onUpdate({ x: layerStart.x + dx / 2 });
-          } else if (isResizing === "s") {
+          } else if (isResizing === 's') {
             newHeight = Math.max(1, layerStart.height + dy);
             onUpdate({ y: layerStart.y + dy / 2 });
-          } else if (isResizing === "n") {
+          } else if (isResizing === 'n') {
             newHeight = Math.max(1, layerStart.height - dy);
             onUpdate({ y: layerStart.y + dy / 2 });
           }
@@ -182,10 +175,7 @@ export function useLayerInteraction({
           height: newHeight,
         };
 
-        if (
-          layer.type === "text" &&
-          Math.abs(newFontSize - layerStart.fontSize) > 0.1
-        ) {
+        if (layer.type === 'text' && Math.abs(newFontSize - layerStart.fontSize) > 0.1) {
           (updates as Partial<TextLayer>).data = {
             ...layer.data,
             fontSize: newFontSize,
@@ -207,7 +197,7 @@ export function useLayerInteraction({
       onUpdate,
       layer.type,
       layer.data,
-    ]
+    ],
   );
 
   const handleMouseUp = useCallback(() => {
@@ -225,10 +215,7 @@ export function useLayerInteraction({
         const rect = layerRef.current.getBoundingClientRect();
         const centerX = rect.left + rect.width / 2;
         const centerY = rect.top + rect.height / 2;
-        const angleRad = Math.atan2(
-          touch.clientY - centerY,
-          touch.clientX - centerX
-        );
+        const angleRad = Math.atan2(touch.clientY - centerY, touch.clientX - centerX);
         let angleDeg = angleRad * (180 / Math.PI);
         angleDeg += 90;
         onUpdate({ rotation: angleDeg });
@@ -257,33 +244,29 @@ export function useLayerInteraction({
         let newFontSize = layerStart.fontSize;
 
         if (
-          isResizing === "nw" ||
-          isResizing === "ne" ||
-          isResizing === "sw" ||
-          isResizing === "se"
+          isResizing === 'nw' ||
+          isResizing === 'ne' ||
+          isResizing === 'sw' ||
+          isResizing === 'se'
         ) {
           let widthChange = 0;
-          if (isResizing.includes("e")) widthChange = dx;
+          if (isResizing.includes('e')) widthChange = dx;
           else widthChange = -dx;
-          const scaleFactor = Math.max(
-            0.1,
-            (layerStart.width + widthChange) / layerStart.width
-          );
+          const scaleFactor = Math.max(0.1, (layerStart.width + widthChange) / layerStart.width);
           newWidth = layerStart.width * scaleFactor;
           newHeight = layerStart.height * scaleFactor;
-          if (layer.type === "text")
-            newFontSize = layerStart.fontSize * scaleFactor;
+          if (layer.type === 'text') newFontSize = layerStart.fontSize * scaleFactor;
         } else {
-          if (isResizing === "e") {
+          if (isResizing === 'e') {
             newWidth = Math.max(1, layerStart.width + dx);
             onUpdate({ x: layerStart.x + dx / 2 });
-          } else if (isResizing === "w") {
+          } else if (isResizing === 'w') {
             newWidth = Math.max(1, layerStart.width - dx);
             onUpdate({ x: layerStart.x + dx / 2 });
-          } else if (isResizing === "s") {
+          } else if (isResizing === 's') {
             newHeight = Math.max(1, layerStart.height + dy);
             onUpdate({ y: layerStart.y + dy / 2 });
-          } else if (isResizing === "n") {
+          } else if (isResizing === 'n') {
             newHeight = Math.max(1, layerStart.height - dy);
             onUpdate({ y: layerStart.y + dy / 2 });
           }
@@ -294,10 +277,7 @@ export function useLayerInteraction({
           height: newHeight,
         };
 
-        if (
-          layer.type === "text" &&
-          Math.abs(newFontSize - layerStart.fontSize) > 0.1
-        ) {
+        if (layer.type === 'text' && Math.abs(newFontSize - layerStart.fontSize) > 0.1) {
           (updates as Partial<TextLayer>).data = {
             ...layer.data,
             fontSize: newFontSize,
@@ -319,7 +299,7 @@ export function useLayerInteraction({
       onUpdate,
       layer.type,
       layer.data,
-    ]
+    ],
   );
 
   const handleTouchEnd = useCallback(() => {
@@ -330,15 +310,15 @@ export function useLayerInteraction({
 
   useEffect(() => {
     if (isDragging || isResizing || isRotating) {
-      window.addEventListener("mousemove", handleMouseMove);
-      window.addEventListener("mouseup", handleMouseUp);
-      window.addEventListener("touchmove", handleTouchMove, { passive: false });
-      window.addEventListener("touchend", handleTouchEnd);
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+      window.addEventListener('touchmove', handleTouchMove, { passive: false });
+      window.addEventListener('touchend', handleTouchEnd);
       return () => {
-        window.removeEventListener("mousemove", handleMouseMove);
-        window.removeEventListener("mouseup", handleMouseUp);
-        window.removeEventListener("touchmove", handleTouchMove);
-        window.removeEventListener("touchend", handleTouchEnd);
+        window.removeEventListener('mousemove', handleMouseMove);
+        window.removeEventListener('mouseup', handleMouseUp);
+        window.removeEventListener('touchmove', handleTouchMove);
+        window.removeEventListener('touchend', handleTouchEnd);
       };
     }
   }, [
@@ -358,7 +338,7 @@ export function useLayerInteraction({
 
   const handleDoubleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (layer.type === "text" && !layer.locked) {
+    if (layer.type === 'text' && !layer.locked) {
       setIsEditing(true);
     }
   };

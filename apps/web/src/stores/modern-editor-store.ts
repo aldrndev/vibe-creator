@@ -9,23 +9,18 @@
  * - `ModernProject` is derived on save/compile
  */
 
-import { create } from "zustand";
-import { subscribeWithSelector } from "zustand/middleware";
-import type {
-  ModernProject,
-  ModernProjectSettings,
-  Layer,
-  AllowedFps,
-} from "@vibe-creator/shared";
+import type { AllowedFps, Layer, ModernProject, ModernProjectSettings } from '@vibe-creator/shared';
 import {
-  MODERN_SCHEMA_VERSION,
-  MODERN_LIMITS,
-  createVideoLayer,
+  createAudioLayer,
   createImageLayer,
   createTextLayer,
-  createAudioLayer,
-} from "@vibe-creator/shared";
-import type { EditorAsset } from "./editor-store";
+  createVideoLayer,
+  MODERN_LIMITS,
+  MODERN_SCHEMA_VERSION,
+} from '@vibe-creator/shared';
+import { create } from 'zustand';
+import { subscribeWithSelector } from 'zustand/middleware';
+import type { EditorAsset } from './editor-store';
 
 // -----------------------------------------------------------------------------
 // Types
@@ -56,11 +51,7 @@ interface ModernEditorState {
   isExporting: boolean;
 
   // Actions
-  initProject: (
-    id: string,
-    title: string,
-    settings?: Partial<ModernProjectSettings>
-  ) => void;
+  initProject: (id: string, title: string, settings?: Partial<ModernProjectSettings>) => void;
   resetProject: () => void;
 
   // Asset actions
@@ -107,14 +98,13 @@ function generateId(): string {
 }
 
 function getDefaultSettings(): ModernProjectSettings {
-  const resolution =
-    MODERN_LIMITS.ALLOWED_RESOLUTIONS[MODERN_LIMITS.DEFAULT_RESOLUTION];
+  const resolution = MODERN_LIMITS.ALLOWED_RESOLUTIONS[MODERN_LIMITS.DEFAULT_RESOLUTION];
   return {
     width: resolution.width,
     height: resolution.height,
     fps: MODERN_LIMITS.DEFAULT_FPS as AllowedFps,
     durationMs: 0,
-    backgroundColor: "#000000",
+    backgroundColor: '#000000',
   };
 }
 
@@ -125,8 +115,8 @@ function getDefaultSettings(): ModernProjectSettings {
 export const useModernEditorStore = create<ModernEditorState>()(
   subscribeWithSelector((set, get) => ({
     // Initial state
-    projectId: "",
-    projectTitle: "Untitled Project",
+    projectId: '',
+    projectTitle: 'Untitled Project',
     settings: getDefaultSettings(),
 
     layersById: {},
@@ -164,8 +154,8 @@ export const useModernEditorStore = create<ModernEditorState>()(
 
     resetProject: () => {
       set({
-        projectId: "",
-        projectTitle: "Untitled Project",
+        projectId: '',
+        projectTitle: 'Untitled Project',
         settings: getDefaultSettings(),
         layersById: {},
         layerOrder: [],
@@ -201,20 +191,14 @@ export const useModernEditorStore = create<ModernEditorState>()(
     addVideoLayer: (assetId) => {
       const state = get();
       const asset = state.assets.find((a) => a.id === assetId);
-      if (!asset) return "";
+      if (!asset) return '';
 
       const id = `layer-video-${generateId()}`;
       const zIndex = state.layerOrder.length;
       const startMs = state.currentTimeMs; // Start at playhead
       const duration = asset.durationMs ?? 5000;
 
-      const layer = createVideoLayer(
-        id,
-        assetId,
-        zIndex,
-        startMs,
-        startMs + duration
-      );
+      const layer = createVideoLayer(id, assetId, zIndex, startMs, startMs + duration);
 
       set((s) => ({
         layersById: { ...s.layersById, [id]: layer },
@@ -228,19 +212,13 @@ export const useModernEditorStore = create<ModernEditorState>()(
     addImageLayer: (assetId) => {
       const state = get();
       const asset = state.assets.find((a) => a.id === assetId);
-      if (!asset) return "";
+      if (!asset) return '';
 
       const id = `layer-image-${generateId()}`;
       const zIndex = state.layerOrder.length;
       const startMs = state.currentTimeMs; // Start at playhead
 
-      const layer = createImageLayer(
-        id,
-        assetId,
-        zIndex,
-        startMs,
-        startMs + 5000
-      );
+      const layer = createImageLayer(id, assetId, zIndex, startMs, startMs + 5000);
 
       set((s) => ({
         layersById: { ...s.layersById, [id]: layer },
@@ -273,20 +251,14 @@ export const useModernEditorStore = create<ModernEditorState>()(
     addAudioLayer: (assetId) => {
       const state = get();
       const asset = state.assets.find((a) => a.id === assetId);
-      if (!asset) return "";
+      if (!asset) return '';
 
       const id = `layer-audio-${generateId()}`;
       const zIndex = state.layerOrder.length;
       const startMs = state.currentTimeMs; // Start at playhead
       const duration = asset.durationMs ?? 5000;
 
-      const layer = createAudioLayer(
-        id,
-        assetId,
-        zIndex,
-        startMs,
-        startMs + duration
-      );
+      const layer = createAudioLayer(id, assetId, zIndex, startMs, startMs + duration);
 
       set((s) => ({
         layersById: { ...s.layersById, [id]: layer },
@@ -313,15 +285,15 @@ export const useModernEditorStore = create<ModernEditorState>()(
       layer.height = 12; // Compact height
       layer.data = {
         ...layer.data,
-        text: text || "Subtitle text...",
-        fontFamily: "Inter",
+        text: text || 'Subtitle text...',
+        fontFamily: 'Inter',
         fontSize: 32,
-        fontWeight: "bold",
-        fontStyle: "normal",
-        color: "#ffffff",
-        backgroundColor: "rgba(0, 0, 0, 0.7)",
-        textAlign: "center",
-        animation: "fade",
+        fontWeight: 'bold',
+        fontStyle: 'normal',
+        color: '#ffffff',
+        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+        textAlign: 'center',
+        animation: 'fade',
       };
 
       set((s) => ({
@@ -342,8 +314,7 @@ export const useModernEditorStore = create<ModernEditorState>()(
         return {
           layersById: newLayersById,
           layerOrder: state.layerOrder.filter((id) => id !== layerId),
-          selectedLayerId:
-            state.selectedLayerId === layerId ? null : state.selectedLayerId,
+          selectedLayerId: state.selectedLayerId === layerId ? null : state.selectedLayerId,
           isDirty: true,
         };
       });
@@ -492,20 +463,17 @@ export const useModernEditorStore = create<ModernEditorState>()(
       }
       return maxEnd;
     },
-  }))
+  })),
 );
 
 // -----------------------------------------------------------------------------
 // Selectors (for memoized access)
 // -----------------------------------------------------------------------------
 
-export const selectLayersSorted = (state: ModernEditorState) =>
-  state.getLayersSorted();
-export const selectSelectedLayer = (state: ModernEditorState) =>
-  state.getSelectedLayer();
+export const selectLayersSorted = (state: ModernEditorState) => state.getLayersSorted();
+export const selectSelectedLayer = (state: ModernEditorState) => state.getSelectedLayer();
 export const selectProject = (state: ModernEditorState) => state.getProject();
 export const selectAssets = (state: ModernEditorState) => state.assets;
 export const selectSettings = (state: ModernEditorState) => state.settings;
-export const selectCurrentTime = (state: ModernEditorState) =>
-  state.currentTimeMs;
+export const selectCurrentTime = (state: ModernEditorState) => state.currentTimeMs;
 export const selectIsPlaying = (state: ModernEditorState) => state.isPlaying;

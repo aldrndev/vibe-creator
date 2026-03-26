@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { logger } from '@/lib/logger';
 
 interface UseVoiceRecorderReturn {
@@ -34,56 +34,55 @@ export function useVoiceRecorder(): UseVoiceRecorderReturn {
   const startRecording = useCallback(async () => {
     try {
       setError(null);
-      
+
       // Request microphone permission
-      const stream = await navigator.mediaDevices.getUserMedia({ 
+      const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
           sampleRate: 44100,
-        } 
+        },
       });
-      
+
       streamRef.current = stream;
       chunksRef.current = [];
-      
+
       // Create MediaRecorder
       const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: MediaRecorder.isTypeSupported('audio/webm') 
-          ? 'audio/webm' 
-          : 'audio/mp4',
+        mimeType: MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4',
       });
-      
+
       mediaRecorderRef.current = mediaRecorder;
-      
+
       mediaRecorder.ondataavailable = (e) => {
         if (e.data.size > 0) {
           chunksRef.current.push(e.data);
         }
       };
-      
+
       mediaRecorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { 
-          type: mediaRecorder.mimeType 
+        const blob = new Blob(chunksRef.current, {
+          type: mediaRecorder.mimeType,
         });
         setAudioBlob(blob);
         setAudioUrl(URL.createObjectURL(blob));
-        
+
         // Stop all tracks
-        stream.getTracks().forEach(track => track.stop());
+        for (const track of stream.getTracks()) {
+          track.stop();
+        }
       };
-      
+
       // Start recording
       mediaRecorder.start(100); // Collect data every 100ms
       setIsRecording(true);
       setIsPaused(false);
       setDuration(0);
-      
+
       // Start timer
       timerRef.current = setInterval(() => {
-        setDuration(d => d + 100);
+        setDuration((d) => d + 100);
       }, 100);
-      
     } catch (err) {
       logger.error('Failed to start recording', err);
       setError(err instanceof Error ? err.message : 'Failed to access microphone');
@@ -95,7 +94,7 @@ export function useVoiceRecorder(): UseVoiceRecorderReturn {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
       setIsPaused(false);
-      
+
       if (timerRef.current) {
         clearInterval(timerRef.current);
         timerRef.current = null;
@@ -107,7 +106,7 @@ export function useVoiceRecorder(): UseVoiceRecorderReturn {
     if (mediaRecorderRef.current && isRecording && !isPaused) {
       mediaRecorderRef.current.pause();
       setIsPaused(true);
-      
+
       if (timerRef.current) {
         clearInterval(timerRef.current);
         timerRef.current = null;
@@ -119,9 +118,9 @@ export function useVoiceRecorder(): UseVoiceRecorderReturn {
     if (mediaRecorderRef.current && isRecording && isPaused) {
       mediaRecorderRef.current.resume();
       setIsPaused(false);
-      
+
       timerRef.current = setInterval(() => {
-        setDuration(d => d + 100);
+        setDuration((d) => d + 100);
       }, 100);
     }
   }, [isRecording, isPaused]);

@@ -1,23 +1,23 @@
-import { Queue, Worker, Job } from "bullmq";
-import { redisOptions } from "@/lib/redis";
-import { prisma } from "@/lib/prisma";
-import { logger } from "@/lib/logger";
-import { ffmpegProcessor } from "./ffmpeg.processor";
+import { randomUUID } from 'node:crypto';
+import { existsSync } from 'node:fs';
+import { copyFile, mkdir, unlink } from 'node:fs/promises';
+import { join } from 'node:path';
+import { type Job, Queue, Worker } from 'bullmq';
+import { env } from '@/config/env';
+import { logger } from '@/lib/logger';
+import { prisma } from '@/lib/prisma';
+import { redisOptions } from '@/lib/redis';
 import {
-  ExportJobData,
-  ExportPhase,
   EXPORT_PHASES,
+  type ExportJobData,
+  type ExportPhase,
   getPhaseProgress,
-} from "./export.types";
-import { join } from "path";
-import { mkdir, unlink, copyFile } from "fs/promises";
-import { existsSync } from "fs";
-import { randomUUID } from "crypto";
-import { env } from "@/config/env";
+} from './export.types';
+import { ffmpegProcessor } from './ffmpeg.processor';
 
-const QUEUE_NAME = "export-jobs";
-const EXPORTS_DIR = join(env.MEDIA_INPUT_DIR, "exports");
-const TEMP_DIR = join(env.MEDIA_INPUT_DIR, "temp");
+const QUEUE_NAME = 'export-jobs';
+const EXPORTS_DIR = join(env.MEDIA_INPUT_DIR, 'exports');
+const TEMP_DIR = join(env.MEDIA_INPUT_DIR, 'temp');
 
 // Ensure directories exist
 async function ensureDirectories() {
@@ -32,35 +32,28 @@ async function ensureDirectories() {
 /**
  * Export job queue
  */
-export const exportQueue = new Queue<ExportJobData, unknown, string>(
-  QUEUE_NAME,
-  {
-    connection: redisOptions,
-    defaultJobOptions: {
-      attempts: 3,
-      backoff: {
-        type: "exponential",
-        delay: 5000, // 5s, 25s, 125s
-      },
-      removeOnComplete: {
-        age: 24 * 60 * 60, // 24 hours
-        count: 100,
-      },
-      removeOnFail: {
-        age: 7 * 24 * 60 * 60, // 7 days
-      },
+export const exportQueue = new Queue<ExportJobData, unknown, string>(QUEUE_NAME, {
+  connection: redisOptions,
+  defaultJobOptions: {
+    attempts: 3,
+    backoff: {
+      type: 'exponential',
+      delay: 5000, // 5s, 25s, 125s
     },
-  }
-);
+    removeOnComplete: {
+      age: 24 * 60 * 60, // 24 hours
+      count: 100,
+    },
+    removeOnFail: {
+      age: 7 * 24 * 60 * 60, // 7 days
+    },
+  },
+});
 
 /**
  * Update job phase in database
  */
-async function updateJobPhase(
-  jobId: string,
-  phase: ExportPhase,
-  phaseProgress: number = 0
-) {
+async function updateJobPhase(jobId: string, phase: ExportPhase, phaseProgress: number = 0) {
   const overallProgress = getPhaseProgress(phase, phaseProgress);
 
   await prisma.exportHistory.update({
@@ -72,10 +65,7 @@ async function updateJobPhase(
     },
   });
 
-  logger.debug(
-    { jobId, phase, phaseProgress, overallProgress },
-    "Phase updated"
-  );
+  logger.debug({ jobId, phase, phaseProgress, overallProgress }, 'Phase updated');
 }
 
 /**
@@ -84,10 +74,7 @@ async function updateJobPhase(
 async function processExportJob(job: Job<ExportJobData>): Promise<void> {
   const { jobId, userId, settings, timeline } = job.data;
 
-  logger.info(
-    { jobId, userId, clipCount: timeline.clips.length },
-    "Processing export job"
-  );
+  logger.info({ jobId, userId, clipCount: timeline.clips.length }, 'Processing export job');
 
   await ensureDirectories();
 
@@ -97,11 +84,8 @@ async function processExportJob(job: Job<ExportJobData>): Promise<void> {
       where: { id: jobId },
       select: { phase: true },
     });
-    if (
-      currentJob?.phase === "CANCELLED" ||
-      currentJob?.phase === "CANCEL_REQUESTED"
-    ) {
-      throw new Error("Job cancelled");
+    if (currentJob?.phase === 'CANCELLED' || currentJob?.phase === 'CANCEL_REQUESTED') {
+      throw new Error('Job cancelled');
     }
   };
 
@@ -177,7 +161,7 @@ async function processExportJob(job: Job<ExportJobData>): Promise<void> {
     await updateJobPhase(jobId, EXPORT_PHASES.MUX, 0);
     await checkCancellation();
 
-    let finalPath = join(EXPORTS_DIR, `${outputId}_final.mp4`);
+    const finalPath = join(EXPORTS_DIR, `${outputId}_final.mp4`);
 
     if (settings.addWatermark) {
       await ffmpegProcessor.addWatermark({
@@ -217,7 +201,7 @@ async function processExportJob(job: Job<ExportJobData>): Promise<void> {
     await prisma.exportHistory.update({
       where: { id: jobId },
       data: {
-        status: "COMPLETED",
+        status: 'COMPLETED',
         phase: EXPORT_PHASES.COMPLETED,
         progress: 100,
         phaseProgress: 100,
@@ -226,7 +210,7 @@ async function processExportJob(job: Job<ExportJobData>): Promise<void> {
       },
     });
 
-    logger.info({ jobId, outputPath: finalPath }, "Export completed");
+    logger.info({ jobId, outputPath: finalPath }, 'Export completed');
   } catch (error) {
     // Cleanup temp files on error
     for (const tempFile of tempFiles) {
@@ -237,21 +221,20 @@ async function processExportJob(job: Job<ExportJobData>): Promise<void> {
       }
     }
 
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error";
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
 
     // Check if cancelled
-    if (errorMessage === "Job cancelled") {
-      logger.info({ jobId }, "Export job was cancelled");
+    if (errorMessage === 'Job cancelled') {
+      logger.info({ jobId }, 'Export job was cancelled');
       return;
     }
 
-    logger.error({ jobId, error: errorMessage }, "Export job failed");
+    logger.error({ jobId, error: errorMessage }, 'Export job failed');
 
     await prisma.exportHistory.update({
       where: { id: jobId },
       data: {
-        status: "FAILED",
+        status: 'FAILED',
         phase: EXPORT_PHASES.FAILED,
         errorMessage,
       },
@@ -264,28 +247,21 @@ async function processExportJob(job: Job<ExportJobData>): Promise<void> {
 /**
  * Export worker
  */
-export const exportWorker = new Worker<ExportJobData>(
-  QUEUE_NAME,
-  processExportJob,
-  {
-    connection: redisOptions,
-    concurrency: 2, // Process 2 jobs at a time per worker
-    limiter: {
-      max: 10,
-      duration: 60000, // Max 10 jobs per minute globally
-    },
-  }
-);
-
-// Worker event handlers
-exportWorker.on("completed", (job) => {
-  logger.info(
-    { jobId: job.id, exportId: job.data.jobId },
-    "Export job completed"
-  );
+export const exportWorker = new Worker<ExportJobData>(QUEUE_NAME, processExportJob, {
+  connection: redisOptions,
+  concurrency: 2, // Process 2 jobs at a time per worker
+  limiter: {
+    max: 10,
+    duration: 60000, // Max 10 jobs per minute globally
+  },
 });
 
-exportWorker.on("failed", (job, err) => {
+// Worker event handlers
+exportWorker.on('completed', (job) => {
+  logger.info({ jobId: job.id, exportId: job.data.jobId }, 'Export job completed');
+});
+
+exportWorker.on('failed', (job, err) => {
   logger.error(
     {
       jobId: job?.id,
@@ -293,12 +269,12 @@ exportWorker.on("failed", (job, err) => {
       error: err.message,
       attempts: job?.attemptsMade,
     },
-    "Export job failed"
+    'Export job failed',
   );
 });
 
-exportWorker.on("stalled", (jobId) => {
-  logger.warn({ jobId }, "Export job stalled");
+exportWorker.on('stalled', (jobId) => {
+  logger.warn({ jobId }, 'Export job stalled');
 });
 
 /**
@@ -316,7 +292,7 @@ export async function addExportJob(data: ExportJobData): Promise<string> {
       queueJobId: job.id,
       userId: data.userId,
     },
-    "Export job added to queue"
+    'Export job added to queue',
   );
 
   return job.id ?? data.jobId;
@@ -343,5 +319,5 @@ export async function getQueueStats() {
 export async function shutdownExportQueue() {
   await exportWorker.close();
   await exportQueue.close();
-  logger.info("Export queue shut down gracefully");
+  logger.info('Export queue shut down gracefully');
 }

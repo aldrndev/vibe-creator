@@ -1,4 +1,4 @@
-import { RawWhisperSegment } from "./whisper-runner.js";
+import type { RawWhisperSegment } from './whisper-runner.js';
 
 export interface SubtitleSegment {
   startMs: number;
@@ -17,8 +17,15 @@ export class TranscribeNormalizer {
   normalizeSegments(rawSegments: RawWhisperSegment[]): SubtitleSegment[] {
     if (!rawSegments || rawSegments.length === 0) return [];
 
-    // 1. Convert to Ms and sorting
-    let segments: SubtitleSegment[] = rawSegments
+    const segments = this.preprocessSegments(rawSegments);
+    if (segments.length === 0) return [];
+
+    const merged = this.mergeSegments(segments);
+    return this.clampAndEnsureMonotonicity(merged);
+  }
+
+  private preprocessSegments(rawSegments: RawWhisperSegment[]): SubtitleSegment[] {
+    return rawSegments
       .map((s) => ({
         startMs: Math.round(s.start * 1000),
         endMs: Math.round(s.end * 1000),
@@ -26,50 +33,43 @@ export class TranscribeNormalizer {
       }))
       .filter((s) => s.text.length > 0)
       .sort((a, b) => a.startMs - b.startMs);
+  }
 
-    if (segments.length === 0) return [];
-
+  private mergeSegments(segments: SubtitleSegment[]): SubtitleSegment[] {
     const firstSegment = segments[0];
     if (!firstSegment) return [];
 
     const merged: SubtitleSegment[] = [];
-    let current: SubtitleSegment = firstSegment;
+    let current: SubtitleSegment = { ...firstSegment };
 
     for (let i = 1; i < segments.length; i++) {
       const next = segments[i];
-      if (!next) continue; // Should not happen due to loop bounds, but safe for TS
+      if (!next) continue;
 
       const gap = next.startMs - current.endMs;
 
-      // 2. Merge short gaps or overlaps if text is short?
-      // Logic: if gap < 250ms, extending current might intersect next.
-      // Usually we only merge if we want to combine text?
-      // User Requirement: "Merge segments if gap < 250ms" -> Likely means extend end time?
-      // Or merge text? "Merge adjacent segments" usually implies combining them into one subtitle block.
-      // Let's assume merging text for now if they are close, to reduce flashing.
-      // Both must exist to merge
-
+      // Merge if gap < 250ms and gap >= -500ms
       if (gap < 250 && gap >= -500) {
-        // Allow slight overlap to merge
         current.endMs = next.endMs;
-        current.text += " " + next.text;
+        current.text += ` ${next.text}`;
       } else {
         merged.push(current);
-        current = next;
+        current = { ...next };
       }
     }
     merged.push(current);
+    return merged;
+  }
 
-    // 3. Clamp Min Duration & Monotonicity
+  private clampAndEnsureMonotonicity(merged: SubtitleSegment[]): SubtitleSegment[] {
     const finalSegments: SubtitleSegment[] = [];
 
     for (let i = 0; i < merged.length; i++) {
       const seg = merged[i];
-      if (!seg) continue; // Safety check
-
-      let duration = seg.endMs - seg.startMs;
+      if (!seg) continue;
 
       // Min duration 600ms
+      const duration = seg.endMs - seg.startMs;
       if (duration < 600) {
         seg.endMs = seg.startMs + 600;
       }
@@ -78,7 +78,7 @@ export class TranscribeNormalizer {
       if (i < merged.length - 1) {
         const nextStart = merged[i + 1]?.startMs;
         if (nextStart !== undefined && seg.endMs > nextStart) {
-          seg.endMs = nextStart; // Clip to next start
+          seg.endMs = nextStart;
         }
       }
 

@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils";
+import { cn } from '@/lib/utils';
 
 interface SafeAreaGuide {
   id: string;
@@ -12,67 +12,67 @@ interface SafeAreaGuide {
 
 const SAFE_AREA_GUIDES: SafeAreaGuide[] = [
   {
-    id: "none",
-    name: "None",
+    id: 'none',
+    name: 'None',
     top: 0,
     bottom: 0,
     left: 0,
     right: 0,
-    color: "transparent",
+    color: 'transparent',
   },
   {
-    id: "youtube",
-    name: "YouTube",
+    id: 'youtube',
+    name: 'YouTube',
     top: 10,
     bottom: 15,
     left: 5,
     right: 5,
-    color: "#ff0000",
+    color: '#ff0000',
   },
   {
-    id: "tiktok",
-    name: "TikTok",
+    id: 'tiktok',
+    name: 'TikTok',
     top: 15,
     bottom: 20,
     left: 8,
     right: 8,
-    color: "#00f2ea",
+    color: '#00f2ea',
   },
   {
-    id: "instagram-reels",
-    name: "Instagram Reels",
+    id: 'instagram-reels',
+    name: 'Instagram Reels',
     top: 12,
     bottom: 18,
     left: 5,
     right: 5,
-    color: "#e1306c",
+    color: '#e1306c',
   },
   {
-    id: "instagram-feed",
-    name: "Instagram Feed",
+    id: 'instagram-feed',
+    name: 'Instagram Feed',
     top: 5,
     bottom: 5,
     left: 5,
     right: 5,
-    color: "#c13584",
+    color: '#c13584',
   },
   {
-    id: "twitter",
-    name: "Twitter/X",
+    id: 'twitter',
+    name: 'Twitter/X',
     top: 5,
     bottom: 10,
     left: 5,
     right: 5,
-    color: "#ffffff",
+    color: '#ffffff',
   },
   {
-    id: "broadcast",
-    name: "Broadcast (Title Safe)",
+    id: 'broadcast',
+    name: 'Broadcast (Title Safe)',
     top: 10,
     bottom: 10,
     left: 10,
     right: 10,
-    color: "#fbbf24",
+    color: '#fbbf24',
   },
 ];
 
@@ -82,12 +82,8 @@ interface SafeAreaOverlayProps {
   className?: string;
 }
 
-export function SafeAreaOverlay({
-  guideId,
-  visible,
-  className,
-}: SafeAreaOverlayProps) {
-  if (!visible || guideId === "none") return null;
+export function SafeAreaOverlay({ guideId, visible, className }: SafeAreaOverlayProps) {
+  if (!visible || guideId === 'none') return null;
 
   const guide = SAFE_AREA_GUIDES.find((g) => g.id === guideId);
   if (!guide) return null;
@@ -95,8 +91,8 @@ export function SafeAreaOverlay({
   return (
     <div
       className={cn(
-        "absolute inset-0 pointer-events-none z-40 animate-in fade-in duration-500",
-        className
+        'absolute inset-0 pointer-events-none z-40 animate-in fade-in duration-500',
+        className,
       )}
     >
       {/* Danger Zones Overlays */}
@@ -153,7 +149,7 @@ export function SafeAreaOverlay({
         style={{
           top: `${guide.top}%`,
           left: `${guide.left}%`,
-          transform: "translateY(-120%)",
+          transform: 'translateY(-120%)',
           backgroundColor: `${guide.color}CC`,
         }}
       >

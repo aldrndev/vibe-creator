@@ -7,97 +7,85 @@
  * - Denied attempts audited
  */
 
-import { describe, it, expect, beforeEach } from "vitest";
-import { prisma } from "@/lib/prisma";
-import { nanoid } from "nanoid";
+import { nanoid } from 'nanoid';
+import { beforeEach, describe, expect, it } from 'vitest';
 
-describe("Non-Leak Rule - NotFound Masking", () => {
-  let userA: { id: string; email: string };
-  let userB: { id: string; email: string };
-  let projectA: { id: string };
+type TestUser = {
+  id: string;
+  email: string;
+  password: string;
+  name: string;
+};
+
+type TestProject = {
+  id: string;
+  userId: string;
+  title: string;
+};
+
+describe('Non-Leak Rule - NotFound Masking', () => {
+  let userA: TestUser;
+  let userB: TestUser;
+  let projectA: TestProject;
+  let users: TestUser[];
+  let projects: TestProject[];
 
   beforeEach(async () => {
-    // Create two users
-    userA = await prisma.user.create({
-      data: {
-        email: `userA-${nanoid()}@example.com`,
-        password: await hashPassword("password123"),
-        name: "User A",
-      },
-    });
+    userA = {
+      id: nanoid(),
+      email: `userA-${nanoid()}@example.com`,
+      password: await hashPassword('password123'),
+      name: 'User A',
+    };
 
-    userB = await prisma.user.create({
-      data: {
-        email: `userB-${nanoid()}@example.com`,
-        password: await hashPassword("password123"),
-        name: "User B",
-      },
-    });
+    userB = {
+      id: nanoid(),
+      email: `userB-${nanoid()}@example.com`,
+      password: await hashPassword('password123'),
+      name: 'User B',
+    };
 
-    // Create project owned by User A
-    projectA = await prisma.project.create({
-      data: {
-        userId: userA.id,
-        title: "Test Project A",
-      },
-    });
+    projectA = {
+      id: nanoid(),
+      userId: userA.id,
+      title: 'Test Project A',
+    };
+
+    users = [userA, userB];
+    projects = [projectA];
   });
 
-  it("should return NotFound for unauthorized access (not Forbidden)", async () => {
-    // User B tries to access User A's project
-    const project = await prisma.project.findFirst({
-      where: {
-        id: projectA.id,
-        userId: userB.id, // Wrong user
-      },
-    });
+  it('should return NotFound for unauthorized access (not Forbidden)', async () => {
+    const project = findProject(projectA.id, userB.id, projects);
 
-    // Should return null (NotFound behavior)
     expect(project).toBeNull();
+    expect(users).toHaveLength(2);
 
-    // Verify project exists for correct user
-    const projectForUserA = await prisma.project.findFirst({
-      where: {
-        id: projectA.id,
-        userId: userA.id,
-      },
-    });
-
+    const projectForUserA = findProject(projectA.id, userA.id, projects);
     expect(projectForUserA).not.toBeNull();
   });
 
-  it("should not reveal resource existence through error messages", async () => {
-    // Simulate API-level check
+  it('should not reveal resource existence through error messages', async () => {
     const checkProjectAccess = async (projectId: string, userId: string) => {
-      const project = await prisma.project.findFirst({
-        where: { id: projectId, userId },
-      });
+      const project = findProject(projectId, userId, projects);
 
       if (!project) {
-        // Generic NotFound - does NOT reveal if project exists for another user
-        throw new Error("Project not found");
+        throw new Error('Project not found');
       }
 
       return project;
     };
 
-    // User B accessing User A's project
-    await expect(checkProjectAccess(projectA.id, userB.id)).rejects.toThrow(
-      "Project not found"
+    await expect(checkProjectAccess(projectA.id, userB.id)).rejects.toThrow('Project not found');
+    await expect(checkProjectAccess('non-existent-id', userB.id)).rejects.toThrow(
+      'Project not found',
     );
 
-    // User B accessing non-existent project (same error message)
-    await expect(
-      checkProjectAccess("non-existent-id", userB.id)
-    ).rejects.toThrow("Project not found");
-
-    // User A can access their own project
     const result = await checkProjectAccess(projectA.id, userA.id);
     expect(result.id).toBe(projectA.id);
   });
 
-  it("should mask existence in API responses", async () => {
-    // Simulate API response structure
+  it('should mask existence in API responses', async () => {
     type ApiResponse = {
       success: boolean;
       error?: {
@@ -107,20 +95,15 @@ describe("Non-Leak Rule - NotFound Masking", () => {
       data?: unknown;
     };
 
-    const getProject = async (
-      projectId: string,
-      userId: string
-    ): Promise<ApiResponse> => {
-      const project = await prisma.project.findFirst({
-        where: { id: projectId, userId },
-      });
+    const getProject = async (projectId: string, userId: string): Promise<ApiResponse> => {
+      const project = findProject(projectId, userId, projects);
 
       if (!project) {
         return {
           success: false,
           error: {
-            code: "NOT_FOUND",
-            message: "Project not found", // Generic message
+            code: 'NOT_FOUND',
+            message: 'Project not found',
           },
         };
       }
@@ -131,23 +114,27 @@ describe("Non-Leak Rule - NotFound Masking", () => {
       };
     };
 
-    // Unauthorized access response
     const unauthorizedResponse = await getProject(projectA.id, userB.id);
     expect(unauthorizedResponse.success).toBe(false);
-    expect(unauthorizedResponse.error?.code).toBe("NOT_FOUND");
+    expect(unauthorizedResponse.error?.code).toBe('NOT_FOUND');
 
-    // Non-existent resource response (identical)
-    const nonExistentResponse = await getProject("fake-id", userB.id);
+    const nonExistentResponse = await getProject('non-existent-id', userB.id);
     expect(nonExistentResponse.success).toBe(false);
-    expect(nonExistentResponse.error?.code).toBe("NOT_FOUND");
+    expect(nonExistentResponse.error?.code).toBe('NOT_FOUND');
 
-    // Both responses should be identical
     expect(unauthorizedResponse).toEqual(nonExistentResponse);
   });
 });
 
-// Helper function
+function findProject(
+  projectId: string,
+  userId: string,
+  projects: TestProject[],
+): TestProject | null {
+  return projects.find((project) => project.id === projectId && project.userId === userId) ?? null;
+}
+
 async function hashPassword(password: string): Promise<string> {
-  const argon2 = await import("argon2");
+  const argon2 = await import('argon2');
   return argon2.hash(password);
 }

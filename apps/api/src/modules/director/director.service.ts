@@ -5,11 +5,11 @@
  * REFACTORED: Logic moved to ./services/* to reduce file complexity.
  */
 
-import { directorSessionService } from "./services/session.service";
-import { directorAssetService } from "./services/asset.service";
-import { directorAnalysisService } from "./services/analysis.service";
-import { directorTranscribeService } from "./services/transcribe.service";
-import { directorExportService } from "./services/export.service";
+import { directorAnalysisService } from './services/analysis.service';
+import { directorAssetService } from './services/asset.service';
+import { directorExportService } from './services/export.service';
+import { directorSessionService } from './services/session.service';
+import { directorTranscribeService } from './services/transcribe.service';
 
 export const directorService = {
   ...directorSessionService,

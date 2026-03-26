@@ -1,12 +1,6 @@
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from "@/components/ui";
-import { PromptType, AIModel, getModelsForType } from "@vibe-creator/shared";
-import { Cpu } from "lucide-react";
+import { type AIModel, getModelsForType, type PromptType } from '@vibe-creator/shared';
+import { Cpu } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui';
 
 interface TargetModelSelectorProps {
   promptType: PromptType;
@@ -14,11 +8,7 @@ interface TargetModelSelectorProps {
   onChange: (model: AIModel) => void;
 }
 
-export function TargetModelSelector({
-  promptType,
-  value,
-  onChange,
-}: TargetModelSelectorProps) {
+export function TargetModelSelector({ promptType, value, onChange }: TargetModelSelectorProps) {
   const models = getModelsForType(promptType);
 
   return (
@@ -29,9 +19,9 @@ export function TargetModelSelector({
 
       <div className="space-y-4 relative z-10">
         <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-black uppercase tracking-widest text-primary/80 ml-1">
+          <div className="text-[10px] font-black uppercase tracking-widest text-primary/80 ml-1">
             Engine Optimasi AI
-          </label>
+          </div>
         </div>
 
         <Select value={value} onValueChange={(v) => onChange(v as AIModel)}>
@@ -55,8 +45,7 @@ export function TargetModelSelector({
         </Select>
 
         <p className="text-[10px] font-medium text-muted-foreground/80 leading-relaxed italic ml-1">
-          * Sintaks akan dioptimalkan secara presisi untuk karakteristik model{" "}
-          {value}.
+          * Sintaks akan dioptimalkan secara presisi untuk karakteristik model {value}.
         </p>
       </div>
     </div>

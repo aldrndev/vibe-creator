@@ -32,11 +32,11 @@ interface ScopedLogger {
  * Format log prefix with context
  */
 function formatPrefix(ctx?: LogContext): string {
-  if (!ctx) return "";
+  if (!ctx) return '';
   const parts: string[] = [];
   if (ctx.component) parts.push(ctx.component);
   if (ctx.action) parts.push(ctx.action);
-  return parts.length > 0 ? `[${parts.join(":")}]` : "";
+  return parts.length > 0 ? `[${parts.join(':')}]` : '';
 }
 
 /**
@@ -61,31 +61,18 @@ function createScopedLogger(ctx: LogContext): ScopedLogger {
   const prefix = formatPrefix(ctx);
 
   return {
-    debug: (message: string, data?: unknown) => {
+    debug: (_message: string, _data?: unknown) => {
       if (isDev) {
-        // eslint-disable-next-line no-console
-        console.debug(
-          `${prefix} ${message}`,
-          data !== undefined ? safeStringify(data) : ""
-        );
       }
     },
-    info: (message: string, data?: unknown) => {
+    info: (_message: string, _data?: unknown) => {
       if (isDev) {
-        // eslint-disable-next-line no-console
-        console.info(
-          `${prefix} ${message}`,
-          data !== undefined ? safeStringify(data) : ""
-        );
       }
     },
     warn: (message: string, data?: unknown) => {
       if (isDev) {
         // eslint-disable-next-line no-console
-        console.warn(
-          `${prefix} ${message}`,
-          data !== undefined ? safeStringify(data) : ""
-        );
+        console.warn(`${prefix} ${message}`, data !== undefined ? safeStringify(data) : '');
       }
     },
     error: (message: string, error?: unknown) => {
@@ -125,26 +112,16 @@ export const logger = {
   /**
    * Log debug information (only in development)
    */
-  debug(message: string, data?: unknown): void {
+  debug(_message: string, _data?: unknown): void {
     if (isDev) {
-      // eslint-disable-next-line no-console
-      console.debug(
-        `[DEBUG] ${message}`,
-        data !== undefined ? safeStringify(data) : ""
-      );
     }
   },
 
   /**
    * Log general information (only in development)
    */
-  info(message: string, data?: unknown): void {
+  info(_message: string, _data?: unknown): void {
     if (isDev) {
-      // eslint-disable-next-line no-console
-      console.info(
-        `[INFO] ${message}`,
-        data !== undefined ? safeStringify(data) : ""
-      );
     }
   },
 
@@ -154,10 +131,7 @@ export const logger = {
   warn(message: string, data?: unknown): void {
     if (isDev) {
       // eslint-disable-next-line no-console
-      console.warn(
-        `[WARN] ${message}`,
-        data !== undefined ? safeStringify(data) : ""
-      );
+      console.warn(`[WARN] ${message}`, data !== undefined ? safeStringify(data) : '');
     }
   },
 

@@ -1,48 +1,37 @@
-import { Card, CardBody, Button, Badge, Divider } from "@/components/ui";
+import { ArrowRight, Megaphone, MessageCircle, Send, Sparkles, Users } from 'lucide-react';
+import { Badge, Button, Card, CardBody, Divider } from '@/components/ui';
+import { EmptyState } from '@/components/ui/EmptyState';
 import {
-  MessageCircle,
-  Send,
-  Users,
-  Megaphone,
-  Sparkles,
-  ArrowRight,
-} from "lucide-react";
-import {
+  HoverCard,
   PageTransition,
   StaggerContainer,
   StaggerItem,
-  HoverCard,
-} from "@/components/ui/PageTransition";
-import { SkeletonCard } from "@/components/ui/SkeletonLoader";
-import { EmptyState } from "@/components/ui/EmptyState";
-import { useAnnouncements } from "@/hooks/use-announcements";
+} from '@/components/ui/PageTransition';
+import { SkeletonCard } from '@/components/ui/SkeletonLoader';
+import { useAnnouncements } from '@/hooks/use-announcements';
 
-const TELEGRAM_URL =
-  import.meta.env.VITE_TELEGRAM_URL || "https://t.me/vibecreator_id";
+const TELEGRAM_URL = import.meta.env.VITE_TELEGRAM_URL || 'https://t.me/vibecreator_id';
 const WHATSAPP_URL =
-  import.meta.env.VITE_WHATSAPP_URL ||
-  "https://chat.whatsapp.com/your-group-link";
+  import.meta.env.VITE_WHATSAPP_URL || 'https://chat.whatsapp.com/your-group-link';
 
 const communities = [
   {
-    id: "telegram",
-    name: "Telegram Group",
-    description:
-      "Diskusi, tips, dan support dari komunitas creator terbaik di Indonesia.",
+    id: 'telegram',
+    name: 'Telegram Group',
+    description: 'Diskusi, tips, dan support dari komunitas creator terbaik di Indonesia.',
     icon: Send,
     link: TELEGRAM_URL,
-    members: "500+",
-    color: "blue",
+    members: '500+',
+    color: 'blue',
   },
   {
-    id: "whatsapp",
-    name: "WhatsApp Group",
-    description:
-      "Grup whatsapp eksklusif untuk sharing, networking, dan info terupdate.",
+    id: 'whatsapp',
+    name: 'WhatsApp Group',
+    description: 'Grup whatsapp eksklusif untuk sharing, networking, dan info terupdate.',
     icon: MessageCircle,
     link: WHATSAPP_URL,
-    members: "200+",
-    color: "green",
+    members: '200+',
+    color: 'green',
   },
 ];
 
@@ -52,9 +41,7 @@ export function CommunityPage() {
   const isNew = (dateStr: string) => {
     const date = new Date(dateStr);
     const now = new Date();
-    const diffDays = Math.floor(
-      (now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24)
-    );
+    const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
     return diffDays <= 7;
   };
 
@@ -95,26 +82,20 @@ export function CommunityPage() {
                     <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
                       <div
                         className={`w-16 h-16 rounded-3xl ${
-                          community.color === "blue"
-                            ? "bg-blue-500/10"
-                            : "bg-green-500/10"
+                          community.color === 'blue' ? 'bg-blue-500/10' : 'bg-green-500/10'
                         } flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-110 duration-500`}
                       >
                         <community.icon
                           size={32}
                           className={
-                            community.color === "blue"
-                              ? "text-blue-500"
-                              : "text-green-500"
+                            community.color === 'blue' ? 'text-blue-500' : 'text-green-500'
                           }
                         />
                       </div>
                       <div className="flex-1 min-w-0 text-center sm:text-left space-y-4">
                         <div className="space-y-2">
                           <div className="flex flex-col sm:flex-row items-center gap-3">
-                            <h3 className="text-xl font-black tracking-tight">
-                              {community.name}
-                            </h3>
+                            <h3 className="text-xl font-black tracking-tight">{community.name}</h3>
                             <Badge className="bg-muted/30 text-muted-foreground border-border/50 font-black uppercase text-[9px] tracking-widest px-3">
                               {community.members} Members
                             </Badge>
@@ -126,16 +107,12 @@ export function CommunityPage() {
                         <Button
                           asChild
                           className={`w-full sm:w-auto h-12 rounded-2xl font-black uppercase tracking-widest text-[10px] ${
-                            community.color === "blue"
-                              ? "bg-blue-600 hover:bg-blue-700"
-                              : "bg-green-600 hover:bg-green-700"
+                            community.color === 'blue'
+                              ? 'bg-blue-600 hover:bg-blue-700'
+                              : 'bg-green-600 hover:bg-green-700'
                           } border-none`}
                         >
-                          <a
-                            href={community.link}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
+                          <a href={community.link} target="_blank" rel="noopener noreferrer">
                             Gabung Sekarang
                             <ArrowRight
                               size={14}
@@ -211,14 +188,11 @@ export function CommunityPage() {
                           Ditulis Pada
                         </span>
                         <span className="text-sm font-bold text-foreground/80">
-                          {new Date(announcement.createdAt).toLocaleDateString(
-                            "id-ID",
-                            {
-                              day: "numeric",
-                              month: "short",
-                              year: "numeric",
-                            }
-                          )}
+                          {new Date(announcement.createdAt).toLocaleDateString('id-ID', {
+                            day: 'numeric',
+                            month: 'short',
+                            year: 'numeric',
+                          })}
                         </span>
                       </div>
                     </div>
@@ -237,12 +211,10 @@ export function CommunityPage() {
             <Sparkles className="text-primary w-8 h-8" />
           </div>
           <div className="max-w-xl mx-auto space-y-3">
-            <h3 className="text-2xl font-black tracking-tighter">
-              Bantuan Selalu Tersedia
-            </h3>
+            <h3 className="text-2xl font-black tracking-tighter">Bantuan Selalu Tersedia</h3>
             <p className="text-muted-foreground font-medium">
-              Ada pertanyaan atau butuh bantuan teknis? Langsung tanya di grup
-              kami. Tim support dan member lain siap membantu 24/7!
+              Ada pertanyaan atau butuh bantuan teknis? Langsung tanya di grup kami. Tim support dan
+              member lain siap membantu 24/7!
             </p>
           </div>
           <div className="flex flex-col sm:flex-row justify-center gap-4 pt-4">

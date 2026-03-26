@@ -1,9 +1,5 @@
-import { StoryProject, StoryScene } from "@vibe-creator/shared";
-import type {
-  EditorTimeline,
-  EditorTrack,
-  EditorClip,
-} from "../stores/editor-store";
+import type { StoryProject, StoryScene } from '@vibe-creator/shared';
+import type { EditorClip, EditorTimeline, EditorTrack } from '../stores/editor-store';
 
 // Constants
 // const TRANSITION_DURATION_MS = 500;
@@ -16,10 +12,10 @@ const DEFAULT_BGM_VOLUME = 0.5;
  */
 export function compileStoryToTimeline(story: StoryProject): EditorTimeline {
   const tracks: EditorTrack[] = [
-    createTrack("video", 0),
-    createTrack("audio", 1), // Voiceover
-    createTrack("audio", 2), // BGM
-    createTrack("text", 3), // Overlays
+    createTrack('video', 0),
+    createTrack('audio', 1), // Voiceover
+    createTrack('audio', 2), // BGM
+    createTrack('text', 3), // Overlays
   ];
 
   let currentTimeMs = 0;
@@ -33,10 +29,10 @@ export function compileStoryToTimeline(story: StoryProject): EditorTimeline {
       const clip = createClip({
         sceneId: scene.id,
         assetId: scene.assets.visual.assetId,
-        type: "VIDEO", // Simplification: assume visual is video for now
+        type: 'VIDEO', // Simplification: assume visual is video for now
         startMs: currentTimeMs,
         durationMs: sceneDurationMs,
-        trackType: "video",
+        trackType: 'video',
         index,
       });
       tracks[0]?.clips.push(clip);
@@ -49,10 +45,10 @@ export function compileStoryToTimeline(story: StoryProject): EditorTimeline {
       const clip = createClip({
         sceneId: scene.id,
         assetId: scene.assets.audio.assetId,
-        type: "AUDIO",
+        type: 'AUDIO',
         startMs: currentTimeMs,
         durationMs: sceneDurationMs, // In reality, use actual audio duration
-        trackType: "audio",
+        trackType: 'audio',
         index,
       });
       tracks[1]?.clips.push(clip);
@@ -70,12 +66,12 @@ export function compileStoryToTimeline(story: StoryProject): EditorTimeline {
     // Ideally we check asset duration, but for now we make one long clip
     // or repeat it.
     const bgmClip = createClip({
-      sceneId: "global-bgm",
+      sceneId: 'global-bgm',
       assetId: story.globalVibe.bgmAssetId,
-      type: "AUDIO",
+      type: 'AUDIO',
       startMs: 0,
       durationMs: currentTimeMs, // Loop for full duration
-      trackType: "audio",
+      trackType: 'audio',
       index: 0,
     });
 
@@ -101,7 +97,7 @@ export function compileStoryToTimeline(story: StoryProject): EditorTimeline {
 function createTrack(type: string, order: number): EditorTrack {
   return {
     id: `track-${type}-${order}`,
-    type: type === "video" ? "VIDEO" : type === "audio" ? "AUDIO" : "TEXT",
+    type: type === 'video' ? 'VIDEO' : type === 'audio' ? 'AUDIO' : 'TEXT',
     order,
     muted: false,
     volume: 1,
@@ -113,7 +109,7 @@ function createTrack(type: string, order: number): EditorTrack {
 function createClip(params: {
   sceneId: string;
   assetId: string;
-  type: "VIDEO" | "AUDIO" | "IMAGE";
+  type: 'VIDEO' | 'AUDIO' | 'IMAGE';
   startMs: number;
   durationMs: number;
   trackType: string;

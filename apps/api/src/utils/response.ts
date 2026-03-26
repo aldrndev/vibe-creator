@@ -1,11 +1,16 @@
+import type {
+  ApiErrorResponse,
+  ApiMeta,
+  ApiSuccessResponse,
+  ErrorCode,
+} from '@vibe-creator/shared';
 import type { FastifyReply } from 'fastify';
-import type { ApiSuccessResponse, ApiErrorResponse, ApiMeta, ErrorCode } from '@vibe-creator/shared';
 
 export function sendSuccess<T>(
   reply: FastifyReply,
   data: T,
   meta?: ApiMeta,
-  statusCode = 200
+  statusCode = 200,
 ): FastifyReply {
   const response: ApiSuccessResponse<T> = {
     success: true,
@@ -20,7 +25,7 @@ export function sendError(
   code: ErrorCode,
   message: string,
   statusCode = 400,
-  details?: Record<string, unknown>
+  details?: Record<string, unknown>,
 ): FastifyReply {
   const response: ApiErrorResponse = {
     success: false,
@@ -46,7 +51,7 @@ export function sendPaginated<T>(
   data: T[],
   total: number,
   page: number,
-  limit: number
+  limit: number,
 ): FastifyReply {
   const totalPages = Math.ceil(total / limit);
   return sendSuccess(reply, data, { page, limit, total, totalPages });

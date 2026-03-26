@@ -60,11 +60,11 @@ export interface SnapPoint {
 export function getSnapPoints(
   clips: ClipBoundary[],
   config: SnapConfig,
-  playheadMs?: number
+  playheadMs?: number,
 ): SnapPoint[] {
   const points: SnapPoint[] = [];
-  
-  clips.forEach(clip => {
+
+  clips.forEach((clip) => {
     if (config.snapToStarts) {
       points.push({
         timeMs: clip.startMs,
@@ -73,7 +73,7 @@ export function getSnapPoints(
         sourceTrackId: clip.trackId,
       });
     }
-    
+
     if (config.snapToEnds) {
       points.push({
         timeMs: clip.endMs,
@@ -83,17 +83,17 @@ export function getSnapPoints(
       });
     }
   });
-  
+
   if (config.snapToPlayhead && playheadMs !== undefined) {
     points.push({
       timeMs: playheadMs,
       type: 'playhead',
     });
   }
-  
+
   // Remove duplicates
   const seen = new Set<number>();
-  return points.filter(p => {
+  return points.filter((p) => {
     if (seen.has(p.timeMs)) return false;
     seen.add(p.timeMs);
     return true;
@@ -107,25 +107,25 @@ export function findNearestSnapPoint(
   targetMs: number,
   snapPoints: SnapPoint[],
   thresholdMs: number,
-  excludeClipId?: string
+  excludeClipId?: string,
 ): SnapPoint | null {
   let nearest: SnapPoint | null = null;
   let nearestDistance = Infinity;
-  
+
   for (const point of snapPoints) {
     // Skip self
     if (excludeClipId && point.sourceClipId === excludeClipId) {
       continue;
     }
-    
+
     const distance = Math.abs(point.timeMs - targetMs);
-    
+
     if (distance < thresholdMs && distance < nearestDistance) {
       nearest = point;
       nearestDistance = distance;
     }
   }
-  
+
   return nearest;
 }
 
@@ -149,7 +149,7 @@ export function calculateSnappedPosition(
   pixelsPerMs: number,
   playheadMs?: number,
   excludeClipId?: string,
-  excludeTrackId?: string
+  excludeTrackId?: string,
 ): SnapResult {
   if (!config.enabled) {
     return {
@@ -159,27 +159,27 @@ export function calculateSnappedPosition(
       snapPoint: null,
     };
   }
-  
+
   // Filter clips based on config
   let filteredClips = clips;
-  
+
   if (!config.snapToCrossTrack && excludeTrackId) {
-    filteredClips = clips.filter(c => c.trackId === excludeTrackId);
+    filteredClips = clips.filter((c) => c.trackId === excludeTrackId);
   }
-  
+
   if (!config.snapToSameTrack && excludeTrackId) {
-    filteredClips = clips.filter(c => c.trackId !== excludeTrackId);
+    filteredClips = clips.filter((c) => c.trackId !== excludeTrackId);
   }
-  
+
   // Get snap points
   const snapPoints = getSnapPoints(filteredClips, config, playheadMs);
-  
+
   // Convert pixel threshold to milliseconds
   const thresholdMs = config.threshold / pixelsPerMs;
-  
+
   // Find nearest snap point
   const nearest = findNearestSnapPoint(targetMs, snapPoints, thresholdMs, excludeClipId);
-  
+
   if (nearest) {
     return {
       snapped: true,
@@ -188,7 +188,7 @@ export function calculateSnappedPosition(
       snapPoint: nearest,
     };
   }
-  
+
   return {
     snapped: false,
     originalMs: targetMs,
@@ -208,10 +208,10 @@ export function snapClipDuringMove(
   pixelsPerMs: number,
   playheadMs?: number,
   clipId?: string,
-  trackId?: string
+  trackId?: string,
 ): { startMs: number; endMs: number; snapped: boolean } {
   const clipDuration = clipEndMs - clipStartMs;
-  
+
   // Try snapping start
   const startResult = calculateSnappedPosition(
     clipStartMs,
@@ -220,9 +220,9 @@ export function snapClipDuringMove(
     pixelsPerMs,
     playheadMs,
     clipId,
-    trackId
+    trackId,
   );
-  
+
   if (startResult.snapped) {
     return {
       startMs: startResult.snappedMs,
@@ -230,7 +230,7 @@ export function snapClipDuringMove(
       snapped: true,
     };
   }
-  
+
   // Try snapping end
   const endResult = calculateSnappedPosition(
     clipEndMs,
@@ -239,9 +239,9 @@ export function snapClipDuringMove(
     pixelsPerMs,
     playheadMs,
     clipId,
-    trackId
+    trackId,
   );
-  
+
   if (endResult.snapped) {
     return {
       startMs: endResult.snappedMs - clipDuration,
@@ -249,7 +249,7 @@ export function snapClipDuringMove(
       snapped: true,
     };
   }
-  
+
   return {
     startMs: clipStartMs,
     endMs: clipEndMs,
@@ -265,19 +265,17 @@ export function checkClipOverlap(
   endMs: number,
   trackId: string,
   clips: ClipBoundary[],
-  excludeClipId?: string
+  excludeClipId?: string,
 ): boolean {
-  const trackClips = clips.filter(
-    c => c.trackId === trackId && c.id !== excludeClipId
-  );
-  
+  const trackClips = clips.filter((c) => c.trackId === trackId && c.id !== excludeClipId);
+
   for (const clip of trackClips) {
     // Check for overlap
     if (startMs < clip.endMs && endMs > clip.startMs) {
       return true;
     }
   }
-  
+
   return false;
 }
 
@@ -289,39 +287,39 @@ export function findNearestGap(
   clipDurationMs: number,
   trackId: string,
   clips: ClipBoundary[],
-  maxSearchMs: number = 60000
+  maxSearchMs: number = 60000,
 ): { startMs: number; found: boolean } {
   const trackClips = clips
-    .filter(c => c.trackId === trackId)
+    .filter((c) => c.trackId === trackId)
     .sort((a, b) => a.startMs - b.startMs);
-  
+
   // Check if preferred position works
   if (!checkClipOverlap(preferredStartMs, preferredStartMs + clipDurationMs, trackId, clips)) {
     return { startMs: preferredStartMs, found: true };
   }
-  
+
   // Search for gaps
   let searchStart = 0;
-  
+
   for (const clip of trackClips) {
     const gapStart = searchStart;
     const gapEnd = clip.startMs;
     const gapDuration = gapEnd - gapStart;
-    
+
     if (gapDuration >= clipDurationMs) {
       // Check if this gap is within search range
       if (Math.abs(gapStart - preferredStartMs) < maxSearchMs) {
         return { startMs: gapStart, found: true };
       }
     }
-    
+
     searchStart = clip.endMs;
   }
-  
+
   // Check gap after last clip
   if (!checkClipOverlap(searchStart, searchStart + clipDurationMs, trackId, clips)) {
     return { startMs: searchStart, found: true };
   }
-  
+
   return { startMs: preferredStartMs, found: false };
 }

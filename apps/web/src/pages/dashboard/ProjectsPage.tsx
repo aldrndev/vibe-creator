@@ -1,34 +1,34 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  Clock,
+  Download as DownloadIcon,
+  FolderOpen,
+  MoreVertical,
+  Trash2,
+  Video,
+} from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import {
+  Badge,
   Button,
   Card,
   CardBody,
   CardFooter,
-  Badge,
   DropdownMenu,
-  DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
-  Skeleton,
-} from "@/components/ui";
-import { useNavigate } from "react-router-dom";
+  DropdownMenuTrigger,
+} from '@/components/ui';
+import { EmptyState } from '@/components/ui/EmptyState';
 import {
-  FolderOpen,
-  MoreVertical,
-  Download as DownloadIcon,
-  Trash2,
-  Clock,
-  Video,
-} from "lucide-react";
-import {
+  HoverCard,
   PageTransition,
   StaggerContainer,
   StaggerItem,
-  HoverCard,
-} from "@/components/ui/PageTransition";
-import { EmptyState } from "@/components/ui/EmptyState";
-import { api } from "@/services/api";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useAuthStore } from "@/stores/auth-store";
+} from '@/components/ui/PageTransition';
+import { Skeleton } from '@/components/ui/SkeletonLoader';
+import { logger } from '@/lib/logger';
+import { api, downloadAuthenticatedFile } from '@/services/api';
 
 interface ExportItem {
   id: string;
@@ -48,10 +48,10 @@ interface ExportItem {
 // Fetch exports hook
 function useExports() {
   return useQuery({
-    queryKey: ["exports"],
+    queryKey: ['exports'],
     queryFn: async () => {
-      const response = await api.get<ExportItem[]>("/export/history");
-      if (!response.success) throw new Error("Failed to fetch exports");
+      const response = await api.get<ExportItem[]>('/export/history');
+      if (!response.success) throw new Error('Failed to fetch exports');
       return response.data ?? [];
     },
   });
@@ -61,27 +61,20 @@ export function ProjectsPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { data: exports = [], isLoading } = useExports();
-  const accessToken = useAuthStore((state) => state.accessToken);
-
-  const getAuthenticatedUrl = (url: string | null) => {
-    if (!url || !accessToken) return url;
-    const separator = url.includes("?") ? "&" : "?";
-    return `${url}${separator}token=${accessToken}`;
-  };
 
   const deleteExport = useMutation({
     mutationFn: async (id: string) => {
       const response = await api.delete(`/export/${id}`);
-      if (!response.success) throw new Error("Failed to delete export");
+      if (!response.success) throw new Error('Failed to delete export');
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["exports"] });
-      queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
+      queryClient.invalidateQueries({ queryKey: ['exports'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
     },
   });
 
   const handleNewExport = () => {
-    navigate("/tools/editor");
+    navigate('/tools/editor');
   };
 
   const handleDeleteExport = async (id: string) => {
@@ -93,28 +86,30 @@ export function ProjectsPage() {
     }
   };
 
-  const handleDownload = (url: string | null, filename: string) => {
+  const handleDownload = async (url: string | null, filename: string) => {
     if (!url) {
       return;
     }
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = filename;
-    link.click();
+
+    try {
+      await downloadAuthenticatedFile(url, filename);
+    } catch (error) {
+      logger.error('Export download failed', error);
+    }
   };
 
   const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString("id-ID", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
+    return new Date(dateStr).toLocaleDateString('id-ID', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
     });
   };
 
   const formatFileSize = (bytes: number | null) => {
-    if (!bytes) return "-";
+    if (!bytes) return '-';
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
@@ -122,19 +117,25 @@ export function ProjectsPage() {
 
   const getStatusVariant = (status: string) => {
     switch (status) {
-      case "COMPLETED":
-        return "default";
-      case "PROCESSING":
-        return "warning";
-      case "FAILED":
-        return "destructive";
+      case 'COMPLETED':
+        return 'default';
+      case 'PROCESSING':
+        return 'warning';
+      case 'FAILED':
+        return 'destructive';
       default:
-        return "secondary";
+        return 'secondary';
     }
   };
 
   const getToolIcon = (_projectId: string | null) => {
     return Video;
+  };
+
+  const getStatusLabel = (status: string) => {
+    if (status === 'COMPLETED') return 'Selesai';
+    if (status === 'PROCESSING') return 'Proses';
+    return status;
   };
 
   return (
@@ -171,11 +172,7 @@ export function ProjectsPage() {
 
       {/* Empty state */}
       {!isLoading && exports.length === 0 && (
-        <EmptyState
-          type="projects"
-          actionLabel="Buat Video Pertama"
-          onAction={handleNewExport}
-        />
+        <EmptyState type="projects" actionLabel="Buat Video Pertama" onAction={handleNewExport} />
       )}
 
       {/* Exports grid */}
@@ -191,20 +188,17 @@ export function ProjectsPage() {
                     <CardBody className="p-4">
                       {/* Video thumbnail/preview */}
                       <div className="aspect-video bg-muted rounded-lg mb-4 flex items-center justify-center overflow-hidden relative">
-                        {item.status === "COMPLETED" && item.downloadUrl ? (
-                          <video
-                            src={
-                              getAuthenticatedUrl(item.downloadUrl) || undefined
-                            }
-                            className="w-full h-full object-cover"
-                            controls
-                            preload="metadata"
-                          />
-                        ) : (
-                          <ToolIcon
-                            size={40}
-                            className="text-muted-foreground/50 group-hover:text-primary/40 transition-colors"
-                          />
+                        <ToolIcon
+                          size={40}
+                          className="text-muted-foreground/50 group-hover:text-primary/40 transition-colors"
+                        />
+                        {item.status === 'COMPLETED' && (
+                          <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/70 to-transparent p-3">
+                            Lancaster{' '}
+                            <span className="text-[10px] font-bold uppercase tracking-widest text-white/80">
+                              Protected Export
+                            </span>
+                          </div>
                         )}
                       </div>
 
@@ -212,15 +206,10 @@ export function ProjectsPage() {
                       <div className="space-y-2">
                         <div className="flex items-start justify-between">
                           <h3 className="font-semibold line-clamp-1">
-                            {item.project?.title ??
-                              `Export ${item.id.slice(0, 8)}`}
+                            {item.project?.title ?? `Export ${item.id.slice(0, 8)}`}
                           </h3>
                           <Badge variant={getStatusVariant(item.status)}>
-                            {item.status === "COMPLETED"
-                              ? "Selesai"
-                              : item.status === "PROCESSING"
-                              ? "Proses"
-                              : item.status}
+                            {getStatusLabel(item.status)}
                           </Badge>
                         </div>
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -239,15 +228,12 @@ export function ProjectsPage() {
                         {formatDate(item.createdAt)}
                       </div>
                       <div className="flex items-center gap-1">
-                        {item.status === "COMPLETED" && item.downloadUrl && (
+                        {item.status === 'COMPLETED' && item.downloadUrl && (
                           <Button
                             size="icon"
                             variant="ghost"
                             onClick={() =>
-                              handleDownload(
-                                getAuthenticatedUrl(item.downloadUrl),
-                                `export-${item.id.slice(0, 8)}.mp4`
-                              )
+                              handleDownload(item.downloadUrl, `export-${item.id.slice(0, 8)}.mp4`)
                             }
                           >
                             <DownloadIcon size={16} />
@@ -264,8 +250,8 @@ export function ProjectsPage() {
                               disabled={!item.downloadUrl}
                               onClick={() =>
                                 handleDownload(
-                                  getAuthenticatedUrl(item.downloadUrl),
-                                  `export-${item.id.slice(0, 8)}.mp4`
+                                  item.downloadUrl,
+                                  `export-${item.id.slice(0, 8)}.mp4`,
                                 )
                               }
                             >

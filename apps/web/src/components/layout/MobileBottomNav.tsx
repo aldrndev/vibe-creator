@@ -1,28 +1,22 @@
-import { NavLink, useMatch, useLocation } from "react-router-dom";
-import {
-  LayoutDashboard,
-  Sparkles,
-  Wand2,
-  Repeat,
-  MessageSquareReply,
-} from "lucide-react";
-import { clsx } from "clsx";
-import { cn } from "@/lib/utils";
-import { motion } from "framer-motion";
+import { clsx } from 'clsx';
+import { motion } from 'framer-motion';
+import { LayoutDashboard, MessageSquareReply, Repeat, Sparkles, Wand2 } from 'lucide-react';
+import { NavLink, useLocation, useMatch } from 'react-router-dom';
+import { cn } from '@/lib/utils';
 
 const navItems = [
-  { name: "Home", href: "/dashboard", icon: LayoutDashboard, end: true },
-  { name: "AI Director", href: "/tools/ai-director", icon: Sparkles },
+  { name: 'Home', href: '/dashboard', icon: LayoutDashboard, end: true },
+  { name: 'AI Director', href: '/tools/ai-director', icon: Sparkles },
   {
-    name: "Video Studio",
-    href: "/tools/modern-editor",
+    name: 'Video Studio',
+    href: '/tools/modern-editor',
     icon: Wand2,
     isMain: true,
   },
-  { name: "Loop Creator", href: "/tools/loop-creator", icon: Repeat },
+  { name: 'Loop Creator', href: '/tools/loop-creator', icon: Repeat },
   {
-    name: "Reaction",
-    href: "/tools/reaction-creator",
+    name: 'Reaction',
+    href: '/tools/reaction-creator',
     icon: MessageSquareReply,
   },
 ];
@@ -30,11 +24,11 @@ const navItems = [
 export function MobileBottomNav() {
   const location = useLocation();
   // Use useMatch for specific legacy routes
-  const isEditorPage = useMatch("/editor/:projectId");
-  const isToolsEditor = useMatch("/tools/editor");
+  const isEditorPage = useMatch('/editor/:projectId');
+  const isToolsEditor = useMatch('/tools/editor');
 
   // Hide on ALL /tools/* routes (they are focused task pages with their own layouts)
-  const isToolPage = location.pathname.startsWith("/tools/");
+  const isToolPage = location.pathname.startsWith('/tools/');
 
   if (isEditorPage || isToolsEditor || isToolPage) {
     return null;
@@ -51,7 +45,7 @@ export function MobileBottomNav() {
                 to={item.href}
                 className="flex items-center justify-center relative z-10"
               >
-                <div className="w-14 h-14 rounded-full bg-gradient-to-br from-primary via-orange-500 to-rose-600 text-white shadow-lg shadow-primary/30 -mt-10 flex items-center justify-center border-4 border-background transition-transform active:scale-90">
+                <div className="w-14 h-14 rounded-full bg-linear-to-br from-primary via-orange-500 to-rose-600 text-white shadow-lg shadow-primary/30 -mt-10 flex items-center justify-center border-4 border-background transition-transform active:scale-90">
                   <item.icon size={26} strokeWidth={3} />
                 </div>
               </NavLink>
@@ -65,8 +59,8 @@ export function MobileBottomNav() {
               end={item.end}
               className={({ isActive }) =>
                 clsx(
-                  "flex-1 flex flex-col items-center justify-center py-2 gap-1 transition-all relative active:scale-95",
-                  isActive ? "text-primary" : "text-muted-foreground"
+                  'flex-1 flex flex-col items-center justify-center py-2 gap-1 transition-all relative active:scale-95',
+                  isActive ? 'text-primary' : 'text-muted-foreground',
                 )
               }
             >
@@ -74,15 +68,12 @@ export function MobileBottomNav() {
                 <>
                   <item.icon
                     size={22}
-                    className={cn(
-                      "transition-transform",
-                      isActive && "scale-110"
-                    )}
+                    className={cn('transition-transform', isActive && 'scale-110')}
                   />
                   <span
                     className={cn(
-                      "text-[10px] font-bold tracking-tight uppercase transition-colors",
-                      isActive ? "text-primary" : "text-muted-foreground/70"
+                      'text-[10px] font-bold tracking-tight uppercase transition-colors',
+                      isActive ? 'text-primary' : 'text-muted-foreground/70',
                     )}
                   >
                     {item.name}

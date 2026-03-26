@@ -1,45 +1,75 @@
-import { useState } from "react";
-import { useAuthStore } from "@/stores/auth-store";
-import { useThemeStore } from "@/stores/theme-store";
 import {
+  ArrowRight,
+  Bell,
+  Camera,
+  Check,
+  CreditCard,
+  Lock,
+  Mail,
+  Moon,
+  Palette,
+  Settings,
+  ShieldCheck,
+  Sparkles,
+  Sun,
+  User,
+  Zap,
+} from 'lucide-react';
+import { useState } from 'react';
+import {
+  Avatar,
+  Badge,
+  Button,
   Card,
+  CardBody,
+  CardDescription,
   CardHeader,
   CardTitle,
-  CardDescription,
-  CardBody,
-  Button,
   Input,
   Switch,
   Tabs,
+  TabsContent,
   TabsList,
   TabsTrigger,
-  TabsContent,
-  Avatar,
-  Badge,
-} from "@/components/ui";
-import {
-  User,
-  Settings,
-  CreditCard,
-  Bell,
-  Palette,
-  Moon,
-  Sun,
-  Mail,
-  Lock,
-  ShieldCheck,
-  Check,
-  Zap,
-  Sparkles,
-  Camera,
-  ArrowRight,
-} from "lucide-react";
-import { cn } from "@/lib/utils";
+} from '@/components/ui';
+import { cn } from '@/lib/utils';
+import { useAuthStore } from '@/stores/auth-store';
+import { useThemeStore } from '@/stores/theme-store';
+
+type ThemeMode = 'light' | 'dark';
+type NotificationKey = 'email' | 'push' | 'marketing';
+type NotificationSetting = {
+  id: NotificationKey;
+  label: string;
+  desc: string;
+  icon: typeof Bell;
+};
+
+const notificationSettings: NotificationSetting[] = [
+  {
+    id: 'email',
+    label: 'Laporan Email',
+    desc: 'Detail progress render dan transaksi.',
+    icon: Mail,
+  },
+  {
+    id: 'push',
+    label: 'Push Browser',
+    desc: 'Notifikasi instan saat video siap.',
+    icon: Zap,
+  },
+  {
+    id: 'marketing',
+    label: 'Update Produk',
+    desc: 'Fitur baru dan promo eksklusif.',
+    icon: Sparkles,
+  },
+];
 
 export function SettingsPage() {
   const { user, subscription } = useAuthStore();
   const { theme, setTheme } = useThemeStore();
-  const [activeTab, setActiveTab] = useState("general");
+  const [activeTab, setActiveTab] = useState('general');
 
   const [notifications, setNotifications] = useState({
     email: true,
@@ -49,13 +79,13 @@ export function SettingsPage() {
 
   // Get tier info
   const tierName =
-    user?.role === "ADMIN"
-      ? "Admin"
-      : subscription?.tier === "PRO"
-      ? "Pro"
-      : subscription?.tier === "CREATOR"
-      ? "Creator"
-      : "Free";
+    user?.role === 'ADMIN'
+      ? 'Admin'
+      : subscription?.tier === 'PRO'
+        ? 'Pro'
+        : subscription?.tier === 'CREATOR'
+          ? 'Creator'
+          : 'Free';
 
   return (
     <div className="pb-24 lg:pb-12">
@@ -75,10 +105,7 @@ export function SettingsPage() {
             <div className="absolute -inset-0.5 bg-gradient-to-r from-orange-400/20 via-amber-500/20 to-orange-400/20 rounded-xl blur opacity-50 group-hover:opacity-100 transition duration-1000 animate-pulse"></div>
             <div className="relative h-11 p-6 md:px-5 rounded-xl bg-background border border-orange-500/20 flex items-center gap-3.5 shadow-sm">
               <div className="size-8 rounded-lg bg-gradient-to-br from-orange-500/10 to-amber-500/10 flex items-center justify-center border border-orange-500/10">
-                <Zap
-                  className="size-4 text-orange-500 fill-orange-500/20"
-                  strokeWidth={2.5}
-                />
+                <Zap className="size-4 text-orange-500 fill-orange-500/20" strokeWidth={2.5} />
               </div>
               <div className="flex flex-col">
                 <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/70">
@@ -92,19 +119,15 @@ export function SettingsPage() {
           </div>
         </div>
 
-        <Tabs
-          value={activeTab}
-          onValueChange={setActiveTab}
-          className="space-y-8 md:space-y-10"
-        >
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8 md:space-y-10">
           {/* Tabs List */}
           <div className="w-full overflow-x-auto pb-2 lg:pb-0 scrollbar-hide">
             <TabsList className="h-auto bg-muted border border-border rounded-2xl w-full sm:w-fit inline-flex p-0">
               {[
-                { id: "general", icon: Settings, label: "Umum" },
-                { id: "account", icon: User, label: "Akun" },
-                { id: "billing", icon: CreditCard, label: "Billing" },
-                { id: "notifications", icon: Bell, label: "Notifikasi" },
+                { id: 'general', icon: Settings, label: 'Umum' },
+                { id: 'account', icon: User, label: 'Akun' },
+                { id: 'billing', icon: CreditCard, label: 'Billing' },
+                { id: 'notifications', icon: Bell, label: 'Notifikasi' },
               ].map((tab) => (
                 <TabsTrigger
                   key={tab.id}
@@ -143,42 +166,41 @@ export function SettingsPage() {
                     <div className="grid grid-cols-2 gap-3 md:gap-4">
                       {[
                         {
-                          id: "light",
-                          label: "Mode Terang",
+                          id: 'light',
+                          label: 'Mode Terang',
                           icon: Sun,
-                          color: "bg-white text-black",
+                          color: 'bg-white text-black',
                         },
                         {
-                          id: "dark",
-                          label: "Mode Gelap",
+                          id: 'dark',
+                          label: 'Mode Gelap',
                           icon: Moon,
-                          color: "bg-slate-950 text-white",
+                          color: 'bg-slate-950 text-white',
                         },
                       ].map((mode) => (
                         <button
+                          type="button"
                           key={mode.id}
-                          onClick={() => setTheme(mode.id as any)}
+                          onClick={() => setTheme(mode.id as ThemeMode)}
                           className={cn(
-                            "relative flex items-center justify-between p-4 rounded-xl border transition-all duration-300",
+                            'relative flex items-center justify-between p-4 rounded-xl border transition-all duration-300',
                             theme === mode.id
-                              ? "border-primary bg-primary/5 shadow-sm"
-                              : "border-border hover:bg-muted/50"
+                              ? 'border-primary bg-primary/5 shadow-sm'
+                              : 'border-border hover:bg-muted/50',
                           )}
                         >
                           <div className="flex items-center gap-3">
                             <div
                               className={cn(
-                                "w-10 h-10 rounded-lg flex items-center justify-center",
-                                mode.id === "light"
-                                  ? "text-orange-500 bg-orange-500/10"
-                                  : "text-blue-500 bg-blue-500/10"
+                                'w-10 h-10 rounded-lg flex items-center justify-center',
+                                mode.id === 'light'
+                                  ? 'text-orange-500 bg-orange-500/10'
+                                  : 'text-blue-500 bg-blue-500/10',
                               )}
                             >
                               <mode.icon className="size-5" />
                             </div>
-                            <span className="font-medium text-sm">
-                              {mode.label}
-                            </span>
+                            <span className="font-medium text-sm">{mode.label}</span>
                           </div>
                           {theme === mode.id && (
                             <div className="absolute top-3 right-3 text-primary">
@@ -215,7 +237,7 @@ export function SettingsPage() {
                       <div className="relative group cursor-pointer">
                         <Avatar
                           src={user?.avatarUrl || undefined}
-                          name={user?.name || "U"}
+                          name={user?.name || 'U'}
                           className="w-24 h-24 border-2 border-border"
                         />
                         <div className="absolute inset-0 bg-black/40 rounded-full opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center">
@@ -234,7 +256,7 @@ export function SettingsPage() {
                             variant="outline"
                             className="font-bold border-primary/20 text-primary bg-primary/5 uppercase tracking-widest text-[9px] md:text-[10px]"
                           >
-                            {user?.role || "USER"} ACCESS
+                            {user?.role || 'USER'} ACCESS
                           </Badge>
                           <Badge
                             variant="outline"
@@ -248,18 +270,18 @@ export function SettingsPage() {
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6 pt-2">
                       <div className="space-y-2">
-                        <label className="text-[10px] md:text-[11px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+                        <div className="text-[10px] md:text-[11px] font-black uppercase tracking-widest text-muted-foreground ml-1">
                           Nama Lengkap
-                        </label>
+                        </div>
                         <Input
                           defaultValue={user?.name}
                           className="h-11 md:h-12 rounded-xl bg-background border-input focus:border-primary"
                         />
                       </div>
                       <div className="space-y-2">
-                        <label className="text-[10px] md:text-[11px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+                        <div className="text-[10px] md:text-[11px] font-black uppercase tracking-widest text-muted-foreground ml-1">
                           Alamat Email
-                        </label>
+                        </div>
                         <Input
                           defaultValue={user?.email}
                           disabled
@@ -281,9 +303,7 @@ export function SettingsPage() {
                     <div className="flex items-center gap-4 w-full sm:w-auto">
                       <Lock className="size-5 text-muted-foreground" />
                       <div className="space-y-1">
-                        <p className="font-bold text-sm">
-                          Kredensial & Keamanan
-                        </p>
+                        <p className="font-bold text-sm">Kredensial & Keamanan</p>
                         <p className="text-xs text-muted-foreground">
                           Kelola password dan privasi akun.
                         </p>
@@ -299,11 +319,7 @@ export function SettingsPage() {
                 </Card>
               </TabsContent>
 
-              <TabsContent
-                value="billing"
-                className="mt-0 outline-none border-none"
-                key="billing"
-              >
+              <TabsContent value="billing" className="mt-0 outline-none border-none" key="billing">
                 <Card className="bg-card border-border shadow-none rounded-xl">
                   <CardHeader className="p-6 border-b border-border">
                     <div className="flex items-center gap-3">
@@ -313,8 +329,7 @@ export function SettingsPage() {
                           Langganan & Billing
                         </CardTitle>
                         <CardDescription className="text-xs md:text-sm">
-                          Kelola paket aktif, metode pembayaran, dan riwayat
-                          tagihan.
+                          Kelola paket aktif, metode pembayaran, dan riwayat tagihan.
                         </CardDescription>
                       </div>
                     </div>
@@ -331,42 +346,39 @@ export function SettingsPage() {
                           </p>
                           <div className="flex items-center gap-3">
                             <h3 className="text-3xl md:text-4xl font-black tracking-tight text-foreground">
-                              {tierName}{" "}
-                              <span className="text-primary">Plan</span>
+                              {tierName} <span className="text-primary">Plan</span>
                             </h3>
                             <Badge
                               variant="outline"
                               className={cn(
-                                "h-7 px-3 rounded-lg text-[10px] font-bold uppercase tracking-widest border-primary/20 bg-primary/5 text-primary",
-                                subscription?.status === "ACTIVE"
-                                  ? "border-green-500/20 bg-green-500/5 text-green-500"
-                                  : "border-red-500/20 bg-red-500/5 text-red-500"
+                                'h-7 px-3 rounded-lg text-[10px] font-bold uppercase tracking-widest border-primary/20 bg-primary/5 text-primary',
+                                subscription?.status === 'ACTIVE'
+                                  ? 'border-green-500/20 bg-green-500/5 text-green-500'
+                                  : 'border-red-500/20 bg-red-500/5 text-red-500',
                               )}
                             >
-                              {subscription?.status || "ACTIVE"}
+                              {subscription?.status || 'ACTIVE'}
                             </Badge>
                           </div>
                         </div>
                         <div className="space-y-1">
                           <p className="text-2xl font-bold text-foreground">
-                            {subscription?.tier === "FREE"
-                              ? "Rp 0"
-                              : subscription?.tier === "CREATOR"
-                              ? "Rp 199.000"
-                              : "Rp 499.000"}
+                            {subscription?.tier === 'FREE'
+                              ? 'Rp 0'
+                              : subscription?.tier === 'CREATOR'
+                                ? 'Rp 199.000'
+                                : 'Rp 499.000'}
                             <span className="text-sm font-medium text-muted-foreground ml-1">
                               / bulan
                             </span>
                           </p>
                           {subscription?.validUntil && (
                             <p className="text-xs text-muted-foreground font-medium">
-                              Diperbarui pada{" "}
-                              {new Date(
-                                subscription.validUntil
-                              ).toLocaleDateString("id-ID", {
-                                day: "numeric",
-                                month: "long",
-                                year: "numeric",
+                              Diperbarui pada{' '}
+                              {new Date(subscription.validUntil).toLocaleDateString('id-ID', {
+                                day: 'numeric',
+                                month: 'long',
+                                year: 'numeric',
                               })}
                             </p>
                           )}
@@ -375,11 +387,9 @@ export function SettingsPage() {
 
                       <div className="flex flex-col gap-3 w-full md:w-auto relative z-10">
                         <Button className="h-11 md:h-12 px-8 rounded-xl font-bold uppercase tracking-widest text-xs bg-primary hover:shadow-lg hover:shadow-primary/20 transition-all">
-                          {subscription?.tier === "FREE"
-                            ? "Upgrade Plan"
-                            : "Kelola Langganan"}
+                          {subscription?.tier === 'FREE' ? 'Upgrade Plan' : 'Kelola Langganan'}
                         </Button>
-                        {subscription?.tier !== "FREE" && (
+                        {subscription?.tier !== 'FREE' && (
                           <Button
                             variant="outline"
                             className="h-11 md:h-12 px-8 rounded-xl font-bold uppercase tracking-widest text-xs border-border"
@@ -398,9 +408,7 @@ export function SettingsPage() {
                             <Zap size={18} />
                           </div>
                           <div>
-                            <p className="text-sm font-bold text-foreground">
-                              Kuota Export
-                            </p>
+                            <p className="text-sm font-bold text-foreground">Kuota Export</p>
                             <p className="text-xs text-muted-foreground">
                               Batas video generate per bulan
                             </p>
@@ -409,15 +417,15 @@ export function SettingsPage() {
                         <div className="space-y-2">
                           <div className="flex justify-between text-xs font-bold">
                             <span>
-                              {subscription?.exportsUsed || 0} /{" "}
-                              {subscription?.exportsLimit || 5} Video
+                              {subscription?.exportsUsed || 0} / {subscription?.exportsLimit || 5}{' '}
+                              Video
                             </span>
                             <span className="text-primary">
                               {Math.min(
                                 ((subscription?.exportsUsed || 0) /
                                   (subscription?.exportsLimit || 1)) *
                                   100,
-                                100
+                                100,
                               ).toFixed(0)}
                               %
                             </span>
@@ -430,7 +438,7 @@ export function SettingsPage() {
                                   ((subscription?.exportsUsed || 0) /
                                     (subscription?.exportsLimit || 1)) *
                                     100,
-                                  100
+                                  100,
                                 )}%`,
                               }}
                             />
@@ -444,15 +452,11 @@ export function SettingsPage() {
                             <CreditCard size={18} />
                           </div>
                           <div>
-                            <p className="text-sm font-bold text-foreground">
-                              Metode Pembayaran
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              Kartu kredit utama
-                            </p>
+                            <p className="text-sm font-bold text-foreground">Metode Pembayaran</p>
+                            <p className="text-xs text-muted-foreground">Kartu kredit utama</p>
                           </div>
                         </div>
-                        {subscription?.tier === "FREE" ? (
+                        {subscription?.tier === 'FREE' ? (
                           <div className="flex flex-col h-full justify-center space-y-2">
                             <p className="text-xs text-muted-foreground italic">
                               Belum ada metode pembayaran.
@@ -472,9 +476,7 @@ export function SettingsPage() {
                                   VISA
                                 </span>
                               </div>
-                              <span className="text-sm font-bold tracking-tight">
-                                •••• 4242
-                              </span>
+                              <span className="text-sm font-bold tracking-tight">•••• 4242</span>
                             </div>
                             <Button
                               variant="ghost"
@@ -520,26 +522,7 @@ export function SettingsPage() {
                     </div>
                   </CardHeader>
                   <CardBody className="p-0 divide-y divide-border">
-                    {[
-                      {
-                        id: "email",
-                        label: "Laporan Email",
-                        desc: "Detail progress render dan transaksi.",
-                        icon: Mail,
-                      },
-                      {
-                        id: "push",
-                        label: "Push Browser",
-                        desc: "Notifikasi instan saat video siap.",
-                        icon: Zap,
-                      },
-                      {
-                        id: "marketing",
-                        label: "Update Produk",
-                        desc: "Fitur baru dan promo eksklusif.",
-                        icon: Sparkles,
-                      },
-                    ].map((notif) => (
+                    {notificationSettings.map((notif) => (
                       <div
                         key={notif.id}
                         className="flex items-center justify-between p-4 md:p-6 gap-4"
@@ -558,7 +541,7 @@ export function SettingsPage() {
                           </div>
                         </div>
                         <Switch
-                          checked={(notifications as any)[notif.id]}
+                          checked={notifications[notif.id]}
                           onCheckedChange={(c) =>
                             setNotifications((prev) => ({
                               ...prev,
@@ -586,13 +569,8 @@ export function SettingsPage() {
                   </div>
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-muted-foreground">
-                        Sesi Login
-                      </span>
-                      <Badge
-                        variant="secondary"
-                        className="text-[10px] px-2 font-bold"
-                      >
+                      <span className="text-sm font-medium text-muted-foreground">Sesi Login</span>
+                      <Badge variant="secondary" className="text-[10px] px-2 font-bold">
                         Aktif
                       </Badge>
                     </div>
@@ -600,18 +578,14 @@ export function SettingsPage() {
                       <span className="text-sm font-medium text-muted-foreground">
                         ID Verifikasi
                       </span>
-                      <Badge
-                        variant="secondary"
-                        className="text-[10px] px-2 font-bold"
-                      >
+                      <Badge variant="secondary" className="text-[10px] px-2 font-bold">
                         Verified
                       </Badge>
                     </div>
                   </div>
                   <div className="h-px w-full bg-border" />
                   <p className="text-xs text-muted-foreground font-medium leading-relaxed italic border-l-2 border-primary/30 pl-3">
-                    Gunakan autentikasi dua faktor (2FA) untuk memberikan
-                    proteksi ekstra.
+                    Gunakan autentikasi dua faktor (2FA) untuk memberikan proteksi ekstra.
                   </p>
                 </CardBody>
               </Card>

@@ -1,6 +1,6 @@
-import { Button } from "./Button";
-import { cn } from "@/lib/utils";
-import { ChevronLeft, ChevronRight, MoreHorizontal } from "lucide-react";
+import { ChevronLeft, ChevronRight, MoreHorizontal } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { Button } from './Button';
 
 export interface PaginationProps {
   /** Current page (1-indexed) */
@@ -21,16 +21,16 @@ export interface PaginationProps {
 function generatePageNumbers(
   current: number,
   total: number,
-  siblings: number = 1
-): (number | "ellipsis")[] {
-  const pages: (number | "ellipsis")[] = [];
+  siblings: number = 1,
+): (number | 'ellipsis')[] {
+  const pages: (number | 'ellipsis')[] = [];
 
   const start = Math.max(1, current - siblings);
   const end = Math.min(total, current + siblings);
 
   if (start > 1) {
     pages.push(1);
-    if (start > 2) pages.push("ellipsis");
+    if (start > 2) pages.push('ellipsis');
   }
 
   for (let i = start; i <= end; i++) {
@@ -38,7 +38,7 @@ function generatePageNumbers(
   }
 
   if (end < total) {
-    if (end < total - 1) pages.push("ellipsis");
+    if (end < total - 1) pages.push('ellipsis');
     pages.push(total);
   }
 
@@ -48,20 +48,15 @@ function generatePageNumbers(
 /**
  * Pagination component
  */
-export function Pagination({
-  page,
-  total,
-  onChange,
-  siblings = 1,
-  className,
-}: PaginationProps) {
+export function Pagination({ page, total, onChange, siblings = 1, className }: PaginationProps) {
   const pages = generatePageNumbers(page, total, siblings);
+  let ellipsisCount = 0;
 
   if (total <= 1) return null;
 
   return (
     <nav
-      className={cn("flex items-center justify-center gap-1", className)}
+      className={cn('flex items-center justify-center gap-1', className)}
       aria-label="Pagination"
     >
       <Button
@@ -74,11 +69,12 @@ export function Pagination({
         <ChevronLeft size={16} />
       </Button>
 
-      {pages.map((p, i) => {
-        if (p === "ellipsis") {
+      {pages.map((p) => {
+        if (p === 'ellipsis') {
+          ellipsisCount += 1;
           return (
             <span
-              key={`ellipsis-${i}`}
+              key={`ellipsis-${ellipsisCount}`}
               className="flex items-center justify-center w-8 h-8"
             >
               <MoreHorizontal size={16} className="text-muted-foreground" />
@@ -89,10 +85,10 @@ export function Pagination({
         return (
           <Button
             key={p}
-            variant={p === page ? "default" : "ghost"}
+            variant={p === page ? 'default' : 'ghost'}
             size="sm"
             onClick={() => onChange(p)}
-            aria-current={p === page ? "page" : undefined}
+            aria-current={p === page ? 'page' : undefined}
             className="w-8 h-8 p-0"
           >
             {p}

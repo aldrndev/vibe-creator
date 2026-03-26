@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ffmpegService } from '@/services/ffmpeg';
 
 interface UseFFmpegReturn {
@@ -17,7 +17,7 @@ interface UseFFmpegReturn {
   extractTimelineThumbnails: (file: File, count?: number) => Promise<string[]>;
   trimVideo: (file: File, startTime: number, endTime: number) => Promise<Blob>;
   concatenateClips: (
-    clips: Array<{ file: File; startTime: number; endTime: number }>
+    clips: Array<{ file: File; startTime: number; endTime: number }>,
   ) => Promise<Blob>;
 }
 
@@ -54,79 +54,85 @@ export function useFFmpeg(): UseFFmpegReturn {
     }
   }, []);
 
-  const getVideoInfo = useCallback(async (file: File) => {
-    if (!ffmpegService.isReady()) {
-      await load();
-    }
-    return ffmpegService.getVideoInfo(file);
-  }, [load]);
+  const getVideoInfo = useCallback(
+    async (file: File) => {
+      if (!ffmpegService.isReady()) {
+        await load();
+      }
+      return ffmpegService.getVideoInfo(file);
+    },
+    [load],
+  );
 
-  const extractThumbnail = useCallback(async (file: File, time: number) => {
-    if (!ffmpegService.isReady()) {
-      await load();
-    }
-    const blob = await ffmpegService.extractThumbnail(file, { time });
-    return URL.createObjectURL(blob);
-  }, [load]);
+  const extractThumbnail = useCallback(
+    async (file: File, time: number) => {
+      if (!ffmpegService.isReady()) {
+        await load();
+      }
+      const blob = await ffmpegService.extractThumbnail(file, { time });
+      return URL.createObjectURL(blob);
+    },
+    [load],
+  );
 
-  const extractTimelineThumbnails = useCallback(async (
-    file: File, 
-    count: number = 10
-  ) => {
-    if (!ffmpegService.isReady()) {
-      await load();
-    }
-    setProgress(0);
-    
-    const thumbnails = await ffmpegService.extractTimelineThumbnails(file, count);
-    
-    setProgress(1);
-    return thumbnails;
-  }, [load]);
+  const extractTimelineThumbnails = useCallback(
+    async (file: File, count: number = 10) => {
+      if (!ffmpegService.isReady()) {
+        await load();
+      }
+      setProgress(0);
 
-  const trimVideo = useCallback(async (
-    file: File,
-    startTime: number,
-    endTime: number
-  ) => {
-    if (!ffmpegService.isReady()) {
-      await load();
-    }
-    setProgress(0);
-    setError(null);
+      const thumbnails = await ffmpegService.extractTimelineThumbnails(file, count);
 
-    try {
-      const result = await ffmpegService.trimVideo(file, {
-        startTime,
-        endTime,
-        onProgress: setProgress,
-      });
       setProgress(1);
-      return result;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Trim failed');
-      throw err;
-    }
-  }, [load]);
+      return thumbnails;
+    },
+    [load],
+  );
 
-  const concatenateClips = useCallback(async (
-    clips: Array<{ file: File; startTime: number; endTime: number }>
-  ) => {
-    if (!ffmpegService.isReady()) {
-      await load();
-    }
-    setProgress(0);
-    setError(null);
+  const trimVideo = useCallback(
+    async (file: File, startTime: number, endTime: number) => {
+      if (!ffmpegService.isReady()) {
+        await load();
+      }
+      setProgress(0);
+      setError(null);
 
-    try {
-      const result = await ffmpegService.concatenateClips(clips, setProgress);
-      setProgress(1);
-      return result;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Concatenation failed');
-      throw err;
-    }
-  }, [load]);
+      try {
+        const result = await ffmpegService.trimVideo(file, {
+          startTime,
+          endTime,
+          onProgress: setProgress,
+        });
+        setProgress(1);
+        return result;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Trim failed');
+        throw err;
+      }
+    },
+    [load],
+  );
+
+  const concatenateClips = useCallback(
+    async (clips: Array<{ file: File; startTime: number; endTime: number }>) => {
+      if (!ffmpegService.isReady()) {
+        await load();
+      }
+      setProgress(0);
+      setError(null);
+
+      try {
+        const result = await ffmpegService.concatenateClips(clips, setProgress);
+        setProgress(1);
+        return result;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Concatenation failed');
+        throw err;
+      }
+    },
+    [load],
+  );
 
   return {
     isLoading,

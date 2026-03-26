@@ -1,12 +1,7 @@
-import { useState, useEffect, useCallback, useRef } from "react";
-import { api } from "@/services/api";
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { api } from '@/services/api';
 
-export type JobStatus =
-  | "PENDING"
-  | "PROCESSING"
-  | "COMPLETED"
-  | "FAILED"
-  | "CANCELLED";
+export type JobStatus = 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
 
 export interface Job<T = unknown> {
   id: string;
@@ -25,7 +20,7 @@ interface UseJobPollingOptions<T> {
 
 export function useJobPolling<T = unknown>(
   initialJobId: string | null = null,
-  options: UseJobPollingOptions<T> = {}
+  options: UseJobPollingOptions<T> = {},
 ) {
   const [jobId, setJobId] = useState<string | null>(initialJobId);
   const [job, setJob] = useState<Job<T> | null>(null);
@@ -43,9 +38,7 @@ export function useJobPolling<T = unknown>(
       const res = await api.get<Job<T>>(`/jobs/${id}`);
 
       if (!res.success) {
-        throw new Error(
-          typeof res.error === "string" ? res.error : "Failed to fetch job"
-        );
+        throw new Error(typeof res.error === 'string' ? res.error : 'Failed to fetch job');
       }
 
       const currentJob = res.data;
@@ -53,15 +46,12 @@ export function useJobPolling<T = unknown>(
 
       setJob(currentJob);
 
-      if (currentJob.status === "COMPLETED") {
+      if (currentJob.status === 'COMPLETED') {
         setIsPolling(false);
         optionsRef.current.onComplete?.(currentJob.output as T);
-      } else if (
-        currentJob.status === "FAILED" ||
-        currentJob.status === "CANCELLED"
-      ) {
+      } else if (currentJob.status === 'FAILED' || currentJob.status === 'CANCELLED') {
         setIsPolling(false);
-        const errMsg = currentJob.error || "Job failed";
+        const errMsg = currentJob.error || 'Job failed';
         setError(errMsg);
         optionsRef.current.onError?.(errMsg);
         // Caller handles UI feedback via onError callback

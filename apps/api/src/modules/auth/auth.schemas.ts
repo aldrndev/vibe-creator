@@ -3,23 +3,23 @@
  * Centralized Zod schemas for API documentation (Swagger)
  */
 
-import { z } from "zod";
+import { z } from 'zod';
 
 // ============================================================================
 // Request Schemas
 // ============================================================================
 
 export const loginRequestSchema = z.object({
-  email: z.email("Email tidak valid"),
-  password: z.string().min(1, "Password diperlukan"),
-  turnstileToken: z.string().min(1, "Captcha diperlukan"),
+  email: z.email('Email tidak valid'),
+  password: z.string().min(1, 'Password diperlukan'),
+  turnstileToken: z.string().min(1, 'Captcha diperlukan'),
 });
 
 export const registerRequestSchema = z.object({
-  email: z.email("Email tidak valid"),
-  password: z.string().min(8, "Password minimal 8 karakter"),
-  name: z.string().min(2, "Nama minimal 2 karakter"),
-  turnstileToken: z.string().min(1, "Captcha diperlukan"),
+  email: z.email('Email tidak valid'),
+  password: z.string().min(8, 'Password minimal 8 karakter'),
+  name: z.string().min(2, 'Nama minimal 2 karakter'),
+  turnstileToken: z.string().min(1, 'Captcha diperlukan'),
 });
 
 // ============================================================================
@@ -31,12 +31,12 @@ const userSchema = z.object({
   email: z.string(),
   name: z.string(),
   avatarUrl: z.string().nullable(),
-  role: z.enum(["USER", "ADMIN"]),
+  role: z.enum(['USER', 'ADMIN']),
 });
 
 const subscriptionSchema = z
   .object({
-    tier: z.enum(["FREE", "CREATOR", "PRO"]),
+    tier: z.enum(['FREE', 'CREATOR', 'PRO']),
     status: z.string(),
     exportsUsed: z.number(),
     exportsLimit: z.number(),
@@ -82,10 +82,9 @@ export const errorResponseSchema = z.object({
 // ============================================================================
 
 export const loginRouteSchema = {
-  tags: ["Authentication"],
-  summary: "User login",
-  description:
-    "Authenticate user with email and password. Requires Turnstile captcha.",
+  tags: ['Authentication'],
+  summary: 'User login',
+  description: 'Authenticate user with email and password. Requires Turnstile captcha.',
   body: loginRequestSchema,
   response: {
     200: authSuccessResponseSchema,
@@ -96,9 +95,9 @@ export const loginRouteSchema = {
 };
 
 export const registerRouteSchema = {
-  tags: ["Authentication"],
-  summary: "User registration",
-  description: "Create a new user account with email verification.",
+  tags: ['Authentication'],
+  summary: 'User registration',
+  description: 'Create a new user account with email verification.',
   body: registerRequestSchema,
   response: {
     201: authSuccessResponseSchema,
@@ -108,9 +107,9 @@ export const registerRouteSchema = {
 };
 
 export const refreshRouteSchema = {
-  tags: ["Authentication"],
-  summary: "Refresh access token",
-  description: "Obtain new access token using refresh token cookie.",
+  tags: ['Authentication'],
+  summary: 'Refresh access token',
+  description: 'Obtain new access token using refresh token cookie.',
   response: {
     200: authSuccessResponseSchema,
     400: errorResponseSchema,
@@ -120,9 +119,9 @@ export const refreshRouteSchema = {
 };
 
 export const logoutRouteSchema = {
-  tags: ["Authentication"],
-  summary: "User logout",
-  description: "Invalidate current session and clear auth cookies.",
+  tags: ['Authentication'],
+  summary: 'User logout',
+  description: 'Invalidate current session and clear auth cookies.',
   response: {
     200: logoutResponseSchema,
   },
@@ -130,9 +129,9 @@ export const logoutRouteSchema = {
 };
 
 export const meRouteSchema = {
-  tags: ["Authentication"],
-  summary: "Get current user",
-  description: "Retrieve authenticated user profile and subscription info.",
+  tags: ['Authentication'],
+  summary: 'Get current user',
+  description: 'Retrieve authenticated user profile and subscription info.',
   response: {
     200: meResponseSchema,
     401: errorResponseSchema,

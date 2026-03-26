@@ -1,9 +1,9 @@
-import type { FastifyInstance } from "fastify";
-import { z } from "zod";
-import { JobType } from "@prisma/client";
-import { enqueueJob } from "../../lib/queue";
-import { prisma } from "../../lib/prisma";
-import { requireAuth } from "@/plugins/auth";
+import { JobType } from '@prisma/client';
+import type { FastifyInstance } from 'fastify';
+import { z } from 'zod';
+import { requireAuth } from '@/plugins/auth';
+import { prisma } from '../../lib/prisma';
+import { enqueueJob } from '../../lib/queue';
 
 // Define schemas outside
 const generateStructureSchema = z.object({
@@ -13,7 +13,7 @@ const generateStructureSchema = z.object({
     .object({
       mood: z.string().optional(),
       style: z.string().optional(),
-      tempo: z.enum(["slow", "medium", "fast"]).optional(),
+      tempo: z.enum(['slow', 'medium', 'fast']).optional(),
     })
     .optional(),
 });
@@ -21,25 +21,24 @@ const generateStructureSchema = z.object({
 export async function jobRoutes(app: FastifyInstance) {
   // 1. Generate Story Structure
   app.post(
-    "/story/generate-structure",
+    '/story/generate-structure',
     {
       preHandler: [requireAuth],
     },
     async (req, reply) => {
       // Manual Zod parsing
-       
+
       const body = generateStructureSchema.parse(req.body);
       const { prompt, vibe, projectId } = body;
-      const userId = req.user!.id;
+      const userId = req.user?.id;
+
+      if (!userId) {
+        return reply.status(401).send({ success: false, error: 'Authentication required' });
+      }
 
       // TODO: Check Quotas here
 
-      const job = await enqueueJob(
-        userId,
-        JobType.STORY_GENERATION,
-        { prompt, vibe },
-        projectId
-      );
+      const job = await enqueueJob(userId, JobType.STORY_GENERATION, { prompt, vibe }, projectId);
 
       return reply.status(201).send({
         success: true,
@@ -48,40 +47,40 @@ export async function jobRoutes(app: FastifyInstance) {
           status: job.status,
         },
       });
-    }
+    },
   );
 
   // 2. Poll Job Status
   app.get(
-    "/:id",
+    '/:id',
     {
       preHandler: [requireAuth],
     },
     async (req, reply) => {
       const { id } = req.params as { id: string };
-      const userId = req.user!.id;
+      const userId = req.user?.id;
+
+      if (!userId) {
+        return reply.status(401).send({ success: false, error: 'Authentication required' });
+      }
 
       const job = await prisma.job.findUnique({
         where: { id },
       });
 
       if (!job) {
-        return reply
-          .status(404)
-          .send({ success: false, error: "Job not found" });
+        return reply.status(404).send({ success: false, error: 'Job not found' });
       }
 
       // Security: Maintain ownership
       if (job.userId !== userId) {
-        return reply
-          .status(403)
-          .send({ success: false, error: "Unauthorized" });
+        return reply.status(403).send({ success: false, error: 'Unauthorized' });
       }
 
       return {
         success: true,
         data: job,
       };
-    }
+    },
   );
 }

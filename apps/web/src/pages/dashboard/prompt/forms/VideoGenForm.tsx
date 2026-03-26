@@ -1,25 +1,25 @@
 import {
   Card,
   CardBody,
+  Divider,
   Select,
-  SelectTrigger,
-  SelectValue,
   SelectContent,
   SelectItem,
+  SelectTrigger,
+  SelectValue,
   Textarea,
-  Divider,
-} from "@/components/ui";
-import { SelectionGrid } from "@/components/ui/SelectionGrid";
-import { VideoGenFormData } from "../types";
-import { TargetModelSelector } from "../components/TargetModelSelector";
+} from '@/components/ui';
+import { SelectionGrid } from '@/components/ui/SelectionGrid';
+import { TargetModelSelector } from '../components/TargetModelSelector';
 import {
-  videoStyles,
   aspectRatios,
-  videoDurations,
   cameraMovements,
   lightingOptions,
   moodOptions,
-} from "../constants";
+  videoDurations,
+  videoStyles,
+} from '../constants';
+import type { VideoGenFormData } from '../types';
 
 interface VideoGenFormProps {
   data: VideoGenFormData;
@@ -29,7 +29,7 @@ interface VideoGenFormProps {
 export function VideoGenForm({ data, onChange }: VideoGenFormProps) {
   const handleChange = (
     key: keyof VideoGenFormData,
-    value: VideoGenFormData[keyof VideoGenFormData]
+    value: VideoGenFormData[keyof VideoGenFormData],
   ) => {
     onChange({ ...data, [key]: value });
   };
@@ -40,7 +40,7 @@ export function VideoGenForm({ data, onChange }: VideoGenFormProps) {
         <TargetModelSelector
           promptType="VIDEO_GEN"
           value={data.targetModel}
-          onChange={(v) => handleChange("targetModel", v)}
+          onChange={(v) => handleChange('targetModel', v)}
         />
 
         {/* Section: Basic Config */}
@@ -53,13 +53,10 @@ export function VideoGenForm({ data, onChange }: VideoGenFormProps) {
           </div>
 
           <div className="space-y-3">
-            <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+            <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
               Konsep Video
-            </label>
-            <Select
-              value={data.concept}
-              onValueChange={(v) => handleChange("concept", v)}
-            >
+            </div>
+            <Select value={data.concept} onValueChange={(v) => handleChange('concept', v)}>
               <SelectTrigger className="h-14 rounded-2xl bg-muted/10 border-border/50 font-bold px-5 text-sm">
                 <SelectValue placeholder="Pilih Konsep" />
               </SelectTrigger>
@@ -79,13 +76,10 @@ export function VideoGenForm({ data, onChange }: VideoGenFormProps) {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <div className="space-y-3">
-              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+              <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
                 Gaya Visual (Style)
-              </label>
-              <Select
-                value={data.style}
-                onValueChange={(v) => handleChange("style", v)}
-              >
+              </div>
+              <Select value={data.style} onValueChange={(v) => handleChange('style', v)}>
                 <SelectTrigger className="h-14 rounded-2xl bg-muted/10 border-border/50 font-bold px-5 text-sm">
                   <SelectValue placeholder="Pilih Style" />
                 </SelectTrigger>
@@ -104,12 +98,12 @@ export function VideoGenForm({ data, onChange }: VideoGenFormProps) {
             </div>
 
             <div className="space-y-3">
-              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+              <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
                 Rasio Aspek (Aspect Ratio)
-              </label>
+              </div>
               <Select
                 value={data.aspectRatio}
-                onValueChange={(v) => handleChange("aspectRatio", v)}
+                onValueChange={(v) => handleChange('aspectRatio', v)}
               >
                 <SelectTrigger className="h-14 rounded-2xl bg-muted/10 border-border/50 font-bold px-5 text-sm">
                   <SelectValue />
@@ -130,13 +124,10 @@ export function VideoGenForm({ data, onChange }: VideoGenFormProps) {
           </div>
 
           <div className="space-y-3">
-            <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+            <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
               Durasi Video
-            </label>
-            <Select
-              value={data.duration}
-              onValueChange={(v) => handleChange("duration", v)}
-            >
+            </div>
+            <Select value={data.duration} onValueChange={(v) => handleChange('duration', v)}>
               <SelectTrigger className="h-14 rounded-2xl bg-muted/10 border-border/50 font-bold px-5 text-sm">
                 <SelectValue />
               </SelectTrigger>
@@ -170,7 +161,7 @@ export function VideoGenForm({ data, onChange }: VideoGenFormProps) {
             label="Pergerakan Kamera (Camera Movement)"
             options={cameraMovements}
             value={data.movement}
-            onChange={(v) => handleChange("movement", v)}
+            onChange={(v) => handleChange('movement', v)}
             columns={3}
           />
 
@@ -178,7 +169,7 @@ export function VideoGenForm({ data, onChange }: VideoGenFormProps) {
             label="Pencahayaan (Lighting)"
             options={lightingOptions}
             value={data.lighting}
-            onChange={(v) => handleChange("lighting", v)}
+            onChange={(v) => handleChange('lighting', v)}
             columns={3}
           />
 
@@ -186,19 +177,19 @@ export function VideoGenForm({ data, onChange }: VideoGenFormProps) {
             label="Mood & Suasana"
             options={moodOptions}
             value={data.mood}
-            onChange={(v) => handleChange("mood", v)}
+            onChange={(v) => handleChange('mood', v)}
             columns={3}
           />
 
           <div className="space-y-3 pt-4">
-            <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+            <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
               Detail Tambahan (opsional)
-            </label>
+            </div>
             <Textarea
               placeholder="Detail spesifik lainnya..."
               value={data.additionalDetails}
               onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                handleChange("additionalDetails", e.target.value)
+                handleChange('additionalDetails', e.target.value)
               }
               className="min-h-[140px] rounded-3xl bg-muted/10 border-border/50 font-bold p-6 focus:bg-muted/20 transition-all leading-relaxed"
             />

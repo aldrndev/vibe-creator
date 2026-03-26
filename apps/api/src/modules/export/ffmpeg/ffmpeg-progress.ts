@@ -33,7 +33,7 @@ export class ProgressParser {
 
     // Split by lines
     const lines = this.buffer.split('\n');
-    
+
     // Keep last incomplete line in buffer
     this.buffer = lines.pop() || '';
 
@@ -52,10 +52,10 @@ export class ProgressParser {
         if (value === 'continue' || value === 'end') {
           const update = this.processFrame();
           if (update) updates.push(update);
-          
+
           // Clear current frame
           this.currentFrame = {};
-          
+
           // Send completion on end
           if (value === 'end') {
             updates.push({ type: 'COMPLETED', percent: 100 });
@@ -113,10 +113,10 @@ export class ProgressParser {
  * Phase weights for progress aggregation
  */
 export const PHASE_WEIGHTS = {
-  TRIM: 0.1,    // 10%
-  MIX: 0.2,     // 20%
-  ENCODE: 0.6,  // 60%
-  MUX: 0.1,     // 10%
+  TRIM: 0.1, // 10%
+  MIX: 0.2, // 20%
+  ENCODE: 0.6, // 60%
+  MUX: 0.1, // 10%
 } as const;
 
 export type Phase = keyof typeof PHASE_WEIGHTS;
@@ -152,13 +152,13 @@ export class PhaseAggregator {
    */
   getOverallProgress(): number {
     let totalProgress = 0;
-    
+
     for (const phase of Object.keys(PHASE_WEIGHTS) as Phase[]) {
       const weight = PHASE_WEIGHTS[phase];
       const progress = this.phaseProgress[phase];
       totalProgress += (progress / 100) * weight;
     }
-    
+
     return Math.round(totalProgress * 100 * 100) / 100; // 2 decimal places
   }
 

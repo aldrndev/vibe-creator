@@ -3,12 +3,12 @@
  * Handles content analysis (silence detection, visual quality, energy).
  */
 
-import { spawn } from "child_process";
-import { existsSync } from "fs";
-import { logger } from "@/lib/logger";
-import { Segment, AnalysisOptions } from "./types";
+import { spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { logger } from '@/lib/logger';
+import type { AnalysisOptions, Segment } from './types';
 
-const ffmpegPath = process.env.FFMPEG_PATH || "ffmpeg";
+const ffmpegPath = process.env.FFMPEG_PATH || 'ffmpeg';
 
 export const videoAnalysisService = {
   /**
@@ -24,54 +24,55 @@ export const videoAnalysisService = {
     // Helper to run detection with specific threshold
     const runDetection = (thresholdDb: number): Promise<Segment[]> => {
       const args = [
-        "-i",
+        '-i',
         audioPath,
-        "-af",
+        '-af',
         `highpass=f=300,silencedetect=noise=${thresholdDb}dB:d=0.5`,
-        "-f",
-        "null",
-        "-",
+        '-f',
+        'null',
+        '-',
       ];
 
       return new Promise((resolve, reject) => {
         const proc = spawn(ffmpegPath, args);
-        let output = "";
-        proc.stderr.on("data", (data) => (output += data.toString()));
+        let output = '';
+        proc.stderr.on('data', (data) => (output += data.toString()));
 
-        proc.on("close", (code) => {
-          if (code !== 0)
-            return reject(new Error(`Silence detection failed: ${code}`));
+        proc.on('close', (code) => {
+          if (code !== 0) return reject(new Error(`Silence detection failed: ${code}`));
 
           // Parse output
           const silenceRegex = /silence_(start|end): ([\d.]+)/g;
           const silences: { start: number; end: number }[] = [];
 
-          let match;
+          let match: RegExpExecArray | null = silenceRegex.exec(output);
           let currentStart: number | null = null;
 
-          while ((match = silenceRegex.exec(output)) !== null) {
+          while (match) {
             const type = match[1];
             const time = parseFloat(match[2] as string);
 
-            if (type === "start") currentStart = time;
-            else if (type === "end" && currentStart !== null) {
+            if (type === 'start') currentStart = time;
+            else if (type === 'end' && currentStart !== null) {
               silences.push({ start: currentStart, end: time });
               currentStart = null;
             }
+
+            match = silenceRegex.exec(output);
           }
 
           // Get duration
-          const durationMatch =
-            /Duration: (\d{2}):(\d{2}):(\d{2}).(\d{2})/.exec(output);
+          const durationMatch = /Duration: (\d{2}):(\d{2}):(\d{2}).(\d{2})/.exec(output);
           let totalDuration = 0;
           if (durationMatch) {
+            const [, hours, minutes, seconds, centiseconds] = durationMatch;
             totalDuration =
-              parseInt(durationMatch[1]!) * 3600 +
-              parseInt(durationMatch[2]!) * 60 +
-              parseFloat(durationMatch[3]! + "." + durationMatch[4]!);
+              parseInt(hours ?? '0', 10) * 3600 +
+              parseInt(minutes ?? '0', 10) * 60 +
+              parseFloat(`${seconds ?? '0'}.${centiseconds ?? '0'}`);
           } else {
             // Fallback if unable to parse duration
-            logger.warn("Could not parse duration from ffmpeg output");
+            logger.warn('Could not parse duration from ffmpeg output');
             return resolve([]);
           }
 
@@ -108,14 +109,14 @@ export const videoAnalysisService = {
       });
     };
 
-    logger.info("Running adaptive silence detection");
+    logger.info('Running adaptive silence detection');
 
     // 1. Try strict threshold (-40dB)
     let segments = await runDetection(-40);
 
     // 2. If few segments, try looser (-30dB)
     if (segments.length < 5) {
-      logger.info("Few segments found at -40dB, retrying at -30dB");
+      logger.info('Few segments found at -40dB, retrying at -30dB');
       const looseSegments = await runDetection(-30);
       if (looseSegments.length > segments.length) {
         segments = looseSegments;
@@ -124,7 +125,7 @@ export const videoAnalysisService = {
 
     // 3. Even looser (-20dB) if still struggling
     if (segments.length < 3) {
-      logger.info("Very few segments, retrying at -20dB");
+      logger.info('Very few segments, retrying at -20dB');
       const veryLooseSegments = await runDetection(-20);
       if (veryLooseSegments.length > segments.length) {
         segments = veryLooseSegments;
@@ -132,11 +133,12 @@ export const videoAnalysisService = {
     }
 
     // 4. Fallback: Uniform Grid Slicing if almost nothing found
+    const firstSegment = segments[0];
     if (
       segments.length === 0 ||
-      (segments.length === 1 && segments[0]!.duration > 60)
+      (segments.length === 1 && firstSegment && firstSegment.duration > 60)
     ) {
-      logger.info("Fallback: Uniform Grid Slicing");
+      logger.info('Fallback: Uniform Grid Slicing');
       if (segments.length === 0) {
         return [];
       }
@@ -152,34 +154,34 @@ export const videoAnalysisService = {
   async analyzeSegmentVisuals(
     videoPath: string,
     start: number,
-    duration: number
+    duration: number,
   ): Promise<{ hasBlackScreen: boolean; isStatic: boolean }> {
     return new Promise((resolve) => {
       const args = [
-        "-ss",
+        '-ss',
         start.toString(),
-        "-t",
+        '-t',
         duration.toString(),
-        "-i",
+        '-i',
         videoPath,
-        "-vf",
-        "blackdetect=d=0.1:pix_th=0.1,freezedetect=n=0.003:d=2", // Black > 0.1s, Freeze > 2s
-        "-f",
-        "null",
-        "-",
+        '-vf',
+        'blackdetect=d=0.1:pix_th=0.1,freezedetect=n=0.003:d=2', // Black > 0.1s, Freeze > 2s
+        '-f',
+        'null',
+        '-',
       ];
 
       const proc = spawn(ffmpegPath, args);
-      let output = "";
-      proc.stderr.on("data", (data) => (output += data.toString()));
+      let output = '';
+      proc.stderr.on('data', (data) => (output += data.toString()));
 
-      proc.on("close", () => {
+      proc.on('close', () => {
         const hasBlack = /black_start:/.test(output);
         const hasFreeze = /lavfi\.freezedetect\.freeze_start:/.test(output);
         resolve({ hasBlackScreen: hasBlack, isStatic: hasFreeze });
       });
 
-      proc.on("error", () => {
+      proc.on('error', () => {
         resolve({ hasBlackScreen: false, isStatic: false });
       });
     });
@@ -191,39 +193,42 @@ export const videoAnalysisService = {
   async analyzeSegmentEnergy(
     audioPath: string,
     start: number,
-    duration: number
+    duration: number,
   ): Promise<{ meanVolume: number; maxVolume: number }> {
     return new Promise((resolve) => {
       const args = [
-        "-ss",
+        '-ss',
         start.toString(),
-        "-t",
+        '-t',
         duration.toString(),
-        "-i",
+        '-i',
         audioPath,
-        "-af",
-        "highpass=f=300,volumedetect",
-        "-f",
-        "null",
-        "-",
+        '-af',
+        'highpass=f=300,volumedetect',
+        '-f',
+        'null',
+        '-',
       ];
 
       const proc = spawn(ffmpegPath, args);
-      let output = "";
-      proc.stderr.on("data", (data) => (output += data.toString()));
+      let output = '';
+      proc.stderr.on('data', (data) => (output += data.toString()));
 
-      proc.on("close", () => {
+      proc.on('close', () => {
         // Parse mean_volume and max_volume
         const meanMatch = /mean_volume: ([-\d.]+) dB/.exec(output);
         const maxMatch = /max_volume: ([-\d.]+) dB/.exec(output);
 
+        const meanVolume = meanMatch?.[1] ? parseFloat(meanMatch[1]) : -91;
+        const maxVolume = maxMatch?.[1] ? parseFloat(maxMatch[1]) : -91;
+
         resolve({
-          meanVolume: meanMatch ? parseFloat(meanMatch[1]!) : -91,
-          maxVolume: maxMatch ? parseFloat(maxMatch[1]!) : -91,
+          meanVolume,
+          maxVolume,
         });
       });
 
-      proc.on("error", () => {
+      proc.on('error', () => {
         resolve({ meanVolume: -91, maxVolume: -91 });
       });
     });
@@ -236,14 +241,9 @@ export const videoAnalysisService = {
     segments: Segment[],
     audioPath: string,
     options: AnalysisOptions = {},
-    videoPath?: string
+    videoPath?: string,
   ): Promise<(Segment & { tags?: string[] })[]> {
-    const {
-      minDuration = 5,
-      maxDuration = 35,
-      mergeGap = 0.5,
-      maxCandidates = 20,
-    } = options;
+    const { minDuration = 5, maxDuration = 35, mergeGap = 0.5, maxCandidates = 20 } = options;
 
     if (segments.length === 0) return [];
 
@@ -262,8 +262,7 @@ export const videoAnalysisService = {
         current.end = next.end;
         current.duration = current.end - current.start;
         current.activeDuration =
-          (current.activeDuration || 0) +
-          (next.activeDuration || next.duration);
+          (current.activeDuration || 0) + (next.activeDuration || next.duration);
       } else {
         merged.push(current);
         current = next;
@@ -300,11 +299,7 @@ export const videoAnalysisService = {
     // Run concurrently with concurrency limit for performance
     const analyzed = await Promise.all(
       candidates.map(async (c) => {
-        const { meanVolume } = await this.analyzeSegmentEnergy(
-          audioPath,
-          c.start,
-          c.duration
-        );
+        const { meanVolume } = await this.analyzeSegmentEnergy(audioPath, c.start, c.duration);
 
         let score = c.score;
         const tags: string[] = [];
@@ -314,7 +309,7 @@ export const videoAnalysisService = {
         // We boost score for loud parts (laughter, yelling)
         if (meanVolume > -18) {
           score += 0.15;
-          tags.push("HIGH ENERGY");
+          tags.push('HIGH ENERGY');
         } else if (meanVolume > -25) {
           score += 0.05; // Normal clear speech
         } else {
@@ -332,7 +327,7 @@ export const videoAnalysisService = {
 
         if (density >= 0.9) {
           score += 0.1; // Very dense/fast speech -> Viral potential
-          if (!tags.includes("HIGH ENERGY")) tags.push("DENSE SPEECH");
+          if (!tags.includes('HIGH ENERGY')) tags.push('DENSE SPEECH');
         } else if (density < 0.6) {
           score -= 0.15; // Too many pauses -> Boring
         }
@@ -342,20 +337,20 @@ export const videoAnalysisService = {
           const { hasBlackScreen, isStatic } = await this.analyzeSegmentVisuals(
             videoPath,
             c.start,
-            c.duration
+            c.duration,
           );
           if (hasBlackScreen) {
             score -= 0.3; // Penalty for black screen
-            tags.push("BLACK SCREEN");
+            tags.push('BLACK SCREEN');
           }
           if (isStatic) {
             score -= 0.2; // Penalty for static image
-            tags.push("STATIC");
+            tags.push('STATIC');
           }
         }
 
         return { ...c, score: Math.min(score, 0.99), tags };
-      })
+      }),
     );
 
     // 4. Sort by Smart Score

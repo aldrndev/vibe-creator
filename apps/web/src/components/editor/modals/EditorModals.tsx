@@ -1,27 +1,27 @@
 import {
+  CheckCircle2,
+  Facebook,
+  Globe,
+  Instagram,
+  Loader2,
+  Sparkles,
+  Twitter,
+  Youtube,
+} from 'lucide-react';
+import { ExportModal } from '@/components/editor/ExportModal';
+import { TextOverlayEditor } from '@/components/editor/TextOverlayEditor';
+import { VoiceRecorderModal } from '@/components/editor/VoiceRecorderModal';
+import {
+  Badge,
   Button,
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
   Input,
-  Badge,
-} from "@/components/ui";
-import { VoiceRecorderModal } from "@/components/editor/VoiceRecorderModal";
-import { TextOverlayEditor } from "@/components/editor/TextOverlayEditor";
-import { ExportModal } from "@/components/editor/ExportModal";
-import {
-  Globe,
-  CheckCircle2,
-  Loader2,
-  Sparkles,
-  Youtube,
-  Instagram,
-  Twitter,
-  Facebook,
-} from "lucide-react";
-import { cn } from "@/lib/utils";
+} from '@/components/ui';
+import { cn } from '@/lib/utils';
 
 interface EditorModalsProps {
   isUrlModalOpen: boolean;
@@ -39,8 +39,8 @@ interface EditorModalsProps {
   isExportModalOpen: boolean;
   setIsExportModalOpen: (open: boolean) => void;
   handleExportConfirm: (settings: {
-    format: "MP4" | "WEBM" | "MOV";
-    resolution: "SD" | "HD" | "UHD";
+    format: 'MP4' | 'WEBM' | 'MOV';
+    resolution: 'SD' | 'HD' | 'UHD';
     width?: number;
     height?: number;
     fps?: number;
@@ -69,10 +69,7 @@ export const EditorModals = ({
   return (
     <>
       {/* URL Download Modal */}
-      <Dialog
-        open={isUrlModalOpen}
-        onOpenChange={(open) => !open && closeUrlModal()}
-      >
+      <Dialog open={isUrlModalOpen} onOpenChange={(open) => !open && closeUrlModal()}>
         <DialogContent className="max-w-lg bg-background/60 backdrop-blur-3xl border-white/10 p-0 overflow-hidden shadow-2xl">
           <DialogHeader className="p-8 pb-4 border-b border-white/5 bg-white/5">
             <div className="flex items-center justify-between">
@@ -99,9 +96,7 @@ export const EditorModals = ({
                 <Input
                   placeholder="Paste link from YouTube, TikTok, Reels..."
                   value={urlInput}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                    setUrlInput(e.target.value)
-                  }
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setUrlInput(e.target.value)}
                   disabled={isDownloading}
                   className="h-16 pl-12 bg-background/40 border-border/40 rounded-2xl font-bold text-base focus:ring-emerald-500/40"
                 />
@@ -115,9 +110,9 @@ export const EditorModals = ({
                 <span className="text-[9px] font-black text-muted-foreground/40 uppercase tracking-widest">
                   Supports:
                 </span>
-                {[Youtube, Instagram, Twitter, Facebook].map((Icon, i) => (
+                {[Youtube, Instagram, Twitter, Facebook].map((Icon) => (
                   <Icon
-                    key={i}
+                    key={Icon.displayName ?? Icon.name}
                     size={14}
                     className="text-muted-foreground/30 hover:text-foreground transition-colors"
                   />
@@ -138,8 +133,8 @@ export const EditorModals = ({
                         Target Synchronized
                       </p>
                       <p className="text-[10px] font-bold text-muted-foreground leading-snug">
-                        The capture engine is ready to extract high-quality
-                        video artifacts from this link.
+                        The capture engine is ready to extract high-quality video artifacts from
+                        this link.
                       </p>
                     </div>
                   </div>
@@ -156,20 +151,20 @@ export const EditorModals = ({
             {isDownloading && downloadStep > 0 && (
               <div className="space-y-4 py-4">
                 {[
-                  { step: 1, label: "Initializing Handshake..." },
-                  { step: 2, label: "Extracting Data Stream..." },
-                  { step: 3, label: "Verifying Integrity..." },
-                  { step: 4, label: "Injecting to Timeline..." },
+                  { step: 1, label: 'Initializing Handshake...' },
+                  { step: 2, label: 'Extracting Data Stream...' },
+                  { step: 3, label: 'Verifying Integrity...' },
+                  { step: 4, label: 'Injecting to Timeline...' },
                 ].map(({ step, label }) => (
                   <div key={step} className="flex items-center gap-4 group">
                     <div
                       className={cn(
-                        "w-8 h-8 rounded-xl flex items-center justify-center text-xs font-black transition-all",
+                        'w-8 h-8 rounded-xl flex items-center justify-center text-xs font-black transition-all',
                         downloadStep > step
-                          ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20"
+                          ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20'
                           : downloadStep === step
-                          ? "bg-primary text-white animate-pulse"
-                          : "bg-white/5 text-muted-foreground/20"
+                            ? 'bg-primary text-white animate-pulse'
+                            : 'bg-white/5 text-muted-foreground/20',
                       )}
                     >
                       {downloadStep > step ? <CheckCircle2 size={16} /> : step}
@@ -177,10 +172,8 @@ export const EditorModals = ({
                     <div className="flex-1">
                       <span
                         className={cn(
-                          "text-xs font-black uppercase tracking-widest",
-                          downloadStep >= step
-                            ? "text-foreground"
-                            : "text-muted-foreground/20"
+                          'text-xs font-black uppercase tracking-widest',
+                          downloadStep >= step ? 'text-foreground' : 'text-muted-foreground/20',
                         )}
                       >
                         {label}

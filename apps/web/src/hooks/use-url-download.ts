@@ -3,15 +3,15 @@
  * Handles downloading videos from URLs and adding to timeline
  */
 
-import { useState, useCallback } from "react";
-import { logger } from "@/lib/logger";
-import { downloadApi } from "@/services/download-api";
-import { authFetch } from "@/services/api";
+import { useCallback, useState } from 'react';
+import { logger } from '@/lib/logger';
+import { authFetch } from '@/services/api';
+import { downloadApi } from '@/services/download-api';
 
 interface Asset {
   id: string;
   name: string;
-  type: "VIDEO" | "AUDIO" | "IMAGE";
+  type: 'VIDEO' | 'AUDIO' | 'IMAGE';
   url: string;
   file: File;
   durationMs: number;
@@ -48,10 +48,9 @@ interface UseUrlDownloadOptions {
 }
 
 export function useUrlDownload(options: UseUrlDownloadOptions) {
-  const { addAsset, addClip, getVideoTrackId, getLastClipEndMs, onClose } =
-    options;
+  const { addAsset, addClip, getVideoTrackId, getLastClipEndMs, onClose } = options;
 
-  const [urlInput, setUrlInput] = useState("");
+  const [urlInput, setUrlInput] = useState('');
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadStep, setDownloadStep] = useState(0);
   const [downloadError, setDownloadError] = useState<string | null>(null);
@@ -62,7 +61,7 @@ export function useUrlDownload(options: UseUrlDownloadOptions) {
     setDownloadSuccess(null);
 
     if (!urlInput.trim()) {
-      setDownloadError("Masukkan URL video");
+      setDownloadError('Masukkan URL video');
       return;
     }
 
@@ -82,16 +81,16 @@ export function useUrlDownload(options: UseUrlDownloadOptions) {
       const fileResponse = await authFetch(fileUrl);
 
       if (!fileResponse.ok) {
-        throw new Error("Gagal mengambil file video");
+        throw new Error('Gagal mengambil file video');
       }
 
       const blob = await fileResponse.blob();
       const fileName = result.title || `download-${Date.now()}.mp4`;
-      const file = new File([blob], fileName, { type: "video/mp4" });
+      const file = new File([blob], fileName, { type: 'video/mp4' });
 
       // Get video duration
-      const videoEl = document.createElement("video");
-      videoEl.preload = "metadata";
+      const videoEl = document.createElement('video');
+      videoEl.preload = 'metadata';
       const videoUrl = URL.createObjectURL(blob);
       videoEl.src = videoUrl;
 
@@ -108,7 +107,7 @@ export function useUrlDownload(options: UseUrlDownloadOptions) {
       addAsset({
         id: assetId,
         name: fileName,
-        type: "VIDEO",
+        type: 'VIDEO',
         url: videoUrl,
         file,
         durationMs,
@@ -131,21 +130,19 @@ export function useUrlDownload(options: UseUrlDownloadOptions) {
 
       setDownloadSuccess(`"${fileName}" ditambahkan ke timeline!`);
       onClose?.();
-      setUrlInput("");
+      setUrlInput('');
       setDownloadStep(0);
     } catch (e) {
-      logger.error("URL download failed", e);
+      logger.error('URL download failed', e);
       setDownloadStep(0);
-      setDownloadError(
-        `Download gagal: ${e instanceof Error ? e.message : "Unknown error"}`
-      );
+      setDownloadError(`Download gagal: ${e instanceof Error ? e.message : 'Unknown error'}`);
     } finally {
       setIsDownloading(false);
     }
   }, [urlInput, addAsset, addClip, getVideoTrackId, getLastClipEndMs, onClose]);
 
   const resetDownload = useCallback(() => {
-    setUrlInput("");
+    setUrlInput('');
     setDownloadStep(0);
     setIsDownloading(false);
     setDownloadError(null);

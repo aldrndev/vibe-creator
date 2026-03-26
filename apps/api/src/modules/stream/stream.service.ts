@@ -3,25 +3,21 @@
  * RTMP live streaming service - main facade
  */
 
-import { logger } from "@/lib/logger";
-import { prisma } from "@/lib/prisma";
-import { billingService } from "../billing/billing.service";
-import {
-  StreamConfig,
-  getRtmpUrl,
-  buildStreamArgs,
-} from "./services/rtmp.utils";
+import { logger } from '@/lib/logger';
+import { prisma } from '@/lib/prisma';
+import { billingService } from '../billing/billing.service';
 import {
   hasActiveStream,
+  isStreamActive,
   killUserStream,
+  scheduleStreamLive,
   startStreamProcess,
   stopStreamProcess,
-  scheduleStreamLive,
-  isStreamActive,
-} from "./services/process.manager";
-import { startStreamReaper, setStopStreamHandler } from "./services/reaper";
+} from './services/process.manager';
+import { setStopStreamHandler, startStreamReaper } from './services/reaper';
+import { buildStreamArgs, getRtmpUrl, type StreamConfig } from './services/rtmp.utils';
 
-export type { StreamConfig, StreamPlatform } from "./services/rtmp.utils";
+export type { StreamConfig, StreamPlatform } from './services/rtmp.utils';
 
 interface StartStreamInput {
   userId: string;
@@ -40,7 +36,7 @@ export const streamService = {
 
     // 1. Concurrency Control: Enforce 1 stream per user
     if (hasActiveStream(userId)) {
-      logger.info({ userId }, "Stopping existing stream for new session");
+      logger.info({ userId }, 'Stopping existing stream for new session');
       await killUserStream(userId);
     }
 
@@ -50,7 +46,7 @@ export const streamService = {
     const quotaRemaining = Math.max(0, quotaTotal - cycle.quotaMinutesUsed);
 
     if (quotaRemaining <= 0) {
-      throw new Error("Streaming quota exhausted. Please upgrade or top-up.");
+      throw new Error('Streaming quota exhausted. Please upgrade or top-up.');
     }
 
     // 3. Calculate duration and auto-stop time
@@ -64,7 +60,7 @@ export const streamService = {
       data: {
         userId,
         platform: config.platform,
-        status: "STARTING",
+        status: 'STARTING',
         startedAt: new Date(),
         autoStopAt,
         quotaCycleId: cycle.id,
@@ -77,18 +73,14 @@ export const streamService = {
     });
 
     // 5. Build RTMP URL and FFmpeg args
-    const rtmpUrl = getRtmpUrl(
-      config.platform,
-      config.streamKey,
-      config.rtmpUrl
-    );
+    const rtmpUrl = getRtmpUrl(config.platform, config.streamKey, config.rtmpUrl);
     const args = buildStreamArgs(inputPath, config, rtmpUrl);
 
     // 6. Start process
     startStreamProcess(stream.id, userId, args);
     scheduleStreamLive(stream.id);
 
-    logger.info({ streamId: stream.id, autoStopAt }, "Stream started");
+    logger.info({ streamId: stream.id, autoStopAt }, 'Stream started');
 
     return { streamId: stream.id };
   },
@@ -99,13 +91,13 @@ export const streamService = {
   async stopStream(
     streamId: string,
     userId: string,
-    reason: "USER_REQUEST" | "AUTO_STOP" | "ADMIN" | "ERROR" = "USER_REQUEST"
+    reason: 'USER_REQUEST' | 'AUTO_STOP' | 'ADMIN' | 'ERROR' = 'USER_REQUEST',
   ): Promise<void> {
     const stream = await prisma.streamSession.findFirst({
       where: { id: streamId, userId },
     });
 
-    if (!stream) throw new Error("Stream not found");
+    if (!stream) throw new Error('Stream not found');
 
     // Kill process
     stopStreamProcess(streamId, userId);
@@ -129,7 +121,7 @@ export const streamService = {
         await tx.streamSession.update({
           where: { id: streamId },
           data: {
-            status: "ENDED",
+            status: 'ENDED',
             endedAt: now,
             durationMinutesBilled: minutesBilled,
             stopReason: reason,
@@ -143,10 +135,10 @@ export const streamService = {
             data: { quotaMinutesUsed: { increment: minutesBilled } },
           });
         }
-      }
+      },
     );
 
-    logger.info({ streamId, reason }, "Stream stopped and billed");
+    logger.info({ streamId, reason }, 'Stream stopped and billed');
   },
 
   /**
@@ -157,7 +149,7 @@ export const streamService = {
       where: { id: streamId, userId },
     });
 
-    if (!stream) throw new Error("Stream not found");
+    if (!stream) throw new Error('Stream not found');
 
     return { ...stream, isActive: isStreamActive(streamId) };
   },
@@ -168,7 +160,7 @@ export const streamService = {
   async getHistory(userId: string, limit = 20) {
     return prisma.streamSession.findMany({
       where: { userId },
-      orderBy: { startedAt: "desc" },
+      orderBy: { startedAt: 'desc' },
       take: limit,
     });
   },
@@ -178,7 +170,7 @@ export const streamService = {
    */
   async getActiveStreams(userId: string) {
     return prisma.streamSession.findMany({
-      where: { userId, status: { in: ["STARTING", "LIVE"] } },
+      where: { userId, status: { in: ['STARTING', 'LIVE'] } },
     });
   },
 };

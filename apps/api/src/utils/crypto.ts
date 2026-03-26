@@ -1,15 +1,12 @@
+import { createHash } from 'node:crypto';
 import { hash, verify } from 'argon2';
 import { nanoid } from 'nanoid';
-import { createHash } from 'crypto';
 
 export async function hashPassword(password: string): Promise<string> {
   return hash(password);
 }
 
-export async function verifyPassword(
-  password: string,
-  hashedPassword: string
-): Promise<boolean> {
+export async function verifyPassword(password: string, hashedPassword: string): Promise<boolean> {
   return verify(hashedPassword, password);
 }
 

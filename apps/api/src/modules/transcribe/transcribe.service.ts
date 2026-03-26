@@ -1,11 +1,11 @@
-import { prisma } from "@/lib/prisma";
-import { logger } from "@/lib/logger";
-import { directorProcessor } from "../director/director.processor";
-import { whisperRunner } from "./whisper-runner";
-import { transcribeNormalizer } from "./transcribe-normalizer";
-import path from "path";
-import fs from "fs/promises";
-import { env } from "@/config/env";
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { env } from '@/config/env';
+import { logger } from '@/lib/logger';
+import { prisma } from '@/lib/prisma';
+import { directorProcessor } from '../director/director.processor';
+import { transcribeNormalizer } from './transcribe-normalizer';
+import { whisperRunner } from './whisper-runner';
 
 export const transcribeService = {
   /**
@@ -24,8 +24,8 @@ export const transcribeService = {
       },
     });
 
-    if (!selectedClip || !selectedClip.session.asset) {
-      throw new Error("Selected clip or asset not found");
+    if (!selectedClip?.session?.asset) {
+      throw new Error('Selected clip or asset not found');
     }
 
     const { session, candidate, trimStartMs, trimEndMs } = selectedClip;
@@ -64,9 +64,9 @@ export const transcribeService = {
     // Fix: Resolve input path correctly using MEDIA_INPUT_DIR
     // storageKey might be 'uploads/director/xyz.mp4' or 'director/xyz.mp4'
     // We want: MEDIA_INPUT_DIR/director/xyz.mp4 (assuming MEDIA_INPUT_DIR is /app/uploads)
-    const cleanStorageKey = storageKey.replace(/^uploads\//, ""); // Strip leading 'uploads/' if present
+    const cleanStorageKey = storageKey.replace(/^uploads\//, ''); // Strip leading 'uploads/' if present
     const inputPath = path.join(env.MEDIA_INPUT_DIR, cleanStorageKey);
-    const audioProxyDir = path.join(env.TEMP_DIR, "director/audio-proxies");
+    const audioProxyDir = path.join(env.TEMP_DIR, 'director/audio-proxies');
 
     // Debug logging
     logger.info(
@@ -79,13 +79,13 @@ export const transcribeService = {
         mediaInputDir: env.MEDIA_INPUT_DIR,
         tempDir: env.TEMP_DIR,
       },
-      "Transcribe: Resolving paths"
+      'Transcribe: Resolving paths',
     );
 
     // Ensure proxy dir exists
     await fs.mkdir(audioProxyDir, { recursive: true });
 
-    let audioProxyPath = "";
+    let audioProxyPath = '';
 
     try {
       // 1. Extract Audio
@@ -93,20 +93,18 @@ export const transcribeService = {
         inputPath,
         audioProxyDir,
         startMs,
-        endMs
+        endMs,
       );
 
       // 2. Run Whisper
       const result = await whisperRunner.runWhisperOnAudio(audioProxyPath);
 
       if (!result.success || !result.segments) {
-        throw new Error(result.error || "Whisper returned no segments");
+        throw new Error(result.error || 'Whisper returned no segments');
       }
 
       // 3. Normalize
-      const normalizedSegments = transcribeNormalizer.normalizeSegments(
-        result.segments
-      );
+      const normalizedSegments = transcribeNormalizer.normalizeSegments(result.segments);
 
       // 4. Persist to DB
       await prisma.directorClipTranscript.upsert({
@@ -114,14 +112,14 @@ export const transcribeService = {
         create: {
           sessionId: session.id,
           selectedClipId,
-          status: "COMPLETED",
-          engine: "WHISPER_LOCAL",
+          status: 'COMPLETED',
+          engine: 'WHISPER_LOCAL',
           language: result.language,
           segments: normalizedSegments as object[],
           completedAt: new Date(),
         },
         update: {
-          status: "COMPLETED",
+          status: 'COMPLETED',
           segments: normalizedSegments as object[],
           language: result.language,
           errorMessage: null,
@@ -131,11 +129,11 @@ export const transcribeService = {
 
       logger.info(
         { selectedClipId, segCount: normalizedSegments.length },
-        "Clip transcription completed"
+        'Clip transcription completed',
       );
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : "Unknown error";
-      logger.error({ selectedClipId, err }, "Clip transcription failed");
+      const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+      logger.error({ selectedClipId, err }, 'Clip transcription failed');
 
       // Update DB to FAILED
       await prisma.directorClipTranscript.upsert({
@@ -143,12 +141,12 @@ export const transcribeService = {
         create: {
           sessionId: session.id,
           selectedClipId,
-          status: "FAILED",
-          engine: "WHISPER_LOCAL",
+          status: 'FAILED',
+          engine: 'WHISPER_LOCAL',
           errorMessage: errorMsg,
         },
         update: {
-          status: "FAILED",
+          status: 'FAILED',
           errorMessage: errorMsg,
           completedAt: new Date(), // Mark as done (failed)
         },

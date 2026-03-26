@@ -16,7 +16,7 @@ export const EXPORT_PHASES = {
   CANCEL_REQUESTED: 'CANCEL_REQUESTED',
 } as const;
 
-export type ExportPhase = typeof EXPORT_PHASES[keyof typeof EXPORT_PHASES];
+export type ExportPhase = (typeof EXPORT_PHASES)[keyof typeof EXPORT_PHASES];
 
 /**
  * Phase weights for progress calculation (total = 100)
@@ -49,19 +49,19 @@ export function getPhaseProgress(phase: ExportPhase, phaseProgress: number = 0):
     'UPLOAD',
     'COMPLETED',
   ];
-  
+
   const currentIndex = phases.indexOf(phase);
   if (currentIndex === -1) return 0;
-  
+
   let cumulative = 0;
   for (let i = 0; i < currentIndex; i++) {
     cumulative += PHASE_WEIGHTS[phases[i] as ExportPhase];
   }
-  
+
   // Add partial progress within current phase
   const currentWeight = PHASE_WEIGHTS[phase];
   cumulative += Math.round(currentWeight * (phaseProgress / 100));
-  
+
   return Math.min(100, cumulative);
 }
 
@@ -72,7 +72,7 @@ export interface ExportJobData {
   jobId: string;
   userId: string;
   projectId: string;
-  
+
   // Validated input
   timeline: {
     durationMs: number;
@@ -115,7 +115,7 @@ export interface ExportJobData {
       };
     }>;
   };
-  
+
   // Export settings
   settings: {
     format: 'MP4' | 'WEBM' | 'MOV';
@@ -126,24 +126,24 @@ export interface ExportJobData {
     fps: number;
     addWatermark: boolean;
   };
-  
+
   // Idempotency
   idempotencyKey: string;
-  
+
   // Timestamps
   createdAt: Date;
   startedAt?: Date;
   completedAt?: Date;
-  
+
   // Progress tracking
   phase: ExportPhase;
   phaseProgress: number; // 0-100 within current phase
   overallProgress: number; // 0-100 overall
-  
+
   // Result
   outputStorageKey?: string;
   outputSizeBytes?: number;
-  
+
   // Error handling
   errorMessage?: string;
   attempts: number;
@@ -159,15 +159,15 @@ export interface ExportJobResult {
   phase: ExportPhase;
   phaseProgress: number;
   overallProgress: number;
-  
+
   // Only present when completed
   downloadUrl?: string;
   downloadUrlExpiresAt?: Date;
   fileSizeBytes?: number;
-  
+
   // Only present when failed
   errorMessage?: string;
-  
+
   // Timing
   createdAt: Date;
   startedAt?: Date;

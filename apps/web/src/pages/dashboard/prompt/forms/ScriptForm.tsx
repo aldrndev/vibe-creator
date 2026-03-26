@@ -1,29 +1,29 @@
 import {
   Card,
   CardBody,
+  Divider,
   Input,
   Select,
-  SelectTrigger,
-  SelectValue,
   SelectContent,
   SelectItem,
+  SelectTrigger,
+  SelectValue,
   Textarea,
-  Divider,
-} from "@/components/ui";
-import { SelectionGrid } from "@/components/ui/SelectionGrid";
-import { ScriptFormData } from "../types";
-import { TargetModelSelector } from "../components/TargetModelSelector";
+} from '@/components/ui';
+import { SelectionGrid } from '@/components/ui/SelectionGrid';
+import { TargetModelSelector } from '../components/TargetModelSelector';
 import {
-  niches,
-  targetAudiences,
-  platforms,
-  durations,
-  tones,
-  contentGoals,
-  narrativeStyles,
-  keyMessages,
   callToActions,
-} from "../constants";
+  contentGoals,
+  durations,
+  keyMessages,
+  narrativeStyles,
+  niches,
+  platforms,
+  targetAudiences,
+  tones,
+} from '../constants';
+import type { ScriptFormData } from '../types';
 
 interface ScriptFormProps {
   data: ScriptFormData;
@@ -31,10 +31,7 @@ interface ScriptFormProps {
 }
 
 export function ScriptForm({ data, onChange }: ScriptFormProps) {
-  const handleChange = (
-    key: keyof ScriptFormData,
-    value: ScriptFormData[keyof ScriptFormData]
-  ) => {
+  const handleChange = (key: keyof ScriptFormData, value: ScriptFormData[keyof ScriptFormData]) => {
     onChange({ ...data, [key]: value });
   };
 
@@ -44,7 +41,7 @@ export function ScriptForm({ data, onChange }: ScriptFormProps) {
         <TargetModelSelector
           promptType="SCRIPT"
           value={data.targetModel}
-          onChange={(v) => handleChange("targetModel", v)}
+          onChange={(v) => handleChange('targetModel', v)}
         />
 
         {/* Section: Core Identity */}
@@ -58,13 +55,10 @@ export function ScriptForm({ data, onChange }: ScriptFormProps) {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <div className="space-y-3">
-              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+              <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
                 Niche / Topik
-              </label>
-              <Select
-                value={data.niche}
-                onValueChange={(v) => handleChange("niche", v)}
-              >
+              </div>
+              <Select value={data.niche} onValueChange={(v) => handleChange('niche', v)}>
                 <SelectTrigger className="h-14 rounded-2xl bg-muted/10 border-border/50 font-bold px-5 text-sm">
                   <SelectValue placeholder="Pilih Niche" />
                 </SelectTrigger>
@@ -83,12 +77,12 @@ export function ScriptForm({ data, onChange }: ScriptFormProps) {
             </div>
 
             <div className="space-y-3">
-              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+              <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
                 Target Audiens
-              </label>
+              </div>
               <Select
                 value={data.targetAudience}
-                onValueChange={(v) => handleChange("targetAudience", v)}
+                onValueChange={(v) => handleChange('targetAudience', v)}
               >
                 <SelectTrigger className="h-14 rounded-2xl bg-muted/10 border-border/50 font-bold px-5 text-sm">
                   <SelectValue placeholder="Pilih Audiens" />
@@ -122,13 +116,10 @@ export function ScriptForm({ data, onChange }: ScriptFormProps) {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <div className="space-y-3">
-              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+              <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
                 Platform
-              </label>
-              <Select
-                value={data.platform}
-                onValueChange={(v) => handleChange("platform", v)}
-              >
+              </div>
+              <Select value={data.platform} onValueChange={(v) => handleChange('platform', v)}>
                 <SelectTrigger className="h-14 rounded-2xl bg-muted/10 border-border/50 font-bold px-5 text-sm">
                   <SelectValue />
                 </SelectTrigger>
@@ -147,13 +138,10 @@ export function ScriptForm({ data, onChange }: ScriptFormProps) {
             </div>
 
             <div className="space-y-3">
-              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+              <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
                 Durasi
-              </label>
-              <Select
-                value={data.duration}
-                onValueChange={(v) => handleChange("duration", v)}
-              >
+              </div>
+              <Select value={data.duration} onValueChange={(v) => handleChange('duration', v)}>
                 <SelectTrigger className="h-14 rounded-2xl bg-muted/10 border-border/50 font-bold px-5 text-sm">
                   <SelectValue />
                 </SelectTrigger>
@@ -174,13 +162,10 @@ export function ScriptForm({ data, onChange }: ScriptFormProps) {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <div className="space-y-3">
-              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+              <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
                 Tone / Suasana
-              </label>
-              <Select
-                value={data.tone}
-                onValueChange={(v) => handleChange("tone", v)}
-              >
+              </div>
+              <Select value={data.tone} onValueChange={(v) => handleChange('tone', v)}>
                 <SelectTrigger className="h-14 rounded-2xl bg-muted/10 border-border/50 font-bold px-5 text-sm">
                   <SelectValue />
                 </SelectTrigger>
@@ -199,12 +184,12 @@ export function ScriptForm({ data, onChange }: ScriptFormProps) {
             </div>
 
             <div className="space-y-3">
-              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+              <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
                 Goal Konten
-              </label>
+              </div>
               <Select
                 value={data.contentGoal}
-                onValueChange={(v) => handleChange("contentGoal", v)}
+                onValueChange={(v) => handleChange('contentGoal', v)}
               >
                 <SelectTrigger className="h-14 rounded-2xl bg-muted/10 border-border/50 font-bold px-5 text-sm">
                   <SelectValue />
@@ -225,12 +210,12 @@ export function ScriptForm({ data, onChange }: ScriptFormProps) {
           </div>
 
           <div className="space-y-3">
-            <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+            <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
               Gaya Narasi
-            </label>
+            </div>
             <Select
               value={data.narrativeStyle}
-              onValueChange={(v) => handleChange("narrativeStyle", v)}
+              onValueChange={(v) => handleChange('narrativeStyle', v)}
             >
               <SelectTrigger className="h-14 rounded-2xl bg-muted/10 border-border/50 font-bold px-5 text-sm">
                 <SelectValue />
@@ -265,7 +250,7 @@ export function ScriptForm({ data, onChange }: ScriptFormProps) {
             label="Pesan Utama"
             options={keyMessages}
             value={data.keyMessage}
-            onChange={(v) => handleChange("keyMessage", v)}
+            onChange={(v) => handleChange('keyMessage', v)}
             columns={3}
           />
 
@@ -273,48 +258,48 @@ export function ScriptForm({ data, onChange }: ScriptFormProps) {
             label="Call to Action"
             options={callToActions}
             value={data.callToAction}
-            onChange={(v) => handleChange("callToAction", v)}
+            onChange={(v) => handleChange('callToAction', v)}
             columns={3}
           />
 
           <div className="space-y-6 pt-4">
             <div className="space-y-3">
-              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+              <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
                 Keywords (pisahkan dengan koma)
-              </label>
+              </div>
               <Input
                 placeholder="Contoh: iPhone, Apple, smartphone, review"
                 value={data.keywords}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                  handleChange("keywords", e.target.value)
+                  handleChange('keywords', e.target.value)
                 }
                 className="h-14 rounded-2xl bg-muted/10 border-border/50 font-bold px-6 focus:bg-muted/20 transition-all"
               />
             </div>
 
             <div className="space-y-3">
-              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
-                Emotional Journey (pisahkan dengan , atau -{">"})
-              </label>
+              <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+                Emotional Journey (pisahkan dengan , atau -{'>'})
+              </div>
               <Input
                 placeholder="Contoh: Penasaran -> Terkejut -> Puas"
                 value={data.emotionalJourney}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                  handleChange("emotionalJourney", e.target.value)
+                  handleChange('emotionalJourney', e.target.value)
                 }
                 className="h-14 rounded-2xl bg-muted/10 border-border/50 font-bold px-6 focus:bg-muted/20 transition-all"
               />
             </div>
 
             <div className="space-y-3">
-              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+              <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
                 Konteks Tambahan (opsional)
-              </label>
+              </div>
               <Textarea
                 placeholder="Informasi tambahan yang perlu diketahui..."
                 value={data.additionalContext}
                 onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                  handleChange("additionalContext", e.target.value)
+                  handleChange('additionalContext', e.target.value)
                 }
                 className="min-h-[140px] rounded-3xl bg-muted/10 border-border/50 font-bold p-6 focus:bg-muted/20 transition-all leading-relaxed"
               />

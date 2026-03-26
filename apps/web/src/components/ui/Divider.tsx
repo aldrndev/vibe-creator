@@ -1,5 +1,5 @@
-import * as React from "react";
-import { cn } from "@/lib/utils";
+import * as React from 'react';
+import { cn } from '@/lib/utils';
 
 /**
  * Divider/Separator component
@@ -7,21 +7,28 @@ import { cn } from "@/lib/utils";
 const Divider = React.forwardRef<
   HTMLDivElement,
   React.HTMLAttributes<HTMLDivElement> & {
-    orientation?: "horizontal" | "vertical";
+    orientation?: 'horizontal' | 'vertical';
   }
->(({ className, orientation = "horizontal", ...props }, ref) => (
-  <div
-    ref={ref}
-    role="separator"
-    aria-orientation={orientation}
-    className={cn(
-      "shrink-0 bg-border",
-      orientation === "horizontal" ? "h-[1px] w-full" : "h-full w-[1px]",
-      className
-    )}
-    {...props}
-  />
-));
-Divider.displayName = "Divider";
+>(({ className, orientation = 'horizontal', ...props }, ref) => {
+  if (orientation === 'vertical') {
+    return (
+      <div
+        ref={ref}
+        aria-hidden="true"
+        className={cn('h-full w-[1px] shrink-0 bg-border', className)}
+        {...props}
+      />
+    );
+  }
+
+  return (
+    <hr
+      ref={ref as React.Ref<HTMLHRElement>}
+      className={cn('h-[1px] w-full shrink-0 border-0 bg-border', className)}
+      {...props}
+    />
+  );
+});
+Divider.displayName = 'Divider';
 
 export { Divider };

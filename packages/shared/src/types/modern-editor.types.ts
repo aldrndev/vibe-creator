@@ -9,7 +9,7 @@
 export const MODERN_SCHEMA_VERSION = 1;
 
 // Compiler version for parity tracking
-export const MODERN_COMPILER_VERSION = "1.0.0";
+export const MODERN_COMPILER_VERSION = '1.0.0';
 
 // -----------------------------------------------------------------------------
 // Constraints & Limits
@@ -20,13 +20,13 @@ export const MODERN_LIMITS = {
   MAX_DURATION_MS: 10 * 60 * 1000, // 10 minutes
   ALLOWED_FPS: [24, 30, 60] as const,
   ALLOWED_RESOLUTIONS: {
-    "720p": { width: 1280, height: 720 },
-    "1080p": { width: 1920, height: 1080 },
-    "1080p_portrait": { width: 1080, height: 1920 },
-    "1080p_square": { width: 1080, height: 1080 },
+    '720p': { width: 1280, height: 720 },
+    '1080p': { width: 1920, height: 1080 },
+    '1080p_portrait': { width: 1080, height: 1920 },
+    '1080p_square': { width: 1080, height: 1080 },
   } as const,
   DEFAULT_FPS: 30,
-  DEFAULT_RESOLUTION: "1080p" as const,
+  DEFAULT_RESOLUTION: '1080p' as const,
 } as const;
 
 export type AllowedFps = (typeof MODERN_LIMITS.ALLOWED_FPS)[number];
@@ -36,11 +36,11 @@ export type AllowedResolution = keyof typeof MODERN_LIMITS.ALLOWED_RESOLUTIONS;
 // Layer Types
 // -----------------------------------------------------------------------------
 
-export type LayerType = "video" | "image" | "text" | "audio";
+export type LayerType = 'video' | 'image' | 'text' | 'audio';
 
-export type AnchorPoint = "center" | "topLeft";
+export type AnchorPoint = 'center' | 'topLeft';
 
-export type FitMode = "cover" | "contain";
+export type FitMode = 'cover' | 'contain';
 
 /**
  * Base layer properties shared by all layer types
@@ -78,7 +78,7 @@ export interface VideoLayerData {
 }
 
 export interface VideoLayer extends BaseLayer {
-  type: "video";
+  type: 'video';
   data: VideoLayerData;
 }
 
@@ -90,7 +90,7 @@ export interface ImageLayerData {
 }
 
 export interface ImageLayer extends BaseLayer {
-  type: "image";
+  type: 'image';
   data: ImageLayerData;
 }
 
@@ -101,16 +101,16 @@ export interface TextLayerData {
   text: string;
   fontFamily: string;
   fontSize: number;
-  fontWeight: "normal" | "bold";
-  fontStyle: "normal" | "italic";
+  fontWeight: 'normal' | 'bold';
+  fontStyle: 'normal' | 'italic';
   color: string;
   backgroundColor?: string;
-  textAlign: "left" | "center" | "right";
-  animation: "none" | "fade" | "slide-up" | "slide-down" | "typewriter";
+  textAlign: 'left' | 'center' | 'right';
+  animation: 'none' | 'fade' | 'slide-up' | 'slide-down' | 'typewriter';
 }
 
 export interface TextLayer extends BaseLayer {
-  type: "text";
+  type: 'text';
   assetId: null; // Text layers never have assets
   data: TextLayerData;
 }
@@ -128,7 +128,7 @@ export interface AudioLayerData {
 }
 
 export interface AudioLayer extends BaseLayer {
-  type: "audio";
+  type: 'audio';
   data: AudioLayerData;
 }
 
@@ -175,12 +175,12 @@ export interface CompilerMetadata {
 // -----------------------------------------------------------------------------
 
 export type CompilerErrorCode =
-  | "ASSET_MISSING"
-  | "VALIDATION_FAILED"
-  | "UNSUPPORTED_LAYER_TYPE"
-  | "OUT_OF_BOUNDS_TIMING"
-  | "EXCEEDS_DURATION_LIMIT"
-  | "EXCEEDS_LAYER_LIMIT";
+  | 'ASSET_MISSING'
+  | 'VALIDATION_FAILED'
+  | 'UNSUPPORTED_LAYER_TYPE'
+  | 'OUT_OF_BOUNDS_TIMING'
+  | 'EXCEEDS_DURATION_LIMIT'
+  | 'EXCEEDS_LAYER_LIMIT';
 
 export interface CompilerError {
   code: CompilerErrorCode;
@@ -193,12 +193,8 @@ export interface CompilerError {
 // Defaults & Factories
 // -----------------------------------------------------------------------------
 
-export function createDefaultModernProject(
-  id: string,
-  title: string
-): ModernProject {
-  const resolution =
-    MODERN_LIMITS.ALLOWED_RESOLUTIONS[MODERN_LIMITS.DEFAULT_RESOLUTION];
+export function createDefaultModernProject(id: string, title: string): ModernProject {
+  const resolution = MODERN_LIMITS.ALLOWED_RESOLUTIONS[MODERN_LIMITS.DEFAULT_RESOLUTION];
   return {
     schemaVersion: MODERN_SCHEMA_VERSION,
     id,
@@ -208,7 +204,7 @@ export function createDefaultModernProject(
       height: resolution.height,
       fps: MODERN_LIMITS.DEFAULT_FPS,
       durationMs: 0,
-      backgroundColor: "#000000",
+      backgroundColor: '#000000',
     },
     layers: [],
   };
@@ -219,11 +215,11 @@ export function createVideoLayer(
   assetId: string,
   zIndex: number,
   startMs: number,
-  endMs: number
+  endMs: number,
 ): VideoLayer {
   return {
     id,
-    type: "video",
+    type: 'video',
     assetId,
     zIndex,
     visible: true,
@@ -234,11 +230,11 @@ export function createVideoLayer(
     height: 100,
     rotation: 0,
     opacity: 1,
-    anchor: "center",
+    anchor: 'center',
     startMs,
     endMs,
     data: {
-      fit: "contain",
+      fit: 'contain',
       volume: 1,
       loop: false,
       trimStartMs: 0,
@@ -252,11 +248,11 @@ export function createImageLayer(
   assetId: string,
   zIndex: number,
   startMs: number,
-  endMs: number
+  endMs: number,
 ): ImageLayer {
   return {
     id,
-    type: "image",
+    type: 'image',
     assetId,
     zIndex,
     visible: true,
@@ -267,11 +263,11 @@ export function createImageLayer(
     height: 50,
     rotation: 0,
     opacity: 1,
-    anchor: "center",
+    anchor: 'center',
     startMs,
     endMs,
     data: {
-      fit: "contain",
+      fit: 'contain',
     },
   };
 }
@@ -281,11 +277,11 @@ export function createTextLayer(
   text: string,
   zIndex: number,
   startMs: number,
-  endMs: number
+  endMs: number,
 ): TextLayer {
   return {
     id,
-    type: "text",
+    type: 'text',
     assetId: null,
     zIndex,
     visible: true,
@@ -296,18 +292,18 @@ export function createTextLayer(
     height: 20,
     rotation: 0,
     opacity: 1,
-    anchor: "center",
+    anchor: 'center',
     startMs,
     endMs,
     data: {
       text,
-      fontFamily: "Inter",
+      fontFamily: 'Inter',
       fontSize: 48,
-      fontWeight: "bold",
-      fontStyle: "normal",
-      color: "#ffffff",
-      textAlign: "center",
-      animation: "none",
+      fontWeight: 'bold',
+      fontStyle: 'normal',
+      color: '#ffffff',
+      textAlign: 'center',
+      animation: 'none',
     },
   };
 }
@@ -317,11 +313,11 @@ export function createAudioLayer(
   assetId: string,
   zIndex: number,
   startMs: number,
-  endMs: number
+  endMs: number,
 ): AudioLayer {
   return {
     id,
-    type: "audio",
+    type: 'audio',
     assetId,
     zIndex,
     visible: true,
@@ -332,7 +328,7 @@ export function createAudioLayer(
     height: 0,
     rotation: 0,
     opacity: 1,
-    anchor: "center",
+    anchor: 'center',
     startMs,
     endMs,
     data: {

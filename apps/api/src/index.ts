@@ -1,47 +1,39 @@
-import Fastify from "fastify";
-import cors from "@fastify/cors";
-import helmet from "@fastify/helmet";
-import rateLimit from "@fastify/rate-limit";
-import cookie from "@fastify/cookie";
-import csrf from "@fastify/csrf-protection";
-import {
-  serializerCompiler,
-  validatorCompiler,
-} from "fastify-type-provider-zod";
-import rawBody from "fastify-raw-body";
+import cookie from '@fastify/cookie';
+import cors from '@fastify/cors';
+import csrf from '@fastify/csrf-protection';
+import helmet from '@fastify/helmet';
+import rateLimit from '@fastify/rate-limit';
+import Fastify from 'fastify';
+import rawBody from 'fastify-raw-body';
+import { serializerCompiler, validatorCompiler } from 'fastify-type-provider-zod';
 
-import { env } from "@/config/env";
-import { logger } from "@/lib/logger";
-import { prisma } from "@/lib/prisma";
-import { redis } from "@/lib/redis";
-
-import { errorHandlerPlugin } from "@/plugins/error-handler";
-
-import { authPlugin } from "@/plugins/auth";
-import { registerSwagger } from "@/plugins/swagger";
-
-import { authRoutes } from "@/modules/auth/auth.routes";
-import { promptRoutes } from "@/modules/prompt/prompt.routes";
-import { exportRoutes } from "@/modules/export/export.routes";
-import { uploadRoutes } from "@/modules/upload/upload.routes";
-import { downloadRoutes } from "@/modules/download/download.routes";
-import { loopRoutes } from "@/modules/loop/loop.routes";
-import { reactionRoutes } from "@/modules/reaction/reaction.routes";
-import { streamRoutes } from "@/modules/stream/stream.routes";
-import { paymentRoutes } from "@/modules/payment/payment.routes";
-import { adminRoutes } from "@/modules/admin/admin.routes";
-import { projectRoutes } from "@/modules/project/project.routes";
-import { billingRoutes } from "@/modules/billing/billing.routes";
-import { jobRoutes } from "@/modules/story/job.routes";
-import { directorRoutes } from "@/modules/director/director.routes";
-import { trendingRoutes } from "@/modules/trending/trending.routes";
-
+import { env } from '@/config/env';
 // JWT key ring initialization (Digitesia Standard C1)
-import { initializeKeyRing } from "@/lib/jwt";
+import { initializeKeyRing } from '@/lib/jwt';
+import { logger } from '@/lib/logger';
+import { prisma } from '@/lib/prisma';
+import { redis } from '@/lib/redis';
+import { adminRoutes } from '@/modules/admin/admin.routes';
+import { authRoutes } from '@/modules/auth/auth.routes';
+import { billingRoutes } from '@/modules/billing/billing.routes';
+import { cleanupCron } from '@/modules/cron/cleanup.cron';
+import { directorRoutes } from '@/modules/director/director.routes';
+import { downloadRoutes } from '@/modules/download/download.routes';
+import { exportRoutes } from '@/modules/export/export.routes';
+import { loopRoutes } from '@/modules/loop/loop.routes';
+import { paymentRoutes } from '@/modules/payment/payment.routes';
+import { projectRoutes } from '@/modules/project/project.routes';
+import { promptRoutes } from '@/modules/prompt/prompt.routes';
+import { reactionRoutes } from '@/modules/reaction/reaction.routes';
+import { jobRoutes } from '@/modules/story/job.routes';
+import { streamRoutes } from '@/modules/stream/stream.routes';
+import { trendingRoutes } from '@/modules/trending/trending.routes';
+import { uploadRoutes } from '@/modules/upload/upload.routes';
+import { authPlugin } from '@/plugins/auth';
+import { errorHandlerPlugin } from '@/plugins/error-handler';
+import { registerSwagger } from '@/plugins/swagger';
 
-import { cleanupCron } from "@/modules/cron/cleanup.cron";
-
-import { startWorkers } from "./workers";
+import { startWorkers } from './workers';
 
 // Handle BigInt serialization for Prisma
 // @ts-expect-error BigInt does not have toJSON method by default
@@ -55,7 +47,7 @@ const ANNOUNCEMENTS_CACHE_TTL_SECONDS = 60;
 async function main(): Promise<void> {
   const fastify = Fastify({
     logger: false, // We use pino directly
-    requestIdHeader: "x-request-id",
+    requestIdHeader: 'x-request-id',
     genReqId: () => crypto.randomUUID(),
   });
 
@@ -64,9 +56,9 @@ async function main(): Promise<void> {
 
   // Register plugins
   await fastify.register(rawBody, {
-    field: "rawBody",
+    field: 'rawBody',
     global: false,
-    encoding: "utf8",
+    encoding: 'utf8',
     runFirst: true,
   });
 
@@ -76,14 +68,14 @@ async function main(): Promise<void> {
       directives: {
         defaultSrc: ["'self'"],
         frameAncestors: ["'none'"],
-        scriptSrc: ["'self'", "'unsafe-inline'"],
-        styleSrc: ["'self'", "'unsafe-inline'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'"],
       },
     },
   });
 
   await fastify.register(cors, {
-    origin: env.CORS_ORIGIN.split(","),
+    origin: env.CORS_ORIGIN.split(','),
     credentials: true,
   });
 
@@ -95,8 +87,8 @@ async function main(): Promise<void> {
   await fastify.register(csrf, {
     cookieOpts: {
       httpOnly: true,
-      secure: env.NODE_ENV === "production",
-      sameSite: "strict",
+      secure: env.NODE_ENV === 'production',
+      sameSite: 'strict',
     },
   });
 
@@ -105,8 +97,8 @@ async function main(): Promise<void> {
   await registerSwagger(fastify);
 
   // Health check
-  fastify.get("/health", async () => {
-    return { status: "ok", timestamp: new Date().toISOString() };
+  fastify.get('/health', async () => {
+    return { status: 'ok', timestamp: new Date().toISOString() };
   });
 
   // API routes
@@ -118,10 +110,10 @@ async function main(): Promise<void> {
       if (!env.RATE_LIMIT_TEST_MODE) {
         await api.register(rateLimit, {
           max: 100,
-          timeWindow: "15 minutes",
+          timeWindow: '15 minutes',
           redis,
           keyGenerator: (request) => {
-            const routeKey = request.url.split("?")[0] || "global";
+            const routeKey = request.url.split('?')[0] || 'global';
             const tenantId = request.auth?.tenantId || request.user?.id;
             const userId = request.auth?.userId || request.user?.id;
 
@@ -135,9 +127,9 @@ async function main(): Promise<void> {
       }
 
       // Public announcements endpoint (no auth required)
-      api.get("/announcements", async (_request, reply) => {
-        const cacheKey = "announcements:active";
-        if (redis.status === "ready") {
+      api.get('/announcements', async (_request, reply) => {
+        const cacheKey = 'announcements:active';
+        if (redis.status === 'ready') {
           const cached = await redis.get(cacheKey);
           if (cached) {
             return reply.send({ success: true, data: JSON.parse(cached) });
@@ -146,43 +138,43 @@ async function main(): Promise<void> {
 
         const announcements = await prisma.announcement.findMany({
           where: { isActive: true },
-          orderBy: { createdAt: "desc" },
+          orderBy: { createdAt: 'desc' },
           take: 10,
         });
 
-        if (redis.status === "ready") {
+        if (redis.status === 'ready') {
           await redis.set(
             cacheKey,
             JSON.stringify(announcements),
-            "EX",
-            ANNOUNCEMENTS_CACHE_TTL_SECONDS
+            'EX',
+            ANNOUNCEMENTS_CACHE_TTL_SECONDS,
           );
         }
 
         return reply.send({ success: true, data: announcements });
       });
 
-      await api.register(authRoutes, { prefix: "/auth" });
-      await api.register(promptRoutes, { prefix: "/prompts" });
-      await api.register(exportRoutes, { prefix: "/export" });
-      await api.register(uploadRoutes, { prefix: "/upload" });
-      await api.register(downloadRoutes, { prefix: "/download" });
-      await api.register(loopRoutes, { prefix: "/loop" });
-      await api.register(reactionRoutes, { prefix: "/reaction" });
-      await api.register(streamRoutes, { prefix: "/stream" });
-      await api.register(paymentRoutes, { prefix: "/payment" });
-      await api.register(adminRoutes, { prefix: "/admin" });
-      await api.register(projectRoutes, { prefix: "/projects" });
-      await api.register(billingRoutes, { prefix: "/billing" });
-      await api.register(jobRoutes, { prefix: "/jobs" });
-      await api.register(directorRoutes, { prefix: "/director" });
-      await api.register(trendingRoutes, { prefix: "/trending" });
+      await api.register(authRoutes, { prefix: '/auth' });
+      await api.register(promptRoutes, { prefix: '/prompts' });
+      await api.register(exportRoutes, { prefix: '/export' });
+      await api.register(uploadRoutes, { prefix: '/upload' });
+      await api.register(downloadRoutes, { prefix: '/download' });
+      await api.register(loopRoutes, { prefix: '/loop' });
+      await api.register(reactionRoutes, { prefix: '/reaction' });
+      await api.register(streamRoutes, { prefix: '/stream' });
+      await api.register(paymentRoutes, { prefix: '/payment' });
+      await api.register(adminRoutes, { prefix: '/admin' });
+      await api.register(projectRoutes, { prefix: '/projects' });
+      await api.register(billingRoutes, { prefix: '/billing' });
+      await api.register(jobRoutes, { prefix: '/jobs' });
+      await api.register(directorRoutes, { prefix: '/director' });
+      await api.register(trendingRoutes, { prefix: '/trending' });
     },
-    { prefix: "/api/v1" }
+    { prefix: '/api/v1' },
   );
 
   // Graceful shutdown
-  const signals: NodeJS.Signals[] = ["SIGINT", "SIGTERM"];
+  const signals: NodeJS.Signals[] = ['SIGINT', 'SIGTERM'];
 
   for (const signal of signals) {
     process.on(signal, async () => {
@@ -192,7 +184,7 @@ async function main(): Promise<void> {
       await prisma.$disconnect();
       await redis.quit();
 
-      logger.info("Server shut down successfully");
+      logger.info('Server shut down successfully');
       process.exit(0);
     });
   }
@@ -200,9 +192,9 @@ async function main(): Promise<void> {
   // Start server
   try {
     // Initialize JWT key ring (Digitesia Standard C1)
-    logger.info("Initializing JWT key ring...");
+    logger.info('Initializing JWT key ring...');
     await initializeKeyRing();
-    logger.info("JWT key ring initialized successfully");
+    logger.info('JWT key ring initialized successfully');
 
     // Start background workers
     await startWorkers();
@@ -210,16 +202,12 @@ async function main(): Promise<void> {
     // Start cleanup cron
     cleanupCron.start();
 
-    await fastify.listen({ port: env.PORT, host: "0.0.0.0" });
+    await fastify.listen({ port: env.PORT, host: '0.0.0.0' });
     logger.info(`🚀 Server running on http://localhost:${env.PORT}`);
     logger.info(`📚 API available at http://localhost:${env.PORT}/api/v1`);
-    logger.info(
-      `🎬 Cobalt API: ${
-        env.COBALT_API_URL || "Not configured - using yt-dlp fallback"
-      }`
-    );
+    logger.info(`🎬 Cobalt API: ${env.COBALT_API_URL || 'Not configured - using yt-dlp fallback'}`);
   } catch (err) {
-    logger.error(err, "Failed to start server");
+    logger.error(err, 'Failed to start server');
     process.exit(1);
   }
 }

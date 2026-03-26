@@ -1,29 +1,21 @@
-import { useMemo, useState } from "react";
+import { ChevronDown, ChevronUp, Edit, Filter, Search, Shield, Users } from 'lucide-react';
+import { useMemo, useState } from 'react';
 import {
+  Avatar,
+  Badge,
+  Button,
   Card,
   CardBody,
   Input,
   Table,
-  TableHeader,
   TableBody,
-  TableRow,
   TableCell,
   TableHead,
-  Badge,
-  Button,
-  Avatar,
-} from "@/components/ui";
-import {
-  Search,
-  Edit,
-  Shield,
-  ChevronUp,
-  ChevronDown,
-  Filter,
-  Users,
-} from "lucide-react";
-import { UserData } from "@/hooks/useAdminData";
-import { cn } from "@/lib/utils";
+  TableHeader,
+  TableRow,
+} from '@/components/ui';
+import type { UserData } from '@/hooks/useAdminData';
+import { cn } from '@/lib/utils';
 
 interface UsersTableProps {
   users: UserData[];
@@ -33,8 +25,8 @@ interface UsersTableProps {
   onEditUser: (user: UserData) => void;
 }
 
-type SortField = "name" | "exports" | "date";
-type SortOrder = "asc" | "desc";
+type SortField = 'name' | 'exports' | 'date';
+type SortOrder = 'asc' | 'desc';
 
 export function UsersTable({
   users,
@@ -43,44 +35,41 @@ export function UsersTable({
   setSearchQuery,
   onEditUser,
 }: UsersTableProps) {
-  const [sortField, setSortField] = useState<SortField>("date");
-  const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
-  const [filterTier, setFilterTier] = useState<string>("ALL");
+  const [sortField, setSortField] = useState<SortField>('date');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+  const [filterTier, setFilterTier] = useState<string>('ALL');
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
-      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
     } else {
       setSortField(field);
-      setSortOrder("desc");
+      setSortOrder('desc');
     }
   };
 
   const filteredUsers = useMemo(() => {
-    if (filterTier === "ALL") return users;
-    return users.filter((u) => (u.subscription?.tier || "FREE") === filterTier);
+    if (filterTier === 'ALL') return users;
+    return users.filter((u) => (u.subscription?.tier || 'FREE') === filterTier);
   }, [users, filterTier]);
 
   const sortedUsers = useMemo(() => {
     return [...filteredUsers].sort((a, b) => {
       let comparison = 0;
-      if (sortField === "name") {
+      if (sortField === 'name') {
         comparison = a.name.localeCompare(b.name);
-      } else if (sortField === "exports") {
-        comparison =
-          (a.subscription?.exportsUsed || 0) -
-          (b.subscription?.exportsUsed || 0);
-      } else if (sortField === "date") {
-        comparison =
-          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      } else if (sortField === 'exports') {
+        comparison = (a.subscription?.exportsUsed || 0) - (b.subscription?.exportsUsed || 0);
+      } else if (sortField === 'date') {
+        comparison = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
       }
-      return sortOrder === "asc" ? comparison : -comparison;
+      return sortOrder === 'asc' ? comparison : -comparison;
     });
   }, [filteredUsers, sortField, sortOrder]);
 
   const SortIcon = ({ field }: { field: SortField }) => {
     if (sortField !== field) return null;
-    return sortOrder === "asc" ? (
+    return sortOrder === 'asc' ? (
       <ChevronUp size={12} className="ml-1" />
     ) : (
       <ChevronDown size={12} className="ml-1" />
@@ -92,13 +81,10 @@ export function UsersTable({
       <div className="p-5 border-b border-border/40 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 bg-muted/5">
         <div className="flex items-center gap-3">
           <div className="p-2 rounded-lg bg-primary/10 text-primary border border-primary/20">
-            <Users size={18} />{" "}
-            {/* This will likely need Users imported if not already */}
+            <Users size={18} /> {/* This will likely need Users imported if not already */}
           </div>
           <div>
-            <h2 className="text-lg font-bold tracking-tight">
-              User Management
-            </h2>
+            <h2 className="text-lg font-bold tracking-tight">User Management</h2>
             <p className="text-[10px] text-muted-foreground/70 font-bold uppercase tracking-widest mt-0.5">
               {sortedUsers.length} Users Found
             </p>
@@ -113,9 +99,7 @@ export function UsersTable({
             <Input
               placeholder="Search users..."
               value={searchQuery}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                setSearchQuery(e.target.value)
-              }
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
               className="pl-9 h-9 bg-background/50 border-border/50 focus:bg-background transition-all rounded-lg text-sm"
             />
           </div>
@@ -141,7 +125,7 @@ export function UsersTable({
               <TableRow className="hover:bg-transparent border-border/40">
                 <TableHead
                   className="font-bold text-[10px] uppercase tracking-widest text-muted-foreground pl-6 cursor-pointer hover:text-foreground transition-colors min-w-[200px]"
-                  onClick={() => handleSort("name")}
+                  onClick={() => handleSort('name')}
                 >
                   <div className="flex items-center">
                     USER PROFILE <SortIcon field="name" />
@@ -152,7 +136,7 @@ export function UsersTable({
                 </TableHead>
                 <TableHead
                   className="font-bold text-[10px] uppercase tracking-widest text-muted-foreground text-center cursor-pointer hover:text-foreground transition-colors min-w-[100px]"
-                  onClick={() => handleSort("exports")}
+                  onClick={() => handleSort('exports')}
                 >
                   <div className="flex items-center justify-center">
                     EXPORTS <SortIcon field="exports" />
@@ -160,7 +144,7 @@ export function UsersTable({
                 </TableHead>
                 <TableHead
                   className="font-bold text-[10px] uppercase tracking-widest text-muted-foreground cursor-pointer hover:text-foreground transition-colors min-w-[120px]"
-                  onClick={() => handleSort("date")}
+                  onClick={() => handleSort('date')}
                 >
                   <div className="flex items-center">
                     JOINED <SortIcon field="date" />
@@ -206,16 +190,11 @@ export function UsersTable({
                         <div className="space-y-0.5">
                           <p className="font-bold text-sm text-foreground flex items-center gap-1.5 whitespace-nowrap">
                             {u.name}
-                            {u.role === "ADMIN" && (
-                              <Shield
-                                size={12}
-                                className="text-primary fill-primary/20"
-                              />
+                            {u.role === 'ADMIN' && (
+                              <Shield size={12} className="text-primary fill-primary/20" />
                             )}
                           </p>
-                          <p className="text-[11px] text-muted-foreground font-medium">
-                            {u.email}
-                          </p>
+                          <p className="text-[11px] text-muted-foreground font-medium">{u.email}</p>
                         </div>
                       </div>
                     </TableCell>
@@ -223,15 +202,15 @@ export function UsersTable({
                       <Badge
                         variant="outline"
                         className={cn(
-                          "h-5 px-2 rounded text-[9px] font-black uppercase tracking-tighter border-0 whitespace-nowrap",
-                          u.subscription?.tier === "PRO"
-                            ? "bg-purple-500/10 text-purple-600 dark:text-purple-400"
-                            : u.subscription?.tier === "CREATOR"
-                            ? "bg-orange-500/10 text-orange-600 dark:text-orange-400"
-                            : "bg-muted text-muted-foreground"
+                          'h-5 px-2 rounded text-[9px] font-black uppercase tracking-tighter border-0 whitespace-nowrap',
+                          u.subscription?.tier === 'PRO'
+                            ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400'
+                            : u.subscription?.tier === 'CREATOR'
+                              ? 'bg-orange-500/10 text-orange-600 dark:text-orange-400'
+                              : 'bg-muted text-muted-foreground',
                         )}
                       >
-                        {u.subscription?.tier || "FREE"}
+                        {u.subscription?.tier || 'FREE'}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-center">
@@ -247,7 +226,7 @@ export function UsersTable({
                                 ((u.subscription?.exportsUsed || 0) /
                                   (u.subscription?.exportsLimit || 5)) *
                                   100,
-                                100
+                                100,
                               )}%`,
                             }}
                           />
@@ -256,10 +235,10 @@ export function UsersTable({
                     </TableCell>
                     <TableCell>
                       <span className="text-[11px] font-bold text-muted-foreground whitespace-nowrap">
-                        {new Date(u.createdAt).toLocaleDateString("id-ID", {
-                          day: "numeric",
-                          month: "short",
-                          year: "2-digit",
+                        {new Date(u.createdAt).toLocaleDateString('id-ID', {
+                          day: 'numeric',
+                          month: 'short',
+                          year: '2-digit',
                         })}
                       </span>
                     </TableCell>

@@ -1,4 +1,4 @@
-import { Layers } from "lucide-react";
+import { Layers } from 'lucide-react';
 
 export function ReactionHeader() {
   return (

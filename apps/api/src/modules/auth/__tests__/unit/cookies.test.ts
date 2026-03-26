@@ -9,15 +9,15 @@
  * - Production vs development secure flag
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { FastifyReply } from "fastify";
+import type { FastifyReply } from 'fastify';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  clearRefreshTokenCookie,
   REFRESH_TOKEN_COOKIE,
   setRefreshTokenCookie,
-  clearRefreshTokenCookie,
-} from "@/modules/auth/auth.cookies";
+} from '@/modules/auth/auth.cookies';
 
-describe("auth cookies", () => {
+describe('auth cookies', () => {
   const mockReply = {
     setCookie: vi.fn(),
     clearCookie: vi.fn(),
@@ -27,97 +27,94 @@ describe("auth cookies", () => {
     vi.clearAllMocks();
   });
 
-  describe("REFRESH_TOKEN_COOKIE constant", () => {
-    it("should be vibe_refresh_token", () => {
-      expect(REFRESH_TOKEN_COOKIE).toBe("vibe_refresh_token");
+  describe('REFRESH_TOKEN_COOKIE constant', () => {
+    it('should be vibe_refresh_token', () => {
+      expect(REFRESH_TOKEN_COOKIE).toBe('vibe_refresh_token');
     });
   });
 
-  describe("setRefreshTokenCookie", () => {
-    const testToken = "test-refresh-token";
-    const testExpiry = new Date("2024-01-31T00:00:00.000Z");
+  describe('setRefreshTokenCookie', () => {
+    const testToken = 'test-refresh-token';
+    const testExpiry = new Date('2024-01-31T00:00:00.000Z');
 
-    it("should set cookie with correct name and value", () => {
+    it('should set cookie with correct name and value', () => {
       setRefreshTokenCookie(mockReply, testToken, testExpiry);
 
       expect(mockReply.setCookie).toHaveBeenCalledWith(
         REFRESH_TOKEN_COOKIE,
         testToken,
-        expect.any(Object)
+        expect.any(Object),
       );
     });
 
-    it("should set httpOnly to true", () => {
+    it('should set httpOnly to true', () => {
       setRefreshTokenCookie(mockReply, testToken, testExpiry);
 
       expect(mockReply.setCookie).toHaveBeenCalledWith(
         expect.any(String),
         expect.any(String),
-        expect.objectContaining({ httpOnly: true })
+        expect.objectContaining({ httpOnly: true }),
       );
     });
 
-    it("should set sameSite to lax", () => {
+    it('should set sameSite to lax', () => {
       setRefreshTokenCookie(mockReply, testToken, testExpiry);
 
       expect(mockReply.setCookie).toHaveBeenCalledWith(
         expect.any(String),
         expect.any(String),
-        expect.objectContaining({ sameSite: "lax" })
+        expect.objectContaining({ sameSite: 'lax' }),
       );
     });
 
-    it("should set path to root", () => {
+    it('should set path to root', () => {
       setRefreshTokenCookie(mockReply, testToken, testExpiry);
 
       expect(mockReply.setCookie).toHaveBeenCalledWith(
         expect.any(String),
         expect.any(String),
-        expect.objectContaining({ path: "/" })
+        expect.objectContaining({ path: '/' }),
       );
     });
 
-    it("should set expires to provided date", () => {
+    it('should set expires to provided date', () => {
       setRefreshTokenCookie(mockReply, testToken, testExpiry);
 
       expect(mockReply.setCookie).toHaveBeenCalledWith(
         expect.any(String),
         expect.any(String),
-        expect.objectContaining({ expires: testExpiry })
+        expect.objectContaining({ expires: testExpiry }),
       );
     });
 
-    it("should set secure to false in test/development", () => {
+    it('should set secure to false in test/development', () => {
       setRefreshTokenCookie(mockReply, testToken, testExpiry);
 
       expect(mockReply.setCookie).toHaveBeenCalledWith(
         expect.any(String),
         expect.any(String),
-        expect.objectContaining({ secure: false })
+        expect.objectContaining({ secure: false }),
       );
     });
   });
 
-  describe("clearRefreshTokenCookie", () => {
-    it("should clear cookie with correct name", () => {
+  describe('clearRefreshTokenCookie', () => {
+    it('should clear cookie with correct name', () => {
       clearRefreshTokenCookie(mockReply);
 
-      expect(mockReply.clearCookie).toHaveBeenCalledWith(
-        REFRESH_TOKEN_COOKIE,
-        expect.any(Object)
-      );
+      expect(mockReply.clearCookie).toHaveBeenCalledWith(REFRESH_TOKEN_COOKIE, expect.any(Object));
     });
 
-    it("should clear with same attributes as set (required by browsers)", () => {
+    it('should clear with same attributes as set (required by browsers)', () => {
       clearRefreshTokenCookie(mockReply);
 
       expect(mockReply.clearCookie).toHaveBeenCalledWith(
         expect.any(String),
         expect.objectContaining({
           httpOnly: true,
-          sameSite: "lax",
-          path: "/",
-        })
+          sameSite: 'lax',
+          path: '/',
+        }),
       );
     });
   });

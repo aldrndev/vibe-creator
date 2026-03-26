@@ -1,6 +1,6 @@
-import { Component, ErrorInfo, ReactNode } from "react";
-import { Card, CardBody, Button } from "@/components/ui";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle } from 'lucide-react';
+import { Component, type ErrorInfo, type ReactNode } from 'react';
+import { Button, Card, CardBody } from '@/components/ui';
 
 interface Props {
   children: ReactNode;
@@ -38,7 +38,7 @@ export class ErrorBoundary extends Component<Props, State> {
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     // Extract requestId if available from error
     const requestId =
-      "requestId" in error
+      'requestId' in error
         ? (error as unknown as { requestId: string }).requestId
         : crypto.randomUUID();
 
@@ -50,7 +50,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
     // Log to console in development
     if (import.meta.env.DEV) {
-      console.error("ErrorBoundary caught:", error, errorInfo);
+      console.error('ErrorBoundary caught:', error, errorInfo);
     }
   }
 
@@ -78,9 +78,7 @@ export class ErrorBoundary extends Component<Props, State> {
                   <AlertCircle className="w-6 h-6 text-destructive" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-semibold">
-                    Something went wrong
-                  </h2>
+                  <h2 className="text-lg font-semibold">Something went wrong</h2>
                   <p className="text-sm text-muted-foreground">
                     We encountered an unexpected error
                   </p>
@@ -89,12 +87,8 @@ export class ErrorBoundary extends Component<Props, State> {
 
               {this.state.requestId && (
                 <div className="bg-muted p-3 rounded-lg">
-                  <p className="text-xs text-muted-foreground mb-1">
-                    Request ID (for support):
-                  </p>
-                  <code className="text-xs font-mono select-all">
-                    {this.state.requestId}
-                  </code>
+                  <p className="text-xs text-muted-foreground mb-1">Request ID (for support):</p>
+                  <code className="text-xs font-mono select-all">{this.state.requestId}</code>
                 </div>
               )}
 
@@ -105,24 +99,20 @@ export class ErrorBoundary extends Component<Props, State> {
                   </summary>
                   <pre className="text-xs overflow-auto max-h-64">
                     {this.state.error.toString()}
-                    {"\n\n"}
+                    {'\n\n'}
                     {this.state.errorInfo?.componentStack}
                   </pre>
                 </details>
               )}
 
               <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  onClick={this.handleReset}
-                >
+                <Button variant="outline" className="flex-1" onClick={this.handleReset}>
                   Try Again
                 </Button>
                 <Button
                   variant="default"
                   className="flex-1"
-                  onClick={() => (window.location.href = "/")}
+                  onClick={() => (window.location.href = '/')}
                 >
                   Go Home
                 </Button>

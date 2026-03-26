@@ -3,17 +3,13 @@
  * Handles content analysis and clip selection
  */
 
-import { logger } from "@/lib/logger";
-import { directorRepo } from "../director.repo";
-import { directorQueue } from "../director.queue";
-import { directorProcessor } from "../director.processor";
-import { env } from "@/config/env";
-import { join } from "path";
-import {
-  DirectorStep,
-  DirectorJobStatus,
-  DirectorIngestStatus,
-} from "@prisma/client";
+import { basename, join } from 'node:path';
+import { DirectorIngestStatus, DirectorJobStatus, DirectorStep } from '@prisma/client';
+import { env } from '@/config/env';
+import { logger } from '@/lib/logger';
+import { directorProcessor } from '../director.processor';
+import { directorQueue } from '../director.queue';
+import { directorRepo } from '../director.repo';
 
 export const directorAnalysisService = {
   /**
@@ -23,14 +19,11 @@ export const directorAnalysisService = {
     const session = await directorRepo.findSession(sessionId, userId);
 
     if (!session) {
-      throw new Error("Session not found");
+      throw new Error('Session not found');
     }
 
-    if (
-      !session.asset ||
-      session.asset.ingestStatus !== DirectorIngestStatus.READY
-    ) {
-      throw new Error("Asset not ready for analysis");
+    if (!session.asset || session.asset.ingestStatus !== DirectorIngestStatus.READY) {
+      throw new Error('Asset not ready for analysis');
     }
 
     // Check if already has analysis job
@@ -59,8 +52,8 @@ export const directorAnalysisService = {
     await directorRepo.updateStep(sessionId, userId, DirectorStep.ANALYZING);
 
     // Resolve absolute path (Docker-safe)
-    const fileName = session.asset.storageKey.split("/").pop()!;
-    const filePath = join(env.MEDIA_INPUT_DIR, "director", fileName);
+    const fileName = basename(session.asset.storageKey);
+    const filePath = join(env.MEDIA_INPUT_DIR, 'director', fileName);
 
     // GATE: Minimum Duration Check (Smart AI)
     // Only analyze videos > 5 minutes (300s). AI Director is for Long-form -> Short-form.
@@ -69,15 +62,15 @@ export const directorAnalysisService = {
       // Revert status
       await directorRepo.updateStep(sessionId, userId, DirectorStep.IMPORT);
       throw new Error(
-        "Video terlalu pendek (< 5 menit). AI Director dirancang untuk konten durasi panjang (minimal 5 menit)."
+        'Video terlalu pendek (< 5 menit). AI Director dirancang untuk konten durasi panjang (minimal 5 menit).',
       );
     }
 
     // Add to BullMQ
     await directorQueue.add(
-      "analyze",
+      'analyze',
       {
-        type: "ANALYSIS",
+        type: 'ANALYSIS',
         sessionId,
         assetId: session.asset.id,
         filePath,
@@ -87,10 +80,10 @@ export const directorAnalysisService = {
         jobId: `director:analyze:${sessionId}`, // Idempotency
         removeOnComplete: true,
         removeOnFail: false,
-      }
+      },
     );
 
-    logger.info({ sessionId, jobId: job.id }, "Director analysis job enqueued");
+    logger.info({ sessionId, jobId: job.id }, 'Director analysis job enqueued');
 
     return job;
   },
@@ -102,7 +95,7 @@ export const directorAnalysisService = {
     const session = await directorRepo.findSession(sessionId, userId);
 
     if (!session || !session.analysisJob) {
-      throw new Error("Analysis not found");
+      throw new Error('Analysis not found');
     }
 
     return session.analysisJob;
@@ -115,25 +108,20 @@ export const directorAnalysisService = {
     const session = await directorRepo.findSession(sessionId, userId);
 
     if (!session) {
-      throw new Error("Session not found");
+      throw new Error('Session not found');
     }
 
-    if (
-      !session.analysisJob ||
-      session.analysisJob.status !== DirectorJobStatus.COMPLETED
-    ) {
-      throw new Error("Analysis not completed");
+    if (!session.analysisJob || session.analysisJob.status !== DirectorJobStatus.COMPLETED) {
+      throw new Error('Analysis not completed');
     }
 
     // Validate candidate IDs
     const validCandidateIds = session.analysisJob.candidates.map(
-      (c: (typeof session.analysisJob.candidates)[number]) => c.id
+      (c: (typeof session.analysisJob.candidates)[number]) => c.id,
     );
-    const invalidIds = candidateIds.filter(
-      (id) => !validCandidateIds.includes(id)
-    );
+    const invalidIds = candidateIds.filter((id) => !validCandidateIds.includes(id));
     if (invalidIds.length > 0) {
-      throw new Error(`Invalid candidate IDs: ${invalidIds.join(", ")}`);
+      throw new Error(`Invalid candidate IDs: ${invalidIds.join(', ')}`);
     }
 
     // Clear existing selections
@@ -146,13 +134,13 @@ export const directorAnalysisService = {
         candidateId,
         orderIndex: index,
         // Assuming other required fields are optional or have defaults in DB
-      }))
+      })),
     );
 
     // Update session step
     await directorRepo.updateStep(sessionId, userId, DirectorStep.EDITING);
 
-    logger.info({ sessionId, clipCount: clips.length }, "Clips selected");
+    logger.info({ sessionId, clipCount: clips.length }, 'Clips selected');
     return clips;
   },
 
@@ -163,7 +151,7 @@ export const directorAnalysisService = {
     const session = await directorRepo.findSession(sessionId, userId);
 
     if (!session) {
-      throw new Error("Session not found");
+      throw new Error('Session not found');
     }
 
     // Debug log to check if transcript is present
@@ -172,10 +160,10 @@ export const directorAnalysisService = {
         sessionId,
         clipCount: session.selectedClips.length,
         hasTranscript: session.selectedClips.some(
-          (c: (typeof session.selectedClips)[number]) => !!c.transcript
+          (c: (typeof session.selectedClips)[number]) => !!c.transcript,
         ),
       },
-      "getSelectedClips: Returning clips"
+      'getSelectedClips: Returning clips',
     );
 
     return session.selectedClips;
@@ -188,16 +176,16 @@ export const directorAnalysisService = {
     sessionId: string,
     userId: string,
     clipId: string,
-    updates: { trimStartMs?: number; trimEndMs?: number; orderIndex?: number }
+    updates: { trimStartMs?: number; trimEndMs?: number; orderIndex?: number },
   ) {
     const session = await directorRepo.exists(sessionId, userId);
     if (!session) {
-      throw new Error("Session not found");
+      throw new Error('Session not found');
     }
 
     const clip = await directorRepo.findSelectedClip(clipId, sessionId);
     if (!clip) {
-      throw new Error("Clip not found or access denied");
+      throw new Error('Clip not found or access denied');
     }
 
     const updated = await directorRepo.updateSelectedClip(clipId, updates);

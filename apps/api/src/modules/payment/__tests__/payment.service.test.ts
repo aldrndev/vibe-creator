@@ -6,7 +6,7 @@
  * 🔄 Edge cases
  */
 
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Mock modules with vi.hoisted
 const { mockPrisma, mockLogger, mockEnv } = vi.hoisted(() => ({
@@ -32,60 +32,60 @@ const { mockPrisma, mockLogger, mockEnv } = vi.hoisted(() => ({
     debug: vi.fn(),
   },
   mockEnv: {
-    XENDIT_SECRET_KEY: "", // Default: empty (dev mode)
-    FRONTEND_URL: "http://localhost:5173",
-    NODE_ENV: "test",
+    XENDIT_SECRET_KEY: '', // Default: empty (dev mode)
+    FRONTEND_URL: 'http://localhost:5173',
+    NODE_ENV: 'development',
   } as Record<string, string | undefined>,
 }));
 
-vi.mock("@/lib/prisma", () => ({
+vi.mock('@/lib/prisma', () => ({
   prisma: mockPrisma,
 }));
 
-vi.mock("@/lib/logger", () => ({
+vi.mock('@/lib/logger', () => ({
   logger: mockLogger,
 }));
 
-vi.mock("@/config/env", () => ({
+vi.mock('@/config/env', () => ({
   env: mockEnv,
 }));
 
 // Mock fetch
 const mockFetch = vi.fn();
-vi.stubGlobal("fetch", mockFetch);
+vi.stubGlobal('fetch', mockFetch);
 
 // Mock circuit breaker to pass through directly
-vi.mock("@/lib/circuit-breaker", () => ({
+vi.mock('@/lib/circuit-breaker', () => ({
   createCircuitBreaker: (fn: (...args: unknown[]) => Promise<unknown>) => ({
     fire: fn,
     isOpen: () => false,
-    getState: () => "CLOSED",
+    getState: () => 'CLOSED',
   }),
 }));
 
 // Import after mocks
-import { paymentService } from "../payment.service";
+import { paymentService } from '../payment.service';
 
 // Test data factories
 function createMockPayment(overrides = {}) {
   return {
-    id: "pay-123",
-    userId: "user-123",
+    id: 'pay-123',
+    userId: 'user-123',
     amount: 99000,
-    tier: "CREATOR",
-    status: "PENDING",
+    tier: 'CREATOR',
+    status: 'PENDING',
     xenditInvoiceId: null,
-    createdAt: new Date("2024-01-01"),
+    createdAt: new Date('2024-01-01'),
     ...overrides,
   };
 }
 
 function createMockSubscription(overrides = {}) {
   return {
-    id: "sub-123",
-    userId: "user-123",
-    tier: "FREE",
-    status: "ACTIVE",
+    id: 'sub-123',
+    userId: 'user-123',
+    tier: 'FREE',
+    status: 'ACTIVE',
     exportsUsed: 0,
     exportsLimit: 5,
     validUntil: null,
@@ -93,52 +93,68 @@ function createMockSubscription(overrides = {}) {
   };
 }
 
-describe("paymentService", () => {
+describe('paymentService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockEnv.XENDIT_SECRET_KEY = ""; // Default: no key (dev mode)
+    mockEnv.XENDIT_SECRET_KEY = ''; // Default: no key (dev mode)
+    mockEnv.NODE_ENV = 'development';
   });
 
   // ============================================================================
   // createInvoice
   // ============================================================================
-  describe("createInvoice", () => {
-    it("should create mock invoice in development mode", async () => {
+  describe('createInvoice', () => {
+    it('should create mock invoice in development mode', async () => {
       // Arrange
       const payment = createMockPayment();
       mockPrisma.paymentHistory.create.mockResolvedValue(payment);
       mockPrisma.paymentHistory.update.mockResolvedValue({
         ...payment,
-        xenditInvoiceId: "mock-pay-123",
+        xenditInvoiceId: 'mock-pay-123',
       });
 
       // Act
       const result = await paymentService.createInvoice({
-        userId: "user-123",
-        userEmail: "test@example.com",
-        tier: "CREATOR",
+        userId: 'user-123',
+        userEmail: 'test@example.com',
+        tier: 'CREATOR',
       });
 
       // Assert
-      expect(result.paymentId).toBe("pay-123");
-      expect(result.invoiceUrl).toContain("mock");
+      expect(result.paymentId).toBe('pay-123');
+      expect(result.invoiceUrl).toContain('mock');
       expect(mockPrisma.paymentHistory.create).toHaveBeenCalled();
     });
 
-    it("should throw error for FREE tier", async () => {
+    it('should throw error for FREE tier', async () => {
       // Act & Assert
       await expect(
         paymentService.createInvoice({
-          userId: "user-123",
-          userEmail: "test@example.com",
-          tier: "FREE",
-        })
-      ).rejects.toThrow("Invalid tier or free tier selected");
+          userId: 'user-123',
+          userEmail: 'test@example.com',
+          tier: 'FREE',
+        }),
+      ).rejects.toThrow('Invalid tier or free tier selected');
     });
 
-    it("should create Xendit invoice when key is configured", async () => {
+    it('should fail closed when Xendit is not configured outside development', async () => {
+      mockEnv.NODE_ENV = 'production';
+
+      const payment = createMockPayment();
+      mockPrisma.paymentHistory.create.mockResolvedValue(payment);
+
+      await expect(
+        paymentService.createInvoice({
+          userId: 'user-123',
+          userEmail: 'test@example.com',
+          tier: 'CREATOR',
+        }),
+      ).rejects.toThrow('XENDIT_SECRET_KEY is not configured');
+    });
+
+    it('should create Xendit invoice when key is configured', async () => {
       // Arrange
-      mockEnv.XENDIT_SECRET_KEY = "test-xendit-key";
+      mockEnv.XENDIT_SECRET_KEY = 'test-xendit-key';
 
       const payment = createMockPayment();
       mockPrisma.paymentHistory.create.mockResolvedValue(payment);
@@ -148,122 +164,120 @@ describe("paymentService", () => {
         ok: true,
         json: () =>
           Promise.resolve({
-            id: "inv-xendit-123",
-            invoice_url: "https://xendit.co/invoice/xyz",
+            id: 'inv-xendit-123',
+            invoice_url: 'https://xendit.co/invoice/xyz',
           }),
       });
 
       // Act
       const result = await paymentService.createInvoice({
-        userId: "user-123",
-        userEmail: "test@example.com",
-        tier: "PRO",
+        userId: 'user-123',
+        userEmail: 'test@example.com',
+        tier: 'PRO',
       });
 
       // Assert
-      expect(result.invoiceUrl).toBe("https://xendit.co/invoice/xyz");
+      expect(result.invoiceUrl).toBe('https://xendit.co/invoice/xyz');
       expect(mockFetch).toHaveBeenCalledWith(
-        "https://api.xendit.co/v2/invoices",
-        expect.objectContaining({ method: "POST" })
+        'https://api.xendit.co/v2/invoices',
+        expect.objectContaining({ method: 'POST' }),
       );
     });
 
-    it("should throw error when Xendit API fails", async () => {
+    it('should throw error when Xendit API fails', async () => {
       // Arrange
-      mockEnv.XENDIT_SECRET_KEY = "test-key";
+      mockEnv.XENDIT_SECRET_KEY = 'test-key';
 
       const payment = createMockPayment();
       mockPrisma.paymentHistory.create.mockResolvedValue(payment);
 
       mockFetch.mockResolvedValue({
         ok: false,
-        text: () => Promise.resolve("API Error"),
+        text: () => Promise.resolve('API Error'),
       });
 
       // Act & Assert
       await expect(
         paymentService.createInvoice({
-          userId: "user-123",
-          userEmail: "test@example.com",
-          tier: "CREATOR",
-        })
-      ).rejects.toThrow("Failed to create invoice");
+          userId: 'user-123',
+          userEmail: 'test@example.com',
+          tier: 'CREATOR',
+        }),
+      ).rejects.toThrow('Failed to create invoice');
     });
   });
 
   // ============================================================================
   // handleWebhook
   // ============================================================================
-  describe("handleWebhook", () => {
-    it("should upgrade subscription on PAID status", async () => {
+  describe('handleWebhook', () => {
+    it('should upgrade subscription on PAID status', async () => {
       // Arrange
-      const payment = createMockPayment({ xenditInvoiceId: "inv-123" });
+      const payment = createMockPayment({ xenditInvoiceId: 'inv-123' });
       mockPrisma.paymentHistory.findFirst.mockResolvedValue(payment);
       mockPrisma.paymentHistory.update.mockResolvedValue({
         ...payment,
-        status: "PAID",
+        status: 'PAID',
       });
-      mockPrisma.subscription.upsert.mockResolvedValue(
-        createMockSubscription({ tier: "CREATOR" })
-      );
+      mockPrisma.subscription.upsert.mockResolvedValue(createMockSubscription({ tier: 'CREATOR' }));
 
       // Act
       await paymentService.handleWebhook({
-        id: "inv-123",
-        external_id: "ext-123",
-        status: "PAID",
-        payment_method: "QRIS",
-        paid_at: "2024-01-01T00:00:00Z",
+        id: 'inv-123',
+        external_id: 'ext-123',
+        status: 'PAID',
+        payment_method: 'QRIS',
+        paid_at: '2024-01-01T00:00:00Z',
       });
 
       // Assert
       expect(mockPrisma.paymentHistory.update).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({ status: "PAID" }),
-        })
+          data: expect.objectContaining({ status: 'PAID' }),
+        }),
       );
       expect(mockPrisma.subscription.upsert).toHaveBeenCalled();
     });
 
-    it("should update status on EXPIRED", async () => {
+    it('should update status on EXPIRED', async () => {
       // Arrange
       const payment = createMockPayment();
       mockPrisma.paymentHistory.findFirst.mockResolvedValue(payment);
       mockPrisma.paymentHistory.update.mockResolvedValue({
         ...payment,
-        status: "EXPIRED",
+        status: 'EXPIRED',
       });
 
       // Act
       await paymentService.handleWebhook({
-        id: "inv-123",
-        external_id: "ext-123",
-        status: "EXPIRED",
+        id: 'inv-123',
+        external_id: 'ext-123',
+        status: 'EXPIRED',
       });
 
       // Assert
       expect(mockPrisma.paymentHistory.update).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({ status: "EXPIRED" }),
-        })
+          data: expect.objectContaining({ status: 'EXPIRED' }),
+        }),
       );
     });
 
-    it("should log warning when payment not found", async () => {
+    it('should log warning when payment not found', async () => {
       // Arrange
       mockPrisma.paymentHistory.findFirst.mockResolvedValue(null);
 
       // Act
       await paymentService.handleWebhook({
-        id: "nonexistent",
-        external_id: "ext-123",
-        status: "PAID",
+        id: 'nonexistent',
+        external_id: 'ext-123',
+        status: 'PAID',
       });
 
       // Assert
       expect(mockLogger.warn).toHaveBeenCalledWith(
-        expect.objectContaining({ invoiceId: "nonexistent" }),
-        "Payment not found for webhook"
+        expect.objectContaining({ invoiceId: 'nonexistent' }),
+        'Payment not found for webhook',
       );
     });
   });
@@ -271,61 +285,61 @@ describe("paymentService", () => {
   // ============================================================================
   // getSubscription
   // ============================================================================
-  describe("getSubscription", () => {
-    it("should return existing subscription", async () => {
+  describe('getSubscription', () => {
+    it('should return existing subscription', async () => {
       // Arrange
-      const sub = createMockSubscription({ tier: "CREATOR", exportsLimit: 50 });
+      const sub = createMockSubscription({ tier: 'CREATOR', exportsLimit: 50 });
       mockPrisma.subscription.findUnique.mockResolvedValue(sub);
 
       // Act
-      const result = await paymentService.getSubscription("user-123");
+      const result = await paymentService.getSubscription('user-123');
 
       // Assert
-      expect(result.tier).toBe("CREATOR");
+      expect(result.tier).toBe('CREATOR');
       expect(result.price).toBe(99000);
     });
 
-    it("should create FREE subscription when not exists", async () => {
+    it('should create FREE subscription when not exists', async () => {
       // Arrange
       mockPrisma.subscription.findUnique.mockResolvedValue(null);
       const newSub = createMockSubscription();
       mockPrisma.subscription.create.mockResolvedValue(newSub);
 
       // Act
-      const result = await paymentService.getSubscription("new-user");
+      const result = await paymentService.getSubscription('new-user');
 
       // Assert
       expect(mockPrisma.subscription.create).toHaveBeenCalled();
-      expect(result.tier).toBe("FREE");
+      expect(result.tier).toBe('FREE');
     });
 
-    it("should downgrade expired subscription to FREE", async () => {
+    it('should downgrade expired subscription to FREE', async () => {
       // Arrange
       const expiredSub = createMockSubscription({
-        tier: "CREATOR",
-        validUntil: new Date("2020-01-01"), // Past date
+        tier: 'CREATOR',
+        validUntil: new Date('2020-01-01'), // Past date
       });
       mockPrisma.subscription.findUnique.mockResolvedValue(expiredSub);
       mockPrisma.subscription.update.mockResolvedValue({
         ...expiredSub,
-        tier: "FREE",
-        status: "EXPIRED",
+        tier: 'FREE',
+        status: 'EXPIRED',
       });
 
       // Act
-      const result = await paymentService.getSubscription("user-123");
+      const result = await paymentService.getSubscription('user-123');
 
       // Assert
-      expect(result.tier).toBe("FREE");
-      expect(result.status).toBe("EXPIRED");
+      expect(result.tier).toBe('FREE');
+      expect(result.status).toBe('EXPIRED');
     });
   });
 
   // ============================================================================
   // useExport
   // ============================================================================
-  describe("useExport", () => {
-    it("should allow export and decrement remaining", async () => {
+  describe('useExport', () => {
+    it('should allow export and decrement remaining', async () => {
       // Arrange
       const sub = createMockSubscription({ exportsUsed: 2, exportsLimit: 5 });
       mockPrisma.subscription.findUnique.mockResolvedValue(sub);
@@ -335,36 +349,36 @@ describe("paymentService", () => {
       });
 
       // Act
-      const result = await paymentService.useExport("user-123");
+      const result = await paymentService.consumeExportQuota('user-123');
 
       // Assert
       expect(result.allowed).toBe(true);
       expect(result.remaining).toBe(2);
     });
 
-    it("should deny export when limit reached", async () => {
+    it('should deny export when limit reached', async () => {
       // Arrange
       const sub = createMockSubscription({ exportsUsed: 5, exportsLimit: 5 });
       mockPrisma.subscription.findUnique.mockResolvedValue(sub);
 
       // Act
-      const result = await paymentService.useExport("user-123");
+      const result = await paymentService.consumeExportQuota('user-123');
 
       // Assert
       expect(result.allowed).toBe(false);
       expect(result.remaining).toBe(0);
     });
 
-    it("should always allow for unlimited (PRO) tier", async () => {
+    it('should always allow for unlimited (PRO) tier', async () => {
       // Arrange
       const proSub = createMockSubscription({
-        tier: "PRO",
+        tier: 'PRO',
         exportsLimit: 999999,
       });
       mockPrisma.subscription.findUnique.mockResolvedValue(proSub);
 
       // Act
-      const result = await paymentService.useExport("user-123");
+      const result = await paymentService.consumeExportQuota('user-123');
 
       // Assert
       expect(result.allowed).toBe(true);
@@ -375,41 +389,47 @@ describe("paymentService", () => {
   // ============================================================================
   // confirmMockPayment
   // ============================================================================
-  describe("confirmMockPayment", () => {
-    it("should confirm mock payment and upgrade subscription", async () => {
+  describe('confirmMockPayment', () => {
+    it('should confirm mock payment and upgrade subscription', async () => {
       // Arrange
       const payment = createMockPayment();
-      mockPrisma.paymentHistory.findUnique.mockResolvedValue(payment);
+      mockPrisma.paymentHistory.findFirst.mockResolvedValue(payment);
       mockPrisma.paymentHistory.update.mockResolvedValue({
         ...payment,
-        status: "PAID",
+        status: 'PAID',
       });
-      mockPrisma.subscription.upsert.mockResolvedValue(
-        createMockSubscription({ tier: "CREATOR" })
-      );
+      mockPrisma.subscription.upsert.mockResolvedValue(createMockSubscription({ tier: 'CREATOR' }));
 
       // Act
-      await paymentService.confirmMockPayment("pay-123");
+      await paymentService.confirmMockPayment('pay-123', 'user-123');
 
       // Assert
       expect(mockPrisma.paymentHistory.update).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
-            status: "PAID",
-            paymentMethod: "MOCK",
+            status: 'PAID',
+            paymentMethod: 'MOCK',
           }),
-        })
+        }),
       );
     });
 
-    it("should throw when payment not found", async () => {
+    it('should throw when payment not found', async () => {
       // Arrange
-      mockPrisma.paymentHistory.findUnique.mockResolvedValue(null);
+      mockPrisma.paymentHistory.findFirst.mockResolvedValue(null);
 
       // Act & Assert
-      await expect(
-        paymentService.confirmMockPayment("nonexistent")
-      ).rejects.toThrow("Payment not found");
+      await expect(paymentService.confirmMockPayment('nonexistent', 'user-123')).rejects.toThrow(
+        'Payment not found',
+      );
+    });
+
+    it('should reject mock confirmation outside development', async () => {
+      mockEnv.NODE_ENV = 'production';
+
+      await expect(paymentService.confirmMockPayment('pay-123', 'user-123')).rejects.toThrow(
+        'Mock payments are only available in development',
+      );
     });
   });
 });

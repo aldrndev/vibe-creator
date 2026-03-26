@@ -43,7 +43,7 @@ class FFmpegService {
 
     this.loading = true;
     this.loadPromise = this.doLoad();
-    
+
     try {
       await this.loadPromise;
       this.loaded = true;
@@ -57,7 +57,7 @@ class FFmpegService {
 
     // Load FFmpeg core from CDN with CORS support
     const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm';
-    
+
     await this.ffmpeg.load({
       coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
       wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
@@ -78,7 +78,7 @@ class FFmpegService {
     await this.load();
     if (!this.ffmpeg) throw new Error('FFmpeg not loaded');
 
-    const inputName = 'input.' + file.name.split('.').pop();
+    const inputName = `input.${file.name.split('.').pop()}`;
     await this.ffmpeg.writeFile(inputName, await fetchFile(file));
 
     // Use ffprobe-like approach by running ffmpeg with -i only
@@ -93,18 +93,18 @@ class FFmpegService {
       const durationMatch = message.match(/Duration: (\d{2}):(\d{2}):(\d{2})\.(\d{2})/);
       if (durationMatch) {
         const [, hours, minutes, seconds, centiseconds] = durationMatch;
-        duration = 
-          parseInt(hours || '0') * 3600 + 
-          parseInt(minutes || '0') * 60 + 
-          parseInt(seconds || '0') + 
-          parseInt(centiseconds || '0') / 100;
+        duration =
+          parseInt(hours || '0', 10) * 3600 +
+          parseInt(minutes || '0', 10) * 60 +
+          parseInt(seconds || '0', 10) +
+          parseInt(centiseconds || '0', 10) / 100;
       }
 
       // Parse dimensions: 1920x1080
       const dimensionMatch = message.match(/(\d{3,4})x(\d{3,4})/);
       if (dimensionMatch) {
-        width = parseInt(dimensionMatch[1] || '0');
-        height = parseInt(dimensionMatch[2] || '0');
+        width = parseInt(dimensionMatch[1] || '0', 10);
+        height = parseInt(dimensionMatch[2] || '0', 10);
       }
 
       // Parse codec: Video: h264
@@ -129,23 +129,16 @@ class FFmpegService {
   /**
    * Extract a thumbnail at a specific time
    */
-  async extractThumbnail(
-    file: File, 
-    options: ThumbnailOptions
-  ): Promise<Blob> {
+  async extractThumbnail(file: File, options: ThumbnailOptions): Promise<Blob> {
     await this.load();
     if (!this.ffmpeg) throw new Error('FFmpeg not loaded');
 
-    const inputName = 'input.' + file.name.split('.').pop();
+    const inputName = `input.${file.name.split('.').pop()}`;
     const outputName = 'thumbnail.jpg';
 
     await this.ffmpeg.writeFile(inputName, await fetchFile(file));
 
-    const args = [
-      '-i', inputName,
-      '-ss', options.time.toString(),
-      '-vframes', '1',
-    ];
+    const args = ['-i', inputName, '-ss', options.time.toString(), '-vframes', '1'];
 
     if (options.width && options.height) {
       args.push('-vf', `scale=${options.width}:${options.height}`);
@@ -156,7 +149,7 @@ class FFmpegService {
     await this.ffmpeg.exec(args);
 
     const data = await this.ffmpeg.readFile(outputName);
-    
+
     await this.ffmpeg.deleteFile(inputName);
     await this.ffmpeg.deleteFile(outputName);
 
@@ -169,7 +162,7 @@ class FFmpegService {
   async extractTimelineThumbnails(
     file: File,
     count: number = 10,
-    height: number = 60
+    height: number = 60,
   ): Promise<string[]> {
     await this.load();
     if (!this.ffmpeg) throw new Error('FFmpeg not loaded');
@@ -180,8 +173,8 @@ class FFmpegService {
 
     for (let i = 0; i < count; i++) {
       const time = i * interval;
-      const blob = await this.extractThumbnail(file, { 
-        time, 
+      const blob = await this.extractThumbnail(file, {
+        time,
         height,
         width: Math.round(height * (info.width / info.height)),
       });
@@ -194,10 +187,7 @@ class FFmpegService {
   /**
    * Trim video (fast copy mode when possible)
    */
-  async trimVideo(
-    file: File,
-    options: TrimOptions
-  ): Promise<Blob> {
+  async trimVideo(file: File, options: TrimOptions): Promise<Blob> {
     await this.load();
     if (!this.ffmpeg) throw new Error('FFmpeg not loaded');
 
@@ -218,16 +208,21 @@ class FFmpegService {
 
     // Use stream copy for fast trimming (no re-encoding)
     await this.ffmpeg.exec([
-      '-ss', options.startTime.toString(),
-      '-i', inputName,
-      '-t', (options.endTime - options.startTime).toString(),
-      '-c', 'copy', // Stream copy for speed
-      '-avoid_negative_ts', 'make_zero',
+      '-ss',
+      options.startTime.toString(),
+      '-i',
+      inputName,
+      '-t',
+      (options.endTime - options.startTime).toString(),
+      '-c',
+      'copy', // Stream copy for speed
+      '-avoid_negative_ts',
+      'make_zero',
       outputName,
     ]);
 
     const data = await this.ffmpeg.readFile(outputName);
-    
+
     await this.ffmpeg.deleteFile(inputName);
     await this.ffmpeg.deleteFile(outputName);
 
@@ -239,7 +234,7 @@ class FFmpegService {
    */
   async concatenateClips(
     clips: Array<{ file: File; startTime: number; endTime: number }>,
-    onProgress?: ProgressCallback
+    onProgress?: ProgressCallback,
   ): Promise<Blob> {
     await this.load();
     if (!this.ffmpeg) throw new Error('FFmpeg not loaded');
@@ -253,33 +248,39 @@ class FFmpegService {
       const clip = clips[i];
       if (!clip) continue;
       const clipDuration = clip.endTime - clip.startTime;
-      
+
       const trimmedBlob = await this.trimVideo(clip.file, {
         startTime: clip.startTime,
         endTime: clip.endTime,
-        onProgress: onProgress ? (p) => {
-          const clipProgress = processedDuration + (p * clipDuration);
-          onProgress(clipProgress / totalDuration * 0.8); // 80% for trimming
-        } : undefined,
+        onProgress: onProgress
+          ? (p) => {
+              const clipProgress = processedDuration + p * clipDuration;
+              onProgress((clipProgress / totalDuration) * 0.8); // 80% for trimming
+            }
+          : undefined,
       });
 
       const trimmedName = `trimmed_${i}.mp4`;
       await this.ffmpeg.writeFile(trimmedName, await fetchFile(trimmedBlob));
       trimmedFiles.push(trimmedName);
-      
+
       processedDuration += clipDuration;
     }
 
     // Create concat file list
-    const concatList = trimmedFiles.map(f => `file '${f}'`).join('\n');
+    const concatList = trimmedFiles.map((f) => `file '${f}'`).join('\n');
     await this.ffmpeg.writeFile('concat.txt', concatList);
 
     // Concatenate
     await this.ffmpeg.exec([
-      '-f', 'concat',
-      '-safe', '0',
-      '-i', 'concat.txt',
-      '-c', 'copy',
+      '-f',
+      'concat',
+      '-safe',
+      '0',
+      '-i',
+      'concat.txt',
+      '-c',
+      'copy',
       'output.mp4',
     ]);
 

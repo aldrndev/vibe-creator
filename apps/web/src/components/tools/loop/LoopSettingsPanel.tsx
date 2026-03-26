@@ -1,3 +1,4 @@
+import { Download, Settings2 } from 'lucide-react';
 import {
   Button,
   Card,
@@ -7,16 +8,15 @@ import {
   Input,
   Progress,
   Select,
-  SelectTrigger,
-  SelectValue,
   SelectContent,
   SelectItem,
+  SelectTrigger,
+  SelectValue,
   Slider,
-} from "@/components/ui";
-import { Download, Settings2 } from "lucide-react";
-import { LoopMode } from "@/hooks/useLoopCreator";
-import { loopModes } from "./constants";
-import { cn } from "@/lib/utils";
+} from '@/components/ui';
+import type { LoopMode } from '@/hooks/useLoopCreator';
+import { cn } from '@/lib/utils';
+import { loopModes } from './constants';
 
 interface LoopSettingsPanelProps {
   loopMode: LoopMode;
@@ -70,7 +70,12 @@ export function LoopSettingsPanel({
   resultUrl,
   hasVideo,
 }: LoopSettingsPanelProps) {
-  const currentModeConfig = loopModes.find((m) => m.id === loopMode)!;
+  const fallbackModeConfig = loopModes[0];
+  if (!fallbackModeConfig) {
+    throw new Error('Loop modes are not configured');
+  }
+
+  const currentModeConfig = loopModes.find((m) => m.id === loopMode) ?? fallbackModeConfig;
 
   return (
     <Card className="bg-card/70 backdrop-blur-xl border-border/50 h-full">
@@ -88,29 +93,30 @@ export function LoopSettingsPanel({
       <CardBody className="p-6 space-y-8">
         {/* Loop Mode Selection */}
         <div className="space-y-4">
-          <label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">
+          <div className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">
             Pilih Mode
-          </label>
+          </div>
           <div className="grid grid-cols-3 gap-3">
             {loopModes.map((mode) => {
               const isActive = loopMode === mode.id;
               return (
                 <button
+                  type="button"
                   key={mode.id}
                   onClick={() => setLoopMode(mode.id)}
                   className={cn(
-                    "flex flex-col items-center gap-3 p-4 rounded-2xl border transition-all duration-300 group relative overflow-hidden",
+                    'flex flex-col items-center gap-3 p-4 rounded-2xl border transition-all duration-300 group relative overflow-hidden',
                     isActive
-                      ? "bg-primary/10 border-primary"
-                      : "bg-muted/10 border-border/50 hover:border-primary/30 hover:bg-muted/20"
+                      ? 'bg-primary/10 border-primary'
+                      : 'bg-muted/10 border-border/50 hover:border-primary/30 hover:bg-muted/20',
                   )}
                 >
                   <div
                     className={cn(
-                      "w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-300",
+                      'w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-300',
                       isActive
-                        ? "bg-primary text-white scale-110"
-                        : "bg-muted text-muted-foreground group-hover:scale-110"
+                        ? 'bg-primary text-white scale-110'
+                        : 'bg-muted text-muted-foreground group-hover:scale-110',
                     )}
                   >
                     <mode.icon size={22} />
@@ -118,8 +124,8 @@ export function LoopSettingsPanel({
                   <div className="text-center">
                     <p
                       className={cn(
-                        "text-xs font-black tracking-tight",
-                        isActive ? "text-primary" : "text-foreground"
+                        'text-xs font-black tracking-tight',
+                        isActive ? 'text-primary' : 'text-foreground',
                       )}
                     >
                       {mode.name}
@@ -136,9 +142,9 @@ export function LoopSettingsPanel({
         {/* Format & Trim Section */}
         <div className="space-y-6">
           <div className="space-y-3">
-            <label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">
+            <div className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">
               Rasio Video
-            </label>
+            </div>
             <Select value={aspectRatio} onValueChange={setAspectRatio}>
               <SelectTrigger className="h-12 rounded-xl bg-muted/20 border-border/50">
                 <SelectValue placeholder="Original" />
@@ -146,9 +152,7 @@ export function LoopSettingsPanel({
               <SelectContent>
                 <SelectItem value="original">Original (Asli)</SelectItem>
                 <SelectItem value="16:9">16:9 Landscape</SelectItem>
-                <SelectItem value="9:16">
-                  9:16 Portrait (TikTok/Reels)
-                </SelectItem>
+                <SelectItem value="9:16">9:16 Portrait (TikTok/Reels)</SelectItem>
                 <SelectItem value="1:1">1:1 Square</SelectItem>
                 <SelectItem value="4:5">4:5 Portrait</SelectItem>
               </SelectContent>
@@ -157,9 +161,9 @@ export function LoopSettingsPanel({
 
           <div className="space-y-5">
             <div className="flex justify-between items-end px-1">
-              <label className="text-xs font-black uppercase tracking-widest text-muted-foreground">
+              <div className="text-xs font-black uppercase tracking-widest text-muted-foreground">
                 Rentang Waktu
-              </label>
+              </div>
               <div className="text-[10px] font-black tracking-widest bg-primary/10 text-primary px-3 py-1 rounded-full border border-primary/20">
                 {((endMs - startMs) / 1000).toFixed(1)} DETIK
               </div>
@@ -197,46 +201,48 @@ export function LoopSettingsPanel({
         </div>
 
         {/* Loop Controls Section */}
-        {(loopMode === "loop" || loopMode === "boomerang") && (
+        {(loopMode === 'loop' || loopMode === 'boomerang') && (
           <div className="space-y-8 bg-muted/5 p-6 rounded-3xl border border-border/40">
             {/* Mode Selection like Orientation in photo */}
-            {loopMode === "loop" && (
+            {loopMode === 'loop' && (
               <div className="space-y-4">
-                <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+                <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
                   Mode Pengulangan
-                </label>
+                </div>
                 <div className="grid grid-cols-2 gap-3">
                   <button
+                    type="button"
                     onClick={() => setUseDurationMode(false)}
                     className={cn(
-                      "p-4 rounded-2xl border transition-all flex flex-col items-center gap-2 group",
+                      'p-4 rounded-2xl border transition-all flex flex-col items-center gap-2 group',
                       !useDurationMode
-                        ? "bg-primary/10 border-primary"
-                        : "bg-muted/10 border-border/50 hover:bg-muted/20"
+                        ? 'bg-primary/10 border-primary'
+                        : 'bg-muted/10 border-border/50 hover:bg-muted/20',
                     )}
                   >
                     <p
                       className={cn(
-                        "text-[10px] font-black uppercase tracking-tight",
-                        !useDurationMode ? "text-primary" : "text-foreground"
+                        'text-[10px] font-black uppercase tracking-tight',
+                        !useDurationMode ? 'text-primary' : 'text-foreground',
                       )}
                     >
                       Jumlah Putaran
                     </p>
                   </button>
                   <button
+                    type="button"
                     onClick={() => setUseDurationMode(true)}
                     className={cn(
-                      "p-4 rounded-2xl border transition-all flex flex-col items-center gap-2 group",
+                      'p-4 rounded-2xl border transition-all flex flex-col items-center gap-2 group',
                       useDurationMode
-                        ? "bg-primary/10 border-primary"
-                        : "bg-muted/10 border-border/50 hover:bg-muted/20"
+                        ? 'bg-primary/10 border-primary'
+                        : 'bg-muted/10 border-border/50 hover:bg-muted/20',
                     )}
                   >
                     <p
                       className={cn(
-                        "text-[10px] font-black uppercase tracking-tight",
-                        useDurationMode ? "text-primary" : "text-foreground"
+                        'text-[10px] font-black uppercase tracking-tight',
+                        useDurationMode ? 'text-primary' : 'text-foreground',
                       )}
                     >
                       Target Durasi
@@ -249,25 +255,21 @@ export function LoopSettingsPanel({
             {/* Value & Slider Section */}
             <div className="space-y-6">
               <div className="flex justify-between items-center px-1">
-                <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                  {useDurationMode ? "Durasi Menit" : "Set Putaran"}
-                </label>
+                <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                  {useDurationMode ? 'Durasi Menit' : 'Set Putaran'}
+                </div>
                 <div className="flex items-center gap-2">
                   <div className="text-[10px] font-black tracking-widest bg-primary/10 text-primary px-3 py-1.5 rounded-full border border-primary/20">
-                    {useDurationMode
-                      ? `${targetMinutes} MENIT`
-                      : `${loopCount}X PUTAR`}
+                    {useDurationMode ? `${targetMinutes} MENIT` : `${loopCount}X PUTAR`}
                   </div>
                   <div className="text-[10px] font-black tracking-widest bg-orange-500/10 text-orange-500 px-3 py-1.5 rounded-full border border-orange-500/20">
-                    EST:{" "}
+                    EST:{' '}
                     {formatDuration(
-                      ((loopMode === "loop"
-                        ? endMs -
-                          startMs -
-                          Math.min(2000, (endMs - startMs) * 0.3)
+                      ((loopMode === 'loop'
+                        ? endMs - startMs - Math.min(2000, (endMs - startMs) * 0.3)
                         : (endMs - startMs) * 2) *
                         loopCount) /
-                        1000
+                        1000,
                     )}
                   </div>
                 </div>
@@ -282,10 +284,7 @@ export function LoopSettingsPanel({
                     onChange={(e) => {
                       const v = e.target.value;
                       setTargetMinutes(Number(v));
-                      const unitMs =
-                        endMs -
-                        startMs -
-                        Math.min(2000, (endMs - startMs) * 0.3);
+                      const unitMs = endMs - startMs - Math.min(2000, (endMs - startMs) * 0.3);
                       const targetMs = Number(v) * 60 * 1000;
                       setLoopCount(Math.ceil(targetMs / unitMs));
                     }}
@@ -296,7 +295,7 @@ export function LoopSettingsPanel({
                 <Slider
                   min={1}
                   max={
-                    loopMode === "boomerang"
+                    loopMode === 'boomerang'
                       ? Math.max(1, Math.floor(60000 / ((endMs - startMs) * 2)))
                       : 100
                   }
@@ -314,9 +313,7 @@ export function LoopSettingsPanel({
         {isProcessing && (
           <div className="space-y-3 p-5 rounded-3xl bg-secondary/10 border border-secondary/20">
             <div className="flex items-center justify-between text-xs font-bold uppercase tracking-widest mb-1">
-              <span className="text-primary animate-pulse">
-                Memproses Video...
-              </span>
+              <span className="text-primary animate-pulse">Memproses Video...</span>
               <span>75%</span>
             </div>
             <Progress value={75} className="h-2 bg-muted transition-all" />
@@ -335,10 +332,8 @@ export function LoopSettingsPanel({
             isLoading={isProcessing}
             onClick={onProcess}
           >
-            {!isProcessing && (
-              <currentModeConfig.icon size={18} className="mr-2" />
-            )}
-            {loopMode === "gif" ? "Render GIF" : "Proses Video Loop"}
+            {!isProcessing && <currentModeConfig.icon size={18} className="mr-2" />}
+            {loopMode === 'gif' ? 'Render GIF' : 'Proses Video Loop'}
           </Button>
 
           {resultUrl && (

@@ -5,44 +5,43 @@
  */
 
 /** Domain allowlist for SSRF protection */
-export const ALLOWED_DOMAINS = ["trends.google.com", "www.google.com"] as const;
+export const ALLOWED_DOMAINS = ['trends.google.com', 'www.google.com'] as const;
 
 /** Private/metadata IP ranges to block */
 export const BLOCKED_IP_RANGES = [
-  "10.0.0.0/8",
-  "172.16.0.0/12",
-  "192.168.0.0/16",
-  "127.0.0.0/8",
-  "169.254.0.0/16", // Link-local / AWS metadata
-  "0.0.0.0/8",
+  '10.0.0.0/8',
+  '172.16.0.0/12',
+  '192.168.0.0/16',
+  '127.0.0.0/8',
+  '169.254.0.0/16', // Link-local / AWS metadata
+  '0.0.0.0/8',
 ] as const;
 
 /** Trending item types */
 export const TRENDING_TYPES = {
-  HASHTAG: "HASHTAG",
-  TOPIC: "TOPIC",
-  SEARCH: "SEARCH",
-  VIDEO: "VIDEO",
+  HASHTAG: 'HASHTAG',
+  TOPIC: 'TOPIC',
+  SEARCH: 'SEARCH',
+  VIDEO: 'VIDEO',
 } as const;
 
 export type TrendingType = (typeof TRENDING_TYPES)[keyof typeof TRENDING_TYPES];
 
 /** Platform status values */
 export const PLATFORM_STATUS = {
-  OK: "ok",
-  DEGRADED: "degraded",
-  DOWN: "down",
+  OK: 'ok',
+  DEGRADED: 'degraded',
+  DOWN: 'down',
 } as const;
 
-export type PlatformStatus =
-  (typeof PLATFORM_STATUS)[keyof typeof PLATFORM_STATUS];
+export type PlatformStatus = (typeof PLATFORM_STATUS)[keyof typeof PLATFORM_STATUS];
 
 /** Cache configuration */
 export const CACHE_CONFIG = {
   /** TTL for first-page cache in seconds */
   FIRST_PAGE_TTL_SECONDS: 300,
   /** Cache key prefix */
-  KEY_PREFIX: "trending:v1:first",
+  KEY_PREFIX: 'trending:v1:first',
 } as const;
 
 /** Refresh cooldown in seconds */

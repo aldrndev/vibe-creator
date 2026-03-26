@@ -1,13 +1,13 @@
-import { create } from "zustand";
 import type {
-  TimelineTrack,
-  TimelineClip,
-  TrackType,
-  ClipTransforms,
   ClipEffects,
+  ClipTransforms,
   ProjectSettings,
   TextOverlay,
-} from "@vibe-creator/shared";
+  TimelineClip,
+  TimelineTrack,
+  TrackType,
+} from '@vibe-creator/shared';
+import { create } from 'zustand';
 
 // Schema version for state migrations
 export const EDITOR_SCHEMA_VERSION = 1;
@@ -49,7 +49,7 @@ const DEFAULT_PROJECT_SETTINGS: ProjectSettings = {
 export interface EditorAsset {
   id: string;
   name: string;
-  type: "VIDEO" | "AUDIO" | "IMAGE";
+  type: 'VIDEO' | 'AUDIO' | 'IMAGE';
   url: string; // Blob URL or presigned URL
   file?: File; // Original file for FFmpeg processing
   durationMs?: number;
@@ -64,18 +64,18 @@ export interface EditorTimeline {
   tracks: EditorTrack[];
 }
 
-export interface EditorTrack extends Omit<TimelineTrack, "timelineId"> {
+export interface EditorTrack extends Omit<TimelineTrack, 'timelineId'> {
   clips: EditorClip[];
 }
 
-export interface EditorClip extends Omit<TimelineClip, "trackId"> {
+export interface EditorClip extends Omit<TimelineClip, 'trackId'> {
   asset?: EditorAsset;
 }
 
 export interface ExportSettings {
-  format: "mp4";
-  resolution: "720p" | "1080p" | "4k";
-  quality: "low" | "medium" | "high";
+  format: 'mp4';
+  resolution: '720p' | '1080p' | '4k';
+  quality: 'low' | 'medium' | 'high';
   watermark: boolean;
 }
 
@@ -113,11 +113,7 @@ interface EditorState {
   selectedTextOverlayId: string | null;
 
   // Actions
-  initProject: (
-    projectId: string,
-    title: string,
-    settings?: Partial<ProjectSettings>
-  ) => void;
+  initProject: (projectId: string, title: string, settings?: Partial<ProjectSettings>) => void;
   loadTimeline: (timeline: EditorTimeline) => void;
   resetEditor: () => void;
 
@@ -132,19 +128,10 @@ interface EditorState {
   updateTrack: (trackId: string, updates: Partial<EditorTrack>) => void;
 
   // Clip actions
-  addClip: (trackId: string, clip: Omit<EditorClip, "id">) => string;
+  addClip: (trackId: string, clip: Omit<EditorClip, 'id'>) => string;
   removeClip: (trackId: string, clipId: string) => void;
-  updateClip: (
-    trackId: string,
-    clipId: string,
-    updates: Partial<EditorClip>
-  ) => void;
-  moveClip: (
-    fromTrackId: string,
-    toTrackId: string,
-    clipId: string,
-    newStartMs: number
-  ) => void;
+  updateClip: (trackId: string, clipId: string, updates: Partial<EditorClip>) => void;
+  moveClip: (fromTrackId: string, toTrackId: string, clipId: string, newStartMs: number) => void;
   detachLinkedClips: (clipId: string) => void;
 
   // Selection actions
@@ -173,7 +160,7 @@ interface EditorState {
   } | null;
 
   // Text overlay actions
-  addTextOverlay: (overlay: Omit<TextOverlay, "id">) => string;
+  addTextOverlay: (overlay: Omit<TextOverlay, 'id'>) => string;
   updateTextOverlay: (id: string, updates: Partial<TextOverlay>) => void;
   removeTextOverlay: (id: string) => void;
   selectTextOverlay: (id: string | null) => void;
@@ -187,8 +174,8 @@ const initialTimeline: EditorTimeline = {
   durationMs: 0,
   tracks: [
     {
-      id: "track-video-1",
-      type: "VIDEO",
+      id: 'track-video-1',
+      type: 'VIDEO',
       order: 0,
       muted: false,
       volume: 1,
@@ -196,8 +183,8 @@ const initialTimeline: EditorTimeline = {
       clips: [],
     },
     {
-      id: "track-audio-1",
-      type: "AUDIO",
+      id: 'track-audio-1',
+      type: 'AUDIO',
       order: 1,
       muted: false,
       volume: 1,
@@ -210,7 +197,7 @@ const initialTimeline: EditorTimeline = {
 export const useEditorStore = create<EditorState>()((set, get) => ({
   // Initial state
   projectId: null,
-  projectTitle: "Untitled Project",
+  projectTitle: 'Untitled Project',
   projectSettings: DEFAULT_PROJECT_SETTINGS,
   isDirty: false,
 
@@ -227,9 +214,9 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
   scrollLeft: 0,
 
   exportSettings: {
-    format: "mp4",
-    resolution: "1080p",
-    quality: "high",
+    format: 'mp4',
+    resolution: '1080p',
+    quality: 'high',
     watermark: true, // Free tier default
   },
   isExporting: false,
@@ -268,7 +255,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
   resetEditor: () => {
     set({
       projectId: null,
-      projectTitle: "Untitled Project",
+      projectTitle: 'Untitled Project',
       projectSettings: DEFAULT_PROJECT_SETTINGS,
       isDirty: false,
       timeline: {
@@ -294,18 +281,14 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
 
   updateAsset: (assetId, updates) => {
     set((state) => ({
-      assets: state.assets.map((a) =>
-        a.id === assetId ? { ...a, ...updates } : a
-      ),
+      assets: state.assets.map((a) => (a.id === assetId ? { ...a, ...updates } : a)),
       // Also update asset in clips
       timeline: {
         ...state.timeline,
         tracks: state.timeline.tracks.map((t) => ({
           ...t,
           clips: t.clips.map((c) =>
-            c.asset?.id === assetId
-              ? { ...c, asset: { ...c.asset, ...updates } }
-              : c
+            c.asset?.id === assetId ? { ...c, asset: { ...c.asset, ...updates } } : c,
           ),
         })),
       },
@@ -348,8 +331,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
         ...state.timeline,
         tracks: state.timeline.tracks.filter((t) => t.id !== trackId),
       },
-      selectedTrackId:
-        state.selectedTrackId === trackId ? null : state.selectedTrackId,
+      selectedTrackId: state.selectedTrackId === trackId ? null : state.selectedTrackId,
       isDirty: true,
     }));
     get().recalculateDuration();
@@ -359,9 +341,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
     set((state) => ({
       timeline: {
         ...state.timeline,
-        tracks: state.timeline.tracks.map((t) =>
-          t.id === trackId ? { ...t, ...updates } : t
-        ),
+        tracks: state.timeline.tracks.map((t) => (t.id === trackId ? { ...t, ...updates } : t)),
       },
       isDirty: true,
     }));
@@ -374,9 +354,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
     // Auto-resolve asset from assetId if not provided
     const resolvedAsset =
       clipData.asset ??
-      (clipData.assetId
-        ? get().assets.find((a) => a.id === clipData.assetId)
-        : undefined);
+      (clipData.assetId ? get().assets.find((a) => a.id === clipData.assetId) : undefined);
 
     const clip: EditorClip = {
       id,
@@ -395,7 +373,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
       timeline: {
         ...state.timeline,
         tracks: state.timeline.tracks.map((t) =>
-          t.id === trackId ? { ...t, clips: [...t.clips, clip] } : t
+          t.id === trackId ? { ...t, clips: [...t.clips, clip] } : t,
         ),
       },
       isDirty: true,
@@ -427,8 +405,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
           }),
         })),
       },
-      selectedClipId:
-        state.selectedClipId === clipId ? null : state.selectedClipId,
+      selectedClipId: state.selectedClipId === clipId ? null : state.selectedClipId,
       isDirty: true,
     }));
     get().recalculateDuration();
@@ -446,10 +423,8 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
     const timingUpdates: Partial<EditorClip> = {};
     if (updates.startMs !== undefined) timingUpdates.startMs = updates.startMs;
     if (updates.endMs !== undefined) timingUpdates.endMs = updates.endMs;
-    if (updates.trimStartMs !== undefined)
-      timingUpdates.trimStartMs = updates.trimStartMs;
-    if (updates.trimEndMs !== undefined)
-      timingUpdates.trimEndMs = updates.trimEndMs;
+    if (updates.trimStartMs !== undefined) timingUpdates.trimStartMs = updates.trimStartMs;
+    if (updates.trimEndMs !== undefined) timingUpdates.trimEndMs = updates.trimEndMs;
 
     set((state) => ({
       timeline: {
@@ -460,11 +435,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
             // Update the target clip with all updates
             if (c.id === clipId) return { ...c, ...updates };
             // Update linked clips with only timing updates
-            if (
-              linkId &&
-              c.linkId === linkId &&
-              Object.keys(timingUpdates).length > 0
-            ) {
+            if (linkId && c.linkId === linkId && Object.keys(timingUpdates).length > 0) {
               return { ...c, ...timingUpdates };
             }
             return c;
@@ -579,8 +550,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
   togglePlayback: () => set((state) => ({ isPlaying: !state.isPlaying })),
 
   // Zoom
-  setZoomLevel: (level) =>
-    set({ zoomLevel: Math.max(10, Math.min(500, level)) }),
+  setZoomLevel: (level) => set({ zoomLevel: Math.max(10, Math.min(500, level)) }),
   setScrollLeft: (scroll) => set({ scrollLeft: Math.max(0, scroll) }),
 
   // Duration
@@ -633,7 +603,7 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
   updateTextOverlay: (id, updates) => {
     set((state) => ({
       textOverlays: state.textOverlays.map((overlay) =>
-        overlay.id === id ? { ...overlay, ...updates } : overlay
+        overlay.id === id ? { ...overlay, ...updates } : overlay,
       ),
       isDirty: true,
     }));

@@ -13,8 +13,8 @@
  * This should NEVER be enabled in production.
  */
 
-import { ERROR_CODES } from "@vibe-creator/shared";
-import { env } from "@/config/env";
+import { ERROR_CODES } from '@vibe-creator/shared';
+import { env } from '@/config/env';
 
 /**
  * High limit for bypassing rate limit in test environment.
@@ -22,7 +22,7 @@ import { env } from "@/config/env";
  */
 const TEST_RATE_LIMIT = {
   max: 1000000,
-  timeWindow: "1 minute",
+  timeWindow: '1 minute',
 };
 
 /**
@@ -39,11 +39,8 @@ type RateLimitRequest = {
   auth?: { userId: string; tenantId: string } | null;
 };
 
-const buildRateLimitKey = (
-  scope: string,
-  request: RateLimitRequest
-): string => {
-  const routeKey = request.url?.split("?")[0] || scope;
+const buildRateLimitKey = (scope: string, request: RateLimitRequest): string => {
+  const routeKey = request.url?.split('?')[0] || scope;
   const tenantId = request.auth?.tenantId || request.user?.id;
   const userId = request.auth?.userId || request.user?.id;
 
@@ -62,15 +59,13 @@ export const registerRateLimit = {
   config: {
     rateLimit: {
       max: isRateLimitTestMode() ? TEST_RATE_LIMIT.max : 3,
-      timeWindow: isRateLimitTestMode() ? TEST_RATE_LIMIT.timeWindow : "1 hour",
-      keyGenerator: (request: RateLimitRequest) =>
-        buildRateLimitKey("register", request),
+      timeWindow: isRateLimitTestMode() ? TEST_RATE_LIMIT.timeWindow : '1 hour',
+      keyGenerator: (request: RateLimitRequest) => buildRateLimitKey('register', request),
       errorResponseBuilder: () => ({
         success: false,
         error: {
           code: ERROR_CODES.RATE_LIMIT_EXCEEDED,
-          message:
-            "Terlalu banyak percobaan daftar. Silakan coba lagi dalam 1 jam.",
+          message: 'Terlalu banyak percobaan daftar. Silakan coba lagi dalam 1 jam.',
         },
       }),
     },
@@ -85,17 +80,13 @@ export const loginRateLimit = {
   config: {
     rateLimit: {
       max: isRateLimitTestMode() ? TEST_RATE_LIMIT.max : 5,
-      timeWindow: isRateLimitTestMode()
-        ? TEST_RATE_LIMIT.timeWindow
-        : "15 minutes",
-      keyGenerator: (request: RateLimitRequest) =>
-        buildRateLimitKey("login", request),
+      timeWindow: isRateLimitTestMode() ? TEST_RATE_LIMIT.timeWindow : '15 minutes',
+      keyGenerator: (request: RateLimitRequest) => buildRateLimitKey('login', request),
       errorResponseBuilder: () => ({
         success: false,
         error: {
           code: ERROR_CODES.RATE_LIMIT_EXCEEDED,
-          message:
-            "Terlalu banyak percobaan masuk. Silakan coba lagi dalam 15 menit.",
+          message: 'Terlalu banyak percobaan masuk. Silakan coba lagi dalam 15 menit.',
         },
       }),
     },
@@ -110,17 +101,13 @@ export const refreshRateLimit = {
   config: {
     rateLimit: {
       max: isRateLimitTestMode() ? TEST_RATE_LIMIT.max : 10,
-      timeWindow: isRateLimitTestMode()
-        ? TEST_RATE_LIMIT.timeWindow
-        : "1 minute",
-      keyGenerator: (request: RateLimitRequest) =>
-        buildRateLimitKey("refresh", request),
+      timeWindow: isRateLimitTestMode() ? TEST_RATE_LIMIT.timeWindow : '1 minute',
+      keyGenerator: (request: RateLimitRequest) => buildRateLimitKey('refresh', request),
       errorResponseBuilder: () => ({
         success: false,
         error: {
           code: ERROR_CODES.RATE_LIMIT_EXCEEDED,
-          message:
-            "Terlalu banyak permintaan refresh token. Mohon tunggu sebentar.",
+          message: 'Terlalu banyak permintaan refresh token. Mohon tunggu sebentar.',
         },
       }),
     },

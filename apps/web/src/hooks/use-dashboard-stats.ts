@@ -21,10 +21,14 @@ export function useDashboardStats() {
       ]);
 
       return {
-        projects: (projectsRes as { meta?: { total?: number }; data?: unknown[] }).meta?.total ?? 
-                  (projectsRes as { data?: unknown[] }).data?.length ?? 0,
-        prompts: (promptsRes as { meta?: { total?: number }; data?: unknown[] }).meta?.total ?? 
-                 (promptsRes as { data?: unknown[] }).data?.length ?? 0,
+        projects:
+          (projectsRes as { meta?: { total?: number }; data?: unknown[] }).meta?.total ??
+          (projectsRes as { data?: unknown[] }).data?.length ??
+          0,
+        prompts:
+          (promptsRes as { meta?: { total?: number }; data?: unknown[] }).meta?.total ??
+          (promptsRes as { data?: unknown[] }).data?.length ??
+          0,
         exports: (exportsRes as { data?: unknown[] }).data?.length ?? 0,
         downloads: (downloadsRes as { data?: unknown[] }).data?.length ?? 0,
       };

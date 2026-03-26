@@ -1,6 +1,6 @@
-import { useRef, useEffect, useMemo } from "react";
-import { useWaveform, getCachedWaveform } from "@/hooks/use-waveform";
-import { cn } from "@/lib/utils";
+import { useEffect, useMemo, useRef } from 'react';
+import { getCachedWaveform, useWaveform } from '@/hooks/use-waveform';
+import { cn } from '@/lib/utils';
 
 interface WaveformDisplayProps {
   audioUrl: string;
@@ -21,8 +21,8 @@ export function WaveformDisplay({
   assetId,
   width,
   height,
-  color = "#10b981", // Emerald for audio
-  backgroundColor = "transparent",
+  color = '#10b981', // Emerald for audio
+  backgroundColor = 'transparent',
   className,
   startMs = 0,
   endMs,
@@ -48,7 +48,7 @@ export function WaveformDisplay({
     const canvas = canvasRef.current;
     if (!canvas || !waveform || waveform.length === 0) return;
 
-    const ctx = canvas.getContext("2d");
+    const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
     const dpr = window.devicePixelRatio || 1;
@@ -57,7 +57,7 @@ export function WaveformDisplay({
     ctx.scale(dpr, dpr);
     ctx.clearRect(0, 0, width, height);
 
-    if (backgroundColor !== "transparent") {
+    if (backgroundColor !== 'transparent') {
       ctx.fillStyle = backgroundColor;
       ctx.fillRect(0, 0, width, height);
     }
@@ -102,40 +102,30 @@ export function WaveformDisplay({
       currentTimeMs <= timeRange.endMs
     ) {
       const playheadRatio =
-        (currentTimeMs - timeRange.startMs) /
-        (timeRange.endMs - timeRange.startMs);
+        (currentTimeMs - timeRange.startMs) / (timeRange.endMs - timeRange.startMs);
       const playheadX = playheadRatio * width;
 
       const gradient = ctx.createLinearGradient(0, 0, 0, height);
-      gradient.addColorStop(0, "#f87171");
-      gradient.addColorStop(1, "#ef4444");
+      gradient.addColorStop(0, '#f87171');
+      gradient.addColorStop(1, '#ef4444');
       ctx.fillStyle = gradient;
       ctx.shadowBlur = 10;
-      ctx.shadowColor = "rgba(239, 68, 68, 0.5)";
+      ctx.shadowColor = 'rgba(239, 68, 68, 0.5)';
       ctx.fillRect(playheadX - 1, 0, 2, height);
     }
-  }, [
-    waveform,
-    width,
-    height,
-    color,
-    backgroundColor,
-    timeRange,
-    duration,
-    currentTimeMs,
-  ]);
+  }, [waveform, width, height, color, backgroundColor, timeRange, duration, currentTimeMs]);
 
   if (isLoading && showLoading) {
     const skeletonHeights = [10, 25, 18, 30, 22, 28, 15, 20];
     return (
       <div
-        className={cn("flex items-center justify-center opacity-40", className)}
+        className={cn('flex items-center justify-center opacity-40', className)}
         style={{ width, height }}
       >
         <div className="animate-pulse flex items-center gap-1">
           {skeletonHeights.map((h, i) => (
             <div
-              key={i}
+              key={String(h)}
               className="bg-emerald-400/40 rounded-full"
               style={{
                 width: 3,
@@ -153,8 +143,8 @@ export function WaveformDisplay({
     return (
       <div
         className={cn(
-          "flex items-center justify-center text-[10px] font-black uppercase text-destructive/60 tracking-widest",
-          className
+          'flex items-center justify-center text-[10px] font-black uppercase text-destructive/60 tracking-widest',
+          className,
         )}
         style={{ width, height }}
       >
@@ -170,7 +160,7 @@ export function WaveformDisplay({
       style={{
         width,
         height,
-        display: "block",
+        display: 'block',
       }}
     />
   );

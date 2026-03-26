@@ -3,18 +3,15 @@
  * Manages active FFmpeg streaming processes
  */
 
-import { ChildProcess, spawn } from "child_process";
-import { logger } from "@/lib/logger";
-import { prisma } from "@/lib/prisma";
+import { type ChildProcess, spawn } from 'node:child_process';
+import { logger } from '@/lib/logger';
+import { prisma } from '@/lib/prisma';
 
 // Store active streams by streamId
 const activeStreams = new Map<string, ChildProcess>();
 
 // Store active streams by userId for concurrency control
-const activeUserStreams = new Map<
-  string,
-  { process: ChildProcess; streamId: string }
->();
+const activeUserStreams = new Map<string, { process: ChildProcess; streamId: string }>();
 
 /**
  * Check if user has active stream
@@ -44,7 +41,7 @@ export async function killUserStream(userId: string): Promise<void> {
   const existing = activeUserStreams.get(userId);
   if (!existing) return;
 
-  existing.process.kill("SIGTERM");
+  existing.process.kill('SIGTERM');
   activeUserStreams.delete(userId);
   activeStreams.delete(existing.streamId);
 
@@ -52,14 +49,12 @@ export async function killUserStream(userId: string): Promise<void> {
     .update({
       where: { id: existing.streamId },
       data: {
-        status: "ENDED",
+        status: 'ENDED',
         endedAt: new Date(),
-        errorMessage: "Interrupted by new session",
+        errorMessage: 'Interrupted by new session',
       },
     })
-    .catch((err: Error) =>
-      logger.warn({ err }, "Failed to update interrupted stream status")
-    );
+    .catch((err: Error) => logger.warn({ err }, 'Failed to update interrupted stream status'));
 
   // Small delay to release resources
   await new Promise((r) => setTimeout(r, 1000));
@@ -68,59 +63,52 @@ export async function killUserStream(userId: string): Promise<void> {
 /**
  * Start FFmpeg streaming process
  */
-export function startStreamProcess(
-  streamId: string,
-  userId: string,
-  args: string[]
-): ChildProcess {
-  const process = spawn("ffmpeg", args);
+export function startStreamProcess(streamId: string, userId: string, args: string[]): ChildProcess {
+  const process = spawn('ffmpeg', args);
 
   // Store process references
   activeStreams.set(streamId, process);
   activeUserStreams.set(userId, { process, streamId });
 
   // Handle stderr (logging)
-  process.stderr.on("data", (data) => {
+  process.stderr.on('data', (data) => {
     const logStr = data.toString();
-    if (
-      logStr.toLowerCase().includes("error") ||
-      logStr.toLowerCase().includes("fail")
-    ) {
-      logger.debug({ streamId, data: logStr }, "ffmpeg stream stderr");
+    if (logStr.toLowerCase().includes('error') || logStr.toLowerCase().includes('fail')) {
+      logger.debug({ streamId, data: logStr }, 'ffmpeg stream stderr');
     }
   });
 
   // Handle process close
-  process.on("close", async (code) => {
+  process.on('close', async (code) => {
     activeStreams.delete(streamId);
     activeUserStreams.delete(userId);
 
     await prisma.streamSession.update({
       where: { id: streamId },
       data: {
-        status: code === 0 ? "ENDED" : "FAILED",
+        status: code === 0 ? 'ENDED' : 'FAILED',
         endedAt: new Date(),
       },
     });
 
-    logger.info({ streamId, code }, "Stream ended");
+    logger.info({ streamId, code }, 'Stream ended');
   });
 
   // Handle process error
-  process.on("error", async (err) => {
+  process.on('error', async (err) => {
     activeStreams.delete(streamId);
     activeUserStreams.delete(userId);
 
     await prisma.streamSession.update({
       where: { id: streamId },
       data: {
-        status: "FAILED",
+        status: 'FAILED',
         endedAt: new Date(),
         errorMessage: err.message,
       },
     });
 
-    logger.error({ streamId, error: err.message }, "Stream error");
+    logger.error({ streamId, error: err.message }, 'Stream error');
   });
 
   return process;
@@ -132,7 +120,7 @@ export function startStreamProcess(
 export function stopStreamProcess(streamId: string, userId: string): void {
   const process = activeStreams.get(streamId);
   if (process) {
-    process.kill("SIGTERM");
+    process.kill('SIGTERM');
     activeStreams.delete(streamId);
     activeUserStreams.delete(userId);
   }
@@ -146,7 +134,7 @@ export function scheduleStreamLive(streamId: string, delayMs = 3000): void {
     if (activeStreams.has(streamId)) {
       await prisma.streamSession.update({
         where: { id: streamId },
-        data: { status: "LIVE" },
+        data: { status: 'LIVE' },
       });
     }
   }, delayMs);

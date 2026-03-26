@@ -1,31 +1,31 @@
-import { prisma } from "../../lib/prisma";
-import type { Prisma } from "@prisma/client";
-import { logger } from "../../lib/logger";
-import crypto from "crypto";
-import { Xendit } from "xendit-node";
+import crypto from 'node:crypto';
+import type { Prisma } from '@prisma/client';
+import { Xendit } from 'xendit-node';
+import { env } from '@/config/env';
+import { logger } from '../../lib/logger';
+import { prisma } from '../../lib/prisma';
 
-// Constants
-const XENDIT_SECRET_KEY =
-  process.env.XENDIT_SECRET_KEY || "xnd_development_..."; // Fallback for dev
-const XENDIT_CALLBACK_TOKEN = process.env.XENDIT_CALLBACK_TOKEN || "";
+function getInvoiceClient() {
+  if (!env.XENDIT_SECRET_KEY) {
+    throw new Error('XENDIT_SECRET_KEY is not configured');
+  }
 
-const xendit = new Xendit({ secretKey: XENDIT_SECRET_KEY });
-const { Invoice } = xendit;
+  return new Xendit({ secretKey: env.XENDIT_SECRET_KEY }).Invoice;
+}
 
 export const STREAM_PACKAGES = [
-  { id: "1h", minutes: 60, price: 10000, name: "1 Jam Stream" },
-  { id: "3h", minutes: 180, price: 25000, name: "3 Jam Stream (Hemat)" },
-  { id: "10h", minutes: 600, price: 75000, name: "10 Jam Stream (Pro)" },
-  { id: "24h", minutes: 1440, price: 150000, name: "24 Jam Stream (Ultra)" },
+  { id: '1h', minutes: 60, price: 10000, name: '1 Jam Stream' },
+  { id: '3h', minutes: 180, price: 25000, name: '3 Jam Stream (Hemat)' },
+  { id: '10h', minutes: 600, price: 75000, name: '10 Jam Stream (Pro)' },
+  { id: '24h', minutes: 1440, price: 150000, name: '24 Jam Stream (Ultra)' },
 ];
 
 export const billingService = {
   /**
    * Verify Xendit Webhook Token
    */
-  verifySignature(token: string): boolean {
-    if (!XENDIT_CALLBACK_TOKEN) return true; // Skip if not set in dev
-    return token === XENDIT_CALLBACK_TOKEN;
+  verifySignature(token?: string): boolean {
+    return Boolean(env.XENDIT_WEBHOOK_TOKEN && token && token === env.XENDIT_WEBHOOK_TOKEN);
   },
 
   /**
@@ -33,10 +33,10 @@ export const billingService = {
    */
   async createTopupInvoice(userId: string, packageId: string) {
     const pack = STREAM_PACKAGES.find((p) => p.id === packageId);
-    if (!pack) throw new Error("Invalid package");
+    if (!pack) throw new Error('Invalid package');
 
     const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!user) throw new Error("User not found");
+    if (!user) throw new Error('User not found');
 
     // 1. Create Pending Purchase Record
     // We generate a temp ID or use cuid
@@ -47,16 +47,16 @@ export const billingService = {
       data: {
         id: purchaseId, // Use our UUID
         userId,
-        provider: "XENDIT",
+        provider: 'XENDIT',
         providerPaymentId: `PENDING_${externalId}`, // Temporary until Xendit returns ID
         minutes: pack.minutes,
         amount: pack.price,
-        status: "PENDING",
+        status: 'PENDING',
       },
     });
 
     // 2. Call Xendit API
-    const invoice = await Invoice.createInvoice({
+    const invoice = await getInvoiceClient().createInvoice({
       data: {
         externalId: externalId,
         amount: pack.price,
@@ -67,13 +67,9 @@ export const billingService = {
           givenNames: user.name,
         },
         invoiceDuration: 86400, // 24 hours
-        successRedirectUrl: `${
-          process.env.APP_URL || "http://localhost:5173"
-        }/tools/live-stream`,
-        failureRedirectUrl: `${
-          process.env.APP_URL || "http://localhost:5173"
-        }/tools/live-stream?status=failed`,
-        currency: "IDR",
+        successRedirectUrl: `${env.FRONTEND_URL}/tools/live-stream`,
+        failureRedirectUrl: `${env.FRONTEND_URL}/tools/live-stream?status=failed`,
+        currency: 'IDR',
       },
     });
 
@@ -97,37 +93,33 @@ export const billingService = {
    * Handle Xendit Webhook
    */
   async handleWebhook(event: Record<string, unknown>) {
-    const status = typeof event.status === "string" ? event.status : "";
-    const external_id =
-      typeof event.external_id === "string" ? event.external_id : "";
-    const eventId =
-      typeof event.id === "string"
-        ? event.id
-        : `evt_${Date.now()}_${Math.random()}`;
+    const status = typeof event.status === 'string' ? event.status : '';
+    const external_id = typeof event.external_id === 'string' ? event.external_id : '';
+    const eventId = typeof event.id === 'string' ? event.id : `evt_${Date.now()}_${Math.random()}`;
 
     // We only care about PAID invoices
-    if (status !== "PAID") return;
+    if (status !== 'PAID') return;
 
     // Check if it's a Topup (prefix check or DB lookup)
     // external_id is `topup_{purchaseId}`
-    if (!external_id.startsWith("topup_")) return;
+    if (!external_id.startsWith('topup_')) return;
 
-    const purchaseId = external_id.replace("topup_", "");
+    const purchaseId = external_id.replace('topup_', '');
 
     // Idempotency: Create PaymentEvent record
     try {
       await prisma.paymentEvent.create({
         data: {
-          provider: "XENDIT",
+          provider: 'XENDIT',
           providerEventId: eventId,
-          eventType: "invoice.paid",
+          eventType: 'invoice.paid',
           payload: event as Record<string, unknown> & object,
         },
       });
     } catch (err) {
       // If duplicate event, ignore but continue checks (or return if strict)
       // Usually strict return if event already processed
-      logger.warn({ err }, "Duplicate payment event or error recording");
+      logger.warn({ err }, 'Duplicate payment event or error recording');
       const exists = await prisma.paymentEvent.findUnique({
         where: { providerEventId: eventId },
       });
@@ -139,11 +131,11 @@ export const billingService = {
       where: { id: purchaseId },
     });
     if (!purchase) {
-      logger.error({ purchaseId }, "Purchase not found for paid invoice");
+      logger.error({ purchaseId }, 'Purchase not found for paid invoice');
       return;
     }
 
-    if (purchase.status === "PAID") return; // Already paid
+    if (purchase.status === 'PAID') return; // Already paid
 
     // Apply Topup
     await this.applyTopUp(purchase.id);
@@ -168,7 +160,7 @@ export const billingService = {
     const activeCycle = await prisma.streamQuotaCycle.findFirst({
       where: {
         userId,
-        status: "OPEN",
+        status: 'OPEN',
         cycleStartAt: { lte: now },
         cycleEndAt: { gt: now },
       },
@@ -186,11 +178,11 @@ export const billingService = {
     let end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
     let baseQuota = 300; // Free default
 
-    if (sub && sub.status === "ACTIVE") {
+    if (sub && sub.status === 'ACTIVE') {
       start = sub.currentPeriodStartAt;
       end = sub.currentPeriodEndAt;
-      if (sub.planKey === "PRO") baseQuota = 10000;
-      else if (sub.planKey === "CREATOR") baseQuota = 3000;
+      if (sub.planKey === 'PRO') baseQuota = 10000;
+      else if (sub.planKey === 'CREATOR') baseQuota = 3000;
     }
 
     // 3. Create Cycle (Atomic with unique constraint handling)
@@ -209,14 +201,11 @@ export const billingService = {
           cycleStartAt: start,
           cycleEndAt: end,
           quotaMinutesBase: baseQuota,
-          status: "OPEN",
+          status: 'OPEN',
         },
       });
     } catch (err) {
-      logger.warn(
-        { err, userId },
-        "Race condition in getOrCreateOpenCycle, retrying fetch"
-      );
+      logger.warn({ err, userId }, 'Race condition in getOrCreateOpenCycle, retrying fetch');
       const retryCycle = await prisma.streamQuotaCycle.findFirst({
         where: {
           userId,
@@ -224,7 +213,7 @@ export const billingService = {
           cycleEndAt: end,
         },
       });
-      if (!retryCycle) throw new Error("Failed to create quota cycle");
+      if (!retryCycle) throw new Error('Failed to create quota cycle');
       return retryCycle;
     }
   },
@@ -239,12 +228,13 @@ export const billingService = {
         where: { id: purchaseId },
       });
 
-      if (!purchase || purchase.status === "PAID") {
-        // Already paid or invalid, verify logic
-        // If status is PAID, we might be reapplying?
-        // Logic: Check if appliedToQuotaCycleId is set.
+      if (!purchase) {
+        return;
       }
-      if (purchase?.appliedToQuotaCycleId) return;
+
+      if (purchase.status === 'PAID' || purchase.appliedToQuotaCycleId) {
+        return;
+      }
 
       const now = new Date();
 
@@ -254,8 +244,8 @@ export const billingService = {
       // For simplicity: Find OPEN cycle.
       let cycle = await tx.streamQuotaCycle.findFirst({
         where: {
-          userId: purchase!.userId,
-          status: "OPEN",
+          userId: purchase.userId,
+          status: 'OPEN',
           cycleStartAt: { lte: now },
           cycleEndAt: { gt: now },
         },
@@ -267,11 +257,11 @@ export const billingService = {
         const end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
         cycle = await tx.streamQuotaCycle.create({
           data: {
-            userId: purchase!.userId,
+            userId: purchase.userId,
             cycleStartAt: start,
             cycleEndAt: end,
             quotaMinutesBase: 300, // Safe default
-            status: "OPEN",
+            status: 'OPEN',
           },
         });
       }
@@ -280,21 +270,21 @@ export const billingService = {
       await tx.streamQuotaCycle.update({
         where: { id: cycle.id },
         data: {
-          quotaMinutesTopup: { increment: purchase!.minutes },
+          quotaMinutesTopup: { increment: purchase.minutes },
         },
       });
 
       await tx.streamTopupPurchase.update({
         where: { id: purchaseId },
         data: {
-          status: "PAID", // Mark as PAID and APPLIED together
+          status: 'PAID', // Mark as PAID and APPLIED together
           appliedToQuotaCycleId: cycle.id,
         },
       });
 
       logger.info(
-        { userId: purchase!.userId, minutes: purchase!.minutes },
-        "Top-up applied to cycle"
+        { userId: purchase.userId, minutes: purchase.minutes },
+        'Top-up applied to cycle',
       );
     });
   },

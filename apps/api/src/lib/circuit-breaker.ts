@@ -8,8 +8,8 @@
  * - Automatic recovery after reset timeout
  */
 
-import CircuitBreaker from "opossum";
-import { logger } from "@/lib/logger";
+import CircuitBreaker from 'opossum';
+import { logger } from '@/lib/logger';
 
 export interface CircuitBreakerOptions {
   /** Service name for logging */
@@ -45,11 +45,9 @@ export interface CircuitBreakerOptions {
  * );
  * ```
  */
-export function createCircuitBreaker<
-  T extends (...args: unknown[]) => Promise<unknown>
->(
+export function createCircuitBreaker<T extends (...args: unknown[]) => Promise<unknown>>(
   fn: T,
-  options: CircuitBreakerOptions
+  options: CircuitBreakerOptions,
 ): CircuitBreaker<Parameters<T>, ReturnType<T>> {
   const breaker = new CircuitBreaker(fn, {
     timeout: options.timeout,
@@ -59,57 +57,42 @@ export function createCircuitBreaker<
   });
 
   // Event logging
-  breaker.on("open", () => {
-    logger.error(
-      { service: options.serviceName },
-      "Circuit breaker opened - failing fast"
-    );
+  breaker.on('open', () => {
+    logger.error({ service: options.serviceName }, 'Circuit breaker opened - failing fast');
   });
 
-  breaker.on("halfOpen", () => {
-    logger.warn(
-      { service: options.serviceName },
-      "Circuit breaker half-open - testing recovery"
-    );
+  breaker.on('halfOpen', () => {
+    logger.warn({ service: options.serviceName }, 'Circuit breaker half-open - testing recovery');
   });
 
-  breaker.on("close", () => {
-    logger.info(
-      { service: options.serviceName },
-      "Circuit breaker closed - service recovered"
-    );
+  breaker.on('close', () => {
+    logger.info({ service: options.serviceName }, 'Circuit breaker closed - service recovered');
   });
 
-  breaker.on("timeout", () => {
+  breaker.on('timeout', () => {
     logger.warn(
       { service: options.serviceName, timeout: options.timeout },
-      "Circuit breaker timeout"
+      'Circuit breaker timeout',
     );
   });
 
-  breaker.on("reject", () => {
+  breaker.on('reject', () => {
     logger.warn(
       { service: options.serviceName },
-      "Circuit breaker rejected request (circuit open)"
+      'Circuit breaker rejected request (circuit open)',
     );
   });
 
-  breaker.on("fallback", (_result: unknown) => {
-    logger.info(
-      { service: options.serviceName },
-      "Circuit breaker fallback executed"
-    );
+  breaker.on('fallback', (_result: unknown) => {
+    logger.info({ service: options.serviceName }, 'Circuit breaker fallback executed');
   });
 
-  breaker.on("failure", (err: Error) => {
-    logger.error(
-      { service: options.serviceName, err: err.message },
-      "Circuit breaker failure"
-    );
+  breaker.on('failure', (err: Error) => {
+    logger.error({ service: options.serviceName, err: err.message }, 'Circuit breaker failure');
   });
 
-  breaker.on("success", (_result: unknown) => {
-    logger.debug({ service: options.serviceName }, "Circuit breaker success");
+  breaker.on('success', (_result: unknown) => {
+    logger.debug({ service: options.serviceName }, 'Circuit breaker success');
   });
 
   return breaker as CircuitBreaker<Parameters<T>, ReturnType<T>>;
@@ -128,7 +111,7 @@ export function createCircuitBreaker<
 export async function executeWithCircuitBreaker<T>(
   breaker: CircuitBreaker<unknown[], T>,
   args: unknown[],
-  isIdempotent: boolean = false
+  isIdempotent: boolean = false,
 ): Promise<T> {
   try {
     return await breaker.fire(...args);
@@ -150,13 +133,11 @@ export async function executeWithCircuitBreaker<T>(
 /**
  * Get circuit breaker health status
  */
-export function getCircuitBreakerStats(
-  breaker: CircuitBreaker<unknown[], unknown>
-) {
+export function getCircuitBreakerStats(breaker: CircuitBreaker<unknown[], unknown>) {
   const stats = breaker.stats;
   return {
     name: breaker.name,
-    state: breaker.opened ? "OPEN" : breaker.halfOpen ? "HALF_OPEN" : "CLOSED",
+    state: breaker.opened ? 'OPEN' : breaker.halfOpen ? 'HALF_OPEN' : 'CLOSED',
     failures: stats.failures,
     fallbacks: stats.fallbacks,
     successes: stats.successes,

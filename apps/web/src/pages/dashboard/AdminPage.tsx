@@ -1,16 +1,16 @@
-import { useEffect } from "react";
+import { useEffect } from 'react';
 
-import { useNavigate } from "react-router-dom";
-import { useAuthStore } from "@/stores/auth-store";
-import { AdminHeader } from "@/components/dashboard/admin/AdminHeader";
-import { SystemStats } from "@/components/dashboard/admin/SystemStats";
-import { UsersTable } from "@/components/dashboard/admin/UsersTable";
-import { AnnouncementsPanel } from "@/components/dashboard/admin/AnnouncementsPanel";
+import { useNavigate } from 'react-router-dom';
+import { AdminHeader } from '@/components/dashboard/admin/AdminHeader';
 import {
-  EditSubscriptionModal,
   CreateAnnouncementModal,
-} from "@/components/dashboard/admin/AdminModals";
-import { useAdminData } from "@/hooks/useAdminData";
+  EditSubscriptionModal,
+} from '@/components/dashboard/admin/AdminModals';
+import { AnnouncementsPanel } from '@/components/dashboard/admin/AnnouncementsPanel';
+import { SystemStats } from '@/components/dashboard/admin/SystemStats';
+import { UsersTable } from '@/components/dashboard/admin/UsersTable';
+import { useAdminData } from '@/hooks/useAdminData';
+import { useAuthStore } from '@/stores/auth-store';
 
 export function AdminPage() {
   const navigate = useNavigate();
@@ -37,12 +37,12 @@ export function AdminPage() {
 
   // Check admin role
   useEffect(() => {
-    if (user && user.role !== "ADMIN") {
-      navigate("/dashboard");
+    if (user && user.role !== 'ADMIN') {
+      navigate('/dashboard');
     }
   }, [user, navigate]);
 
-  if (user?.role !== "ADMIN") {
+  if (user?.role !== 'ADMIN') {
     return null;
   }
 
@@ -62,7 +62,7 @@ export function AdminPage() {
             setSearchQuery={setSearchQuery}
             onEditUser={(u) => {
               setSelectedUser(u);
-              setSelectedTier(u.subscription?.tier || "FREE");
+              setSelectedTier(u.subscription?.tier || 'FREE');
               editModal.onOpen();
             }}
           />

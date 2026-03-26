@@ -1,24 +1,40 @@
-import { FastifyPluginAsync } from "fastify";
-import { billingService, STREAM_PACKAGES } from "./billing.service";
+import { ERROR_CODES } from '@vibe-creator/shared';
+import type { FastifyPluginAsync } from 'fastify';
+import { env } from '@/config/env';
+import { requireRateLimitReady } from '@/lib/rate-limit';
+import { requireAuth } from '@/plugins/auth';
+import { sendError } from '@/utils/response';
+import { assertValidWebhook } from '@/utils/webhook';
 import {
-  getQuotaRouteSchema,
-  getPackagesRouteSchema,
   createTopupRouteSchema,
+  getPackagesRouteSchema,
+  getQuotaRouteSchema,
   webhookRouteSchema,
-} from "./billing.schemas";
+} from './billing.schemas';
+import { billingService, STREAM_PACKAGES } from './billing.service';
 
 export const billingRoutes: FastifyPluginAsync = async (fastify) => {
+  fastify.addHook('preHandler', async (request, reply) => {
+    const result = requireRateLimitReady(request, reply);
+    if (result) {
+      return result;
+    }
+  });
+
   /**
    * Get Quota Information
    */
   fastify.get(
-    "/quota",
+    '/quota',
     {
+      preHandler: [requireAuth],
       schema: getQuotaRouteSchema,
     },
     async (request, reply) => {
       const user = request.user;
-      if (!user) return reply.status(401).send({ error: "Unauthorized" });
+      if (!user) {
+        return sendError(reply, ERROR_CODES.UNAUTHORIZED, 'Autentikasi diperlukan', 401);
+      }
 
       try {
         const cycle = await billingService.getOrCreateOpenCycle(user.id);
@@ -36,18 +52,16 @@ export const billingRoutes: FastifyPluginAsync = async (fastify) => {
           },
         });
       } catch (e) {
-        return reply
-          .status(500)
-          .send({ error: e instanceof Error ? e.message : "Error" });
+        return reply.status(500).send({ error: e instanceof Error ? e.message : 'Error' });
       }
-    }
+    },
   );
 
   /**
    * Get Available Packages
    */
   fastify.get(
-    "/packages",
+    '/packages',
     {
       schema: getPackagesRouteSchema,
     },
@@ -56,30 +70,29 @@ export const billingRoutes: FastifyPluginAsync = async (fastify) => {
         success: true,
         data: STREAM_PACKAGES,
       });
-    }
+    },
   );
 
   /**
    * Request Topup Invoice
    */
   fastify.post<{ Body: { packageId: string } }>(
-    "/topup",
+    '/topup',
     {
+      preHandler: [requireAuth],
       schema: createTopupRouteSchema,
     },
     async (request, reply) => {
       const user = request.user;
-      if (!user) return reply.status(401).send({ error: "Unauthorized" });
+      if (!user) {
+        return sendError(reply, ERROR_CODES.UNAUTHORIZED, 'Autentikasi diperlukan', 401);
+      }
 
       const { packageId } = request.body;
-      if (!packageId)
-        return reply.status(400).send({ error: "Package ID required" });
+      if (!packageId) return reply.status(400).send({ error: 'Package ID required' });
 
       try {
-        const result = await billingService.createTopupInvoice(
-          user.id,
-          packageId
-        );
+        const result = await billingService.createTopupInvoice(user.id, packageId);
         return reply.send({
           success: true,
           data: result,
@@ -87,10 +100,10 @@ export const billingRoutes: FastifyPluginAsync = async (fastify) => {
       } catch (e) {
         request.log.error(e);
         return reply.status(500).send({
-          error: e instanceof Error ? e.message : "Topup creation failed",
+          error: e instanceof Error ? e.message : 'Topup creation failed',
         });
       }
-    }
+    },
   );
 
   /**
@@ -98,28 +111,64 @@ export const billingRoutes: FastifyPluginAsync = async (fastify) => {
    * Public endpoint, requires signature verification
    */
   fastify.post(
-    "/webhook",
+    '/webhook',
     {
+      config: { rawBody: true },
       schema: webhookRouteSchema,
     },
     async (request, reply) => {
-      const token = request.headers["x-callback-token"] as string;
-      const isValid = billingService.verifySignature(token);
+      const webhookToken = env.XENDIT_WEBHOOK_TOKEN;
+      if (!webhookToken) {
+        return sendError(reply, ERROR_CODES.SERVICE_UNAVAILABLE, 'Webhook secret unavailable', 503);
+      }
 
-      if (!isValid) {
-        return reply.status(403).send({ error: "Invalid signature" });
+      const headerToken = request.headers['x-callback-token'];
+      if (
+        !billingService.verifySignature(typeof headerToken === 'string' ? headerToken : undefined)
+      ) {
+        return sendError(reply, ERROR_CODES.UNAUTHORIZED, 'Invalid webhook token', 401);
+      }
+
+      const signatureHeader = request.headers['x-callback-signature'];
+      const timestampHeader = request.headers['x-callback-timestamp'];
+      const rawBody = (request as { rawBody?: string }).rawBody;
+
+      if (
+        typeof signatureHeader !== 'string' ||
+        typeof timestampHeader !== 'string' ||
+        typeof rawBody !== 'string'
+      ) {
+        return sendError(reply, ERROR_CODES.VALIDATION_ERROR, 'Invalid webhook request', 400);
+      }
+
+      try {
+        await assertValidWebhook({
+          secret: webhookToken,
+          signature: signatureHeader,
+          timestamp: timestampHeader,
+          payload: rawBody,
+        });
+      } catch (err) {
+        if (err instanceof Error && err.message === 'Replay protection unavailable') {
+          return sendError(
+            reply,
+            ERROR_CODES.SERVICE_UNAVAILABLE,
+            'Webhook replay protection unavailable',
+            503,
+          );
+        }
+
+        return sendError(reply, ERROR_CODES.UNAUTHORIZED, 'Invalid webhook signature', 401);
       }
 
       try {
         // Process async to avoid timeout, or sync if critical
-        await billingService.handleWebhook(
-          request.body as Record<string, unknown>
-        );
+        await billingService.handleWebhook(request.body as Record<string, unknown>);
         return reply.send({ success: true });
       } catch (e) {
         request.log.error(e);
-        return reply.status(500).send({ error: "Webhook processing failed" });
+        return reply.status(500).send({ error: 'Webhook processing failed' });
       }
-    }
+    },
   );
 };

@@ -1,8 +1,8 @@
-import { create } from "zustand";
-import { persist } from "zustand/middleware";
-import type { StoryProject, StoryScene } from "@vibe-creator/shared";
-import { STORY_SCHEMA_VERSION } from "@vibe-creator/shared";
-import { logger } from "@/lib/logger";
+import type { StoryProject, StoryScene } from '@vibe-creator/shared';
+import { STORY_SCHEMA_VERSION } from '@vibe-creator/shared';
+import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
+import { logger } from '@/lib/logger';
 
 interface StoryState {
   currentStory: StoryProject | null;
@@ -13,7 +13,7 @@ interface StoryState {
   // Actions
   initStory: (projectId: string) => void;
   loadStory: (projectId: string) => Promise<void>;
-  updateGlobalVibe: (updates: Partial<StoryProject["globalVibe"]>) => void;
+  updateGlobalVibe: (updates: Partial<StoryProject['globalVibe']>) => void;
   saveToCloud: () => void;
 
   // Scene Actions
@@ -39,11 +39,11 @@ interface StoryState {
   }) => void;
 }
 
-const DEFAULT_GLOBAL_VIBE: StoryProject["globalVibe"] = {
-  tempo: "medium",
+const DEFAULT_GLOBAL_VIBE: StoryProject['globalVibe'] = {
+  tempo: 'medium',
 };
 
-import { api } from "@/services/api";
+import { api } from '@/services/api';
 
 // Debounce helper
 type DebouncedFunction = (...args: unknown[]) => void;
@@ -81,7 +81,7 @@ export const useStoryStore = create<StoryState>()(
         set({ isLoading: true });
         try {
           const res = await api.get<{ storyData: StoryProject; mode: string }>(
-            `/projects/${projectId}`
+            `/projects/${projectId}`,
           );
           if (res.success && res.data.storyData) {
             // If project is already in TIMELINE mode, we should perhaps warn or handle it
@@ -95,7 +95,7 @@ export const useStoryStore = create<StoryState>()(
             get().initStory(projectId);
           }
         } catch (error) {
-          logger.error("Failed to load story", error);
+          logger.error('Failed to load story', error);
           get().initStory(projectId); // Fallback
         } finally {
           set({ isLoading: false });
@@ -111,10 +111,10 @@ export const useStoryStore = create<StoryState>()(
           if (isLocal) {
             // First save: Create Project
             // We don't send the ID; the server generates it.
-            const res = await api.post<{ id: string }>("/projects", {
-              title: "Untitled Story",
-              description: "Created with AI Director",
-              mode: "STORY",
+            const res = await api.post<{ id: string }>('/projects', {
+              title: 'Untitled Story',
+              description: 'Created with AI Director',
+              mode: 'STORY',
               storyData: currentStory,
             });
 
@@ -132,21 +132,17 @@ export const useStoryStore = create<StoryState>()(
               }));
 
               // Silently update URL without reload
-              window.history.replaceState(
-                null,
-                "",
-                `/tools/story-director/${newId}`
-              );
+              window.history.replaceState(null, '', `/tools/story-director/${newId}`);
             }
           } else {
             // Subsequent saves: Patch
             await api.patch(`/projects/${currentStory.projectId}`, {
               storyData: currentStory,
-              mode: "STORY",
+              mode: 'STORY',
             });
           }
         } catch (error) {
-          logger.error("Failed to save story", error);
+          logger.error('Failed to save story', error);
         } finally {
           set({ isSaving: false });
         }
@@ -185,7 +181,7 @@ export const useStoryStore = create<StoryState>()(
             currentStory: {
               ...state.currentStory,
               scenes: state.currentStory.scenes.map((s) =>
-                s.id === sceneId ? { ...s, ...updates } : s
+                s.id === sceneId ? { ...s, ...updates } : s,
               ),
             },
           };
@@ -243,27 +239,25 @@ export const useStoryStore = create<StoryState>()(
             // 1. Save Story Mode state (Frozen)
             await api.patch(`/projects/${currentStory.projectId}`, {
               storyData: currentStory,
-              mode: "TIMELINE",
+              mode: 'TIMELINE',
             });
 
             // 2. Create a Version Snapshot with the compiled timeline
             // This ensures we have a restore point even if Editor doesn't load it yet
             if (compiledTimeline) {
               await api.post(`/projects/${currentStory.projectId}/versions`, {
-                name: "Forked from Story Mode",
-                description: `Auto-generated from Story Mode`,
+                name: 'Forked from Story Mode',
+                description: 'Auto-generated from Story Mode',
                 timelineData: compiledTimeline as Record<string, unknown>,
                 textOverlays: [],
-                metadata: { source: "story-director" },
+                metadata: { source: 'story-director' },
               });
             }
           } catch (error) {
-            logger.error("Failed to fork project", error);
+            logger.error('Failed to fork project', error);
             // Revert frozen state?
             set((state) => ({
-              currentStory: state.currentStory
-                ? { ...state.currentStory, isFrozen: false }
-                : null,
+              currentStory: state.currentStory ? { ...state.currentStory, isFrozen: false } : null,
             }));
             throw error;
           }
@@ -278,9 +272,9 @@ export const useStoryStore = create<StoryState>()(
           const newScenes: StoryScene[] =
             aiResult.structure?.scenes?.map((s) => ({
               id: s.id || crypto.randomUUID(),
-              type: (s.type || "content") as StoryScene["type"],
-              title: s.title || "AI Scene",
-              description: s.description || "",
+              type: (s.type || 'content') as StoryScene['type'],
+              title: s.title || 'AI Scene',
+              description: s.description || '',
               targetDurationMs: s.durationMs || 5000,
               assets: {},
             })) || [];
@@ -296,7 +290,7 @@ export const useStoryStore = create<StoryState>()(
       },
     }),
     {
-      name: "story-storage",
-    }
-  )
+      name: 'story-storage',
+    },
+  ),
 );

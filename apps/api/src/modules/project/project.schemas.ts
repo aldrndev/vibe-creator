@@ -3,7 +3,7 @@
  * Centralized Zod schemas for API documentation (Swagger)
  */
 
-import { z } from "zod";
+import { z } from 'zod';
 
 // ============================================================================
 // Request Schemas
@@ -12,14 +12,14 @@ import { z } from "zod";
 export const createProjectRequestSchema = z.object({
   title: z.string().min(1).max(255),
   description: z.string().optional(),
-  mode: z.enum(["STORY", "TIMELINE"]).optional(),
+  mode: z.enum(['STORY', 'TIMELINE']).optional(),
   storyData: z.looseObject({}).optional(),
 });
 
 export const updateProjectRequestSchema = z.object({
   title: z.string().min(1).max(255).optional(),
   description: z.string().optional(),
-  mode: z.enum(["STORY", "TIMELINE"]).optional(),
+  mode: z.enum(['STORY', 'TIMELINE']).optional(),
   storyData: z.looseObject({}).optional(),
 });
 
@@ -50,7 +50,7 @@ const projectSchema = z.object({
   id: z.string(),
   title: z.string(),
   description: z.string().nullable(),
-  mode: z.enum(["STORY", "TIMELINE"]),
+  mode: z.enum(['STORY', 'TIMELINE']),
   storyData: z.unknown().nullable(),
   userId: z.string(),
   createdAt: z.date(),
@@ -110,10 +110,9 @@ export const deleteResponseSchema = z.object({
 // ============================================================================
 
 export const listProjectsRouteSchema = {
-  tags: ["Projects"],
-  summary: "List projects",
-  description:
-    "Get paginated list of user projects. Supports cursor or offset pagination.",
+  tags: ['Projects'],
+  summary: 'List projects',
+  description: 'Get paginated list of user projects. Supports cursor or offset pagination.',
   querystring: listProjectsQuerySchema,
   response: {
     200: projectListResponseSchema,
@@ -121,9 +120,9 @@ export const listProjectsRouteSchema = {
 };
 
 export const getProjectRouteSchema = {
-  tags: ["Projects"],
-  summary: "Get project by ID",
-  description: "Retrieve a single project with its assets.",
+  tags: ['Projects'],
+  summary: 'Get project by ID',
+  description: 'Retrieve a single project with its assets.',
   params: projectIdParamsSchema,
   response: {
     200: projectResponseSchema,
@@ -132,9 +131,9 @@ export const getProjectRouteSchema = {
 };
 
 export const createProjectRouteSchema = {
-  tags: ["Projects"],
-  summary: "Create new project",
-  description: "Create a new video project.",
+  tags: ['Projects'],
+  summary: 'Create new project',
+  description: 'Create a new video project.',
   body: createProjectRequestSchema,
   response: {
     201: projectResponseSchema,
@@ -143,9 +142,9 @@ export const createProjectRouteSchema = {
 };
 
 export const updateProjectRouteSchema = {
-  tags: ["Projects"],
-  summary: "Update project",
-  description: "Update an existing project.",
+  tags: ['Projects'],
+  summary: 'Update project',
+  description: 'Update an existing project.',
   params: projectIdParamsSchema,
   body: updateProjectRequestSchema,
   response: {
@@ -155,9 +154,9 @@ export const updateProjectRouteSchema = {
 };
 
 export const deleteProjectRouteSchema = {
-  tags: ["Projects"],
-  summary: "Delete project",
-  description: "Delete a project and all its assets.",
+  tags: ['Projects'],
+  summary: 'Delete project',
+  description: 'Delete a project and all its assets.',
   params: projectIdParamsSchema,
   response: {
     200: deleteResponseSchema,

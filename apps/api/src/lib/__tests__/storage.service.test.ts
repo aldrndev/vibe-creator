@@ -1,15 +1,15 @@
 /**
  * Storage Service Unit Tests
- * 
+ *
  * Note: StorageService is a singleton instantiated at import time,
  * so we can only test the public interface behavior.
- * 
+ *
  * ✅ Happy path
  * ❌ Negative/error cases
  * 🔄 Edge cases
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Mock fs/promises before import
 vi.mock('fs/promises', () => ({
@@ -23,9 +23,9 @@ vi.mock('fs/promises', () => ({
 vi.stubEnv('STORAGE_DRIVER', 'local');
 vi.stubEnv('API_URL', 'http://localhost:3000');
 
+import { mkdir, writeFile } from 'node:fs/promises';
 // Import after mocks
 import { storageService } from '../storage.service';
-import { mkdir, writeFile } from 'fs/promises';
 
 describe('storageService', () => {
   beforeEach(() => {
@@ -45,7 +45,7 @@ describe('storageService', () => {
         'user-123',
         'video.mp4',
         buffer,
-        'video/mp4'
+        'video/mp4',
       );
 
       // Assert

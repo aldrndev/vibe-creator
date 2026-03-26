@@ -1,12 +1,6 @@
-import { cleanupOldReactions } from "./reaction.utils";
-import {
-  processReaction,
-  CreateReactionInput,
-} from "./processors/pip.processor";
-import {
-  processSideBySide,
-  CreateSideBySideInput,
-} from "./processors/sidebyside.processor";
+import { type CreateReactionInput, processReaction } from './processors/pip.processor';
+import { type CreateSideBySideInput, processSideBySide } from './processors/sidebyside.processor';
+import { cleanupOldReactions } from './reaction.utils';
 
 /**
  * Reaction service for creating picture-in-picture and side-by-side videos.

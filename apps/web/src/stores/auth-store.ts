@@ -1,16 +1,16 @@
-import { create } from "zustand";
+import { create } from 'zustand';
 
 interface User {
   id: string;
   email: string;
   name: string;
   avatarUrl: string | null;
-  role: "USER" | "ADMIN";
+  role: 'USER' | 'ADMIN';
 }
 
 interface Subscription {
-  tier: "FREE" | "CREATOR" | "PRO";
-  status: "ACTIVE" | "EXPIRED" | "CANCELLED";
+  tier: 'FREE' | 'CREATOR' | 'PRO';
+  status: 'ACTIVE' | 'EXPIRED' | 'CANCELLED';
   exportsUsed: number;
   exportsLimit: number;
   validUntil: string | null;
@@ -39,9 +39,7 @@ interface AuthState {
   refreshAccessToken: () => Promise<boolean>;
 }
 
-const API_BASE_URL = `${
-  import.meta.env.VITE_API_URL || "http://localhost:3000"
-}/api/v1`;
+const API_BASE_URL = `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/v1`;
 
 /**
  * Auth store with memory-only access token (no persist)
@@ -86,12 +84,12 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     // We MUST wait for this to complete so the Set-Cookie header is received
     try {
       await fetch(`${API_BASE_URL}/auth/logout`, {
-        method: "POST",
+        method: 'POST',
         headers: {
           // No Content-Type since we're not sending a body
           ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
         },
-        credentials: "include", // Important: this ensures cookie is sent AND received
+        credentials: 'include', // Important: this ensures cookie is sent AND received
       });
     } catch {
       // Ignore network errors - still clear state
@@ -126,8 +124,8 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         // Refresh token is sent automatically via HttpOnly cookie
         // No body needed - cookie contains the refresh token
         const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
-          method: "POST",
-          credentials: "include",
+          method: 'POST',
+          credentials: 'include',
         });
 
         if (response.ok) {
@@ -157,12 +155,9 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
 
         // If we had an access token but refresh failed, the session is truly expired
         // Only logout if the user was actually authenticated before
-        if (
-          isAuthenticated &&
-          (response.status === 401 || response.status === 400)
-        ) {
+        if (isAuthenticated && (response.status === 401 || response.status === 400)) {
           // Check if it's actually a session issue vs just cookie not being sent
-          if (errorData.error?.code === "TOKEN_EXPIRED") {
+          if (errorData.error?.code === 'TOKEN_EXPIRED') {
             set({
               user: null,
               subscription: null,
@@ -203,12 +198,12 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
 
     try {
       const response = await fetch(`${API_BASE_URL}/auth/me`, {
-        method: "GET",
+        method: 'GET',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
           Authorization: `Bearer ${accessToken}`,
         },
-        credentials: "include",
+        credentials: 'include',
       });
 
       const data = await response.json();

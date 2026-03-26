@@ -4,27 +4,27 @@
  * Business logic for trending feature
  */
 
-import { redis } from "@/lib/redis";
-import { trendingRepository } from "./trending.repository";
-import { youtubeScraper } from "./scrapers/youtube.scraper";
+import { redis } from '@/lib/redis';
+import { youtubeScraper } from './scrapers/youtube.scraper';
 import {
   CACHE_CONFIG,
   PLATFORM_STATUS,
   REFRESH_COOLDOWN_SECONDS,
   STATUS_WINDOW,
-} from "./trending.constants";
-import type { TrendingQuery, TrendingStatus } from "./trending.schema";
+} from './trending.constants';
+import { trendingRepository } from './trending.repository';
+import type { TrendingQuery, TrendingStatus } from './trending.schema';
 
 // ============================================================================
 // CACHE HELPERS
 // ============================================================================
 
 function getCacheKey(region: string, type?: string, category?: string): string {
-  const parts = [CACHE_CONFIG.KEY_PREFIX, region, type ?? "all"];
+  const parts = [CACHE_CONFIG.KEY_PREFIX, region, type ?? 'all'];
   if (category) {
     parts.push(`cat:${category}`);
   }
-  return parts.join(":");
+  return parts.join(':');
 }
 
 // ============================================================================
@@ -52,7 +52,7 @@ export const trendingService = {
     let parsedCursor: { fetchedAt: Date; id: string } | undefined;
     if (cursor) {
       try {
-        const decoded = JSON.parse(Buffer.from(cursor, "base64url").toString());
+        const decoded = JSON.parse(Buffer.from(cursor, 'base64url').toString());
         parsedCursor = {
           fetchedAt: new Date(decoded.fetchedAt),
           id: decoded.id,
@@ -102,23 +102,16 @@ export const trendingService = {
           category: item.category,
           region: item.region,
           fetchedAt: item.fetchedAt.toISOString(),
-        })
+        }),
       ),
-      nextCursor: nextCursor
-        ? Buffer.from(JSON.stringify(nextCursor)).toString("base64url")
-        : null,
+      nextCursor: nextCursor ? Buffer.from(JSON.stringify(nextCursor)).toString('base64url') : null,
       status,
     };
 
     // Cache first page (including filtered results)
     if (!cursor && items.length > 0) {
       const cacheKey = getCacheKey(region, type, category);
-      await redis.set(
-        cacheKey,
-        JSON.stringify(result),
-        "EX",
-        CACHE_CONFIG.FIRST_PAGE_TTL_SECONDS
-      );
+      await redis.set(cacheKey, JSON.stringify(result), 'EX', CACHE_CONFIG.FIRST_PAGE_TTL_SECONDS);
     }
 
     return result;
@@ -128,11 +121,11 @@ export const trendingService = {
    * Get platform status with derivation logic
    */
   async getStatus(region: string): Promise<TrendingStatus> {
-    const dbStatus = await trendingRepository.getStatus("YOUTUBE", region);
+    const dbStatus = await trendingRepository.getStatus('YOUTUBE', region);
 
     if (!dbStatus) {
       return {
-        platform: "YOUTUBE",
+        platform: 'YOUTUBE',
         region,
         status: PLATFORM_STATUS.DOWN,
         lastSuccessAt: null,
@@ -144,7 +137,7 @@ export const trendingService = {
     const lastSuccess = dbStatus.lastSuccessAt?.getTime() ?? 0;
     const hoursSinceSuccess = (now - lastSuccess) / (60 * 60 * 1000);
 
-    let derivedStatus: "ok" | "degraded" | "down";
+    let derivedStatus: 'ok' | 'degraded' | 'down';
     if (hoursSinceSuccess <= STATUS_WINDOW.OK_HOURS) {
       derivedStatus = PLATFORM_STATUS.OK;
     } else if (hoursSinceSuccess <= STATUS_WINDOW.DEGRADED_HOURS) {
@@ -154,7 +147,7 @@ export const trendingService = {
     }
 
     return {
-      platform: "YOUTUBE",
+      platform: 'YOUTUBE',
       region,
       status: derivedStatus,
       lastSuccessAt: dbStatus.lastSuccessAt?.toISOString() ?? null,
@@ -175,7 +168,7 @@ export const trendingService = {
    */
   async setRefreshCooldown(region: string): Promise<void> {
     const key = `trending:cooldown:${region}`;
-    await redis.set(key, "1", "EX", REFRESH_COOLDOWN_SECONDS);
+    await redis.set(key, '1', 'EX', REFRESH_COOLDOWN_SECONDS);
   },
 
   /**
@@ -184,10 +177,10 @@ export const trendingService = {
   async invalidateCache(region: string): Promise<void> {
     const patterns = [
       getCacheKey(region, undefined),
-      getCacheKey(region, "HASHTAG"),
-      getCacheKey(region, "TOPIC"),
-      getCacheKey(region, "SEARCH"),
-      getCacheKey(region, "VIDEO"),
+      getCacheKey(region, 'HASHTAG'),
+      getCacheKey(region, 'TOPIC'),
+      getCacheKey(region, 'SEARCH'),
+      getCacheKey(region, 'VIDEO'),
     ];
 
     for (const key of patterns) {
@@ -200,44 +193,30 @@ export const trendingService = {
    */
   async executeRefresh(
     region: string,
-    _mode: "quick" | "full"
+    _mode: 'quick' | 'full',
   ): Promise<{
-    status: "ok" | "degraded" | "down";
+    status: 'ok' | 'degraded' | 'down';
     itemCount: number;
     error?: string;
   }> {
     try {
       const result = await youtubeScraper.scrape(region);
 
-      if (result.status === "down") {
-        await trendingRepository.updateStatus(
-          "YOUTUBE",
-          region,
-          "down",
-          result.error
-        );
-        return { status: "down", itemCount: 0, error: result.error };
+      if (result.status === 'down') {
+        await trendingRepository.updateStatus('YOUTUBE', region, 'down', result.error);
+        return { status: 'down', itemCount: 0, error: result.error };
       }
 
-      const upsertedCount = await trendingRepository.upsertItems(
-        result.items,
-        "YOUTUBE",
-        region
-      );
+      const upsertedCount = await trendingRepository.upsertItems(result.items, 'YOUTUBE', region);
 
-      await trendingRepository.updateStatus("YOUTUBE", region, "ok");
+      await trendingRepository.updateStatus('YOUTUBE', region, 'ok');
       await this.invalidateCache(region);
 
-      return { status: "ok", itemCount: upsertedCount };
+      return { status: 'ok', itemCount: upsertedCount };
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Unknown error";
-      await trendingRepository.updateStatus(
-        "YOUTUBE",
-        region,
-        "down",
-        errorMessage
-      );
-      return { status: "down", itemCount: 0, error: errorMessage };
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      await trendingRepository.updateStatus('YOUTUBE', region, 'down', errorMessage);
+      return { status: 'down', itemCount: 0, error: errorMessage };
     }
   },
 

@@ -5,49 +5,38 @@
  * Shows transform, timing, and type-specific properties.
  */
 
+import type { AudioLayer, Layer, TextLayer, VideoLayer } from '@vibe-creator/shared';
 import {
+  Badge,
   Card,
   CardBody,
-  Slider,
   Input,
   Select,
-  SelectTrigger,
-  SelectValue,
   SelectContent,
   SelectItem,
-  Badge,
-} from "@/components/ui";
-import { useModernEditorStore } from "@/stores/modern-editor-store";
-import type {
-  Layer,
-  TextLayer,
-  VideoLayer,
-  AudioLayer,
-} from "@vibe-creator/shared";
-import { cn } from "@/lib/utils";
+  SelectTrigger,
+  SelectValue,
+  Slider,
+} from '@/components/ui';
+import { cn } from '@/lib/utils';
+import { useModernEditorStore } from '@/stores/modern-editor-store';
 
 interface PropertiesPanelProps {
   className?: string;
 }
 
-export function PropertiesPanel({ className }: PropertiesPanelProps) {
-  const {
-    selectedLayerId,
-    layersById,
-    updateLayer,
-    getMaxEndMs,
-    settings,
-    updateSettings,
-  } = useModernEditorStore();
+export function PropertiesPanel({ className }: Readonly<PropertiesPanelProps>) {
+  const { selectedLayerId, layersById, updateLayer, getMaxEndMs, settings, updateSettings } =
+    useModernEditorStore();
 
   const selectedLayer = selectedLayerId ? layersById[selectedLayerId] : null;
 
   const aspectRatioOptions = [
-    { label: "16:9 (Landscape)", width: 1920, height: 1080 },
-    { label: "9:16 (Portrait)", width: 1080, height: 1920 },
-    { label: "1:1 (Square)", width: 1080, height: 1080 },
-    { label: "4:5 (IG Portrait)", width: 1080, height: 1350 },
-    { label: "Custom", width: 0, height: 0 },
+    { label: '16:9 (Landscape)', width: 1920, height: 1080 },
+    { label: '9:16 (Portrait)', width: 1080, height: 1920 },
+    { label: '1:1 (Square)', width: 1080, height: 1080 },
+    { label: '4:5 (IG Portrait)', width: 1080, height: 1350 },
+    { label: 'Custom', width: 0, height: 0 },
   ];
 
   const handleAspectRatioChange = (value: string) => {
@@ -59,14 +48,14 @@ export function PropertiesPanel({ className }: PropertiesPanelProps) {
 
   const getCurrentAspectRatio = () => {
     const found = aspectRatioOptions.find(
-      (opt) => opt.width === settings.width && opt.height === settings.height
+      (opt) => opt.width === settings.width && opt.height === settings.height,
     );
-    return found?.label || "Custom";
+    return found?.label || 'Custom';
   };
 
   if (!selectedLayer) {
     return (
-      <div className={cn("space-y-6", className)}>
+      <div className={cn('space-y-6', className)}>
         <Card className="bg-card/70 backdrop-blur-xl border-border/40 overflow-hidden">
           <CardBody className="p-6 space-y-6">
             <div className="flex items-center justify-between mb-2">
@@ -76,13 +65,10 @@ export function PropertiesPanel({ className }: PropertiesPanelProps) {
             </div>
 
             <div className="space-y-4">
-              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
+              <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
                 Aspect Ratio
-              </label>
-              <Select
-                value={getCurrentAspectRatio()}
-                onValueChange={handleAspectRatioChange}
-              >
+              </div>
+              <Select value={getCurrentAspectRatio()} onValueChange={handleAspectRatioChange}>
                 <SelectTrigger className="bg-background/40 border-border/40 h-11 rounded-xl font-bold text-xs uppercase tracking-tight">
                   <SelectValue placeholder="Select aspect ratio" />
                 </SelectTrigger>
@@ -102,9 +88,9 @@ export function PropertiesPanel({ className }: PropertiesPanelProps) {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-4">
-                <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
+                <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
                   Width
-                </label>
+                </div>
                 <Input
                   type="number"
                   value={settings.width.toString()}
@@ -115,9 +101,9 @@ export function PropertiesPanel({ className }: PropertiesPanelProps) {
                 />
               </div>
               <div className="space-y-4">
-                <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
+                <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
                   Height
-                </label>
+                </div>
                 <Input
                   type="number"
                   value={settings.height.toString()}
@@ -130,17 +116,15 @@ export function PropertiesPanel({ className }: PropertiesPanelProps) {
             </div>
 
             <div className="space-y-4">
-              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
+              <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
                 Background Color
-              </label>
+              </div>
               <div className="flex gap-2">
                 <div className="flex items-center gap-3 bg-background/30 p-1.5 rounded-xl border border-border/20 flex-1 group">
                   <input
                     type="color"
                     value={settings.backgroundColor}
-                    onChange={(e) =>
-                      updateSettings({ backgroundColor: e.target.value })
-                    }
+                    onChange={(e) => updateSettings({ backgroundColor: e.target.value })}
                     className="w-10 h-8 rounded-lg cursor-pointer bg-transparent border-none appearance-none"
                   />
                   <Input
@@ -168,7 +152,11 @@ export function PropertiesPanel({ className }: PropertiesPanelProps) {
   }
 
   const handleUpdate = (updates: Partial<Layer>) => {
-    updateLayer(selectedLayerId!, updates);
+    if (!selectedLayerId) {
+      return;
+    }
+
+    updateLayer(selectedLayerId, updates);
   };
 
   const maxDuration = Math.max(getMaxEndMs(), 60000);
@@ -176,8 +164,8 @@ export function PropertiesPanel({ className }: PropertiesPanelProps) {
   return (
     <div
       className={cn(
-        "space-y-6 h-full overflow-y-auto pr-1 scrollbar-hide pb-20 md:pb-0",
-        className
+        'space-y-6 h-full overflow-y-auto pr-1 scrollbar-hide pb-20 md:pb-0',
+        className,
       )}
     >
       {/* Transform Properties */}
@@ -189,9 +177,9 @@ export function PropertiesPanel({ className }: PropertiesPanelProps) {
 
           <div className="grid grid-cols-2 gap-6">
             <div className="space-y-4">
-              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
+              <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
                 Position X ({selectedLayer.x}%)
-              </label>
+              </div>
               <Slider
                 min={0}
                 max={100}
@@ -200,9 +188,9 @@ export function PropertiesPanel({ className }: PropertiesPanelProps) {
               />
             </div>
             <div className="space-y-4">
-              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
+              <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
                 Position Y ({selectedLayer.y}%)
-              </label>
+              </div>
               <Slider
                 min={0}
                 max={100}
@@ -214,9 +202,9 @@ export function PropertiesPanel({ className }: PropertiesPanelProps) {
 
           <div className="grid grid-cols-2 gap-6">
             <div className="space-y-4">
-              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
+              <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
                 Width ({selectedLayer.width}%)
-              </label>
+              </div>
               <Slider
                 min={1}
                 max={200}
@@ -225,9 +213,9 @@ export function PropertiesPanel({ className }: PropertiesPanelProps) {
               />
             </div>
             <div className="space-y-4">
-              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
+              <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
                 Height ({selectedLayer.height}%)
-              </label>
+              </div>
               <Slider
                 min={1}
                 max={200}
@@ -239,22 +227,20 @@ export function PropertiesPanel({ className }: PropertiesPanelProps) {
 
           <div className="grid grid-cols-2 gap-6">
             <div className="space-y-4">
-              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
+              <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
                 Rotation (°)
-              </label>
+              </div>
               <Slider
                 min={-180}
                 max={180}
                 value={[selectedLayer.rotation]}
-                onValueChange={(v: number[]) =>
-                  handleUpdate({ rotation: v[0] })
-                }
+                onValueChange={(v: number[]) => handleUpdate({ rotation: v[0] })}
               />
             </div>
             <div className="space-y-4">
-              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
+              <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
                 Opacity ({Math.round(selectedLayer.opacity * 100)}%)
-              </label>
+              </div>
               <Slider
                 min={0}
                 max={1}
@@ -276,9 +262,9 @@ export function PropertiesPanel({ className }: PropertiesPanelProps) {
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-4">
-              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
+              <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
                 Start (s)
-              </label>
+              </div>
               <Input
                 type="number"
                 min={0}
@@ -286,14 +272,14 @@ export function PropertiesPanel({ className }: PropertiesPanelProps) {
                 value={(selectedLayer.startMs / 1000).toFixed(1)}
                 className="bg-background/40 border-border/40 h-11 rounded-xl font-bold text-xs uppercase tracking-tight text-center"
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                  handleUpdate({ startMs: parseFloat(e.target.value) * 1000 })
+                  handleUpdate({ startMs: Number.parseFloat(e.target.value) * 1000 })
                 }
               />
             </div>
             <div className="space-y-4">
-              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
+              <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
                 End (s)
-              </label>
+              </div>
               <Input
                 type="number"
                 min={0}
@@ -301,16 +287,16 @@ export function PropertiesPanel({ className }: PropertiesPanelProps) {
                 value={(selectedLayer.endMs / 1000).toFixed(1)}
                 className="bg-background/40 border-border/40 h-11 rounded-xl font-bold text-xs uppercase tracking-tight text-center"
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                  handleUpdate({ endMs: parseFloat(e.target.value) * 1000 })
+                  handleUpdate({ endMs: Number.parseFloat(e.target.value) * 1000 })
                 }
               />
             </div>
           </div>
 
           <div className="space-y-4">
-            <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
+            <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
               Timeline Position
-            </label>
+            </div>
             <Slider
               min={0}
               max={maxDuration}
@@ -323,11 +309,7 @@ export function PropertiesPanel({ className }: PropertiesPanelProps) {
             />
             <div className="flex justify-between">
               <span className="text-[10px] font-bold text-muted-foreground/40">
-                Durasi:{" "}
-                {((selectedLayer.endMs - selectedLayer.startMs) / 1000).toFixed(
-                  1
-                )}
-                s
+                Durasi: {((selectedLayer.endMs - selectedLayer.startMs) / 1000).toFixed(1)}s
               </span>
             </div>
           </div>
@@ -335,13 +317,13 @@ export function PropertiesPanel({ className }: PropertiesPanelProps) {
       </Card>
 
       {/* Type-specific Properties */}
-      {selectedLayer.type === "text" && (
+      {selectedLayer.type === 'text' && (
         <TextLayerProperties layer={selectedLayer} onUpdate={handleUpdate} />
       )}
-      {selectedLayer.type === "video" && (
+      {selectedLayer.type === 'video' && (
         <VideoLayerProperties layer={selectedLayer} onUpdate={handleUpdate} />
       )}
-      {selectedLayer.type === "audio" && (
+      {selectedLayer.type === 'audio' && (
         <AudioLayerProperties layer={selectedLayer} onUpdate={handleUpdate} />
       )}
     </div>
@@ -352,11 +334,11 @@ export function PropertiesPanel({ className }: PropertiesPanelProps) {
 function TextLayerProperties({
   layer,
   onUpdate,
-}: {
+}: Readonly<{
   layer: TextLayer;
   onUpdate: (updates: Partial<Layer>) => void;
-}) {
-  const updateData = (dataUpdates: Partial<TextLayer["data"]>) => {
+}>) {
+  const updateData = (dataUpdates: Partial<TextLayer['data']>) => {
     onUpdate({ data: { ...layer.data, ...dataUpdates } } as Partial<Layer>);
   };
 
@@ -376,9 +358,9 @@ function TextLayerProperties({
         </div>
 
         <div className="space-y-4">
-          <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
+          <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
             Content
-          </label>
+          </div>
           <textarea
             value={layer.data.text}
             placeholder="Ketik teks di sini..."
@@ -390,9 +372,9 @@ function TextLayerProperties({
         {/* Style Grid */}
         <div className="grid grid-cols-2 gap-6">
           <div className="space-y-4">
-            <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
+            <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
               Font Size
-            </label>
+            </div>
             <div className="flex items-center bg-background/40 border border-border/40 h-12 rounded-2xl overflow-hidden px-4 gap-2 focus-within:border-primary/40 focus-within:ring-1 focus-within:ring-primary/40 transition-all">
               <input
                 type="number"
@@ -401,39 +383,29 @@ function TextLayerProperties({
                 value={layer.data.fontSize}
                 className="bg-transparent border-none focus:ring-0 p-0 h-full font-bold text-sm w-full outline-none"
                 onChange={(e) =>
-                  updateData({ fontSize: parseInt(e.target.value) || 48 })
+                  updateData({ fontSize: Number.parseInt(e.target.value, 10) || 48 })
                 }
               />
-              <span className="text-[10px] font-black text-muted-foreground/40">
-                PX
-              </span>
+              <span className="text-[10px] font-black text-muted-foreground/40">PX</span>
             </div>
           </div>
 
           <div className="space-y-4">
-            <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
+            <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
               Weight
-            </label>
+            </div>
             <Select
               value={layer.data.fontWeight}
-              onValueChange={(v) =>
-                updateData({ fontWeight: v as "normal" | "bold" })
-              }
+              onValueChange={(v) => updateData({ fontWeight: v as 'normal' | 'bold' })}
             >
               <SelectTrigger className="bg-background/40 border-border/40 h-12 rounded-2xl font-bold text-xs uppercase tracking-widest focus:ring-1 focus:ring-primary/40">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem
-                  value="normal"
-                  className="text-xs font-bold uppercase"
-                >
+                <SelectItem value="normal" className="text-xs font-bold uppercase">
                   Normal
                 </SelectItem>
-                <SelectItem
-                  value="bold"
-                  className="text-xs font-black uppercase"
-                >
+                <SelectItem value="bold" className="text-xs font-black uppercase">
                   Bold
                 </SelectItem>
               </SelectContent>
@@ -444,11 +416,11 @@ function TextLayerProperties({
         {/* Appearance Grid */}
         <div className="grid grid-cols-2 gap-6">
           <div className="space-y-4">
-            <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
+            <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
               Color
-            </label>
+            </div>
             <div className="flex items-center gap-3 bg-background/40 border border-border/40 h-12 rounded-2xl px-3 group transition-all focus-within:border-primary/40 focus-within:ring-1 focus-within:ring-primary/40">
-              <div className="relative w-8 h-8 rounded-lg overflow-hidden border border-border/20 flex-shrink-0">
+              <div className="relative w-8 h-8 rounded-lg overflow-hidden border border-border/20 shrink-0">
                 <input
                   type="color"
                   value={layer.data.color}
@@ -463,23 +435,23 @@ function TextLayerProperties({
           </div>
 
           <div className="space-y-4">
-            <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
+            <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
               Animation
-            </label>
+            </div>
             <Select
               value={layer.data.animation}
-              onValueChange={(v) => updateData({ animation: v as any })}
+              onValueChange={(v) => updateData({ animation: v as typeof layer.data.animation })}
             >
               <SelectTrigger className="bg-background/40 border-border/40 h-12 rounded-2xl font-bold text-xs uppercase tracking-widest focus:ring-1 focus:ring-primary/40">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 {[
-                  { label: "None", value: "none" },
-                  { label: "Fade In", value: "fade" },
-                  { label: "Slide Up", value: "slide-up" },
-                  { label: "Slide Down", value: "slide-down" },
-                  { label: "Typewriter", value: "typewriter" },
+                  { label: 'None', value: 'none' },
+                  { label: 'Fade In', value: 'fade' },
+                  { label: 'Slide Up', value: 'slide-up' },
+                  { label: 'Slide Down', value: 'slide-down' },
+                  { label: 'Typewriter', value: 'typewriter' },
                 ].map((opt) => (
                   <SelectItem
                     key={opt.value}
@@ -497,14 +469,14 @@ function TextLayerProperties({
         {/* Layout & Presets */}
         <div className="space-y-6 pt-2 border-t border-border/10">
           <div className="space-y-4">
-            <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
+            <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
               Position Presets
-            </label>
+            </div>
             <div className="grid grid-cols-3 gap-2">
               {[
-                { label: "Top", x: 50, y: 15, w: 90, h: 12 },
-                { label: "Center", x: 50, y: 50, w: 80, h: 20 },
-                { label: "Bottom", x: 50, y: 85, w: 90, h: 12 },
+                { label: 'Top', x: 50, y: 15, w: 90, h: 12 },
+                { label: 'Center', x: 50, y: 50, w: 80, h: 20 },
+                { label: 'Bottom', x: 50, y: 85, w: 90, h: 12 },
               ].map((preset) => (
                 <button
                   key={preset.label}
@@ -526,20 +498,20 @@ function TextLayerProperties({
           </div>
 
           <div className="space-y-4">
-            <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
+            <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
               Text Alignment
-            </label>
+            </div>
             <div className="flex bg-muted/20 p-1.5 rounded-2xl gap-2 border border-border/10">
-              {(["left", "center", "right"] as const).map((align) => (
+              {(['left', 'center', 'right'] as const).map((align) => (
                 <button
                   key={align}
                   type="button"
                   onClick={() => updateData({ textAlign: align })}
                   className={cn(
-                    "flex-1 h-10 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-300",
+                    'flex-1 h-10 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-300',
                     layer.data.textAlign === align
-                      ? "bg-primary text-primary-foreground  scale-[1.02]"
-                      : "text-muted-foreground/60 hover:bg-white/5 hover:text-muted-foreground"
+                      ? 'bg-primary text-primary-foreground  scale-[1.02]'
+                      : 'text-muted-foreground/60 hover:bg-white/5 hover:text-muted-foreground',
                   )}
                 >
                   {align}
@@ -557,11 +529,11 @@ function TextLayerProperties({
 function VideoLayerProperties({
   layer,
   onUpdate,
-}: {
+}: Readonly<{
   layer: VideoLayer;
   onUpdate: (updates: Partial<Layer>) => void;
-}) {
-  const updateData = (dataUpdates: Partial<VideoLayer["data"]>) => {
+}>) {
+  const updateData = (dataUpdates: Partial<VideoLayer['data']>) => {
     onUpdate({ data: { ...layer.data, ...dataUpdates } } as Partial<Layer>);
   };
 
@@ -573,9 +545,9 @@ function VideoLayerProperties({
         </h3>
 
         <div className="space-y-4">
-          <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 block">
+          <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 block">
             Volume ({Math.round(layer.data.volume * 100)}%)
-          </label>
+          </div>
           <Slider
             min={0}
             max={2}
@@ -586,21 +558,18 @@ function VideoLayerProperties({
         </div>
 
         <div className="space-y-4">
-          <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
+          <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
             Fit Mode
-          </label>
+          </div>
           <Select
             value={layer.data.fit}
-            onValueChange={(v) => updateData({ fit: v as "cover" | "contain" })}
+            onValueChange={(v) => updateData({ fit: v as 'cover' | 'contain' })}
           >
             <SelectTrigger className="bg-background/40 border-border/40 h-11 rounded-xl font-bold text-xs uppercase tracking-tight">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem
-                value="contain"
-                className="text-xs font-bold uppercase"
-              >
+              <SelectItem value="contain" className="text-xs font-bold uppercase">
                 Contain
               </SelectItem>
               <SelectItem value="cover" className="text-xs font-bold uppercase">
@@ -618,11 +587,11 @@ function VideoLayerProperties({
 function AudioLayerProperties({
   layer,
   onUpdate,
-}: {
+}: Readonly<{
   layer: AudioLayer;
   onUpdate: (updates: Partial<Layer>) => void;
-}) {
-  const updateData = (dataUpdates: Partial<AudioLayer["data"]>) => {
+}>) {
+  const updateData = (dataUpdates: Partial<AudioLayer['data']>) => {
     onUpdate({ data: { ...layer.data, ...dataUpdates } } as Partial<Layer>);
   };
 
@@ -634,9 +603,9 @@ function AudioLayerProperties({
         </h3>
 
         <div className="space-y-4">
-          <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 block">
+          <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 block">
             Volume ({Math.round(layer.data.volume * 100)}%)
-          </label>
+          </div>
           <Slider
             min={0}
             max={2}
@@ -648,9 +617,9 @@ function AudioLayerProperties({
 
         <div className="grid grid-cols-2 gap-6">
           <div className="space-y-4">
-            <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 block">
+            <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 block">
               Fade In (s)
-            </label>
+            </div>
             <Input
               type="number"
               min={0}
@@ -658,14 +627,14 @@ function AudioLayerProperties({
               value={(layer.data.fadeIn / 1000).toFixed(1)}
               className="bg-background/40 border-border/40 h-11 rounded-xl font-bold text-xs uppercase tracking-tight text-center"
               onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                updateData({ fadeIn: parseFloat(e.target.value) * 1000 })
+                updateData({ fadeIn: Number.parseFloat(e.target.value) * 1000 })
               }
             />
           </div>
           <div className="space-y-4">
-            <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 block">
+            <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 block">
               Fade Out (s)
-            </label>
+            </div>
             <Input
               type="number"
               min={0}
@@ -673,7 +642,7 @@ function AudioLayerProperties({
               value={(layer.data.fadeOut / 1000).toFixed(1)}
               className="bg-background/40 border-border/40 h-11 rounded-xl font-bold text-xs uppercase tracking-tight text-center"
               onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                updateData({ fadeOut: parseFloat(e.target.value) * 1000 })
+                updateData({ fadeOut: Number.parseFloat(e.target.value) * 1000 })
               }
             />
           </div>

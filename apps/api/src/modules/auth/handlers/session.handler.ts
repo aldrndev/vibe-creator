@@ -3,22 +3,19 @@
  * Session management endpoints
  */
 
-import { FastifyRequest, FastifyReply } from "fastify";
-import { prisma } from "@/lib/prisma";
-import { sendSuccess, sendError } from "@/utils/response";
-import { hashToken } from "@/utils/crypto";
-import { verifyAccessToken } from "@/lib/jwt";
-import { ERROR_CODES } from "@vibe-creator/shared";
-import { audit, AuditAction } from "@/lib/audit";
-import { clearRefreshTokenCookie, REFRESH_TOKEN_COOKIE } from "../auth.cookies";
+import { ERROR_CODES } from '@vibe-creator/shared';
+import type { FastifyReply, FastifyRequest } from 'fastify';
+import { AuditAction, audit } from '@/lib/audit';
+import { verifyAccessToken } from '@/lib/jwt';
+import { prisma } from '@/lib/prisma';
+import { hashToken } from '@/utils/crypto';
+import { sendError, sendSuccess } from '@/utils/response';
+import { clearRefreshTokenCookie, REFRESH_TOKEN_COOKIE } from '../auth.cookies';
 
 /**
  * Logout handler - clears session
  */
-export async function logoutHandler(
-  request: FastifyRequest,
-  reply: FastifyReply
-) {
+export async function logoutHandler(request: FastifyRequest, reply: FastifyReply) {
   const refreshToken = request.cookies[REFRESH_TOKEN_COOKIE];
   if (refreshToken) {
     try {
@@ -32,7 +29,7 @@ export async function logoutHandler(
   }
 
   const authHeader = request.headers.authorization;
-  if (authHeader?.startsWith("Bearer ")) {
+  if (authHeader?.startsWith('Bearer ')) {
     const token = authHeader.slice(7);
     try {
       const payload = await verifyAccessToken(token);
@@ -52,10 +49,10 @@ export async function logoutHandler(
       tenantId: request.user.id,
       action: AuditAction.LOGOUT,
       ipAddress: request.ip,
-      userAgent: request.headers["user-agent"] ?? undefined,
+      userAgent: request.headers['user-agent'] ?? undefined,
     });
   }
-  return sendSuccess(reply, { message: "Berhasil logout" });
+  return sendSuccess(reply, { message: 'Berhasil logout' });
 }
 
 /**
@@ -65,12 +62,7 @@ export async function meHandler(request: FastifyRequest, reply: FastifyReply) {
   const user = request.user;
 
   if (!user) {
-    return sendError(
-      reply,
-      ERROR_CODES.UNAUTHORIZED,
-      "Tidak terautentikasi",
-      401
-    );
+    return sendError(reply, ERROR_CODES.UNAUTHORIZED, 'Tidak terautentikasi', 401);
   }
 
   const subscription = await prisma.subscription.findUnique({

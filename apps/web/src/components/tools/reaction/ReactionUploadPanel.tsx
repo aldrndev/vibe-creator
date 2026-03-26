@@ -1,15 +1,15 @@
-import { useRef } from "react";
-import { Button, Card, CardBody, CardHeader, Badge } from "@/components/ui";
-import { Monitor, Smartphone, Check, Layers } from "lucide-react";
-import { ReactionPreview } from "@/components/tools/ReactionPreview";
-import { LayoutMode, SideBySideLayout } from "@/hooks/useReactionCreator";
-import { cn } from "@/lib/utils";
+import { Check, Layers, Monitor, Smartphone } from 'lucide-react';
+import { useRef } from 'react';
+import { ReactionPreview } from '@/components/tools/ReactionPreview';
+import { Badge, Button, Card, CardBody, CardHeader } from '@/components/ui';
+import type { LayoutMode, SideBySideLayout } from '@/hooks/useReactionCreator';
+import { cn } from '@/lib/utils';
 
 const RESOLUTIONS: Record<string, { w: number; h: number }> = {
-  "16:9": { w: 1920, h: 1080 },
-  "9:16": { w: 1080, h: 1920 },
-  "1:1": { w: 1080, h: 1080 },
-  "4:5": { w: 1080, h: 1350 },
+  '16:9': { w: 1920, h: 1080 },
+  '9:16': { w: 1080, h: 1920 },
+  '1:1': { w: 1080, h: 1080 },
+  '4:5': { w: 1080, h: 1350 },
 };
 
 interface ReactionUploadPanelProps {
@@ -84,13 +84,15 @@ export function ReactionUploadPanel({
             {!hasBothVideos ? (
               <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 gap-4 w-full max-w-4xl">
                 {/* Main Upload Zone */}
-                <div
+                <button
+                  type="button"
+                  aria-label="Upload main video"
                   onClick={() => mainInputRef.current?.click()}
                   className={cn(
-                    "relative aspect-video flex flex-col items-center justify-center p-6 rounded-2xl border-2 border-dashed transition-all duration-500 cursor-pointer group/card overflow-hidden active:scale-95",
+                    'relative aspect-video flex flex-col items-center justify-center p-6 rounded-2xl border-2 border-dashed transition-all duration-500 cursor-pointer group/card overflow-hidden active:scale-95',
                     mainVideoUrl
-                      ? "border-primary/40 bg-primary/5"
-                      : "bg-muted/10 border-border/50 hover:border-primary/40 hover:bg-muted/20"
+                      ? 'border-primary/40 bg-primary/5'
+                      : 'bg-muted/10 border-border/50 hover:border-primary/40 hover:bg-muted/20',
                   )}
                 >
                   {mainVideoUrl ? (
@@ -98,9 +100,7 @@ export function ReactionUploadPanel({
                       <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center border border-primary/20">
                         <Check className="text-primary" size={24} />
                       </div>
-                      <p className="font-bold text-xs uppercase tracking-tight">
-                        Main Video
-                      </p>
+                      <p className="font-bold text-xs uppercase tracking-tight">Main Video</p>
                       <Button
                         variant="secondary"
                         size="sm"
@@ -125,16 +125,18 @@ export function ReactionUploadPanel({
                       </p>
                     </>
                   )}
-                </div>
+                </button>
 
                 {/* Reaction Upload Zone */}
-                <div
+                <button
+                  type="button"
+                  aria-label="Upload reaction video"
                   onClick={() => reactionInputRef.current?.click()}
                   className={cn(
-                    "relative aspect-video flex flex-col items-center justify-center p-6 rounded-2xl border-2 border-dashed transition-all duration-500 cursor-pointer group/card overflow-hidden active:scale-95",
+                    'relative aspect-video flex flex-col items-center justify-center p-6 rounded-2xl border-2 border-dashed transition-all duration-500 cursor-pointer group/card overflow-hidden active:scale-95',
                     reactionVideoUrl
-                      ? "border-secondary/40 bg-secondary/5"
-                      : "bg-muted/10 border-border/50 hover:border-secondary/40 hover:bg-muted/20"
+                      ? 'border-secondary/40 bg-secondary/5'
+                      : 'bg-muted/10 border-border/50 hover:border-secondary/40 hover:bg-muted/20',
                   )}
                 >
                   {reactionVideoUrl ? (
@@ -142,9 +144,7 @@ export function ReactionUploadPanel({
                       <div className="w-12 h-12 rounded-xl bg-orange-500/10 flex items-center justify-center border border-orange-500/20">
                         <Check className="text-orange-500" size={24} />
                       </div>
-                      <p className="font-bold text-xs uppercase tracking-tight">
-                        Reaction
-                      </p>
+                      <p className="font-bold text-xs uppercase tracking-tight">Reaction</p>
                       <Button
                         variant="secondary"
                         size="sm"
@@ -169,7 +169,7 @@ export function ReactionUploadPanel({
                       </p>
                     </>
                   )}
-                </div>
+                </button>
               </div>
             ) : (
               /* PREVIEW MODE */

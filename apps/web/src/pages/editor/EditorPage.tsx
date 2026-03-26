@@ -1,16 +1,23 @@
-import { useEffect, useCallback, useRef, useState } from "react";
-import { logger } from "@/lib/logger";
-import { useParams } from "react-router-dom";
-import { useEditorStore } from "@/stores/editor-store";
-import { useFFmpeg } from "@/hooks/use-ffmpeg";
-import { useExport } from "@/hooks/use-export";
-import { useUrlDownload } from "@/hooks/use-url-download";
-import { useHistory } from "@/hooks/use-history";
-
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useParams } from 'react-router-dom';
 // New components
-import { EditorHeader } from "@/components/editor/layout/EditorHeader";
-import { EditorMainArea } from "@/components/editor/layout/EditorMainArea";
-import { EditorModals } from "@/components/editor/modals/EditorModals";
+import { EditorHeader } from '@/components/editor/layout/EditorHeader';
+import { EditorMainArea } from '@/components/editor/layout/EditorMainArea';
+import { EditorModals } from '@/components/editor/modals/EditorModals';
+import { useExport } from '@/hooks/use-export';
+import { useFFmpeg } from '@/hooks/use-ffmpeg';
+import { useHistory } from '@/hooks/use-history';
+import { useUrlDownload } from '@/hooks/use-url-download';
+import { logger } from '@/lib/logger';
+import { useEditorStore } from '@/stores/editor-store';
+import {
+  createImportedAsset,
+  createImportedClip,
+  createLinkedAudioAsset,
+  getImportedAssetType,
+  getTrackLastClipEndMs,
+  loadImportedAssetMetadata,
+} from './editor-import.utils';
 
 export function EditorPage() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -52,34 +59,28 @@ export function EditorPage() {
     onPause: pause,
   });
 
-  const {
-    urlInput,
-    setUrlInput,
-    isDownloading,
-    downloadStep,
-    handleUrlDownload,
-    resetDownload,
-  } = useUrlDownload({
-    addAsset,
-    addClip,
-    getVideoTrackId: () => timeline.tracks.find((t) => t.type === "VIDEO")?.id,
-    getLastClipEndMs: () => {
-      const track = timeline.tracks.find((t) => t.type === "VIDEO");
-      const lastClip = track?.clips[track.clips.length - 1];
-      return lastClip?.endMs || 0;
-    },
-    onClose: () => {
-      setIsUrlModalOpen(false);
-      resetDownload();
-    },
-  });
+  const { urlInput, setUrlInput, isDownloading, downloadStep, handleUrlDownload, resetDownload } =
+    useUrlDownload({
+      addAsset,
+      addClip,
+      getVideoTrackId: () => timeline.tracks.find((t) => t.type === 'VIDEO')?.id,
+      getLastClipEndMs: () => {
+        const track = timeline.tracks.find((t) => t.type === 'VIDEO');
+        const lastClip = track?.clips[track.clips.length - 1];
+        return lastClip?.endMs || 0;
+      },
+      onClose: () => {
+        setIsUrlModalOpen(false);
+        resetDownload();
+      },
+    });
 
   const { undo, redo, canUndo, canRedo } = useHistory();
 
   // Initialize project
   useEffect(() => {
     if (projectId) {
-      initProject(projectId, "New Project");
+      initProject(projectId, 'New Project');
     }
     return () => {
       resetEditor();
@@ -89,19 +90,15 @@ export function EditorPage() {
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (
-        e.target instanceof HTMLInputElement ||
-        e.target instanceof HTMLTextAreaElement
-      )
-        return;
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
 
       switch (e.key) {
-        case " ":
+        case ' ':
           e.preventDefault();
           togglePlayback();
           break;
-        case "Delete":
-        case "Backspace":
+        case 'Delete':
+        case 'Backspace':
           if (selectedClipId) {
             const state = useEditorStore.getState();
             for (const track of state.timeline.tracks) {
@@ -113,24 +110,18 @@ export function EditorPage() {
             }
           }
           break;
-        case "ArrowLeft":
+        case 'ArrowLeft':
           setCurrentTime(currentTimeMs - (e.shiftKey ? 1000 : 100));
           break;
-        case "ArrowRight":
+        case 'ArrowRight':
           setCurrentTime(currentTimeMs + (e.shiftKey ? 1000 : 100));
           break;
       }
     };
 
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [
-    togglePlayback,
-    selectedClipId,
-    removeClip,
-    currentTimeMs,
-    setCurrentTime,
-  ]);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [togglePlayback, selectedClipId, removeClip, currentTimeMs, setCurrentTime]);
 
   // Playback timer
   useEffect(() => {
@@ -138,10 +129,7 @@ export function EditorPage() {
     const interval = setInterval(() => {
       const state = useEditorStore.getState();
       const newTime = state.currentTimeMs + 33; // ~30fps
-      if (
-        newTime >= state.timeline.durationMs &&
-        state.timeline.durationMs > 0
-      ) {
+      if (newTime >= state.timeline.durationMs && state.timeline.durationMs > 0) {
         pause();
         setCurrentTime(0);
       } else {
@@ -158,143 +146,60 @@ export function EditorPage() {
       if (!files || files.length === 0) return;
 
       for (const file of Array.from(files)) {
-        const isVideo = file.type.startsWith("video/");
-        const isAudio = file.type.startsWith("audio/");
-        const isImage = file.type.startsWith("image/");
-
-        if (!isVideo && !isAudio && !isImage) continue;
+        const assetType = getImportedAssetType(file);
+        if (!assetType) continue;
 
         const url = URL.createObjectURL(file);
-        const id = `asset-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        const metadata = await loadImportedAssetMetadata(file, url);
+        const asset = createImportedAsset(file, url, metadata);
+        addAsset(asset);
 
-        let durationMs = 5000;
-        let width: number | undefined;
-        let height: number | undefined;
-
-        if (isVideo || isAudio) {
-          const media = document.createElement(isVideo ? "video" : "audio");
-          media.src = url;
-          await new Promise<void>((resolve) => {
-            media.onloadedmetadata = () => {
-              durationMs = media.duration * 1000;
-              if (isVideo && media instanceof HTMLVideoElement) {
-                width = media.videoWidth;
-                height = media.videoHeight;
-              }
-              resolve();
-            };
-          });
-        } else if (isImage) {
-          const img = new Image();
-          img.src = url;
-          await new Promise<void>((resolve) => {
-            img.onload = () => {
-              width = img.width;
-              height = img.height;
-              resolve();
-            };
-          });
-        }
-
-        addAsset({
-          id,
-          name: file.name,
-          type: isVideo ? "VIDEO" : isAudio ? "AUDIO" : "IMAGE",
-          url,
-          file: isVideo ? file : undefined,
-          durationMs,
-          width,
-          height,
-        });
-
-        if (isVideo) {
+        if (asset.type === 'VIDEO') {
           extractTimelineThumbnails(file, 20)
             .then((thumbnails) => {
-              updateAsset(id, { thumbnails });
+              updateAsset(asset.id, { thumbnails });
             })
             .catch((err) => {
-              logger.error("Failed to generate thumbnails", err);
+              logger.error('Failed to generate thumbnails', err);
             });
         }
 
-        const trackType = isAudio ? "AUDIO" : "VIDEO";
-        const track = useEditorStore
-          .getState()
-          .timeline.tracks.find((t) => t.type === trackType);
+        const trackType = assetType === 'AUDIO' ? 'AUDIO' : 'VIDEO';
+        const track = useEditorStore.getState().timeline.tracks.find((t) => t.type === trackType);
 
         if (track) {
-          const lastClipEnd =
-            track.clips.length > 0
-              ? Math.max(...track.clips.map((c) => c.endMs))
-              : 0;
-          const linkId = isVideo ? `link-${id}` : undefined;
+          const lastClipEnd = getTrackLastClipEndMs(track);
+          const linkId = asset.type === 'VIDEO' ? `link-${asset.id}` : undefined;
 
-          addClip(track.id, {
-            assetId: id,
-            linkId,
-            startMs: lastClipEnd,
-            endMs: lastClipEnd + durationMs,
-            trimStartMs: 0,
-            trimEndMs: 0,
-            transforms: { x: 0, y: 0, scale: 1, rotation: 0, opacity: 1 },
-            effects: {
-              filters: [],
-              speed: 1,
-              volume: 1,
-              fadeIn: 0,
-              fadeOut: 0,
-            },
-            asset: {
-              id,
-              name: file.name,
-              type: isVideo ? "VIDEO" : isAudio ? "AUDIO" : "IMAGE",
-              url,
-              file: isVideo ? file : undefined,
-              durationMs,
-              width,
-              height,
-            },
-          });
+          addClip(
+            track.id,
+            createImportedClip(asset, lastClipEnd, {
+              linkId,
+            }),
+          );
 
-          if (isVideo) {
+          if (asset.type === 'VIDEO') {
             const audioTrack = useEditorStore
               .getState()
-              .timeline.tracks.find((t) => t.type === "AUDIO");
+              .timeline.tracks.find((t) => t.type === 'AUDIO');
             if (audioTrack) {
-              addClip(audioTrack.id, {
-                assetId: id,
-                linkId,
-                startMs: lastClipEnd,
-                endMs: lastClipEnd + durationMs,
-                trimStartMs: 0,
-                trimEndMs: 0,
-                transforms: { x: 0, y: 0, scale: 1, rotation: 0, opacity: 1 },
-                effects: {
-                  filters: [],
-                  speed: 1,
-                  volume: 1,
-                  fadeIn: 0,
-                  fadeOut: 0,
-                },
-                asset: {
-                  id: `${id}-audio`,
-                  name: `${file.name} (Audio)`,
-                  type: "AUDIO",
-                  url,
-                  durationMs,
-                },
-              });
+              addClip(
+                audioTrack.id,
+                createImportedClip(createLinkedAudioAsset(asset), lastClipEnd, {
+                  linkId,
+                }),
+              );
             }
           }
         }
       }
-      if (fileInputRef.current) fileInputRef.current.value = "";
+      if (fileInputRef.current) fileInputRef.current.value = '';
     },
-    [addAsset, addClip, updateAsset, extractTimelineThumbnails]
+    [addAsset, addClip, updateAsset, extractTimelineThumbnails],
   );
 
   const prepareClipsForExport = useCallback(() => {
-    const videoTrack = timeline.tracks.find((t) => t.type === "VIDEO");
+    const videoTrack = timeline.tracks.find((t) => t.type === 'VIDEO');
     if (!videoTrack || videoTrack.clips.length === 0) return [];
     return videoTrack.clips
       .sort((a, b) => a.startMs - b.startMs)
@@ -333,8 +238,8 @@ export function EditorPage() {
 
   const handleExportConfirm = useCallback(
     (settings: {
-      format: "MP4" | "WEBM" | "MOV";
-      resolution: "SD" | "HD" | "UHD";
+      format: 'MP4' | 'WEBM' | 'MOV';
+      resolution: 'SD' | 'HD' | 'UHD';
       width?: number;
       height?: number;
       fps?: number;
@@ -354,7 +259,7 @@ export function EditorPage() {
       }));
       serverExport(clips, formattedTextOverlays, settings);
     },
-    [prepareClipsForExport, textOverlays, serverExport]
+    [prepareClipsForExport, textOverlays, serverExport],
   );
 
   const handleVoiceSave = (blob: Blob, duration: number) => {
@@ -365,17 +270,15 @@ export function EditorPage() {
     addAsset({
       id: assetId,
       name: `Voice Recording (${Math.round(duration / 1000)}s)`,
-      type: "AUDIO",
+      type: 'AUDIO',
       url: URL.createObjectURL(blob),
       file,
       durationMs: duration,
     });
-    const audioTrack = timeline.tracks.find((t) => t.type === "AUDIO");
+    const audioTrack = timeline.tracks.find((t) => t.type === 'AUDIO');
     if (audioTrack) {
       const lastClipEnd =
-        audioTrack.clips.length > 0
-          ? Math.max(...audioTrack.clips.map((c) => c.endMs))
-          : 0;
+        audioTrack.clips.length > 0 ? Math.max(...audioTrack.clips.map((c) => c.endMs)) : 0;
       addClip(audioTrack.id, {
         assetId,
         startMs: lastClipEnd,

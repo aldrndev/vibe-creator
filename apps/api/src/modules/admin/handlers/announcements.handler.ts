@@ -3,11 +3,11 @@
  * Admin endpoints for announcement CRUD operations
  */
 
-import { FastifyRequest, FastifyReply } from "fastify";
-import { z } from "zod";
-import { adminService } from "../admin.service";
-import { audit, AuditAction } from "@/lib/audit";
-import { redis } from "@/lib/redis";
+import type { FastifyReply, FastifyRequest } from 'fastify';
+import { z } from 'zod';
+import { AuditAction, audit } from '@/lib/audit';
+import { redis } from '@/lib/redis';
+import { adminService } from '../admin.service';
 
 const createAnnouncementSchema = z.object({
   title: z.string().min(1).max(200),
@@ -32,11 +32,10 @@ export const announcementHandlers = {
         data: announcements,
       });
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Failed to get announcements";
+      const message = err instanceof Error ? err.message : 'Failed to get announcements';
       return reply.status(500).send({
         success: false,
-        error: { code: "ADMIN_ERROR", message },
+        error: { code: 'ADMIN_ERROR', message },
       });
     }
   },
@@ -47,13 +46,10 @@ export const announcementHandlers = {
   async createAnnouncement(request: FastifyRequest, reply: FastifyReply) {
     try {
       const body = createAnnouncementSchema.parse(request.body);
-      const announcement = await adminService.createAnnouncement(
-        body.title,
-        body.content
-      );
+      const announcement = await adminService.createAnnouncement(body.title, body.content);
 
-      if (redis.status === "ready") {
-        await redis.del("announcements:active");
+      if (redis.status === 'ready') {
+        await redis.del('announcements:active');
       }
 
       if (request.user) {
@@ -62,11 +58,11 @@ export const announcementHandlers = {
           userId: request.user.id,
           tenantId: request.user.id,
           action: AuditAction.ADMIN_ACTION,
-          resourceType: "announcement",
+          resourceType: 'announcement',
           resourceId: announcement.id,
           ipAddress: request.ip,
-          userAgent: request.headers["user-agent"] ?? undefined,
-          metadata: { action: "create_announcement" },
+          userAgent: request.headers['user-agent'] ?? undefined,
+          metadata: { action: 'create_announcement' },
         });
       }
 
@@ -78,14 +74,13 @@ export const announcementHandlers = {
       if (err instanceof z.ZodError) {
         return reply.status(400).send({
           success: false,
-          error: { code: "VALIDATION_ERROR", message: err.issues[0]?.message },
+          error: { code: 'VALIDATION_ERROR', message: err.issues[0]?.message },
         });
       }
-      const message =
-        err instanceof Error ? err.message : "Failed to create announcement";
+      const message = err instanceof Error ? err.message : 'Failed to create announcement';
       return reply.status(500).send({
         success: false,
-        error: { code: "ADMIN_ERROR", message },
+        error: { code: 'ADMIN_ERROR', message },
       });
     }
   },
@@ -95,17 +90,14 @@ export const announcementHandlers = {
    */
   async updateAnnouncement(
     request: FastifyRequest<{ Params: { id: string } }>,
-    reply: FastifyReply
+    reply: FastifyReply,
   ) {
     try {
       const body = updateAnnouncementSchema.parse(request.body);
-      const announcement = await adminService.updateAnnouncement(
-        request.params.id,
-        body
-      );
+      const announcement = await adminService.updateAnnouncement(request.params.id, body);
 
-      if (redis.status === "ready") {
-        await redis.del("announcements:active");
+      if (redis.status === 'ready') {
+        await redis.del('announcements:active');
       }
 
       if (request.user) {
@@ -114,11 +106,11 @@ export const announcementHandlers = {
           userId: request.user.id,
           tenantId: request.user.id,
           action: AuditAction.ADMIN_ACTION,
-          resourceType: "announcement",
+          resourceType: 'announcement',
           resourceId: request.params.id,
           ipAddress: request.ip,
-          userAgent: request.headers["user-agent"] ?? undefined,
-          metadata: { action: "update_announcement" },
+          userAgent: request.headers['user-agent'] ?? undefined,
+          metadata: { action: 'update_announcement' },
         });
       }
 
@@ -131,16 +123,15 @@ export const announcementHandlers = {
         return reply.status(400).send({
           success: false,
           error: {
-            code: "VALIDATION_ERROR",
+            code: 'VALIDATION_ERROR',
             message: err.issues[0]?.message,
           },
         });
       }
-      const message =
-        err instanceof Error ? err.message : "Failed to update announcement";
+      const message = err instanceof Error ? err.message : 'Failed to update announcement';
       return reply.status(500).send({
         success: false,
-        error: { code: "ADMIN_ERROR", message },
+        error: { code: 'ADMIN_ERROR', message },
       });
     }
   },
@@ -150,12 +141,12 @@ export const announcementHandlers = {
    */
   async deleteAnnouncement(
     request: FastifyRequest<{ Params: { id: string } }>,
-    reply: FastifyReply
+    reply: FastifyReply,
   ) {
     try {
       await adminService.deleteAnnouncement(request.params.id);
-      if (redis.status === "ready") {
-        await redis.del("announcements:active");
+      if (redis.status === 'ready') {
+        await redis.del('announcements:active');
       }
       if (request.user) {
         void audit({
@@ -163,23 +154,22 @@ export const announcementHandlers = {
           userId: request.user.id,
           tenantId: request.user.id,
           action: AuditAction.ADMIN_ACTION,
-          resourceType: "announcement",
+          resourceType: 'announcement',
           resourceId: request.params.id,
           ipAddress: request.ip,
-          userAgent: request.headers["user-agent"] ?? undefined,
-          metadata: { action: "delete_announcement" },
+          userAgent: request.headers['user-agent'] ?? undefined,
+          metadata: { action: 'delete_announcement' },
         });
       }
       return reply.send({
         success: true,
-        data: { message: "Announcement deleted successfully" },
+        data: { message: 'Announcement deleted successfully' },
       });
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Failed to delete announcement";
+      const message = err instanceof Error ? err.message : 'Failed to delete announcement';
       return reply.status(500).send({
         success: false,
-        error: { code: "ADMIN_ERROR", message },
+        error: { code: 'ADMIN_ERROR', message },
       });
     }
   },

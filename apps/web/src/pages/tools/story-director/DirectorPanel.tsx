@@ -1,40 +1,34 @@
+import { AlertTriangle, Layers, Loader2, Music, Wand2 } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
-  Card,
   Button,
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
+  Card,
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
-} from "@/components/ui";
-import { useMemo, useState } from "react";
-import { Wand2, Music, Layers, AlertTriangle, Loader2 } from "lucide-react";
-import { useStoryStore } from "@/stores/story-store";
-import { useNavigate } from "react-router-dom";
-import { useEditorStore } from "@/stores/editor-store";
-
-import { PreviewPlayer } from "./PreviewPlayer";
-import { compileStoryToTimeline } from "@/utils/story-compiler";
-import { useJobPolling } from "@/hooks/use-job-polling";
-import { api } from "@/services/api";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui';
+import { useJobPolling } from '@/hooks/use-job-polling';
+import { api } from '@/services/api';
+import { useEditorStore } from '@/stores/editor-store';
+import { useStoryStore } from '@/stores/story-store';
+import { compileStoryToTimeline } from '@/utils/story-compiler';
+import { PreviewPlayer } from './PreviewPlayer';
 
 interface FeedbackMessage {
-  type: "success" | "error";
+  type: 'success' | 'error';
   text: string;
 }
 
 export function DirectorPanel() {
-  const {
-    currentStory,
-    forkToTimeline,
-    updateGlobalVibe,
-    applyAiGeneratedStory,
-  } = useStoryStore();
+  const { currentStory, forkToTimeline, updateGlobalVibe, applyAiGeneratedStory } = useStoryStore();
   const { initProject } = useEditorStore();
   const navigate = useNavigate();
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -44,7 +38,7 @@ export function DirectorPanel() {
   const { startJob, isPolling } = useJobPolling(null, {
     pollInterval: 2000,
     onComplete: (data) => {
-      setFeedback({ type: "success", text: "Story Generated Successfully!" });
+      setFeedback({ type: 'success', text: 'Story Generated Successfully!' });
       applyAiGeneratedStory(
         data as {
           structure?: {
@@ -56,32 +50,29 @@ export function DirectorPanel() {
               durationMs?: number;
             }>;
           };
-        }
+        },
       );
     },
     onError: (err) => {
-      setFeedback({ type: "error", text: "Generation Failed: " + err });
+      setFeedback({ type: 'error', text: `Generation Failed: ${err}` });
     },
   });
 
   const handleAiGenerate = async () => {
     setFeedback(null);
     try {
-      const res = await api.post<{ jobId: string }>(
-        "/jobs/story/generate-structure",
-        {
-          prompt: "Cyberpunk city chase",
-          projectId: currentStory?.projectId,
-        }
-      );
+      const res = await api.post<{ jobId: string }>('/jobs/story/generate-structure', {
+        prompt: 'Cyberpunk city chase',
+        projectId: currentStory?.projectId,
+      });
 
       if (res.success && res.data) {
         startJob(res.data.jobId);
       } else {
-        setFeedback({ type: "error", text: "Failed to start job" });
+        setFeedback({ type: 'error', text: 'Failed to start job' });
       }
     } catch {
-      setFeedback({ type: "error", text: "Network error" });
+      setFeedback({ type: 'error', text: 'Network error' });
     }
   };
 
@@ -92,18 +83,18 @@ export function DirectorPanel() {
   }, [currentStory]);
 
   const handleCompileConfirm = async () => {
-    setFeedback({ type: "success", text: "Compiling Story to Timeline..." });
+    setFeedback({ type: 'success', text: 'Compiling Story to Timeline...' });
 
     try {
       await forkToTimeline(previewTimeline);
 
       if (currentStory && previewTimeline) {
-        initProject(currentStory.projectId, "Story Project (Forked)");
+        initProject(currentStory.projectId, 'Story Project (Forked)');
         useEditorStore.getState().loadTimeline(previewTimeline);
         navigate(`/editor/${currentStory.projectId}`);
       }
     } catch {
-      setFeedback({ type: "error", text: "Failed to fork project" });
+      setFeedback({ type: 'error', text: 'Failed to fork project' });
     }
   };
 
@@ -126,14 +117,12 @@ export function DirectorPanel() {
 
           <div className="flex flex-col gap-4">
             <div className="space-y-2">
-              <label className="text-xs text-muted-foreground">
-                Tempo / Pace
-              </label>
+              <div className="text-xs text-muted-foreground">Tempo / Pace</div>
               <Select
                 value={currentStory.globalVibe.tempo}
                 onValueChange={(v) =>
                   updateGlobalVibe({
-                    tempo: v as "slow" | "medium" | "fast",
+                    tempo: v as 'slow' | 'medium' | 'fast',
                   })
                 }
               >
@@ -160,7 +149,7 @@ export function DirectorPanel() {
               ) : (
                 <Wand2 size={16} className="mr-2" />
               )}
-              {isPolling ? "Dreaming..." : "Remix Story Structure"}
+              {isPolling ? 'Dreaming...' : 'Remix Story Structure'}
             </Button>
 
             <Button size="sm" variant="secondary" className="justify-start">
@@ -170,15 +159,11 @@ export function DirectorPanel() {
 
             <div className="my-2 border-t border-border" />
 
-            <Button
-              className="w-full font-semibold"
-              onClick={() => setIsModalOpen(true)}
-            >
+            <Button className="w-full font-semibold" onClick={() => setIsModalOpen(true)}>
               Open in Advanced Editor
             </Button>
             <p className="text-xs text-muted-foreground text-center px-2">
-              Warning: Editing in advanced mode will disconnect from Story
-              Director.
+              Warning: Editing in advanced mode will disconnect from Story Director.
             </p>
           </div>
         </Card>
@@ -195,14 +180,14 @@ export function DirectorPanel() {
             <div className="text-sm">
               <p className="font-bold text-yellow-500">Point of No Return</p>
               <p>
-                Story Mode features (AI vibes, scene reordering) will be
-                disabled for this project version.
+                Story Mode features (AI vibes, scene reordering) will be disabled for this project
+                version.
               </p>
             </div>
           </div>
           <p className="text-sm text-muted-foreground">
-            You are about to fork this story into a standard timeline. Any
-            further changes here will not reflect in Story Mode.
+            You are about to fork this story into a standard timeline. Any further changes here will
+            not reflect in Story Mode.
           </p>
 
           <DialogFooter>

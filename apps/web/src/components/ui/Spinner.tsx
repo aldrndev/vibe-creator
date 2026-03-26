@@ -1,34 +1,35 @@
-import * as React from "react";
-import { cn } from "@/lib/utils";
+import type * as React from 'react';
+import { cn } from '@/lib/utils';
 
 export interface SpinnerProps extends React.HTMLAttributes<HTMLDivElement> {
   /** Size of the spinner */
-  size?: "sm" | "md" | "lg";
+  size?: 'sm' | 'md' | 'lg';
 }
 
 /**
  * Loading spinner component
  */
-function Spinner({ className, size = "md", ...props }: SpinnerProps) {
+function Spinner({ className, size = 'md', ...props }: SpinnerProps) {
   const sizeClasses = {
-    sm: "h-4 w-4",
-    md: "h-6 w-6",
-    lg: "h-8 w-8",
+    sm: 'h-4 w-4',
+    md: 'h-6 w-6',
+    lg: 'h-8 w-8',
   };
 
   return (
     <div
       role="status"
       aria-label="Loading"
-      className={cn("inline-flex items-center justify-center", className)}
+      className={cn('inline-flex items-center justify-center', className)}
       {...props}
     >
       <svg
-        className={cn("animate-spin text-current", sizeClasses[size])}
+        className={cn('animate-spin text-current', sizeClasses[size])}
         xmlns="http://www.w3.org/2000/svg"
         fill="none"
         viewBox="0 0 24 24"
       >
+        <title>Loading</title>
         <circle
           className="opacity-25"
           cx="12"

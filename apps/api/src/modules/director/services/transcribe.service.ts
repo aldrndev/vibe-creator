@@ -3,10 +3,12 @@
  * Handles transcription jobs
  */
 
-import { logger } from "@/lib/logger";
-import { directorRepo } from "../director.repo";
-import { directorQueue } from "../director.queue";
-import { DirectorJobStatus } from "@prisma/client";
+import { DirectorJobStatus } from '@prisma/client';
+import { logger } from '@/lib/logger';
+import { directorQueue } from '../director.queue';
+import { directorRepo } from '../director.repo';
+
+type TranscribeJob = NonNullable<Awaited<ReturnType<typeof directorRepo.createTranscribeJob>>>;
 
 export const directorTranscribeService = {
   /**
@@ -16,14 +18,14 @@ export const directorTranscribeService = {
     const session = await directorRepo.findSession(sessionId, userId);
 
     if (!session) {
-      throw new Error("Session not found");
+      throw new Error('Session not found');
     }
 
     if (session.selectedClips.length === 0) {
-      throw new Error("No clips selected");
+      throw new Error('No clips selected');
     }
 
-    let job;
+    let job: TranscribeJob;
 
     // Check existing job
     if (session.transcribeJob) {
@@ -42,7 +44,7 @@ export const directorTranscribeService = {
       if (status === DirectorJobStatus.FAILED) {
         logger.info(
           { sessionId, jobId: session.transcribeJob.id },
-          "Retrying failed transcribe job"
+          'Retrying failed transcribe job',
         );
         job = await directorRepo.updateTranscribeJob(session.transcribeJob.id, {
           status: DirectorJobStatus.PENDING,
@@ -59,7 +61,7 @@ export const directorTranscribeService = {
         sessionId,
         idempotencyKey,
         status: DirectorJobStatus.PENDING,
-        engine: "WHISPER_LOCAL",
+        engine: 'WHISPER_LOCAL',
       });
     }
 
@@ -67,21 +69,21 @@ export const directorTranscribeService = {
     const queueJobId = `director:transcribe:${job.id}:${Date.now()}`;
 
     await directorQueue.add(
-      "transcribe_session",
+      'transcribe_session',
       {
-        type: "TRANSCRIBE_SESSION",
+        type: 'TRANSCRIBE_SESSION',
         sessionId,
         userId,
       },
       {
         jobId: queueJobId,
         removeOnComplete: true,
-      }
+      },
     );
 
     logger.info(
       { sessionId, jobId: job.id, queueJobId },
-      "Director transcribe job created and queued"
+      'Director transcribe job created and queued',
     );
 
     return job;
@@ -94,7 +96,7 @@ export const directorTranscribeService = {
     const session = await directorRepo.findSession(sessionId, userId);
 
     if (!session) {
-      throw new Error("Session not found");
+      throw new Error('Session not found');
     }
 
     return session.transcribeJob || null;
@@ -107,12 +109,12 @@ export const directorTranscribeService = {
     sessionId: string,
     userId: string,
     clipId: string,
-    segments: Array<{ startMs: number; endMs: number; text: string }>
+    segments: Array<{ startMs: number; endMs: number; text: string }>,
   ) {
     const exists = await directorRepo.exists(sessionId, userId);
 
     if (!exists) {
-      throw new Error("Session not found");
+      throw new Error('Session not found');
     }
 
     // Note: We should probably verify clip belongs to session here too for strict security

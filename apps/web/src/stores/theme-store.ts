@@ -26,6 +26,6 @@ export const useThemeStore = create<ThemeState>()(
     }),
     {
       name: 'vibe-creator-theme',
-    }
-  )
+    },
+  ),
 );

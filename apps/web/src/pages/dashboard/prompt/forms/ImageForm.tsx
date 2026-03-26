@@ -1,26 +1,26 @@
 import {
   Card,
   CardBody,
+  Divider,
   Select,
-  SelectTrigger,
-  SelectValue,
   SelectContent,
   SelectItem,
+  SelectTrigger,
+  SelectValue,
   Textarea,
-  Divider,
-} from "@/components/ui";
-import { SelectionGrid } from "@/components/ui/SelectionGrid";
-import { ImageFormData } from "../types";
-import { TargetModelSelector } from "../components/TargetModelSelector";
+} from '@/components/ui';
+import { SelectionGrid } from '@/components/ui/SelectionGrid';
+import { TargetModelSelector } from '../components/TargetModelSelector';
 import {
-  imageSubjects,
-  imageStyles,
   aspectRatios,
-  moodOptions,
   colorOptions,
-  textOverlayOptions,
   imagePurposes,
-} from "../constants";
+  imageStyles,
+  imageSubjects,
+  moodOptions,
+  textOverlayOptions,
+} from '../constants';
+import type { ImageFormData } from '../types';
 
 interface ImageFormProps {
   data: ImageFormData;
@@ -28,10 +28,7 @@ interface ImageFormProps {
 }
 
 export function ImageForm({ data, onChange }: ImageFormProps) {
-  const handleChange = (
-    key: keyof ImageFormData,
-    value: ImageFormData[keyof ImageFormData]
-  ) => {
+  const handleChange = (key: keyof ImageFormData, value: ImageFormData[keyof ImageFormData]) => {
     onChange({ ...data, [key]: value });
   };
 
@@ -41,7 +38,7 @@ export function ImageForm({ data, onChange }: ImageFormProps) {
         <TargetModelSelector
           promptType="IMAGE"
           value={data.targetModel}
-          onChange={(v) => handleChange("targetModel", v)}
+          onChange={(v) => handleChange('targetModel', v)}
         />
 
         {/* Section: Objective */}
@@ -55,13 +52,10 @@ export function ImageForm({ data, onChange }: ImageFormProps) {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <div className="space-y-3">
-              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+              <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
                 Tujuan Gambar
-              </label>
-              <Select
-                value={data.purpose}
-                onValueChange={(v) => handleChange("purpose", v)}
-              >
+              </div>
+              <Select value={data.purpose} onValueChange={(v) => handleChange('purpose', v)}>
                 <SelectTrigger className="h-14 rounded-2xl bg-muted/10 border-border/50 font-bold px-5 text-sm">
                   <SelectValue placeholder="Pilih Tujuan" />
                 </SelectTrigger>
@@ -80,13 +74,10 @@ export function ImageForm({ data, onChange }: ImageFormProps) {
             </div>
 
             <div className="space-y-3">
-              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+              <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
                 Subjek / Objek Utama
-              </label>
-              <Select
-                value={data.subject}
-                onValueChange={(v) => handleChange("subject", v)}
-              >
+              </div>
+              <Select value={data.subject} onValueChange={(v) => handleChange('subject', v)}>
                 <SelectTrigger className="h-14 rounded-2xl bg-muted/10 border-border/50 font-bold px-5 text-sm">
                   <SelectValue placeholder="Pilih Subjek" />
                 </SelectTrigger>
@@ -119,13 +110,10 @@ export function ImageForm({ data, onChange }: ImageFormProps) {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <div className="space-y-3">
-              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+              <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
                 Gaya Visual (Style)
-              </label>
-              <Select
-                value={data.style}
-                onValueChange={(v) => handleChange("style", v)}
-              >
+              </div>
+              <Select value={data.style} onValueChange={(v) => handleChange('style', v)}>
                 <SelectTrigger className="h-14 rounded-2xl bg-muted/10 border-border/50 font-bold px-5 text-sm">
                   <SelectValue />
                 </SelectTrigger>
@@ -144,12 +132,12 @@ export function ImageForm({ data, onChange }: ImageFormProps) {
             </div>
 
             <div className="space-y-3">
-              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+              <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
                 Aspect Ratio
-              </label>
+              </div>
               <Select
                 value={data.aspectRatio}
-                onValueChange={(v) => handleChange("aspectRatio", v)}
+                onValueChange={(v) => handleChange('aspectRatio', v)}
               >
                 <SelectTrigger className="h-14 rounded-2xl bg-muted/10 border-border/50 font-bold px-5 text-sm">
                   <SelectValue />
@@ -173,7 +161,7 @@ export function ImageForm({ data, onChange }: ImageFormProps) {
             label="Mood & Suasana"
             options={moodOptions}
             value={data.mood}
-            onChange={(v) => handleChange("mood", v)}
+            onChange={(v) => handleChange('mood', v)}
             columns={3}
           />
 
@@ -181,7 +169,7 @@ export function ImageForm({ data, onChange }: ImageFormProps) {
             label="Skema Warna"
             options={colorOptions}
             value={data.colors}
-            onChange={(v) => handleChange("colors", v)}
+            onChange={(v) => handleChange('colors', v)}
             columns={3}
           />
 
@@ -189,19 +177,19 @@ export function ImageForm({ data, onChange }: ImageFormProps) {
             label="Text Overlay"
             options={textOverlayOptions}
             value={data.textOverlay}
-            onChange={(v) => handleChange("textOverlay", v)}
+            onChange={(v) => handleChange('textOverlay', v)}
             columns={3}
           />
 
           <div className="space-y-3 pt-4">
-            <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+            <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
               Detail Tambahan (opsional)
-            </label>
+            </div>
             <Textarea
               placeholder="Detail spesifik lainnya..."
               value={data.additionalDetails}
               onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                handleChange("additionalDetails", e.target.value)
+                handleChange('additionalDetails', e.target.value)
               }
               className="min-h-[140px] rounded-3xl bg-muted/10 border-border/50 font-bold p-6 focus:bg-muted/20 transition-all leading-relaxed"
             />

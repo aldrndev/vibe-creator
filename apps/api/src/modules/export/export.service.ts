@@ -1,8 +1,8 @@
-import { prisma } from "@/lib/prisma";
-import { logger } from "@/lib/logger";
-import { ExportResolution } from "@prisma/client";
-import { cancelExportJob } from "./export-cancel";
-import { processExportJob } from "./processors/export.processor";
+import type { ExportResolution } from '@prisma/client';
+import { logger } from '@/lib/logger';
+import { prisma } from '@/lib/prisma';
+import { cancelExportJob } from './export-cancel';
+import { processExportJob } from './processors/export.processor';
 
 interface TimelineData {
   clips: Array<{
@@ -53,8 +53,8 @@ interface CreateExportJobInput {
   userId: string;
   projectId?: string | null;
   timelineData: TimelineData;
-  format?: "MP4" | "WEBM" | "MOV";
-  resolution?: "SD" | "HD" | "UHD";
+  format?: 'MP4' | 'WEBM' | 'MOV';
+  resolution?: 'SD' | 'HD' | 'UHD';
   addWatermark?: boolean;
 }
 
@@ -68,8 +68,8 @@ export const exportService = {
       userId,
       projectId,
       timelineData,
-      format = "MP4",
-      resolution = "HD",
+      format = 'MP4',
+      resolution = 'HD',
       addWatermark = true,
     } = input;
 
@@ -78,24 +78,22 @@ export const exportService = {
       where: {
         userId,
         status: {
-          in: ["QUEUED", "PROCESSING"],
+          in: ['QUEUED', 'PROCESSING'],
         },
       },
     });
 
     if (pendingJobs >= 3) {
-      throw new Error(
-        "Too many pending export jobs. Please wait for current exports to complete."
-      );
+      throw new Error('Too many pending export jobs. Please wait for current exports to complete.');
     }
 
     const job = await prisma.exportHistory.create({
       data: {
         userId,
-        projectId: projectId && projectId !== "default" ? projectId : undefined,
+        projectId: projectId && projectId !== 'default' ? projectId : undefined,
         format,
         resolution: resolution as ExportResolution,
-        status: "QUEUED",
+        status: 'QUEUED',
         timelineData: JSON.parse(JSON.stringify(timelineData)),
         expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
       },
@@ -103,13 +101,13 @@ export const exportService = {
 
     // Start processing in background
     this.processJob(job.id, addWatermark).catch((err) => {
-      logger.error({ err, jobId: job.id }, "Export job failed");
+      logger.error({ err, jobId: job.id }, 'Export job failed');
     });
 
     return job;
   },
 
-  async getJobStatus(jobId: string, userId: string) {
+  async getOwnedJob(jobId: string, userId: string) {
     const job = await prisma.exportHistory.findFirst({
       where: {
         id: jobId,
@@ -118,15 +116,20 @@ export const exportService = {
     });
 
     if (!job) {
-      throw new Error("Export job not found");
+      throw new Error('Export job not found');
     }
+
+    return job;
+  },
+
+  async getJobStatus(jobId: string, userId: string) {
+    const job = await this.getOwnedJob(jobId, userId);
 
     return {
       id: job.id,
       status: job.status,
       progress: job.progress,
       errorMessage: job.errorMessage,
-      localPath: job.localPath,
       downloadUrl: job.downloadUrl,
       urlExpiresAt: job.urlExpiresAt,
       completedAt: job.completedAt,
@@ -140,12 +143,12 @@ export const exportService = {
   async cancelJob(jobId: string, userId: string) {
     const result = await cancelExportJob(jobId, userId);
 
-    if (!result.success && result.status === "NOT_FOUND") {
-      throw new Error("Export job not found");
+    if (!result.success && result.status === 'NOT_FOUND') {
+      throw new Error('Export job not found');
     }
 
-    if (!result.success && result.status === "ALREADY_COMPLETED") {
-      throw new Error("Cannot cancel completed job");
+    if (!result.success && result.status === 'ALREADY_COMPLETED') {
+      throw new Error('Cannot cancel completed job');
     }
 
     return {
@@ -160,9 +163,10 @@ export const exportService = {
 
     if (cursor) {
       try {
-        const decoded = JSON.parse(
-          Buffer.from(cursor, "base64url").toString("utf8")
-        ) as { id: string; ts: string };
+        const decoded = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')) as {
+          id: string;
+          ts: string;
+        };
         const cursorDate = new Date(decoded.ts);
         cursorWhere = {
           OR: [
@@ -177,7 +181,7 @@ export const exportService = {
 
     const jobs = await prisma.exportHistory.findMany({
       where: { userId, ...cursorWhere },
-      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: limit + 1,
     });
 
@@ -190,10 +194,27 @@ export const exportService = {
             JSON.stringify({
               id: lastItem.id,
               ts: lastItem.createdAt.toISOString(),
-            })
-          ).toString("base64url")
+            }),
+          ).toString('base64url')
         : null;
 
-    return { items, nextCursor, hasMore };
+    return {
+      items: items.map((job) => ({
+        id: job.id,
+        status: job.status,
+        format: job.format,
+        resolution: job.resolution,
+        progress: job.progress,
+        errorMessage: job.errorMessage,
+        downloadUrl: job.downloadUrl,
+        urlExpiresAt: job.urlExpiresAt,
+        completedAt: job.completedAt,
+        createdAt: job.createdAt,
+        fileSizeBytes: job.fileSizeBytes,
+        projectId: job.projectId,
+      })),
+      nextCursor,
+      hasMore,
+    };
   },
 };

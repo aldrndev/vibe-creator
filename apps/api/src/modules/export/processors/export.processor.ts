@@ -14,20 +14,20 @@
  * Temp files are cleaned up after processing.
  */
 
-import { join } from "path";
-import { unlink, mkdir, copyFile } from "fs/promises";
-import { existsSync } from "fs";
-import { randomUUID } from "crypto";
-import { prisma } from "@/lib/prisma";
-import { logger } from "@/lib/logger";
-import { env } from "@/config/env";
-import { ffmpegProcessor } from "../ffmpeg.processor";
+import { randomUUID } from 'node:crypto';
+import { existsSync } from 'node:fs';
+import { copyFile, mkdir, unlink } from 'node:fs/promises';
+import { join } from 'node:path';
+import { env } from '@/config/env';
+import { logger } from '@/lib/logger';
+import { prisma } from '@/lib/prisma';
+import { ffmpegProcessor } from '../ffmpeg.processor';
 
 /** Directory for temporary processing files */
-const TEMP_DIR = join(env.MEDIA_INPUT_DIR, "temp");
+const TEMP_DIR = join(env.MEDIA_INPUT_DIR, 'temp');
 
 /** Directory for final export outputs */
-const EXPORTS_DIR = join(env.MEDIA_INPUT_DIR, "exports");
+const EXPORTS_DIR = join(env.MEDIA_INPUT_DIR, 'exports');
 
 /**
  * Timeline data structure from the video editor.
@@ -95,10 +95,7 @@ interface TimelineData {
  * ```
  */
 
-export async function processExportJob(
-  jobId: string,
-  addWatermark: boolean
-): Promise<void> {
+export async function processExportJob(jobId: string, addWatermark: boolean): Promise<void> {
   // Ensure directories
   if (!existsSync(EXPORTS_DIR)) {
     await mkdir(EXPORTS_DIR, { recursive: true });
@@ -111,7 +108,7 @@ export async function processExportJob(
   await prisma.exportHistory.update({
     where: { id: jobId },
     data: {
-      status: "PROCESSING",
+      status: 'PROCESSING',
       startedAt: new Date(),
       attempts: { increment: 1 },
     },
@@ -123,7 +120,7 @@ export async function processExportJob(
     });
 
     if (!job || !job.timelineData) {
-      throw new Error("Job not found or missing timeline data");
+      throw new Error('Job not found or missing timeline data');
     }
 
     const timelineData = job.timelineData as unknown as TimelineData;
@@ -131,7 +128,7 @@ export async function processExportJob(
     const outputId = randomUUID();
 
     // Step 1: Trim and apply effects to each clip
-    logger.info({ jobId }, "Starting clip trimming and effects");
+    logger.info({ jobId }, 'Starting clip trimming and effects');
     for (let i = 0; i < timelineData.clips.length; i++) {
       const clip = timelineData.clips[i];
       if (!clip) continue;
@@ -187,7 +184,7 @@ export async function processExportJob(
     }
 
     // Step 2: Concatenate clips
-    logger.info({ jobId }, "Starting concatenation");
+    logger.info({ jobId }, 'Starting concatenation');
     let outputPath = join(TEMP_DIR, `${outputId}_concat.mp4`);
 
     if (tempFiles.length > 1) {
@@ -210,7 +207,7 @@ export async function processExportJob(
         outputPath,
         timelineData.textOverlays,
         outputId,
-        tempFiles
+        tempFiles,
       );
     }
 
@@ -223,7 +220,7 @@ export async function processExportJob(
     const finalPath = join(EXPORTS_DIR, `${outputId}_final.mp4`);
 
     if (addWatermark) {
-      logger.info({ jobId }, "Adding watermark");
+      logger.info({ jobId }, 'Adding watermark');
       await ffmpegProcessor.addWatermark({
         inputPath: outputPath,
         outputPath: finalPath,
@@ -260,7 +257,7 @@ export async function processExportJob(
     await prisma.exportHistory.update({
       where: { id: jobId },
       data: {
-        status: "COMPLETED",
+        status: 'COMPLETED',
         progress: 100,
         localPath: finalPath,
         downloadUrl,
@@ -269,14 +266,14 @@ export async function processExportJob(
       },
     });
 
-    logger.info({ jobId, outputPath: finalPath }, "Export completed");
+    logger.info({ jobId, outputPath: finalPath }, 'Export completed');
   } catch (err) {
-    logger.error({ err, jobId }, "Export processing failed");
+    logger.error({ err, jobId }, 'Export processing failed');
     await prisma.exportHistory.update({
       where: { id: jobId },
       data: {
-        status: "FAILED",
-        errorMessage: err instanceof Error ? err.message : "Unknown error",
+        status: 'FAILED',
+        errorMessage: err instanceof Error ? err.message : 'Unknown error',
       },
     });
   }
@@ -284,19 +281,17 @@ export async function processExportJob(
 
 async function applyTextOverlays(
   inputPath: string,
-  textOverlays: TimelineData["textOverlays"],
+  textOverlays: TimelineData['textOverlays'],
   outputId: string,
-  tempFiles: string[]
+  tempFiles: string[],
 ): Promise<string> {
   if (!textOverlays || textOverlays.length === 0) return inputPath;
 
   const drawtextFilters: string[] = [];
 
   for (const overlay of textOverlays) {
-    const escapedText = overlay.content
-      .replace(/[:\\\\]/g, "\\$&")
-      .replace(/'/g, "\\'");
-    const color = overlay.color.replace("#", "0x");
+    const escapedText = overlay.content.replace(/[:\\\\]/g, '\\$&').replace(/'/g, "\\'");
+    const color = overlay.color.replace('#', '0x');
     const startSec = overlay.startMs / 1000;
     const endSec = overlay.endMs / 1000;
 
@@ -307,7 +302,7 @@ async function applyTextOverlays(
     filter += `:enable='between(t\\,${startSec}\\,${endSec})'`;
 
     if (overlay.backgroundColor) {
-      const bgColor = overlay.backgroundColor.replace("#", "0x");
+      const bgColor = overlay.backgroundColor.replace('#', '0x');
       filter += `:box=1:boxcolor=${bgColor}@0.7:boxborderw=10`;
     }
 
@@ -317,36 +312,34 @@ async function applyTextOverlays(
   if (drawtextFilters.length === 0) return inputPath;
 
   const textOverlayPath = join(TEMP_DIR, `${outputId}_text.mp4`);
-  const filterChain = drawtextFilters.join(",");
+  const filterChain = drawtextFilters.join(',');
 
-  const { runFFmpeg, validateInputPath, validateOutputPath } = await import(
-    "../ffmpeg/index"
-  );
+  const { runFFmpeg, validateInputPath, validateOutputPath } = await import('../ffmpeg/index');
 
   const validInput = validateInputPath(inputPath);
   const validOutput = validateOutputPath(textOverlayPath);
 
   await runFFmpeg({
     args: [
-      "-nostdin",
-      "-hide_banner",
-      "-loglevel",
-      "error",
-      "-progress",
-      "pipe:1",
-      "-i",
+      '-nostdin',
+      '-hide_banner',
+      '-loglevel',
+      'error',
+      '-progress',
+      'pipe:1',
+      '-i',
       validInput,
-      "-vf",
+      '-vf',
       filterChain,
-      "-c:v",
-      "libx264",
-      "-c:a",
-      "copy",
-      "-preset",
-      "fast",
+      '-c:v',
+      'libx264',
+      '-c:a',
+      'copy',
+      '-preset',
+      'fast',
       validOutput,
     ],
-    tempDir: "",
+    tempDir: '',
     totalDurationMs: 120000,
     timeoutMs: 180000,
   });

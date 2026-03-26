@@ -1,5 +1,5 @@
-import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
+import { prisma } from '@/lib/prisma';
 
 /**
  * Admin service for dashboard statistics and user management
@@ -48,7 +48,10 @@ export const adminService = {
       where: { status: 'PAID' },
       select: { amount: true },
     });
-    const totalRevenue = paidPayments.reduce((sum: number, p: { amount: number }) => sum + p.amount, 0);
+    const totalRevenue = paidPayments.reduce(
+      (sum: number, p: { amount: number }) => sum + p.amount,
+      0,
+    );
 
     return {
       users: {
@@ -77,7 +80,7 @@ export const adminService = {
    */
   async getUsers(page = 1, limit = 20, search?: string) {
     const skip = (page - 1) * limit;
-    
+
     const where = search
       ? {
           OR: [
@@ -169,14 +172,9 @@ export const adminService = {
   /**
    * Update user subscription manually
    */
-  async updateUserSubscription(
-    userId: string, 
-    tier: 'FREE' | 'CREATOR' | 'PRO',
-    validDays = 30
-  ) {
-    const validUntil = tier === 'FREE' 
-      ? null 
-      : new Date(Date.now() + validDays * 24 * 60 * 60 * 1000);
+  async updateUserSubscription(userId: string, tier: 'FREE' | 'CREATOR' | 'PRO', validDays = 30) {
+    const validUntil =
+      tier === 'FREE' ? null : new Date(Date.now() + validDays * 24 * 60 * 60 * 1000);
 
     const exportsLimit = tier === 'FREE' ? 5 : tier === 'CREATOR' ? 50 : 999999;
 
@@ -257,23 +255,24 @@ export const adminService = {
 
     // Combine and sort by date
     const activities = [
-      ...exports.map((e: typeof exports[number]) => ({ 
-        type: 'export' as const, 
-        ...e, 
+      ...exports.map((e: (typeof exports)[number]) => ({
+        type: 'export' as const,
+        ...e,
         description: `Export ${e.status.toLowerCase()}`,
       })),
-      ...payments.map((p: typeof payments[number]) => ({ 
-        type: 'payment' as const, 
+      ...payments.map((p: (typeof payments)[number]) => ({
+        type: 'payment' as const,
         ...p,
         description: `Payment Rp ${p.amount.toLocaleString()} for ${p.tier}`,
       })),
-      ...users.map((u: typeof users[number]) => ({ 
-        type: 'signup' as const, 
+      ...users.map((u: (typeof users)[number]) => ({
+        type: 'signup' as const,
         ...u,
-        description: `New user registered`,
+        description: 'New user registered',
       })),
-    ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-     .slice(0, limit);
+    ]
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, limit);
 
     return activities;
   },
@@ -307,8 +306,8 @@ export const adminService = {
    * Update announcement
    */
   async updateAnnouncement(
-    id: string, 
-    data: { title?: string; content?: string; isActive?: boolean }
+    id: string,
+    data: { title?: string; content?: string; isActive?: boolean },
   ) {
     const announcement = await prisma.announcement.update({
       where: { id },

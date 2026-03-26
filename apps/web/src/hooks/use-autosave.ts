@@ -1,22 +1,20 @@
-import { useEffect, useRef, useCallback } from "react";
-import { useEditorStore } from "@/stores/editor-store";
-import { logger } from "@/lib/logger";
+import { useCallback, useEffect, useRef } from 'react';
+import { logger } from '@/lib/logger';
+import { useEditorStore } from '@/stores/editor-store';
 
 // Autosave configuration
 const AUTOSAVE_INTERVAL_MS = 30000; // 30 seconds
 const IDLE_SAVE_DELAY_MS = 5000; // Save after 5s of inactivity
-const INDEXEDDB_NAME = "vibe-editor";
-const INDEXEDDB_STORE = "autosave";
-const CRASH_FLAG_KEY = "vibe-editor-crash-flag";
+const INDEXEDDB_NAME = 'vibe-editor';
+const INDEXEDDB_STORE = 'autosave';
+const CRASH_FLAG_KEY = 'vibe-editor-crash-flag';
 
 interface AutosaveData {
   projectId: string;
   projectTitle: string;
-  timeline: ReturnType<typeof useEditorStore.getState>["timeline"];
-  textOverlays: ReturnType<typeof useEditorStore.getState>["textOverlays"];
-  assets: Array<
-    Omit<ReturnType<typeof useEditorStore.getState>["assets"][0], "file">
-  >;
+  timeline: ReturnType<typeof useEditorStore.getState>['timeline'];
+  textOverlays: ReturnType<typeof useEditorStore.getState>['textOverlays'];
+  assets: Array<Omit<ReturnType<typeof useEditorStore.getState>['assets'][0], 'file'>>;
   savedAt: number;
 }
 
@@ -33,7 +31,7 @@ function openDatabase(): Promise<IDBDatabase> {
     request.onupgradeneeded = (event) => {
       const db = (event.target as IDBOpenDBRequest).result;
       if (!db.objectStoreNames.contains(INDEXEDDB_STORE)) {
-        db.createObjectStore(INDEXEDDB_STORE, { keyPath: "projectId" });
+        db.createObjectStore(INDEXEDDB_STORE, { keyPath: 'projectId' });
       }
     };
   });
@@ -46,7 +44,7 @@ async function saveToIndexedDB(data: AutosaveData): Promise<void> {
   const db = await openDatabase();
 
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction(INDEXEDDB_STORE, "readwrite");
+    const transaction = db.transaction(INDEXEDDB_STORE, 'readwrite');
     const store = transaction.objectStore(INDEXEDDB_STORE);
     const request = store.put(data);
 
@@ -60,13 +58,11 @@ async function saveToIndexedDB(data: AutosaveData): Promise<void> {
 /**
  * Load data from IndexedDB
  */
-async function loadFromIndexedDB(
-  projectId: string
-): Promise<AutosaveData | null> {
+async function loadFromIndexedDB(projectId: string): Promise<AutosaveData | null> {
   const db = await openDatabase();
 
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction(INDEXEDDB_STORE, "readonly");
+    const transaction = db.transaction(INDEXEDDB_STORE, 'readonly');
     const store = transaction.objectStore(INDEXEDDB_STORE);
     const request = store.get(projectId);
 
@@ -84,7 +80,7 @@ async function deleteFromIndexedDB(projectId: string): Promise<void> {
   const db = await openDatabase();
 
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction(INDEXEDDB_STORE, "readwrite");
+    const transaction = db.transaction(INDEXEDDB_STORE, 'readwrite');
     const store = transaction.objectStore(INDEXEDDB_STORE);
     const request = store.delete(projectId);
 
@@ -141,7 +137,7 @@ export function useAutosave(options: UseAutosaveOptions = {}) {
       await saveToIndexedDB(data);
       lastSaveTime.current = Date.now();
     } catch (error) {
-      logger.error("Autosave failed", error);
+      logger.error('Autosave failed', error);
     }
   }, []);
 
@@ -164,7 +160,7 @@ export function useAutosave(options: UseAutosaveOptions = {}) {
       onRecoveryRestored?.();
       return true;
     } catch (error) {
-      logger.error("Recovery failed", error);
+      logger.error('Recovery failed', error);
       return false;
     }
   }, [onRecoveryRestored]);
@@ -177,7 +173,7 @@ export function useAutosave(options: UseAutosaveOptions = {}) {
     try {
       await deleteFromIndexedDB(state.projectId);
     } catch (error) {
-      logger.error("Clear autosave failed", error);
+      logger.error('Clear autosave failed', error);
     }
   }, []);
 
@@ -207,16 +203,16 @@ export function useAutosave(options: UseAutosaveOptions = {}) {
 
   // Set crash flag on page load
   useEffect(() => {
-    sessionStorage.setItem(CRASH_FLAG_KEY, "true");
+    sessionStorage.setItem(CRASH_FLAG_KEY, 'true');
 
     // Clear on clean exit
     const handleBeforeUnload = () => {
       sessionStorage.removeItem(CRASH_FLAG_KEY);
     };
 
-    window.addEventListener("beforeunload", handleBeforeUnload);
+    window.addEventListener('beforeunload', handleBeforeUnload);
     return () => {
-      window.removeEventListener("beforeunload", handleBeforeUnload);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
       sessionStorage.removeItem(CRASH_FLAG_KEY);
     };
   }, []);

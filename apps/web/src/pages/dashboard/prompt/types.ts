@@ -1,4 +1,13 @@
-import { AIModel, DEFAULT_MODELS } from "@vibe-creator/shared";
+import { type AIModel, DEFAULT_MODELS } from '@vibe-creator/shared';
+
+function getDefaultModel(modelType: keyof typeof DEFAULT_MODELS): AIModel {
+  const model = DEFAULT_MODELS[modelType];
+  if (!model) {
+    throw new Error(`Missing default model for ${modelType}`);
+  }
+
+  return model;
+}
 
 export interface ScriptFormData {
   targetModel: AIModel;
@@ -82,7 +91,7 @@ export interface TimelapseFormData {
   category: string;
   subject: string;
   transformation: string;
-  mode: "single" | "storyboard";
+  mode: 'single' | 'storyboard';
   totalDurationSeconds: number;
   scenes: TimelapseScene[];
   style: string;
@@ -95,88 +104,88 @@ export interface TimelapseFormData {
 
 // Default Values
 export const defaultScriptForm: ScriptFormData = {
-  targetModel: DEFAULT_MODELS.SCRIPT!,
-  niche: "",
-  platform: "youtube",
-  duration: "60s",
-  tone: "casual",
-  targetAudience: "",
-  keywords: "",
-  contentGoal: "engagement",
-  callToAction: "",
-  narrativeStyle: "hook-problem-solution",
-  emotionalJourney: "",
-  keyMessage: "",
-  additionalContext: "",
+  targetModel: getDefaultModel('SCRIPT'),
+  niche: '',
+  platform: 'youtube',
+  duration: '60s',
+  tone: 'casual',
+  targetAudience: '',
+  keywords: '',
+  contentGoal: 'engagement',
+  callToAction: '',
+  narrativeStyle: 'hook-problem-solution',
+  emotionalJourney: '',
+  keyMessage: '',
+  additionalContext: '',
 };
 
 export const defaultVoiceForm: VoiceFormData = {
-  targetModel: DEFAULT_MODELS.VOICE!,
-  script: "",
-  voiceStyle: "conversational",
-  language: "id",
-  gender: "neutral",
-  emotion: "",
-  pace: "normal",
-  emphasis: "",
-  pauses: "",
+  targetModel: getDefaultModel('VOICE'),
+  script: '',
+  voiceStyle: 'conversational',
+  language: 'id',
+  gender: 'neutral',
+  emotion: '',
+  pace: 'normal',
+  emphasis: '',
+  pauses: '',
 };
 
 export const defaultVideoGenForm: VideoGenFormData = {
-  targetModel: DEFAULT_MODELS.VIDEO_GEN!,
-  concept: "",
-  style: "cinematic",
-  aspectRatio: "16:9",
-  duration: "10s",
-  movement: "static",
-  lighting: "",
-  mood: "",
-  additionalDetails: "",
+  targetModel: getDefaultModel('VIDEO_GEN'),
+  concept: '',
+  style: 'cinematic',
+  aspectRatio: '16:9',
+  duration: '10s',
+  movement: 'static',
+  lighting: '',
+  mood: '',
+  additionalDetails: '',
 };
 
 export const defaultImageForm: ImageFormData = {
-  targetModel: DEFAULT_MODELS.IMAGE!,
-  subject: "",
-  style: "photorealistic",
-  aspectRatio: "16:9",
-  mood: "",
-  colors: "",
-  textOverlay: "",
-  additionalDetails: "",
-  purpose: "thumbnail", // Default purpose
+  targetModel: getDefaultModel('IMAGE'),
+  subject: '',
+  style: 'photorealistic',
+  aspectRatio: '16:9',
+  mood: '',
+  colors: '',
+  textOverlay: '',
+  additionalDetails: '',
+  purpose: 'thumbnail', // Default purpose
 };
 
 export const defaultRelaxingForm: RelaxingFormData = {
-  targetModel: DEFAULT_MODELS.RELAXING!,
-  environment: "rain",
-  primarySound: "",
-  secondarySounds: "",
-  ambientDetails: "",
-  duration: "1hour",
-  mood: "peaceful",
-  visualStyle: "",
+  targetModel: getDefaultModel('RELAXING'),
+  environment: 'rain',
+  primarySound: '',
+  secondarySounds: '',
+  ambientDetails: '',
+  duration: '1hour',
+  mood: 'peaceful',
+  visualStyle: '',
 };
 
 export const defaultCreativeScanForm: CreativeScanFormData = {
-  targetModel: DEFAULT_MODELS.CREATIVE_SCAN!,
-  sourceUrl: "",
-  analysisType: "full",
-  niche: "",
-  focusAreas: "",
+  targetModel: getDefaultModel('CREATIVE_SCAN'),
+  sourceUrl: '',
+  analysisType: 'full',
+  niche: '',
+  focusAreas: '',
 };
 
 export const defaultTimelapseForm: TimelapseFormData = {
-  targetModel: DEFAULT_MODELS.TIMELAPSE!,
-  category: "",
-  subject: "",
-  transformation: "",
-  mode: "single",
+  targetModel: getDefaultModel('TIMELAPSE'),
+  category: '',
+  subject: '',
+  transformation: '',
+  mode: 'single',
   totalDurationSeconds: 15,
   scenes: [],
-  style: "cinematic",
+  style: 'cinematic',
   speedMultiplier: 100,
-  camera: "static",
-  aspectRatio: "16:9",
-  lighting: "natural-progression",
-  additionalDetails: "",
+  camera: 'static',
+  aspectRatio: '16:9',
+  lighting: 'natural-progression',
+  additionalDetails: '',
 };

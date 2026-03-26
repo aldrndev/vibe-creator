@@ -1,8 +1,8 @@
-import { FastifyPluginAsync, FastifyRequest, FastifyReply } from "fastify";
-import { z } from "zod";
-import { prisma } from "@/lib/prisma";
-import { logger } from "@/lib/logger";
-import { audit, AuditAction } from "@/lib/audit";
+import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
+import { z } from 'zod';
+import { AuditAction, audit } from '@/lib/audit';
+import { logger } from '@/lib/logger';
+import { prisma } from '@/lib/prisma';
 
 const MAX_VERSIONS_PER_PROJECT = 10;
 
@@ -24,16 +24,13 @@ export const projectVersionRoutes: FastifyPluginAsync = async (fastify) => {
    * List versions for a project
    */
   fastify.get<{ Params: { projectId: string } }>(
-    "/:projectId/versions",
-    async (
-      request: FastifyRequest<{ Params: { projectId: string } }>,
-      reply: FastifyReply
-    ) => {
+    '/:projectId/versions',
+    async (request: FastifyRequest<{ Params: { projectId: string } }>, reply: FastifyReply) => {
       const user = request.user;
       if (!user) {
         return reply.status(401).send({
           success: false,
-          error: { code: "UNAUTHORIZED", message: "Authentication required" },
+          error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
         });
       }
 
@@ -45,13 +42,13 @@ export const projectVersionRoutes: FastifyPluginAsync = async (fastify) => {
       if (!project) {
         return reply.status(404).send({
           success: false,
-          error: { code: "NOT_FOUND", message: "Project not found" },
+          error: { code: 'NOT_FOUND', message: 'Project not found' },
         });
       }
 
       const versions = await prisma.projectVersion.findMany({
         where: { projectId: request.params.projectId },
-        orderBy: { createdAt: "desc" },
+        orderBy: { createdAt: 'desc' },
         select: {
           id: true,
           name: true,
@@ -64,7 +61,7 @@ export const projectVersionRoutes: FastifyPluginAsync = async (fastify) => {
         success: true,
         data: versions,
       });
-    }
+    },
   );
 
   /**
@@ -74,19 +71,19 @@ export const projectVersionRoutes: FastifyPluginAsync = async (fastify) => {
     Params: { projectId: string };
     Body: z.infer<typeof createVersionSchema>;
   }>(
-    "/:projectId/versions",
+    '/:projectId/versions',
     async (
       request: FastifyRequest<{
         Params: { projectId: string };
         Body: z.infer<typeof createVersionSchema>;
       }>,
-      reply: FastifyReply
+      reply: FastifyReply,
     ) => {
       const user = request.user;
       if (!user) {
         return reply.status(401).send({
           success: false,
-          error: { code: "UNAUTHORIZED", message: "Authentication required" },
+          error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
         });
       }
 
@@ -101,7 +98,7 @@ export const projectVersionRoutes: FastifyPluginAsync = async (fastify) => {
         if (!project) {
           return reply.status(404).send({
             success: false,
-            error: { code: "NOT_FOUND", message: "Project not found" },
+            error: { code: 'NOT_FOUND', message: 'Project not found' },
           });
         }
 
@@ -114,7 +111,7 @@ export const projectVersionRoutes: FastifyPluginAsync = async (fastify) => {
           // Delete oldest version
           const oldestVersion = await prisma.projectVersion.findFirst({
             where: { projectId: request.params.projectId },
-            orderBy: { createdAt: "asc" },
+            orderBy: { createdAt: 'asc' },
           });
 
           if (oldestVersion) {
@@ -127,7 +124,7 @@ export const projectVersionRoutes: FastifyPluginAsync = async (fastify) => {
                 projectId: request.params.projectId,
                 deletedVersionId: oldestVersion.id,
               },
-              "Deleted oldest version to make room for new one"
+              'Deleted oldest version to make room for new one',
             );
           }
         }
@@ -150,7 +147,7 @@ export const projectVersionRoutes: FastifyPluginAsync = async (fastify) => {
             versionId: version.id,
             versionName: version.name,
           },
-          "Created project version"
+          'Created project version',
         );
 
         return reply.status(201).send({
@@ -167,32 +164,32 @@ export const projectVersionRoutes: FastifyPluginAsync = async (fastify) => {
           return reply.status(400).send({
             success: false,
             error: {
-              code: "VALIDATION_ERROR",
+              code: 'VALIDATION_ERROR',
               message: err.issues[0]?.message,
             },
           });
         }
         throw err;
       }
-    }
+    },
   );
 
   /**
    * Get a specific version (with full data)
    */
   fastify.get<{ Params: { projectId: string; versionId: string } }>(
-    "/:projectId/versions/:versionId",
+    '/:projectId/versions/:versionId',
     async (
       request: FastifyRequest<{
         Params: { projectId: string; versionId: string };
       }>,
-      reply: FastifyReply
+      reply: FastifyReply,
     ) => {
       const user = request.user;
       if (!user) {
         return reply.status(401).send({
           success: false,
-          error: { code: "UNAUTHORIZED", message: "Authentication required" },
+          error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
         });
       }
 
@@ -204,7 +201,7 @@ export const projectVersionRoutes: FastifyPluginAsync = async (fastify) => {
       if (!project) {
         return reply.status(404).send({
           success: false,
-          error: { code: "NOT_FOUND", message: "Project not found" },
+          error: { code: 'NOT_FOUND', message: 'Project not found' },
         });
       }
 
@@ -218,7 +215,7 @@ export const projectVersionRoutes: FastifyPluginAsync = async (fastify) => {
       if (!version) {
         return reply.status(404).send({
           success: false,
-          error: { code: "NOT_FOUND", message: "Version not found" },
+          error: { code: 'NOT_FOUND', message: 'Version not found' },
         });
       }
 
@@ -226,25 +223,25 @@ export const projectVersionRoutes: FastifyPluginAsync = async (fastify) => {
         success: true,
         data: version,
       });
-    }
+    },
   );
 
   /**
    * Update version metadata
    */
   fastify.patch<{ Params: { projectId: string; versionId: string } }>(
-    "/:projectId/versions/:versionId",
+    '/:projectId/versions/:versionId',
     async (
       request: FastifyRequest<{
         Params: { projectId: string; versionId: string };
       }>,
-      reply: FastifyReply
+      reply: FastifyReply,
     ) => {
       const user = request.user;
       if (!user) {
         return reply.status(401).send({
           success: false,
-          error: { code: "UNAUTHORIZED", message: "Authentication required" },
+          error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
         });
       }
 
@@ -259,7 +256,7 @@ export const projectVersionRoutes: FastifyPluginAsync = async (fastify) => {
         if (!project) {
           return reply.status(404).send({
             success: false,
-            error: { code: "NOT_FOUND", message: "Project not found" },
+            error: { code: 'NOT_FOUND', message: 'Project not found' },
           });
         }
 
@@ -277,7 +274,7 @@ export const projectVersionRoutes: FastifyPluginAsync = async (fastify) => {
         if (version.count === 0) {
           return reply.status(404).send({
             success: false,
-            error: { code: "NOT_FOUND", message: "Version not found" },
+            error: { code: 'NOT_FOUND', message: 'Version not found' },
           });
         }
 
@@ -290,32 +287,32 @@ export const projectVersionRoutes: FastifyPluginAsync = async (fastify) => {
           return reply.status(400).send({
             success: false,
             error: {
-              code: "VALIDATION_ERROR",
+              code: 'VALIDATION_ERROR',
               message: err.issues[0]?.message,
             },
           });
         }
         throw err;
       }
-    }
+    },
   );
 
   /**
    * Delete a version
    */
   fastify.delete<{ Params: { projectId: string; versionId: string } }>(
-    "/:projectId/versions/:versionId",
+    '/:projectId/versions/:versionId',
     async (
       request: FastifyRequest<{
         Params: { projectId: string; versionId: string };
       }>,
-      reply: FastifyReply
+      reply: FastifyReply,
     ) => {
       const user = request.user;
       if (!user) {
         return reply.status(401).send({
           success: false,
-          error: { code: "UNAUTHORIZED", message: "Authentication required" },
+          error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
         });
       }
 
@@ -327,7 +324,7 @@ export const projectVersionRoutes: FastifyPluginAsync = async (fastify) => {
       if (!project) {
         return reply.status(404).send({
           success: false,
-          error: { code: "NOT_FOUND", message: "Project not found" },
+          error: { code: 'NOT_FOUND', message: 'Project not found' },
         });
       }
 
@@ -341,7 +338,7 @@ export const projectVersionRoutes: FastifyPluginAsync = async (fastify) => {
       if (result.count === 0) {
         return reply.status(404).send({
           success: false,
-          error: { code: "NOT_FOUND", message: "Version not found" },
+          error: { code: 'NOT_FOUND', message: 'Version not found' },
         });
       }
 
@@ -351,7 +348,7 @@ export const projectVersionRoutes: FastifyPluginAsync = async (fastify) => {
           projectId: request.params.projectId,
           versionId: request.params.versionId,
         },
-        "Deleted project version"
+        'Deleted project version',
       );
 
       void audit({
@@ -359,10 +356,10 @@ export const projectVersionRoutes: FastifyPluginAsync = async (fastify) => {
         userId: user.id,
         tenantId: user.id,
         action: AuditAction.RESOURCE_DELETED,
-        resourceType: "project_version",
+        resourceType: 'project_version',
         resourceId: request.params.versionId,
         ipAddress: request.ip,
-        userAgent: request.headers["user-agent"] ?? undefined,
+        userAgent: request.headers['user-agent'] ?? undefined,
         metadata: { projectId: request.params.projectId },
       });
 
@@ -370,6 +367,6 @@ export const projectVersionRoutes: FastifyPluginAsync = async (fastify) => {
         success: true,
         data: { deleted: true },
       });
-    }
+    },
   );
 };

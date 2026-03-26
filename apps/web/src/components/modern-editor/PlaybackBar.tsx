@@ -4,24 +4,18 @@
  * Video playback controls with scrubber, play/pause, and time display.
  */
 
-import { Button, Slider } from "@/components/ui";
-import { Play, Pause, SkipBack, SkipForward } from "lucide-react";
-import { useModernEditorStore } from "@/stores/modern-editor-store";
-import { clsx } from "clsx";
+import { clsx } from 'clsx';
+import { Pause, Play, SkipBack, SkipForward } from 'lucide-react';
+import { Button, Slider } from '@/components/ui';
+import { useModernEditorStore } from '@/stores/modern-editor-store';
 
 interface PlaybackBarProps {
   className?: string;
 }
 
 export function PlaybackBar({ className }: PlaybackBarProps) {
-  const {
-    currentTimeMs,
-    isPlaying,
-    setCurrentTime,
-    pause,
-    togglePlayback,
-    getMaxEndMs,
-  } = useModernEditorStore();
+  const { currentTimeMs, isPlaying, setCurrentTime, pause, togglePlayback, getMaxEndMs } =
+    useModernEditorStore();
 
   const duration = getMaxEndMs() || 60000; // Default 60s if no layers
 
@@ -30,9 +24,9 @@ export function PlaybackBar({ className }: PlaybackBarProps) {
     const minutes = Math.floor(totalSeconds / 60);
     const seconds = totalSeconds % 60;
     const milliseconds = Math.floor((ms % 1000) / 10);
-    return `${minutes}:${seconds.toString().padStart(2, "0")}.${milliseconds
+    return `${minutes}:${seconds.toString().padStart(2, '0')}.${milliseconds
       .toString()
-      .padStart(2, "0")}`;
+      .padStart(2, '0')}`;
   };
 
   const handleSkipBack = () => {
@@ -56,8 +50,8 @@ export function PlaybackBar({ className }: PlaybackBarProps) {
   return (
     <div
       className={clsx(
-        "bg-card/70 backdrop-blur-xl border-t border-border/50 px-4 md:px-6 py-3 md:py-4 flex flex-col gap-3",
-        className
+        'bg-card/70 backdrop-blur-xl border-t border-border/50 px-4 md:px-6 py-3 md:py-4 flex flex-col gap-3',
+        className,
       )}
     >
       {/* Scrubber - Full width on top */}

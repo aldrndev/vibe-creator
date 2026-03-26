@@ -1,9 +1,9 @@
-import { useState, useCallback } from "react";
-import { logger } from "@/lib/logger";
-import { exportApi } from "@/services/export-api";
-import { compileModernProject } from "@/lib/modern-compiler";
-import type { ModernProject } from "@vibe-creator/shared";
-import { useModernEditorStore } from "@/stores/modern-editor-store";
+import type { ModernProject } from '@vibe-creator/shared';
+import { useCallback, useState } from 'react';
+import { logger } from '@/lib/logger';
+import { compileModernProject } from '@/lib/modern-compiler';
+import { exportApi } from '@/services/export-api';
+import { useModernEditorStore } from '@/stores/modern-editor-store';
 
 export function useModernExport() {
   const [isExporting, setIsExporting] = useState(false);
@@ -24,10 +24,7 @@ export function useModernExport() {
       const result = compileModernProject(project, assets);
 
       if (!result.success) {
-        throw new Error(
-          "Compilation failed: " +
-            result.errors.map((e) => e.message).join(", ")
-        );
+        throw new Error(`Compilation failed: ${result.errors.map((e) => e.message).join(', ')}`);
       }
 
       const { timeline } = result;
@@ -39,7 +36,7 @@ export function useModernExport() {
 
       // Flatten tracks to find all clips
       for (const track of timeline.tracks) {
-        if (track.type !== "VIDEO" && track.type !== "AUDIO") continue;
+        if (track.type !== 'VIDEO' && track.type !== 'AUDIO') continue;
 
         for (const clip of track.clips) {
           const asset = clip.asset;
@@ -65,7 +62,7 @@ export function useModernExport() {
         // If we have a local file, upload it
         if (asset.file) {
           const uploadResult = await exportApi.uploadVideo(asset.file);
-          remotePath = uploadResult.filepath;
+          remotePath = uploadResult.uploadToken;
         }
 
         // Map to backend clip structure
@@ -85,8 +82,8 @@ export function useModernExport() {
       // 4. Create Export Job
       const job = await exportApi.createExportJob({
         projectId: project.id,
-        format: "MP4",
-        resolution: "HD", // TODO: Use project settings
+        format: 'MP4',
+        resolution: 'HD', // TODO: Use project settings
         addWatermark: false,
         timelineData: {
           clips: uploadedClips,
@@ -103,26 +100,23 @@ export function useModernExport() {
 
       // 5. Poll for completion
       const finalStatus = await exportApi.waitForCompletion(job.jobId, (p) =>
-        setExportProgress(0.5 + p * 0.5)
+        setExportProgress(0.5 + p * 0.5),
       );
 
       // 6. Download
       if (!finalStatus.downloadUrl) {
-        throw new Error("Download URL not available");
+        throw new Error('Download URL not available');
       }
 
-      const { authFetch } = await import("@/services/api");
+      const { authFetch } = await import('@/services/api');
       const response = await authFetch(finalStatus.downloadUrl);
-      if (!response.ok) throw new Error("Failed to download export");
+      if (!response.ok) throw new Error('Failed to download export');
 
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
+      const a = document.createElement('a');
       a.href = url;
-      a.download = `export-${project.title.replace(
-        /\s+/g,
-        "_"
-      )}-${Date.now()}.mp4`;
+      a.download = `export-${project.title.replace(/\s+/g, '_')}-${Date.now()}.mp4`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -130,8 +124,8 @@ export function useModernExport() {
 
       setExportProgress(1);
     } catch (err) {
-      logger.error("Modern Export Failed", err);
-      setExportError(err instanceof Error ? err.message : "Export failed");
+      logger.error('Modern Export Failed', err);
+      setExportError(err instanceof Error ? err.message : 'Export failed');
     } finally {
       setIsExporting(false);
     }

@@ -1,8 +1,8 @@
-import { authFetch } from "@/services/api";
+import { authFetch } from '@/services/api';
 
 interface UploadResponse {
   filename: string;
-  filepath: string;
+  uploadToken: string;
   mimetype: string;
   size: number;
 }
@@ -14,10 +14,9 @@ interface ExportJobResponse {
 
 interface ExportStatusResponse {
   id: string;
-  status: "QUEUED" | "PROCESSING" | "COMPLETED" | "FAILED";
+  status: 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
   progress: number;
   errorMessage?: string;
-  localPath?: string;
   downloadUrl?: string;
   urlExpiresAt?: string;
   completedAt?: string;
@@ -65,14 +64,12 @@ interface TimelineData {
 interface CreateExportInput {
   projectId: string;
   timelineData: TimelineData;
-  format?: "MP4" | "WEBM" | "MOV";
-  resolution?: "SD" | "HD" | "UHD";
+  format?: 'MP4' | 'WEBM' | 'MOV';
+  resolution?: 'SD' | 'HD' | 'UHD';
   addWatermark?: boolean;
 }
 
-const API_BASE = `${
-  import.meta.env.VITE_API_URL || "http://localhost:3000"
-}/api/v1`;
+const API_BASE = `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/v1`;
 
 /**
  * Export API service for server-side video export
@@ -84,16 +81,16 @@ export const exportApi = {
    */
   async uploadVideo(file: File): Promise<UploadResponse> {
     const formData = new FormData();
-    formData.append("file", file);
+    formData.append('file', file);
 
     const response = await authFetch(`${API_BASE}/upload/video`, {
-      method: "POST",
+      method: 'POST',
       body: formData,
     });
 
     const data = await response.json();
     if (!data.success) {
-      throw new Error(data.error?.message || "Upload failed");
+      throw new Error(data.error?.message || 'Upload failed');
     }
     return data.data;
   },
@@ -103,16 +100,16 @@ export const exportApi = {
    */
   async createExportJob(input: CreateExportInput): Promise<ExportJobResponse> {
     const response = await authFetch(`${API_BASE}/export/request`, {
-      method: "POST",
+      method: 'POST',
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify(input),
     });
 
     const data = await response.json();
     if (!data.success) {
-      throw new Error(data.error?.message || "Create export failed");
+      throw new Error(data.error?.message || 'Create export failed');
     }
     return data.data;
   },
@@ -122,12 +119,12 @@ export const exportApi = {
    */
   async getExportStatus(jobId: string): Promise<ExportStatusResponse> {
     const response = await authFetch(`${API_BASE}/export/${jobId}/status`, {
-      method: "GET",
+      method: 'GET',
     });
 
     const data = await response.json();
     if (!data.success) {
-      throw new Error(data.error?.message || "Status check failed");
+      throw new Error(data.error?.message || 'Status check failed');
     }
     return data.data;
   },
@@ -142,16 +139,14 @@ export const exportApi = {
   /**
    * Cancel an export job
    */
-  async cancelExportJob(
-    jobId: string
-  ): Promise<{ success: boolean; message: string }> {
+  async cancelExportJob(jobId: string): Promise<{ success: boolean; message: string }> {
     const response = await authFetch(`${API_BASE}/export/${jobId}/cancel`, {
-      method: "POST",
+      method: 'POST',
     });
 
     const data = await response.json();
     if (!data.success) {
-      throw new Error(data.error?.message || "Cancel failed");
+      throw new Error(data.error?.message || 'Cancel failed');
     }
     return data.data;
   },
@@ -163,7 +158,7 @@ export const exportApi = {
     jobId: string,
     onProgress?: (progress: number) => void,
     pollInterval = 2000,
-    timeout = 300000 // 5 minutes
+    timeout = 300000, // 5 minutes
   ): Promise<ExportStatusResponse> {
     const startTime = Date.now();
 
@@ -174,16 +169,16 @@ export const exportApi = {
         onProgress(status.progress / 100);
       }
 
-      if (status.status === "COMPLETED") {
+      if (status.status === 'COMPLETED') {
         return status;
       }
 
-      if (status.status === "FAILED") {
-        throw new Error(status.errorMessage || "Export failed");
+      if (status.status === 'FAILED') {
+        throw new Error(status.errorMessage || 'Export failed');
       }
 
       if (Date.now() - startTime > timeout) {
-        throw new Error("Export timeout");
+        throw new Error('Export timeout');
       }
 
       await new Promise((resolve) => setTimeout(resolve, pollInterval));

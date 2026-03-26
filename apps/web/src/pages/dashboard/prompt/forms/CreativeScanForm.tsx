@@ -1,19 +1,19 @@
 import {
+  Badge,
   Card,
   CardBody,
+  Divider,
   Input,
   Select,
-  SelectTrigger,
-  SelectValue,
   SelectContent,
   SelectItem,
-  Badge,
-  Divider,
-} from "@/components/ui";
-import { SelectionGrid } from "@/components/ui/SelectionGrid";
-import { CreativeScanFormData } from "../types";
-import { analysisTypes, niches, focusAreas } from "../constants";
-import { TargetModelSelector } from "../components/TargetModelSelector";
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui';
+import { SelectionGrid } from '@/components/ui/SelectionGrid';
+import { TargetModelSelector } from '../components/TargetModelSelector';
+import { analysisTypes, focusAreas, niches } from '../constants';
+import type { CreativeScanFormData } from '../types';
 
 interface CreativeScanFormProps {
   data: CreativeScanFormData;
@@ -23,7 +23,7 @@ interface CreativeScanFormProps {
 export function CreativeScanForm({ data, onChange }: CreativeScanFormProps) {
   const handleChange = (
     key: keyof CreativeScanFormData,
-    value: CreativeScanFormData[keyof CreativeScanFormData]
+    value: CreativeScanFormData[keyof CreativeScanFormData],
   ) => {
     onChange({ ...data, [key]: value });
   };
@@ -34,7 +34,7 @@ export function CreativeScanForm({ data, onChange }: CreativeScanFormProps) {
         <TargetModelSelector
           promptType="CREATIVE_SCAN"
           value={data.targetModel}
-          onChange={(v) => handleChange("targetModel", v)}
+          onChange={(v) => handleChange('targetModel', v)}
         />
 
         <div className="space-y-6">
@@ -55,14 +55,14 @@ export function CreativeScanForm({ data, onChange }: CreativeScanFormProps) {
 
           <div className="grid grid-cols-1 gap-6">
             <div className="space-y-3">
-              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+              <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
                 URL Video / Source
-              </label>
+              </div>
               <Input
                 placeholder="Masukkan URL YouTube/TikTok/Instagram"
                 value={data.sourceUrl}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                  handleChange("sourceUrl", e.target.value)
+                  handleChange('sourceUrl', e.target.value)
                 }
                 className="h-14 rounded-2xl bg-muted/10 border-border/50 font-bold px-6 text-sm focus:bg-muted/20 transition-all"
               />
@@ -70,13 +70,10 @@ export function CreativeScanForm({ data, onChange }: CreativeScanFormProps) {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div className="space-y-3">
-                <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+                <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
                   Jenis Konten (Niche)
-                </label>
-                <Select
-                  value={data.niche}
-                  onValueChange={(v) => handleChange("niche", v)}
-                >
+                </div>
+                <Select value={data.niche} onValueChange={(v) => handleChange('niche', v)}>
                   <SelectTrigger className="h-14 rounded-2xl bg-muted/10 border-border/50 font-bold px-5 text-sm">
                     <SelectValue placeholder="Pilih Niche" />
                   </SelectTrigger>
@@ -95,12 +92,12 @@ export function CreativeScanForm({ data, onChange }: CreativeScanFormProps) {
               </div>
 
               <div className="space-y-3">
-                <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+                <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
                   Tipe Analisis
-                </label>
+                </div>
                 <Select
                   value={data.analysisType}
-                  onValueChange={(v) => handleChange("analysisType", v)}
+                  onValueChange={(v) => handleChange('analysisType', v)}
                 >
                   <SelectTrigger className="h-14 rounded-2xl bg-muted/10 border-border/50 font-bold px-5 text-sm">
                     <SelectValue />
@@ -136,7 +133,7 @@ export function CreativeScanForm({ data, onChange }: CreativeScanFormProps) {
             label="Fokus Analisis"
             options={focusAreas}
             value={data.focusAreas}
-            onChange={(v) => handleChange("focusAreas", v)}
+            onChange={(v) => handleChange('focusAreas', v)}
             columns={3}
           />
         </div>

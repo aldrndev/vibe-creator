@@ -1,9 +1,9 @@
-import { PageTransition } from "@/components/ui/PageTransition";
-import { ReactionHeader } from "@/components/tools/reaction/ReactionHeader";
-import { ReactionUploadPanel } from "@/components/tools/reaction/ReactionUploadPanel";
-import { ReactionControlsPanel } from "@/components/tools/reaction/ReactionControlsPanel";
-import { ReactionResultPanel } from "@/components/tools/reaction/ReactionResultPanel";
-import { useReactionCreator } from "@/hooks/useReactionCreator";
+import { ReactionControlsPanel } from '@/components/tools/reaction/ReactionControlsPanel';
+import { ReactionHeader } from '@/components/tools/reaction/ReactionHeader';
+import { ReactionResultPanel } from '@/components/tools/reaction/ReactionResultPanel';
+import { ReactionUploadPanel } from '@/components/tools/reaction/ReactionUploadPanel';
+import { PageTransition } from '@/components/ui/PageTransition';
+import { useReactionCreator } from '@/hooks/useReactionCreator';
 
 export function ReactionCreatorPage() {
   const { state, actions } = useReactionCreator();
@@ -87,10 +87,7 @@ export function ReactionCreatorPage() {
 
         {/* Results Panel - Full width below */}
         <div className="w-full">
-          <ReactionResultPanel
-            layoutMode={layoutMode}
-            resultUrl={results[layoutMode] || ""}
-          />
+          <ReactionResultPanel layoutMode={layoutMode} resultUrl={results[layoutMode] || ''} />
         </div>
       </div>
     </PageTransition>

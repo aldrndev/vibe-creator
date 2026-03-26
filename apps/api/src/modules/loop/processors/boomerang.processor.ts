@@ -1,11 +1,11 @@
-import { join } from "path";
-import { unlink } from "fs/promises";
-import { existsSync } from "fs";
-import { randomUUID } from "crypto";
-import { spawn } from "child_process";
-import { getFFmpegPath } from "@/modules/export/ffmpeg/ffmpeg-binary";
-import { logger } from "@/lib/logger";
-import { LOOPS_DIR, ensureLoopsDir, getVideoDuration } from "../loop.utils";
+import { spawn } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
+import { existsSync } from 'node:fs';
+import { unlink } from 'node:fs/promises';
+import { join } from 'node:path';
+import { logger } from '@/lib/logger';
+import { getFFmpegPath } from '@/modules/export/ffmpeg/ffmpeg-binary';
+import { ensureLoopsDir, getVideoDuration, LOOPS_DIR } from '../loop.utils';
 
 export interface CreateBoomerangInput {
   inputPath: string;
@@ -14,16 +14,14 @@ export interface CreateBoomerangInput {
   loopCount?: number;
 }
 
-export async function processBoomerang(
-  input: CreateBoomerangInput
-): Promise<string> {
+export async function processBoomerang(input: CreateBoomerangInput): Promise<string> {
   await ensureLoopsDir();
   const { inputPath, startMs = 0, endMs, loopCount = 1 } = input;
 
   // Gate 1: Check Source Duration
   const durationSec = await getVideoDuration(inputPath);
   if (durationSec > 300) {
-    throw new Error("Video duration exceeds limit (Max 5 Minutes)");
+    throw new Error('Video duration exceeds limit (Max 5 Minutes)');
   }
 
   // Gate 2: Check Result Duration (Max 60s)
@@ -33,9 +31,7 @@ export async function processBoomerang(
   const totalDuration = segDuration * 2 * loopCount;
   if (totalDuration > 60) {
     throw new Error(
-      `Boomerang duration (${totalDuration.toFixed(
-        1
-      )}s) exceeds limit (Max 60 Seconds)`
+      `Boomerang duration (${totalDuration.toFixed(1)}s) exceeds limit (Max 60 Seconds)`,
     );
   }
 
@@ -43,7 +39,7 @@ export async function processBoomerang(
   const outputPath = join(LOOPS_DIR, `${outputId}.mp4`);
 
   const startSec = startMs / 1000;
-  let trimFilter = "";
+  let trimFilter = '';
 
   if (endMs) {
     const duration = (endMs - startMs) / 1000;
@@ -66,43 +62,39 @@ export async function processBoomerang(
     try {
       await new Promise<void>((resolve, reject) => {
         const args = [
-          "-i",
+          '-i',
           inputPath,
-          "-filter_complex",
+          '-filter_complex',
           pass1Filter,
-          "-map",
-          "[v]",
-          "-an",
-          "-c:v",
-          "libx264",
-          "-y",
+          '-map',
+          '[v]',
+          '-an',
+          '-c:v',
+          'libx264',
+          '-y',
           basePath,
         ];
         const p = spawn(getFFmpegPath(), args);
-        p.on("close", (code) =>
-          code === 0
-            ? resolve()
-            : reject(new Error(`Boomerang Pass 1 failed: ${code}`))
+        p.on('close', (code) =>
+          code === 0 ? resolve() : reject(new Error(`Boomerang Pass 1 failed: ${code}`)),
         );
       });
 
       // --- PASS 2: Stream Copy Loop ---
       await new Promise<void>((resolve, reject) => {
         const args = [
-          "-stream_loop",
+          '-stream_loop',
           repeats.toString(),
-          "-i",
+          '-i',
           basePath,
-          "-c",
-          "copy",
-          "-y",
+          '-c',
+          'copy',
+          '-y',
           outputPath,
         ];
         const p = spawn(getFFmpegPath(), args);
-        p.on("close", (code) =>
-          code === 0
-            ? resolve()
-            : reject(new Error(`Boomerang Pass 2 failed: ${code}`))
+        p.on('close', (code) =>
+          code === 0 ? resolve() : reject(new Error(`Boomerang Pass 2 failed: ${code}`)),
         );
       });
 
@@ -118,24 +110,24 @@ export async function processBoomerang(
 
     return new Promise((resolve, reject) => {
       const args = [
-        "-i",
+        '-i',
         inputPath,
-        "-filter_complex",
+        '-filter_complex',
         filterComplex,
-        "-map",
-        "[v]",
-        "-an",
-        "-c:v",
-        "libx264",
-        "-y",
+        '-map',
+        '[v]',
+        '-an',
+        '-c:v',
+        'libx264',
+        '-y',
         outputPath,
       ];
       const process = spawn(getFFmpegPath(), args);
-      let errorOutput = "";
-      process.stderr.on("data", (d) => (errorOutput += d.toString()));
-      process.on("close", (code) => {
+      let errorOutput = '';
+      process.stderr.on('data', (d) => (errorOutput += d.toString()));
+      process.on('close', (code) => {
         if (code === 0) {
-          logger.info({ outputPath }, "Boomerang created");
+          logger.info({ outputPath }, 'Boomerang created');
           resolve(outputPath);
         } else {
           reject(new Error(`FFmpeg failed: ${code}`));

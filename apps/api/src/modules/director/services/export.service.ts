@@ -3,10 +3,10 @@
  * Handles export jobs
  */
 
-import { logger } from "@/lib/logger";
-import { directorRepo } from "../director.repo";
-import { directorQueue } from "../director.queue";
-import { DirectorJobStatus, DirectorStep } from "@prisma/client";
+import { DirectorJobStatus, DirectorStep } from '@prisma/client';
+import { logger } from '@/lib/logger';
+import { directorQueue } from '../director.queue';
+import { directorRepo } from '../director.repo';
 
 export const directorExportService = {
   /**
@@ -19,16 +19,16 @@ export const directorExportService = {
       aspectRatio?: string;
       quality?: string;
       includeSubtitles?: boolean;
-    }
+    },
   ) {
     const session = await directorRepo.findSession(sessionId, userId);
 
     if (!session) {
-      throw new Error("Session not found");
+      throw new Error('Session not found');
     }
 
     if (session.selectedClips.length === 0) {
-      throw new Error("No clips selected");
+      throw new Error('No clips selected');
     }
 
     // Return existing job if exists and pending/processing
@@ -46,8 +46,8 @@ export const directorExportService = {
       sessionId,
       idempotencyKey,
       status: DirectorJobStatus.PENDING,
-      aspectRatio: options.aspectRatio ?? "9:16",
-      quality: options.quality ?? "1080p",
+      aspectRatio: options.aspectRatio ?? '9:16',
+      quality: options.quality ?? '1080p',
       includeSubtitles: options.includeSubtitles ?? true,
     });
 
@@ -56,24 +56,24 @@ export const directorExportService = {
 
     // Queue BullMQ job for export
     await directorQueue.add(
-      "export",
+      'export',
       {
-        type: "EXPORT",
+        type: 'EXPORT',
         sessionId,
         userId,
         options: {
           includeSubtitles: job.includeSubtitles,
-          aspectRatio: job.aspectRatio as "9:16" | "16:9" | "1:1",
-          quality: job.quality as "720p" | "1080p",
+          aspectRatio: job.aspectRatio as '9:16' | '16:9' | '1:1',
+          quality: job.quality as '720p' | '1080p',
         },
       },
       {
         jobId: `director:export:${job.id}`,
         removeOnComplete: true,
-      }
+      },
     );
 
-    logger.info({ sessionId, jobId: job.id }, "Director export job queued");
+    logger.info({ sessionId, jobId: job.id }, 'Director export job queued');
 
     return job;
   },
@@ -85,7 +85,7 @@ export const directorExportService = {
     const session = await directorRepo.findSession(sessionId, userId);
 
     if (!session || !session.exportJob) {
-      throw new Error("Export not found");
+      throw new Error('Export not found');
     }
 
     return session.exportJob;

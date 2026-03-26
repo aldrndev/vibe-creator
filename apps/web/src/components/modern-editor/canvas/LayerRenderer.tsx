@@ -1,14 +1,9 @@
-import { clsx } from "clsx";
-import { motion } from "framer-motion";
-import type {
-  Layer,
-  TextLayer,
-  ImageLayer,
-  VideoLayer,
-} from "@vibe-creator/shared";
-import { useLayerInteraction } from "@/hooks/useLayerInteraction";
-import { VideoLayerContent } from "./VideoLayerContent";
-import { LayerHandles } from "./LayerHandles";
+import type { ImageLayer, Layer, TextLayer, VideoLayer } from '@vibe-creator/shared';
+import { clsx } from 'clsx';
+import { motion } from 'framer-motion';
+import { useLayerInteraction } from '@/hooks/useLayerInteraction';
+import { LayerHandles } from './LayerHandles';
+import { VideoLayerContent } from './VideoLayerContent';
 
 interface LayerRendererProps {
   layer: Layer;
@@ -68,26 +63,25 @@ export function LayerRenderer({
     const top = y - height / 2;
 
     return {
-      position: "absolute",
+      position: 'absolute',
       left,
       top,
       width,
       height,
       transform: `rotate(${layer.rotation}deg)`,
       opacity: layer.opacity,
-      cursor: layer.locked ? "not-allowed" : "move",
-      outline: isSelected && !isEditing ? "2px solid #0072F5" : "none",
-      outlineOffset: "2px",
+      cursor: layer.locked ? 'not-allowed' : 'move',
+      outline: isSelected && !isEditing ? '2px solid #0072F5' : 'none',
+      outlineOffset: '2px',
       zIndex: isEditing ? 100 : undefined,
     };
   };
 
   const renderContent = () => {
-    if (isEditing && layer.type === "text") {
+    if (isEditing && layer.type === 'text') {
       const textLayer = layer as TextLayer;
       return (
         <textarea
-          autoFocus
           className="w-full h-full bg-transparent resize-none border-none outline-none overflow-hidden p-0 m-0"
           style={{
             fontFamily: textLayer.data.fontFamily,
@@ -106,7 +100,7 @@ export function LayerRenderer({
           }
           onBlur={() => setIsEditing(false)}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
+            if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault();
               setIsEditing(false);
             }
@@ -116,12 +110,12 @@ export function LayerRenderer({
     }
 
     switch (layer.type) {
-      case "video":
-      case "image": {
+      case 'video':
+      case 'image': {
         const asset = assets.find((a) => a.id === layer.assetId);
         if (!asset) return null;
 
-        if (layer.type === "video") {
+        if (layer.type === 'video') {
           return (
             <VideoLayerContent
               src={asset.url}
@@ -135,15 +129,13 @@ export function LayerRenderer({
             src={asset.url}
             alt=""
             className={clsx(
-              "w-full h-full pointer-events-none",
-              (layer as ImageLayer).data.fit === "cover"
-                ? "object-cover"
-                : "object-contain"
+              'w-full h-full pointer-events-none',
+              (layer as ImageLayer).data.fit === 'cover' ? 'object-cover' : 'object-contain',
             )}
           />
         );
       }
-      case "text": {
+      case 'text': {
         const textLayer = layer as TextLayer;
         const animation = textLayer.data.animation;
 
@@ -152,23 +144,23 @@ export function LayerRenderer({
           animate: { opacity: 1, y: 0 },
         };
 
-        if (animation === "fade") {
+        if (animation === 'fade') {
           variants.initial = { opacity: 0, y: 0 };
-        } else if (animation === "slide-up") {
+        } else if (animation === 'slide-up') {
           variants.initial = { opacity: 0, y: 20 };
-        } else if (animation === "slide-down") {
+        } else if (animation === 'slide-down') {
           variants.initial = { opacity: 0, y: -20 };
-        } else if (animation === "typewriter") {
+        } else if (animation === 'typewriter') {
           variants.initial = { opacity: 0, y: 0 };
         }
 
-        if (animation === "none") {
+        if (animation === 'none') {
           variants.initial = { opacity: 1, y: 0 };
         }
 
         return (
           <motion.div
-            initial={animation !== "none" ? variants.initial : undefined}
+            initial={animation !== 'none' ? variants.initial : undefined}
             animate={variants.animate}
             transition={{ duration: 0.5 }}
             className="w-full h-full flex items-center justify-center overflow-hidden whitespace-pre-wrap break-words"
@@ -187,7 +179,7 @@ export function LayerRenderer({
           </motion.div>
         );
       }
-      case "audio":
+      case 'audio':
         return null; // Should be handled by AudioLayerContent list outside
       default:
         return null;
@@ -195,17 +187,26 @@ export function LayerRenderer({
   };
 
   // Skip audio layers in renderer
-  if (layer.type === "audio") return null;
+  if (layer.type === 'audio') return null;
 
   return (
     <div
       ref={layerRef}
+      role="option"
+      tabIndex={0}
+      aria-selected={isSelected}
       style={getStyle()}
       onMouseDown={handleMouseDown}
       onTouchStart={handleTouchStart}
       onClick={handleClick}
       onDoubleClick={handleDoubleClick}
-      className={clsx("select-none group", isResizing && "pointer-events-none")}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onSelect();
+        }
+      }}
+      className={clsx('select-none group', isResizing && 'pointer-events-none')}
     >
       {renderContent()}
 

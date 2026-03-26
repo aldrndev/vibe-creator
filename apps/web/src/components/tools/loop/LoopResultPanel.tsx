@@ -1,13 +1,15 @@
-import { Card, CardBody, CardHeader, Badge, Button } from "@/components/ui";
-import { AlertCircle, CheckCircle2, Download } from "lucide-react";
-import { LoopMode } from "@/hooks/useLoopCreator";
+import { AlertCircle, CheckCircle2, Download } from 'lucide-react';
+import { Badge, Button, Card, CardBody, CardHeader } from '@/components/ui';
+import type { LoopMode } from '@/hooks/useLoopCreator';
 
 interface LoopResultPanelProps {
   loopMode: LoopMode;
   resultUrl: string;
 }
 
-export function LoopResultPanel({ loopMode, resultUrl }: LoopResultPanelProps) {
+const RESULT_RETENTION_MINUTES = 60;
+
+export function LoopResultPanel({ loopMode, resultUrl }: Readonly<LoopResultPanelProps>) {
   if (!resultUrl) return null;
 
   return (
@@ -39,20 +41,16 @@ export function LoopResultPanel({ loopMode, resultUrl }: LoopResultPanelProps) {
                 Simpan Segera
               </h3>
               <p className="text-xs text-muted-foreground font-medium leading-relaxed">
-                Hasil video ini hanya tersimpan di server selama <b>60 menit</b>
-                . Harap segera unduh video Anda sebelum dihapus otomatis oleh
-                sistem.
+                Hasil video ini hanya tersimpan di server selama{' '}
+                <strong>{RESULT_RETENTION_MINUTES} menit</strong>. Harap segera unduh video Anda
+                sebelum dihapus otomatis oleh sistem.
               </p>
             </div>
           </div>
 
-          <div className="relative group rounded-[2rem] overflow-hidden border border-border/50 bg-black/40 shadow-inner">
-            {loopMode === "gif" ? (
-              <img
-                src={resultUrl}
-                alt="Result GIF"
-                className="w-full max-w-2xl mx-auto"
-              />
+          <div className="relative group rounded-4xl overflow-hidden border border-border/50 bg-black/40 shadow-inner">
+            {loopMode === 'gif' ? (
+              <img src={resultUrl} alt="Result GIF" className="w-full max-w-2xl mx-auto" />
             ) : (
               <video
                 src={resultUrl}
@@ -61,7 +59,9 @@ export function LoopResultPanel({ loopMode, resultUrl }: LoopResultPanelProps) {
                 autoPlay
                 muted
                 className="w-full max-w-2xl mx-auto"
-              />
+              >
+                <track kind="captions" label="Loop result preview" />
+              </video>
             )}
 
             <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">

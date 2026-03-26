@@ -1,79 +1,79 @@
-import { useState } from "react";
+import type { TextOverlay } from '@vibe-creator/shared';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-  Button,
-  Input,
-  Textarea,
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-  Badge,
-} from "@/components/ui";
-import {
-  Type,
-  Palette,
-  AlignLeft,
   AlignCenter,
+  AlignLeft,
   AlignRight,
+  Check,
+  Layout,
+  Palette,
   Sparkles,
   Timer,
-  Layout,
-  Check,
-} from "lucide-react";
-import type { TextOverlay } from "@vibe-creator/shared";
-import { useEditorStore } from "@/stores/editor-store";
-import { cn } from "@/lib/utils";
+  Type,
+} from 'lucide-react';
+import { useState } from 'react';
+import {
+  Badge,
+  Button,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Input,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Textarea,
+} from '@/components/ui';
+import { cn } from '@/lib/utils';
+import { useEditorStore } from '@/stores/editor-store';
 
 // Font family options
 const FONT_FAMILIES = [
-  { id: "Inter", name: "Inter" },
-  { id: "Roboto", name: "Roboto" },
-  { id: "Poppins", name: "Poppins" },
-  { id: "Montserrat", name: "Montserrat" },
-  { id: "Open Sans", name: "Open Sans" },
-  { id: "Oswald", name: "Oswald" },
-  { id: "Playfair Display", name: "Playfair Display" },
-  { id: "Bebas Neue", name: "Bebas Neue" },
+  { id: 'Inter', name: 'Inter' },
+  { id: 'Roboto', name: 'Roboto' },
+  { id: 'Poppins', name: 'Poppins' },
+  { id: 'Montserrat', name: 'Montserrat' },
+  { id: 'Open Sans', name: 'Open Sans' },
+  { id: 'Oswald', name: 'Oswald' },
+  { id: 'Playfair Display', name: 'Playfair Display' },
+  { id: 'Bebas Neue', name: 'Bebas Neue' },
 ];
 
 // Animation presets
 const ANIMATIONS = [
-  { id: "none", name: "No Animation" },
-  { id: "fade", name: "Fade Reveal" },
-  { id: "slide-up", name: "Slide Up" },
-  { id: "slide-down", name: "Slide Down" },
-  { id: "typewriter", name: "Typewriter" },
+  { id: 'none', name: 'No Animation' },
+  { id: 'fade', name: 'Fade Reveal' },
+  { id: 'slide-up', name: 'Slide Up' },
+  { id: 'slide-down', name: 'Slide Down' },
+  { id: 'typewriter', name: 'Typewriter' },
 ];
 
 // Position presets
 const POSITION_PRESETS = [
-  { id: "top-left", x: 10, y: 10, label: "TL" },
-  { id: "top-center", x: 50, y: 10, label: "TC" },
-  { id: "top-right", x: 90, y: 10, label: "TR" },
-  { id: "center", x: 50, y: 50, label: "CTR" },
-  { id: "bottom-left", x: 10, y: 90, label: "BL" },
-  { id: "bottom-center", x: 50, y: 90, label: "BC" },
-  { id: "bottom-right", x: 90, y: 90, label: "BR" },
+  { id: 'top-left', x: 10, y: 10, label: 'TL' },
+  { id: 'top-center', x: 50, y: 10, label: 'TC' },
+  { id: 'top-right', x: 90, y: 10, label: 'TR' },
+  { id: 'center', x: 50, y: 50, label: 'CTR' },
+  { id: 'bottom-left', x: 10, y: 90, label: 'BL' },
+  { id: 'bottom-center', x: 50, y: 90, label: 'BC' },
+  { id: 'bottom-right', x: 90, y: 90, label: 'BR' },
 ];
 
 // Color presets
 const COLOR_PRESETS = [
-  "#FFFFFF",
-  "#000000",
-  "#FF3B30",
-  "#4CD964",
-  "#007AFF",
-  "#FFCC00",
-  "#FF9500",
-  "#5856D6",
-  "#FF2D55",
-  "#AF52DE",
+  '#FFFFFF',
+  '#000000',
+  '#FF3B30',
+  '#4CD964',
+  '#007AFF',
+  '#FFCC00',
+  '#FF9500',
+  '#5856D6',
+  '#FF2D55',
+  '#AF52DE',
 ];
 
 interface TextOverlayEditorProps {
@@ -82,42 +82,34 @@ interface TextOverlayEditorProps {
   editingOverlay?: TextOverlay | null;
 }
 
-export function TextOverlayEditor({
-  isOpen,
-  onClose,
-  editingOverlay,
-}: TextOverlayEditorProps) {
+export function TextOverlayEditor({ isOpen, onClose, editingOverlay }: TextOverlayEditorProps) {
   const { timeline, addTextOverlay, updateTextOverlay } = useEditorStore();
 
-  const overlayKey = editingOverlay?.id ?? (isOpen ? "new" : "closed");
-  const [text, setText] = useState(() => editingOverlay?.text ?? "");
-  const [fontFamily, setFontFamily] = useState(
-    () => editingOverlay?.fontFamily ?? "Inter"
+  const overlayKey = editingOverlay?.id ?? (isOpen ? 'new' : 'closed');
+  const [text, setText] = useState(() => editingOverlay?.text ?? '');
+  const [fontFamily, setFontFamily] = useState(() => editingOverlay?.fontFamily ?? 'Inter');
+  const [fontSize, setFontSize] = useState(() => editingOverlay?.fontSize ?? 48);
+  const [fontWeight, setFontWeight] = useState<'normal' | 'bold'>(
+    () => editingOverlay?.fontWeight ?? 'bold',
   );
-  const [fontSize, setFontSize] = useState(
-    () => editingOverlay?.fontSize ?? 48
+  const [fontStyle, setFontStyle] = useState<'normal' | 'italic'>(
+    () => editingOverlay?.fontStyle ?? 'normal',
   );
-  const [fontWeight, setFontWeight] = useState<"normal" | "bold">(
-    () => editingOverlay?.fontWeight ?? "bold"
-  );
-  const [fontStyle, setFontStyle] = useState<"normal" | "italic">(
-    () => editingOverlay?.fontStyle ?? "normal"
-  );
-  const [color, setColor] = useState(() => editingOverlay?.color ?? "#FFFFFF");
+  const [color, setColor] = useState(() => editingOverlay?.color ?? '#FFFFFF');
   const [backgroundColor, setBackgroundColor] = useState(
-    () => editingOverlay?.backgroundColor ?? ""
+    () => editingOverlay?.backgroundColor ?? '',
   );
   const [x, setX] = useState(() => editingOverlay?.x ?? 50);
   const [y, setY] = useState(() => editingOverlay?.y ?? 50);
-  const [textAlign, setTextAlign] = useState<"left" | "center" | "right">(
-    () => editingOverlay?.textAlign ?? "center"
+  const [textAlign, setTextAlign] = useState<'left' | 'center' | 'right'>(
+    () => editingOverlay?.textAlign ?? 'center',
   );
   const [animation, setAnimation] = useState<
-    "none" | "fade" | "slide-up" | "slide-down" | "typewriter"
-  >(() => editingOverlay?.animation ?? "fade");
+    'none' | 'fade' | 'slide-up' | 'slide-down' | 'typewriter'
+  >(() => editingOverlay?.animation ?? 'fade');
   const [startMs, setStartMs] = useState(() => editingOverlay?.startMs ?? 0);
   const [endMs, setEndMs] = useState(
-    () => editingOverlay?.endMs ?? Math.min(5000, timeline.durationMs || 5000)
+    () => editingOverlay?.endMs ?? Math.min(5000, timeline.durationMs || 5000),
   );
 
   const [lastOverlayKey, setLastOverlayKey] = useState(overlayKey);
@@ -131,7 +123,7 @@ export function TextOverlayEditor({
       setFontWeight(editingOverlay.fontWeight);
       setFontStyle(editingOverlay.fontStyle);
       setColor(editingOverlay.color);
-      setBackgroundColor(editingOverlay.backgroundColor || "");
+      setBackgroundColor(editingOverlay.backgroundColor || '');
       setX(editingOverlay.x);
       setY(editingOverlay.y);
       setTextAlign(editingOverlay.textAlign);
@@ -139,17 +131,17 @@ export function TextOverlayEditor({
       setStartMs(editingOverlay.startMs);
       setEndMs(editingOverlay.endMs);
     } else {
-      setText("");
-      setFontFamily("Inter");
+      setText('');
+      setFontFamily('Inter');
       setFontSize(48);
-      setFontWeight("bold");
-      setFontStyle("normal");
-      setColor("#FFFFFF");
-      setBackgroundColor("");
+      setFontWeight('bold');
+      setFontStyle('normal');
+      setColor('#FFFFFF');
+      setBackgroundColor('');
       setX(50);
       setY(50);
-      setTextAlign("center");
-      setAnimation("fade");
+      setTextAlign('center');
+      setAnimation('fade');
       setStartMs(0);
       setEndMs(Math.min(5000, timeline.durationMs || 5000));
     }
@@ -194,7 +186,7 @@ export function TextOverlayEditor({
                 <Type size={24} />
               </div>
               <DialogTitle className="text-xl font-black uppercase tracking-tight">
-                {editingOverlay ? "Edit Overlay" : "New Overlay"}
+                {editingOverlay ? 'Edit Overlay' : 'New Overlay'}
               </DialogTitle>
             </div>
             <Badge
@@ -209,10 +201,10 @@ export function TextOverlayEditor({
         <div className="p-8 space-y-8">
           {/* Content Field */}
           <section className="space-y-4">
-            <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 flex items-center gap-2">
+            <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 flex items-center gap-2">
               <Type size={12} className="text-primary" />
               Overlay Text Content
-            </label>
+            </div>
             <Textarea
               placeholder="Start typing your message..."
               value={text}
@@ -238,11 +230,7 @@ export function TextOverlayEditor({
                   </SelectTrigger>
                   <SelectContent className="bg-background/90 backdrop-blur-xl">
                     {FONT_FAMILIES.map((font) => (
-                      <SelectItem
-                        key={font.id}
-                        value={font.id}
-                        style={{ fontFamily: font.id }}
-                      >
+                      <SelectItem key={font.id} value={font.id} style={{ fontFamily: font.id }}>
                         {font.name}
                       </SelectItem>
                     ))}
@@ -250,17 +238,17 @@ export function TextOverlayEditor({
                 </Select>
 
                 <div className="flex gap-2">
-                  {["left", "center", "right"].map((align) => (
+                  {(['left', 'center', 'right'] as const).map((align) => (
                     <Button
                       key={align}
                       size="icon"
-                      variant={textAlign === align ? "default" : "outline"}
+                      variant={textAlign === align ? 'default' : 'outline'}
                       className="flex-1 h-12 rounded-xl"
-                      onClick={() => setTextAlign(align as any)}
+                      onClick={() => setTextAlign(align)}
                     >
-                      {align === "left" ? (
+                      {align === 'left' ? (
                         <AlignLeft size={16} />
-                      ) : align === "center" ? (
+                      ) : align === 'center' ? (
                         <AlignCenter size={16} />
                       ) : (
                         <AlignRight size={16} />
@@ -271,20 +259,16 @@ export function TextOverlayEditor({
 
                 <div className="grid grid-cols-2 gap-2">
                   <Button
-                    variant={fontWeight === "bold" ? "default" : "outline"}
+                    variant={fontWeight === 'bold' ? 'default' : 'outline'}
                     className="h-12 rounded-xl font-bold"
-                    onClick={() =>
-                      setFontWeight(fontWeight === "bold" ? "normal" : "bold")
-                    }
+                    onClick={() => setFontWeight(fontWeight === 'bold' ? 'normal' : 'bold')}
                   >
                     Bold
                   </Button>
                   <Button
-                    variant={fontStyle === "italic" ? "default" : "outline"}
+                    variant={fontStyle === 'italic' ? 'default' : 'outline'}
                     className="h-12 rounded-xl italic"
-                    onClick={() =>
-                      setFontStyle(fontStyle === "italic" ? "normal" : "italic")
-                    }
+                    onClick={() => setFontStyle(fontStyle === 'italic' ? 'normal' : 'italic')}
                   >
                     Italic
                   </Button>
@@ -309,12 +293,13 @@ export function TextOverlayEditor({
                   <div className="grid grid-cols-5 gap-2">
                     {COLOR_PRESETS.map((c) => (
                       <button
+                        type="button"
                         key={c}
                         className={cn(
-                          "aspect-square rounded-lg border-2 transition-all hover:scale-110 flex items-center justify-center",
+                          'aspect-square rounded-lg border-2 transition-all hover:scale-110 flex items-center justify-center',
                           color === c
-                            ? "border-primary shadow-lg shadow-primary/20"
-                            : "border-transparent"
+                            ? 'border-primary shadow-lg shadow-primary/20'
+                            : 'border-transparent',
                         )}
                         style={{ backgroundColor: c }}
                         onClick={() => setColor(c)}
@@ -322,9 +307,7 @@ export function TextOverlayEditor({
                         {color === c && (
                           <Check
                             size={10}
-                            className={cn(
-                              c === "#FFFFFF" ? "text-black" : "text-white"
-                            )}
+                            className={cn(c === '#FFFFFF' ? 'text-black' : 'text-white')}
                           />
                         )}
                       </button>
@@ -337,21 +320,18 @@ export function TextOverlayEditor({
                     Backdrop Shadow
                   </p>
                   <div className="flex gap-2">
-                    {["", "#000000", "#00000080", "#FFFFFF80"].map((c) => (
+                    {['', '#000000', '#00000080', '#FFFFFF80'].map((c) => (
                       <button
+                        type="button"
                         key={c}
                         className={cn(
-                          "w-8 h-8 rounded-lg border-2 transition-all hover:scale-110 flex items-center justify-center",
-                          backgroundColor === c
-                            ? "border-primary"
-                            : "border-white/10"
+                          'w-8 h-8 rounded-lg border-2 transition-all hover:scale-110 flex items-center justify-center',
+                          backgroundColor === c ? 'border-primary' : 'border-white/10',
                         )}
-                        style={{ backgroundColor: c || "transparent" }}
+                        style={{ backgroundColor: c || 'transparent' }}
                         onClick={() => setBackgroundColor(c)}
                       >
-                        {!c && (
-                          <div className="w-4 h-0.5 bg-destructive rotate-45" />
-                        )}
+                        {!c && <div className="w-4 h-0.5 bg-destructive rotate-45" />}
                       </button>
                     ))}
                   </div>
@@ -370,10 +350,7 @@ export function TextOverlayEditor({
                   Animation
                 </h4>
               </div>
-              <Select
-                value={animation}
-                onValueChange={(v) => setAnimation(v as any)}
-              >
+              <Select value={animation} onValueChange={(v) => setAnimation(v as typeof animation)}>
                 <SelectTrigger className="h-12 bg-background/40 border-border/40 rounded-xl font-bold text-xs">
                   <SelectValue />
                 </SelectTrigger>
@@ -400,7 +377,7 @@ export function TextOverlayEditor({
                   <Input
                     type="number"
                     value={startMs}
-                    onChange={(e) => setStartMs(parseInt(e.target.value) || 0)}
+                    onChange={(e) => setStartMs(parseInt(e.target.value, 10) || 0)}
                     className="h-12 pl-14 font-black bg-background/40 border-border/40 rounded-xl"
                   />
                   <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[10px] font-black text-muted-foreground/40">
@@ -411,7 +388,7 @@ export function TextOverlayEditor({
                   <Input
                     type="number"
                     value={endMs}
-                    onChange={(e) => setEndMs(parseInt(e.target.value) || 0)}
+                    onChange={(e) => setEndMs(parseInt(e.target.value, 10) || 0)}
                     className="h-12 pl-14 font-black bg-background/40 border-border/40 rounded-xl"
                   />
                   <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[10px] font-black text-muted-foreground/40">
@@ -431,9 +408,7 @@ export function TextOverlayEditor({
               {POSITION_PRESETS.map((preset) => (
                 <Badge
                   key={preset.id}
-                  variant={
-                    x === preset.x && y === preset.y ? "default" : "outline"
-                  }
+                  variant={x === preset.x && y === preset.y ? 'default' : 'outline'}
                   className="px-4 py-1.5 cursor-pointer rounded-full text-[10px] font-black transition-all hover:scale-105"
                   onClick={() => {
                     setX(preset.x);
@@ -459,21 +434,17 @@ export function TextOverlayEditor({
                   fontWeight,
                   fontStyle,
                   color,
-                  backgroundColor: backgroundColor || "transparent",
-                  padding: backgroundColor ? "12px 24px" : 0,
+                  backgroundColor: backgroundColor || 'transparent',
+                  padding: backgroundColor ? '12px 24px' : 0,
                   borderRadius: 12,
                   textAlign,
-                  whiteSpace: "pre-wrap",
-                  maxWidth: "80%",
-                  boxShadow: backgroundColor
-                    ? "0 10px 30px rgba(0,0,0,0.5)"
-                    : "none",
-                  textShadow: !backgroundColor
-                    ? "0 4px 12px rgba(0,0,0,0.8)"
-                    : "none",
+                  whiteSpace: 'pre-wrap',
+                  maxWidth: '80%',
+                  boxShadow: backgroundColor ? '0 10px 30px rgba(0,0,0,0.5)' : 'none',
+                  textShadow: !backgroundColor ? '0 4px 12px rgba(0,0,0,0.8)' : 'none',
                 }}
               >
-                {text || "Hello Visual Studio"}
+                {text || 'Hello Visual Studio'}
               </div>
             </div>
           </div>
@@ -492,7 +463,7 @@ export function TextOverlayEditor({
             disabled={!text.trim()}
             className="h-12 flex-1 rounded-2xl font-black uppercase tracking-widest text-[10px] shadow-xl shadow-primary/20 transition-all hover:scale-[1.02] active:scale-95"
           >
-            {editingOverlay ? "Flush Changes" : "Deploy Text Layer"}
+            {editingOverlay ? 'Flush Changes' : 'Deploy Text Layer'}
           </Button>
         </DialogFooter>
       </DialogContent>

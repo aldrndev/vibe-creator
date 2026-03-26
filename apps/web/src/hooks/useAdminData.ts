@@ -1,6 +1,6 @@
-import { useState, useCallback, useEffect } from "react";
-import { authFetch } from "@/services/api";
-import { logger } from "@/lib/logger";
+import { useCallback, useEffect, useState } from 'react';
+import { logger } from '@/lib/logger';
+import { authFetch } from '@/services/api';
 
 export interface AdminStats {
   users: {
@@ -53,7 +53,7 @@ function useDisclosure(defaultOpen = false) {
 export function useAdminData() {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [users, setUsers] = useState<UserData[]>([]);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
 
   // Announcement state
@@ -62,7 +62,7 @@ export function useAdminData() {
 
   // Selection state
   const [selectedUser, setSelectedUser] = useState<UserData | null>(null);
-  const [selectedTier, setSelectedTier] = useState<string>("");
+  const [selectedTier, setSelectedTier] = useState<string>('');
 
   // Modals
   const editModal = useDisclosure();
@@ -70,13 +70,13 @@ export function useAdminData() {
 
   const fetchStats = useCallback(async () => {
     try {
-      const res = await authFetch("/api/v1/admin/stats");
+      const res = await authFetch('/api/v1/admin/stats');
       if (res.ok) {
         const data = await res.json();
         setStats(data.data);
       }
     } catch (err) {
-      logger.error("Failed to fetch stats", err);
+      logger.error('Failed to fetch stats', err);
     }
   }, []);
 
@@ -85,14 +85,14 @@ export function useAdminData() {
     try {
       const url = searchQuery
         ? `/api/v1/admin/users?search=${encodeURIComponent(searchQuery)}`
-        : "/api/v1/admin/users";
+        : '/api/v1/admin/users';
       const res = await authFetch(url);
       if (res.ok) {
         const data = await res.json();
         setUsers(data.data.users);
       }
     } catch (err) {
-      logger.error("Failed to fetch users", err);
+      logger.error('Failed to fetch users', err);
     } finally {
       setIsLoading(false);
     }
@@ -101,13 +101,13 @@ export function useAdminData() {
   const fetchAnnouncements = useCallback(async () => {
     setAnnouncementsLoading(true);
     try {
-      const res = await authFetch("/api/v1/admin/announcements");
+      const res = await authFetch('/api/v1/admin/announcements');
       if (res.ok) {
         const data = await res.json();
         setAnnouncements(data.data);
       }
     } catch (err) {
-      logger.error("Failed to fetch announcements", err);
+      logger.error('Failed to fetch announcements', err);
     } finally {
       setAnnouncementsLoading(false);
     }
@@ -117,14 +117,11 @@ export function useAdminData() {
   const updateSubscription = async () => {
     if (!selectedUser || !selectedTier) return;
     try {
-      const res = await authFetch(
-        `/api/v1/admin/users/${selectedUser.id}/subscription`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ tier: selectedTier }),
-        }
-      );
+      const res = await authFetch(`/api/v1/admin/users/${selectedUser.id}/subscription`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tier: selectedTier }),
+      });
 
       if (res.ok) {
         fetchUsers();
@@ -132,7 +129,7 @@ export function useAdminData() {
         return true;
       }
     } catch (err) {
-      logger.error("Failed to update subscription", err);
+      logger.error('Failed to update subscription', err);
     }
     return false;
   };
@@ -140,9 +137,9 @@ export function useAdminData() {
   const createAnnouncement = async (title: string, content: string) => {
     if (!title.trim() || !content.trim()) return;
     try {
-      const res = await authFetch("/api/v1/admin/announcements", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const res = await authFetch('/api/v1/admin/announcements', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title, content }),
       });
 
@@ -152,19 +149,16 @@ export function useAdminData() {
         return true;
       }
     } catch (err) {
-      logger.error("Failed to create announcement", err);
+      logger.error('Failed to create announcement', err);
     }
     return false;
   };
 
-  const updateAnnouncement = async (
-    id: string,
-    data: Partial<Announcement>
-  ) => {
+  const updateAnnouncement = async (id: string, data: Partial<Announcement>) => {
     try {
       const res = await authFetch(`/api/v1/admin/announcements/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       });
 
@@ -172,7 +166,7 @@ export function useAdminData() {
         fetchAnnouncements();
       }
     } catch (err) {
-      logger.error("Failed to update announcement", err);
+      logger.error('Failed to update announcement', err);
     }
   };
 
@@ -180,14 +174,14 @@ export function useAdminData() {
     // Using inline confirmation instead of window.confirm per Digitesia standards
     try {
       const res = await authFetch(`/api/v1/admin/announcements/${id}`, {
-        method: "DELETE",
+        method: 'DELETE',
       });
 
       if (res.ok) {
         fetchAnnouncements();
       }
     } catch (err) {
-      logger.error("Failed to delete announcement", err);
+      logger.error('Failed to delete announcement', err);
     }
   };
 

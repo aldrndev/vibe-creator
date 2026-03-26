@@ -1,12 +1,45 @@
-import { defineConfig } from 'vite';
+import { resolve } from 'node:path';
 import react from '@vitejs/plugin-react-swc';
-import { resolve } from 'path';
+import { defineConfig } from 'vite';
 
 export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
       '@': resolve(__dirname, './src'),
+    },
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes('node_modules')) {
+            return undefined;
+          }
+
+          if (id.includes('/lucide-react/')) {
+            return 'icons-vendor';
+          }
+
+          if (id.includes('/framer-motion/')) {
+            return 'motion-vendor';
+          }
+
+          if (id.includes('/@radix-ui/')) {
+            return 'radix-vendor';
+          }
+
+          if (
+            id.includes('/@dnd-kit/') ||
+            id.includes('/@ffmpeg/ffmpeg/') ||
+            id.includes('/@ffmpeg/util/')
+          ) {
+            return 'editor-vendor';
+          }
+
+          return 'vendor';
+        },
+      },
     },
   },
   // FFmpeg.wasm is incompatible with Vite's dep optimizer
@@ -36,7 +69,7 @@ export default defineConfig({
             if (setCookie) {
               // Rewrite cookie path if needed
               proxyRes.headers['set-cookie'] = setCookie.map((cookie: string) =>
-                cookie.replace(/Domain=[^;]+;?/gi, '')
+                cookie.replace(/Domain=[^;]+;?/gi, ''),
               );
             }
           });

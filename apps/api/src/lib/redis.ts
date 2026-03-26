@@ -1,6 +1,6 @@
-import Redis from "ioredis";
-import { env } from "@/config/env";
-import { logger } from "@/lib/logger";
+import Redis from 'ioredis';
+import { env } from '@/config/env';
+import { logger } from '@/lib/logger';
 
 /**
  * Redis Client with timeout and retry configuration
@@ -12,8 +12,8 @@ import { logger } from "@/lib/logger";
  */
 // Shared Redis Options for BullMQ compatibility
 export const redisOptions = {
-  host: new URL(env.REDIS_URL).hostname || "localhost",
-  port: parseInt(new URL(env.REDIS_URL).port || "6379"),
+  host: new URL(env.REDIS_URL).hostname || 'localhost',
+  port: parseInt(new URL(env.REDIS_URL).port || '6379', 10),
   password: new URL(env.REDIS_URL).password || undefined,
   maxRetriesPerRequest: null, // Required for BullMQ workers
 };
@@ -28,12 +28,12 @@ export const redis = new Redis(env.REDIS_URL, {
   maxRetriesPerRequest: 3, // Max 3 retries per command
   retryStrategy: (times: number) => {
     if (times > 3) {
-      logger.error({ times }, "Redis max retries exceeded");
+      logger.error({ times }, 'Redis max retries exceeded');
       return null; // Stop retrying
     }
     // Exponential backoff: 100ms, 200ms, 400ms
     const delay = Math.min(times * 100, 2000);
-    logger.warn({ times, delay }, "Redis retry attempt");
+    logger.warn({ times, delay }, 'Redis retry attempt');
     return delay;
   },
 
@@ -43,7 +43,7 @@ export const redis = new Redis(env.REDIS_URL, {
 
   // Reconnection options
   reconnectOnError: (err) => {
-    const targetError = "READONLY";
+    const targetError = 'READONLY';
     if (err.message.includes(targetError)) {
       // Reconnect on READONLY errors (Redis failover)
       return true;
@@ -52,18 +52,18 @@ export const redis = new Redis(env.REDIS_URL, {
   },
 });
 
-redis.on("error", (err) => {
-  logger.error({ err: err.message }, "Redis connection error");
+redis.on('error', (err) => {
+  logger.error({ err: err.message }, 'Redis connection error');
 });
 
-redis.on("connect", () => {
-  logger.info("Redis connected successfully");
+redis.on('connect', () => {
+  logger.info('Redis connected successfully');
 });
 
-redis.on("ready", () => {
-  logger.info("Redis ready to accept commands");
+redis.on('ready', () => {
+  logger.info('Redis ready to accept commands');
 });
 
-redis.on("reconnecting", (delay: number) => {
-  logger.warn({ delay }, "Redis reconnecting");
+redis.on('reconnecting', (delay: number) => {
+  logger.warn({ delay }, 'Redis reconnecting');
 });

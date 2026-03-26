@@ -1,20 +1,13 @@
+import { Globe, MessageCircle, Music, Smartphone, Tv, Video } from 'lucide-react';
 import {
+  Badge,
+  Button,
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  Button,
-  Badge,
   ScrollArea,
-} from "@/components/ui";
-import {
-  Smartphone,
-  MessageCircle,
-  Video,
-  Music,
-  Globe,
-  Tv,
-} from "lucide-react";
+} from '@/components/ui';
 
 interface SupportedSourcesModalProps {
   isOpen: boolean;
@@ -24,58 +17,42 @@ interface SupportedSourcesModalProps {
 
 const CATEGORIES = [
   {
-    name: "Platform Video",
+    name: 'Platform Video',
     icon: Video,
-    platforms: [
-      "YouTube",
-      "Vimeo",
-      "Dailymotion",
-      "Bilibili",
-      "Rutube",
-      "Odysee",
-      "Google Drive",
-    ],
+    platforms: ['YouTube', 'Vimeo', 'Dailymotion', 'Bilibili', 'Rutube', 'Odysee', 'Google Drive'],
   },
   {
-    name: "Video Pendek",
+    name: 'Video Pendek',
     icon: Smartphone,
     platforms: [
-      "TikTok",
-      "Instagram Reels",
-      "Facebook Reels",
-      "Pinterest",
-      "Snapchat",
-      "Likee",
-      "Dubsmash",
+      'TikTok',
+      'Instagram Reels',
+      'Facebook Reels',
+      'Pinterest',
+      'Snapchat',
+      'Likee',
+      'Dubsmash',
     ],
   },
   {
-    name: "Media Sosial",
+    name: 'Media Sosial',
     icon: MessageCircle,
-    platforms: [
-      "Twitter / X",
-      "Reddit",
-      "Tumblr",
-      "Threads",
-      "LinkedIn",
-      "VK",
-      "Weibo",
-    ],
+    platforms: ['Twitter / X', 'Reddit', 'Tumblr', 'Threads', 'LinkedIn', 'VK', 'Weibo'],
   },
   {
-    name: "Live Streaming",
+    name: 'Live Streaming',
     icon: Tv,
-    platforms: ["Twitch", "Kick", "Periscope", "Niconico"],
+    platforms: ['Twitch', 'Kick', 'Periscope', 'Niconico'],
   },
   {
-    name: "Musik & Audio",
+    name: 'Musik & Audio',
     icon: Music,
-    platforms: ["SoundCloud", "Mixcloud", "Bandcamp"],
+    platforms: ['SoundCloud', 'Mixcloud', 'Bandcamp'],
   },
   {
-    name: "Berita & Lainnya",
+    name: 'Berita & Lainnya',
     icon: Globe,
-    platforms: ["BBC", "CNN", "Ted", "Mashable", "BuzzFeed", "ESPN"],
+    platforms: ['BBC', 'CNN', 'Ted', 'Mashable', 'BuzzFeed', 'ESPN'],
   },
 ];
 
@@ -88,9 +65,9 @@ export const SupportedSourcesModal = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-card/90 border-border/50 backdrop-blur-2xl max-w-2xl rounded-[2.5rem] shadow-2xl p-0 overflow-hidden">
+      <DialogContent className="bg-card/90 border-border/50 backdrop-blur-2xl max-w-2xl rounded-4xl shadow-2xl p-0 overflow-hidden">
         <DialogHeader className="p-8 pb-4">
-          <DialogTitle className="text-3xl font-black tracking-tight bg-clip-text text-transparent bg-gradient-to-br from-primary via-orange-500 to-rose-600">
+          <DialogTitle className="text-3xl font-black tracking-tight bg-clip-text text-transparent bg-linear-to-br from-primary via-orange-500 to-rose-600">
             Sumber yang Didukung
           </DialogTitle>
           <p className="text-muted-foreground font-medium mt-1">
@@ -136,9 +113,9 @@ export const SupportedSourcesModal = ({
               Dukungan Link Universal
             </h4>
             <p className="text-xs text-muted-foreground leading-relaxed font-medium">
-              Sistem kami didukung oleh teknologi standar industri yang mampu
-              mendeteksi video dari ribuan website. Jika website Anda memiliki
-              video publik, kemungkinan besar kami bisa memprosesnya!
+              Sistem kami didukung oleh teknologi standar industri yang mampu mendeteksi video dari
+              ribuan website. Jika website Anda memiliki video publik, kemungkinan besar kami bisa
+              memprosesnya!
             </p>
           </div>
         </ScrollArea>

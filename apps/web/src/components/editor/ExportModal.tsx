@@ -1,22 +1,22 @@
+import { Download, Film, ShieldCheck, Zap } from 'lucide-react';
+import { useState } from 'react';
 import {
+  Badge,
+  Button,
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
-  Button,
-  Badge,
-} from "@/components/ui";
-import { Download, Film, Zap, ShieldCheck } from "lucide-react";
-import { useState } from "react";
-import { cn } from "@/lib/utils";
+} from '@/components/ui';
+import { cn } from '@/lib/utils';
 
 interface ExportModalProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
   onExport: (options: {
-    format: "MP4" | "WEBM" | "MOV";
-    resolution: "SD" | "HD" | "UHD";
+    format: 'MP4' | 'WEBM' | 'MOV';
+    resolution: 'SD' | 'HD' | 'UHD';
     width?: number;
     height?: number;
     fps?: number;
@@ -41,8 +41,8 @@ export function ExportModal({
 
   const handleExport = () => {
     onExport({
-      format: "MP4",
-      resolution: "HD",
+      format: 'MP4',
+      resolution: 'HD',
       width,
       height,
     });
@@ -77,14 +77,13 @@ export function ExportModal({
             <div className="absolute -inset-0.5 bg-gradient-to-r from-primary/30 to-purple-500/30 rounded-2xl blur opacity-25 group-hover:opacity-40 transition duration-1000"></div>
             <div className="relative bg-card/40 border border-border/40 rounded-2xl p-6 space-y-6">
               <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/40 mb-3 block">
+                <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/40 mb-3 block">
                   Final Output Specifications
-                </label>
+                </div>
                 <div className="flex items-center gap-4">
                   <div className="flex-1 bg-background/40 rounded-xl p-4 border border-border/20">
                     <div className="text-2xl font-black font-mono tracking-tighter text-foreground">
-                      {width} <span className="text-primary/40">×</span>{" "}
-                      {height}
+                      {width} <span className="text-primary/40">×</span> {height}
                     </div>
                     <div className="text-[10px] font-black text-muted-foreground/60 uppercase mt-1">
                       Resolution (px)
@@ -105,18 +104,18 @@ export function ExportModal({
 
               {/* Resolution Config */}
               <div className="space-y-4 pt-4 border-t border-white/5">
-                <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/40">
+                <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/40">
                   Quality Preset
-                </label>
+                </div>
                 <div className="grid grid-cols-2 gap-3">
                   <Button
                     size="lg"
-                    variant={resolutionScale === 1 ? "default" : "outline"}
+                    variant={resolutionScale === 1 ? 'default' : 'outline'}
                     className={cn(
-                      "h-14 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all",
+                      'h-14 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all',
                       resolutionScale === 1
-                        ? "shadow-lg shadow-primary/20 scale-[1.02]"
-                        : "border-border/40 opacity-60 hover:opacity-100"
+                        ? 'shadow-lg shadow-primary/20 scale-[1.02]'
+                        : 'border-border/40 opacity-60 hover:opacity-100',
                     )}
                     onClick={() => setResolutionScale(1)}
                   >
@@ -124,12 +123,12 @@ export function ExportModal({
                   </Button>
                   <Button
                     size="lg"
-                    variant={resolutionScale === 0.5 ? "default" : "outline"}
+                    variant={resolutionScale === 0.5 ? 'default' : 'outline'}
                     className={cn(
-                      "h-14 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all",
+                      'h-14 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all',
                       resolutionScale === 0.5
-                        ? "shadow-lg shadow-primary/20 scale-[1.02]"
-                        : "border-border/40 opacity-60 hover:opacity-100"
+                        ? 'shadow-lg shadow-primary/20 scale-[1.02]'
+                        : 'border-border/40 opacity-60 hover:opacity-100',
                     )}
                     onClick={() => setResolutionScale(0.5)}
                   >
@@ -143,8 +142,7 @@ export function ExportModal({
           <div className="flex items-center gap-3 px-2 py-4 bg-primary/5 rounded-xl border border-primary/10">
             <ShieldCheck size={16} className="text-primary" />
             <p className="text-[10px] font-bold text-primary/80 leading-relaxed">
-              Your project will be rendered locally using high-performance
-              hardware acceleration.
+              Your project will be rendered locally using high-performance hardware acceleration.
             </p>
           </div>
         </div>

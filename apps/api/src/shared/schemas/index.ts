@@ -3,4 +3,4 @@
  * Re-exports all shared schemas
  */
 
-export * from "./response.schemas";
+export * from './response.schemas';

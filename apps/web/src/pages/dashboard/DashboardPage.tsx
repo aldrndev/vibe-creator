@@ -1,34 +1,29 @@
-import { useState, useEffect } from "react";
-import { Card, CardBody, Button, Skeleton } from "@/components/ui";
-import { Link, useNavigate } from "react-router-dom";
-import { motion, useSpring, useTransform } from "framer-motion";
+import { motion, useSpring, useTransform } from 'framer-motion';
 import {
+  Activity,
+  ArrowRight,
+  Clock,
+  Crown,
+  Download,
   FolderOpen,
+  Repeat,
   Sparkles,
   TrendingUp,
-  Clock,
   Video,
-  Repeat,
-  Download,
-  Crown,
-  Zap,
-  ArrowRight,
-  Activity,
   Wand2,
-} from "lucide-react";
-import { useAuthStore } from "@/stores/auth-store";
-import { useDashboardStats } from "@/hooks/use-dashboard-stats";
-import { PageTransition } from "@/components/ui/PageTransition";
-import { cn } from "@/lib/utils";
+  Zap,
+} from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Button, Card, CardBody } from '@/components/ui';
+import { PageTransition } from '@/components/ui/PageTransition';
+import { Skeleton } from '@/components/ui/SkeletonLoader';
+import { useDashboardStats } from '@/hooks/use-dashboard-stats';
+import { cn } from '@/lib/utils';
+import { useAuthStore } from '@/stores/auth-store';
 
 // Animated number component
-function AnimatedNumber({
-  value,
-  isLoading,
-}: {
-  value: number;
-  isLoading: boolean;
-}) {
+function AnimatedNumber({ value, isLoading }: Readonly<{ value: number; isLoading: boolean }>) {
   const spring = useSpring(0, { stiffness: 100, damping: 30 });
   const display = useTransform(spring, (v) => Math.round(v));
   const [displayValue, setDisplayValue] = useState(0);
@@ -40,7 +35,7 @@ function AnimatedNumber({
   }, [value, isLoading, spring]);
 
   useEffect(() => {
-    return display.on("change", (v) => setDisplayValue(v));
+    return display.on('change', (v) => setDisplayValue(v));
   }, [display]);
 
   if (isLoading) {
@@ -52,44 +47,44 @@ function AnimatedNumber({
 
 const quickActions = [
   {
-    title: "AI Director",
-    description: "Automated video generation",
+    title: 'AI Director',
+    description: 'Automated video generation',
     icon: Sparkles,
-    href: "/tools/ai-director",
-    color: "from-blue-500/20 to-cyan-500/20",
-    iconColor: "text-blue-500",
+    href: '/tools/ai-director',
+    color: 'from-blue-500/20 to-cyan-500/20',
+    iconColor: 'text-blue-500',
   },
   {
-    title: "Video Studio",
-    description: "Professional video editing",
+    title: 'Video Studio',
+    description: 'Professional video editing',
     icon: Wand2,
-    href: "/tools/modern-editor",
-    color: "from-orange-500/20 to-amber-500/20",
-    iconColor: "text-orange-500",
+    href: '/tools/modern-editor',
+    color: 'from-orange-500/20 to-amber-500/20',
+    iconColor: 'text-orange-500',
   },
   {
-    title: "Loop Creator",
-    description: "Create looping videos & GIFs",
+    title: 'Loop Creator',
+    description: 'Create looping videos & GIFs',
     icon: Repeat,
-    href: "/tools/loop-creator",
-    color: "from-green-500/20 to-emerald-500/20",
-    iconColor: "text-green-500",
+    href: '/tools/loop-creator',
+    color: 'from-green-500/20 to-emerald-500/20',
+    iconColor: 'text-green-500',
   },
   {
-    title: "Reaction Video",
-    description: "Create reaction & tempel videos",
+    title: 'Reaction Video',
+    description: 'Create reaction & tempel videos',
     icon: Video,
-    href: "/tools/reaction-creator",
-    color: "from-purple-500/20 to-fuchsia-500/20",
-    iconColor: "text-purple-500",
+    href: '/tools/reaction-creator',
+    color: 'from-purple-500/20 to-fuchsia-500/20',
+    iconColor: 'text-purple-500',
   },
   {
-    title: "Live Streaming",
-    description: "Stream to YouTube, TikTok, Twitch",
+    title: 'Live Streaming',
+    description: 'Stream to YouTube, TikTok, Twitch',
     icon: TrendingUp,
-    href: "/tools/live-stream",
-    color: "from-rose-500/20 to-red-500/20",
-    iconColor: "text-rose-500",
+    href: '/tools/live-stream',
+    color: 'from-rose-500/20 to-red-500/20',
+    iconColor: 'text-rose-500',
   },
 ];
 
@@ -106,8 +101,8 @@ export function DashboardPage() {
   };
 
   const handleAction = (action: { action?: string; href?: string }) => {
-    if (action.action === "new-project") {
-      navigate("/tools/editor");
+    if (action.action === 'new-project') {
+      navigate('/tools/editor');
     } else if (action.href) {
       navigate(action.href);
     }
@@ -116,27 +111,26 @@ export function DashboardPage() {
   // Calculate export usage percentage
   const exportsUsed = subscription?.exportsUsed ?? 0;
   const exportsLimit = subscription?.exportsLimit ?? 5;
-  const isUnlimited = exportsLimit >= 999999 || user?.role === "ADMIN";
-  const usagePercent = isUnlimited
-    ? 0
-    : Math.min((exportsUsed / exportsLimit) * 100, 100);
+  const isUnlimited = exportsLimit >= 999999 || user?.role === 'ADMIN';
+  const usagePercent = isUnlimited ? 0 : Math.min((exportsUsed / exportsLimit) * 100, 100);
   const isNearLimit = usagePercent >= 80;
 
   // Get tier info
-  const tierName =
-    user?.role === "ADMIN"
-      ? "Admin"
-      : subscription?.tier === "PRO"
-      ? "Pro"
-      : subscription?.tier === "CREATOR"
-      ? "Creator"
-      : "Free";
-  const TierIcon =
-    subscription?.tier === "PRO" || user?.role === "ADMIN"
-      ? Crown
-      : subscription?.tier === "CREATOR"
-      ? Sparkles
-      : Zap;
+  let tierName = 'Free';
+  if (user?.role === 'ADMIN') {
+    tierName = 'Admin';
+  } else if (subscription?.tier === 'PRO') {
+    tierName = 'Pro';
+  } else if (subscription?.tier === 'CREATOR') {
+    tierName = 'Creator';
+  }
+
+  let TierIcon = Zap;
+  if (subscription?.tier === 'PRO' || user?.role === 'ADMIN') {
+    TierIcon = Crown;
+  } else if (subscription?.tier === 'CREATOR') {
+    TierIcon = Sparkles;
+  }
 
   return (
     <PageTransition className="pb-20 lg:pb-10">
@@ -145,10 +139,10 @@ export function DashboardPage() {
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 px-1">
           <div className="space-y-2">
             <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold tracking-tighter text-foreground leading-tight">
-              Selamat datang,{" "}
-              <span className="bg-clip-text text-transparent bg-gradient-to-r from-primary via-orange-500 to-rose-600 animate-gradient">
-                {user?.name?.split(" ")[0]}
-              </span>
+              Selamat datang,{' '}
+              <span className="bg-clip-text text-transparent bg-linear-to-r from-primary via-orange-500 to-rose-600 animate-gradient">
+                {user?.name?.split(' ')[0]}
+              </span>{' '}
               ! 👋
             </h1>
             <p className="text-muted-foreground font-medium text-sm md:text-base tracking-tight ml-0.5">
@@ -156,19 +150,16 @@ export function DashboardPage() {
             </p>
           </div>
           <div className="relative group">
-            <div className="absolute -inset-0.5 bg-gradient-to-r from-orange-400/20 via-amber-500/20 to-orange-400/20 rounded-xl blur opacity-50 group-hover:opacity-100 transition duration-1000 animate-pulse"></div>
+            <div className="absolute -inset-0.5 bg-linear-to-r from-orange-400/20 via-amber-500/20 to-orange-400/20 rounded-xl blur opacity-50 group-hover:opacity-100 transition duration-1000 animate-pulse"></div>
             <div className="relative h-12 p-6 md:px-5 rounded-xl bg-background border border-orange-500/20 flex items-center gap-3.5 shadow-sm">
-              <div className="size-8 rounded-lg bg-gradient-to-br from-orange-500/10 to-amber-500/10 flex items-center justify-center border border-orange-500/10">
-                <TierIcon
-                  size={16}
-                  className="text-orange-500 fill-orange-500/20"
-                />
+              <div className="size-8 rounded-lg bg-linear-to-br from-orange-500/10 to-amber-500/10 flex items-center justify-center border border-orange-500/10">
+                <TierIcon size={16} className="text-orange-500 fill-orange-500/20" />
               </div>
               <div className="flex flex-col">
                 <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/70">
                   Paket Aktif
                 </span>
-                <span className="text-sm font-black bg-gradient-to-r from-orange-600 to-amber-600 bg-clip-text text-transparent leading-none mt-0.5">
+                <span className="text-sm font-black bg-linear-to-r from-orange-600 to-amber-600 bg-clip-text text-transparent leading-none mt-0.5">
                   {tierName}
                 </span>
               </div>
@@ -194,7 +185,7 @@ export function DashboardPage() {
                     </div>
                     <div className="flex items-baseline gap-3">
                       <p className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tighter text-foreground drop-shadow-sm">
-                        {isUnlimited ? "∞" : exportsUsed}
+                        {isUnlimited ? '∞' : exportsUsed}
                       </p>
                       {!isUnlimited && (
                         <p className="text-2xl md:text-3xl font-bold text-muted-foreground/30">
@@ -209,16 +200,13 @@ export function DashboardPage() {
                     </div>
                   </div>
 
-                  {tierName === "Free" && (
+                  {tierName === 'Free' && (
                     <Button
                       asChild
                       size="lg"
-                      className="w-full sm:w-auto rounded-xl font-bold uppercase text-xs tracking-widest h-14 px-8 bg-gradient-to-r from-primary to-orange-600 hover:scale-[1.02] shadow-lg shadow-primary/20 transition-all active:scale-95 border-none"
+                      className="w-full sm:w-auto rounded-xl font-bold uppercase text-xs tracking-widest h-14 px-8 bg-linear-to-r from-primary to-orange-600 hover:scale-[1.02] shadow-lg shadow-primary/20 transition-all active:scale-95 border-none"
                     >
-                      <Link
-                        to="/dashboard/pricing"
-                        className="flex items-center gap-3"
-                      >
+                      <Link to="/dashboard/pricing" className="flex items-center gap-3">
                         Upgrade Pro <Crown size={18} />
                       </Link>
                     </Button>
@@ -229,13 +217,11 @@ export function DashboardPage() {
                   {!isUnlimited && (
                     <div className="space-y-3">
                       <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider">
-                        <span className="text-muted-foreground/70">
-                          Monthly Usage
-                        </span>
+                        <span className="text-muted-foreground/70">Monthly Usage</span>
                         <span
                           className={cn(
-                            "px-2 py-0.5 rounded-md bg-background/50 border border-border/10",
-                            isNearLimit ? "text-red-500" : "text-primary"
+                            'px-2 py-0.5 rounded-md bg-background/50 border border-border/10',
+                            isNearLimit ? 'text-red-500' : 'text-primary',
                           )}
                         >
                           {Math.round(usagePercent)}%
@@ -245,12 +231,12 @@ export function DashboardPage() {
                         <motion.div
                           initial={{ width: 0 }}
                           animate={{ width: `${usagePercent}%` }}
-                          transition={{ duration: 1, ease: "easeOut" }}
+                          transition={{ duration: 1, ease: 'easeOut' }}
                           className={cn(
-                            "h-full rounded-full transition-all duration-1000 shadow-sm relative overflow-hidden",
+                            'h-full rounded-full transition-all duration-1000 shadow-sm relative overflow-hidden',
                             isNearLimit
-                              ? "bg-gradient-to-r from-red-500 to-rose-600"
-                              : "bg-gradient-to-r from-primary to-orange-500"
+                              ? 'bg-linear-to-r from-red-500 to-rose-600'
+                              : 'bg-linear-to-r from-primary to-orange-500',
                           )}
                         >
                           <div className="absolute inset-0 bg-white/20 animate-[shimmer_2s_infinite]" />
@@ -265,8 +251,7 @@ export function DashboardPage() {
                       className="text-xs font-semibold text-rose-500 flex items-center gap-2 bg-rose-500/10 p-3 rounded-lg border border-rose-500/20"
                     >
                       <div className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
-                      Hampir mencapai limit produksi. Upgrade untuk konten tanpa
-                      batas.
+                      Hampir mencapai limit produksi. Upgrade untuk konten tanpa batas.
                     </motion.p>
                   )}
                 </div>
@@ -286,10 +271,7 @@ export function DashboardPage() {
                 </div>
                 <div className="space-y-1">
                   <div className="text-2xl md:text-3xl font-black tracking-tighter">
-                    <AnimatedNumber
-                      value={safeStats.projects}
-                      isLoading={isLoading}
-                    />
+                    <AnimatedNumber value={safeStats.projects} isLoading={isLoading} />
                   </div>
                   <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
                     Proyek
@@ -308,10 +290,7 @@ export function DashboardPage() {
                 </div>
                 <div className="space-y-1">
                   <div className="text-2xl md:text-3xl font-black tracking-tighter">
-                    <AnimatedNumber
-                      value={safeStats.prompts}
-                      isLoading={isLoading}
-                    />
+                    <AnimatedNumber value={safeStats.prompts} isLoading={isLoading} />
                   </div>
                   <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
                     Prompts
@@ -330,10 +309,7 @@ export function DashboardPage() {
                 </div>
                 <div className="space-y-1">
                   <div className="text-2xl md:text-3xl font-black tracking-tighter">
-                    <AnimatedNumber
-                      value={safeStats.exports}
-                      isLoading={isLoading}
-                    />
+                    <AnimatedNumber value={safeStats.exports} isLoading={isLoading} />
                   </div>
                   <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
                     Exports
@@ -352,10 +328,7 @@ export function DashboardPage() {
                 </div>
                 <div className="space-y-1">
                   <div className="text-2xl md:text-3xl font-black tracking-tighter">
-                    <AnimatedNumber
-                      value={safeStats.downloads}
-                      isLoading={isLoading}
-                    />
+                    <AnimatedNumber value={safeStats.downloads} isLoading={isLoading} />
                   </div>
                   <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
                     Downloads
@@ -370,9 +343,7 @@ export function DashboardPage() {
         <div className="space-y-6">
           <div className="flex items-center gap-3 ml-1">
             <Zap size={20} className="text-primary fill-primary" />
-            <h2 className="text-lg font-bold tracking-tight text-foreground">
-              Aksi Cepat & Tools
-            </h2>
+            <h2 className="text-lg font-bold tracking-tight text-foreground">Aksi Cepat & Tools</h2>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
             {quickActions.map((action) => (
@@ -385,9 +356,9 @@ export function DashboardPage() {
                   <div className="w-14 h-14 rounded-2xl bg-muted/10 flex items-center justify-center group-hover:scale-110 transition-transform duration-500 border border-white/5 relative overflow-hidden">
                     <action.icon
                       className={cn(
-                        "transition-all duration-500 relative z-10",
+                        'transition-all duration-500 relative z-10',
                         action.iconColor,
-                        "group-hover:drop-shadow-[0_0_8px_rgba(255,255,255,0.3)]"
+                        'group-hover:drop-shadow-[0_0_8px_rgba(255,255,255,0.3)]',
                       )}
                       size={40}
                       strokeWidth={1.5}
@@ -413,15 +384,15 @@ export function DashboardPage() {
         {/* Recent Activity */}
         <div className="space-y-6 text-center">
           <div className="flex items-center justify-center gap-3 mb-8">
-            <div className="h-[1px] w-12 bg-border/50" />
+            <div className="h-px w-12 bg-border/50" />
             <Activity size={18} className="text-muted-foreground/50" />
             <h2 className="text-sm md:text-base font-bold text-muted-foreground/70 tracking-tight">
               Aktivitas Terbaru
             </h2>
-            <div className="h-[1px] w-12 bg-border/50" />
+            <div className="h-px w-12 bg-border/50" />
           </div>
 
-          <Card className="bg-card/70 backdrop-blur-xl border-border/50 border-dashed rounded-[32px] md:rounded-[40px] overflow-hidden">
+          <Card className="bg-card/70 backdrop-blur-xl border-border/50 border-dashed rounded-4xl md:rounded-5xl overflow-hidden">
             <CardBody className="py-12 md:py-20 flex flex-col items-center gap-6">
               <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-muted/10 flex items-center justify-center relative">
                 <Clock
@@ -435,16 +406,14 @@ export function DashboardPage() {
                   Siap Rakit Konten Viral?
                 </h3>
                 <p className="text-sm md:text-base text-muted-foreground/60 font-medium max-w-sm mx-auto leading-relaxed">
-                  Dashboard kamu masih kosong. Mulai kreasikan ide cemerlangmu
-                  sekarang!
+                  Dashboard kamu masih kosong. Mulai kreasikan ide cemerlangmu sekarang!
                 </p>
               </div>
               <Button
                 className="mt-md rounded-full h-11 md:h-12 px-xl font-semibold text-xs md:text-sm bg-primary text-primary-foreground hover:bg-primary/90 transition-all active:scale-95"
-                onClick={() => navigate("/dashboard/prompts/new")}
+                onClick={() => navigate('/dashboard/prompts/new')}
               >
-                Buat Prompt AI Sekarang{" "}
-                <ArrowRight size={14} className="ml-3" />
+                Buat Prompt AI Sekarang <ArrowRight size={14} className="ml-3" />
               </Button>
             </CardBody>
           </Card>

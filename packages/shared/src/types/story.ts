@@ -1,11 +1,11 @@
 export const STORY_SCHEMA_VERSION = 1;
 
-export type SceneType = "intro" | "hook" | "content" | "transition" | "outro";
+export type SceneType = 'intro' | 'hook' | 'content' | 'transition' | 'outro';
 
 export interface StoryAsset {
   assetId: string; // UUID (Primary Reference)
-  type: "video" | "image" | "audio";
-  origin: "upload" | "import" | "ai"; // Provenance
+  type: 'video' | 'image' | 'audio';
+  origin: 'upload' | 'import' | 'ai'; // Provenance
   storageKey?: string; // Server-side usage only, optional on client
   promptId?: string; // Reference to prompt record (security: no raw prompt storage)
   url?: string; // Optional: Temp URL for playback if available
@@ -48,7 +48,7 @@ export interface StoryProject {
   globalVibe: {
     bgmAssetId?: string;
     voiceId?: string; // AI Narrator ID
-    tempo: "slow" | "medium" | "fast";
+    tempo: 'slow' | 'medium' | 'fast';
   };
 
   scenes: StoryScene[];

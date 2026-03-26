@@ -1,16 +1,10 @@
-import { useRef, useState } from "react";
-import { useDirectorStore } from "@/stores/director-store";
-import { authFetch } from "@/services/api";
-import { Card, CardBody, Input, Button, Badge } from "@/components/ui";
-import { cn } from "@/lib/utils";
-import {
-  Wand2,
-  FileVideo,
-  Link as LinkIcon,
-  AlertCircle,
-  Plus,
-} from "lucide-react";
-import { SupportedSourcesModal } from "./SupportedSourcesModal";
+import { AlertCircle, FileVideo, Link as LinkIcon, Plus, Wand2 } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { Badge, Button, Card, CardBody, Input } from '@/components/ui';
+import { cn } from '@/lib/utils';
+import { authFetch } from '@/services/api';
+import { useDirectorStore } from '@/stores/director-store';
+import { SupportedSourcesModal } from './SupportedSourcesModal';
 
 export const ImportStep = () => {
   const {
@@ -35,17 +29,17 @@ export const ImportStep = () => {
     try {
       setLoading(true);
       setError(null);
-      const res = await authFetch("/api/v1/director/sessions", {
-        method: "POST",
+      const res = await authFetch('/api/v1/director/sessions', {
+        method: 'POST',
       });
-      if (!res.ok) throw new Error("Failed to create session");
+      if (!res.ok) throw new Error('Failed to create session');
       const data = await res.json();
       if (data.success) {
         setSession(data.data);
         return data.data;
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
+      setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
       setLoading(false);
     }
@@ -54,56 +48,49 @@ export const ImportStep = () => {
 
   const startAnalysis = async (sessionId: string) => {
     try {
-      const res = await authFetch(
-        `/api/v1/director/sessions/${sessionId}/analyze`,
-        { method: "POST" }
-      );
+      const res = await authFetch(`/api/v1/director/sessions/${sessionId}/analyze`, {
+        method: 'POST',
+      });
       const data = await res.json();
       if (data.success) {
-        setStep("ANALYZING");
+        setStep('ANALYZING');
       } else {
-        throw new Error(data.error?.message || "Analysis start failed");
+        throw new Error(data.error?.message || 'Analysis start failed');
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Analysis failed");
+      setError(err instanceof Error ? err.message : 'Analysis failed');
       setLoading(false);
     }
   };
 
   const handleUrlImport = async () => {
     let session = activeSession;
-    if (!session) {
-      session = await handleCreateSession();
-    }
+    session ??= await handleCreateSession();
     if (!session || !importUrl) return;
 
     try {
       setLoading(true);
-      const res = await authFetch(
-        `/api/v1/director/sessions/${session.id}/import`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ type: "url", url: importUrl }),
-        }
-      );
+      const res = await authFetch(`/api/v1/director/sessions/${session.id}/import`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'url', url: importUrl }),
+      });
       const data = await res.json();
-      if (!data.success)
-        throw new Error(data.error?.message || "Import failed");
+      if (!data.success) throw new Error(data.error?.message || 'Import failed');
 
-      const newAsset = { ...data.data, ingestStatus: "UPLOADING" };
+      const newAsset = { ...data.data, ingestStatus: 'UPLOADING' };
       setSession({
         ...session,
         asset: newAsset,
       });
 
-      if (data.data.ingestStatus === "READY") {
+      if (data.data.ingestStatus === 'READY') {
         await startAnalysis(session.id);
       } else {
         setWaitingForAsset(true);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Import failed");
+      setError(err instanceof Error ? err.message : 'Import failed');
       setLoading(false);
     }
   };
@@ -113,49 +100,42 @@ export const ImportStep = () => {
     if (!file) return;
 
     let session = activeSession;
-    if (!session) {
-      session = await handleCreateSession();
-    }
+    session ??= await handleCreateSession();
     if (!session) return;
 
     try {
       setLoading(true);
 
       const formData = new FormData();
-      formData.append("file", file);
+      formData.append('file', file);
 
-      const uploadRes = await authFetch("/api/v1/upload/video", {
-        method: "POST",
+      const uploadRes = await authFetch('/api/v1/upload/video', {
+        method: 'POST',
         body: formData,
       });
 
       const uploadData = await uploadRes.json();
-      if (!uploadData.success)
-        throw new Error(uploadData.error?.message || "Upload failed");
+      if (!uploadData.success) throw new Error(uploadData.error?.message || 'Upload failed');
 
-      const importRes = await authFetch(
-        `/api/v1/director/sessions/${session.id}/import`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            type: "file",
-            filePath: uploadData.data.filepath,
-          }),
-        }
-      );
+      const importRes = await authFetch(`/api/v1/director/sessions/${session.id}/import`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'file',
+          filePath: uploadData.data.uploadToken,
+        }),
+      });
 
       const importData = await importRes.json();
-      if (!importData.success)
-        throw new Error(importData.error?.message || "Import failed");
+      if (!importData.success) throw new Error(importData.error?.message || 'Import failed');
 
       setSession({
         ...session,
-        asset: { ...importData.data, ingestStatus: "READY" },
+        asset: { ...importData.data, ingestStatus: 'READY' },
       });
       await startAnalysis(session.id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Upload failed");
+      setError(err instanceof Error ? err.message : 'Upload failed');
       setLoading(false);
     }
   };
@@ -164,17 +144,16 @@ export const ImportStep = () => {
     <div className="max-w-5xl mx-auto w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
       <Card className="bg-card/70 border-border/50 backdrop-blur-xl relative overflow-hidden group mb-10">
         <CardBody className="p-6 sm:p-10 flex flex-col items-center text-center gap-3">
-          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary via-orange-500 to-rose-600 flex items-center justify-center mb-2">
+          <div className="w-12 h-12 rounded-xl bg-linear-to-br from-primary via-orange-500 to-rose-600 flex items-center justify-center mb-2">
             <Wand2 className="w-6 h-6 text-white drop-shadow-sm" />
           </div>
 
           <div className="space-y-3">
-            <h2 className="text-3xl sm:text-4xl font-black tracking-tight bg-clip-text text-transparent bg-gradient-to-br from-primary via-orange-500 to-rose-600">
+            <h2 className="text-3xl sm:text-4xl font-black tracking-tight bg-clip-text text-transparent bg-linear-to-br from-primary via-orange-500 to-rose-600">
               AI Director
             </h2>
             <p className="text-muted-foreground max-w-md mx-auto leading-relaxed font-medium">
-              Ubah video panjang kamu menjadi Shorts yang viral dalam hitungan
-              menit. 🚀
+              Ubah video panjang kamu menjadi Shorts yang viral dalam hitungan menit. 🚀
             </p>
           </div>
 
@@ -187,16 +166,16 @@ export const ImportStep = () => {
 
           <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-6 mt-2">
             {/* Upload Zone */}
-            <div
-              onClick={() =>
-                !isWaitingForAsset && fileInputRef.current?.click()
-              }
+            <button
+              type="button"
+              onClick={() => !isWaitingForAsset && fileInputRef.current?.click()}
               className={cn(
-                "group/upload relative min-h-[16rem] rounded-3xl border-2 border-dashed border-border/40 transition-all flex flex-col items-center justify-center gap-4 bg-muted/5 overflow-hidden",
+                'group/upload relative min-h-64 rounded-3xl border-2 border-dashed border-border/40 transition-all flex flex-col items-center justify-center gap-4 bg-muted/5 overflow-hidden',
                 isWaitingForAsset
-                  ? "opacity-50 cursor-not-allowed"
-                  : "hover:border-primary/60 hover:bg-primary/5 cursor-pointer active:scale-[0.98]"
+                  ? 'opacity-50 cursor-not-allowed'
+                  : 'hover:border-primary/60 hover:bg-primary/5 cursor-pointer active:scale-[0.98]',
               )}
+              disabled={isWaitingForAsset}
             >
               <div className="w-14 h-14 rounded-2xl bg-muted/50 group-hover/upload:bg-primary/20 flex items-center justify-center transition-all duration-300 group-hover/upload:scale-110">
                 <FileVideo className="w-7 h-7 text-muted-foreground group-hover/upload:text-primary transition-colors" />
@@ -217,10 +196,10 @@ export const ImportStep = () => {
                 onChange={handleFileUpload}
                 disabled={isWaitingForAsset}
               />
-            </div>
+            </button>
 
             {/* URL Zone */}
-            <div className="min-h-[16rem] rounded-3xl border border-border/50 bg-muted/5 p-8 flex flex-col justify-between relative overflow-hidden group/url">
+            <div className="min-h-64 rounded-3xl border border-border/50 bg-muted/5 p-8 flex flex-col justify-between relative overflow-hidden group/url">
               {isWaitingForAsset ? (
                 <div className="absolute inset-0 z-10 bg-background/90 backdrop-blur-md flex flex-col items-center justify-center p-8 gap-5">
                   <div className="w-full space-y-3">
@@ -229,13 +208,11 @@ export const ImportStep = () => {
                         <div className="size-2 rounded-full bg-primary animate-pulse" />
                         Mengunduh...
                       </span>
-                      <span className="text-primary text-sm">
-                        {Math.round(downloadProgress)}%
-                      </span>
+                      <span className="text-primary text-sm">{Math.round(downloadProgress)}%</span>
                     </div>
                     <div className="w-full h-3 bg-muted rounded-full overflow-hidden shadow-inner border border-border/20">
                       <div
-                        className="h-full bg-gradient-to-r from-primary via-orange-500 to-rose-600 transition-all duration-300 ease-out"
+                        className="h-full bg-linear-to-r from-primary via-orange-500 to-rose-600 transition-all duration-300 ease-out"
                         style={{ width: `${downloadProgress}%` }}
                       />
                     </div>
@@ -277,7 +254,7 @@ export const ImportStep = () => {
           </div>
 
           <div className="flex flex-wrap justify-center gap-3 mt-4">
-            {["YouTube", "TikTok", "Instagram", "Facebook"].map((platform) => (
+            {['YouTube', 'TikTok', 'Instagram', 'Facebook'].map((platform) => (
               <Badge
                 key={platform}
                 variant="secondary"

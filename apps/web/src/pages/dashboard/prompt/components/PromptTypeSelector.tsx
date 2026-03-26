@@ -1,17 +1,14 @@
-import { Card, CardBody } from "@/components/ui";
-import { PromptType } from "@vibe-creator/shared";
-import { promptTypes } from "../constants";
-import { cn } from "@/lib/utils";
+import type { PromptType } from '@vibe-creator/shared';
+import { Card, CardBody } from '@/components/ui';
+import { cn } from '@/lib/utils';
+import { promptTypes } from '../constants';
 
 interface PromptTypeSelectorProps {
   selectedType: PromptType;
   onSelect: (type: PromptType) => void;
 }
 
-export function PromptTypeSelector({
-  selectedType,
-  onSelect,
-}: PromptTypeSelectorProps) {
+export function PromptTypeSelector({ selectedType, onSelect }: PromptTypeSelectorProps) {
   return (
     <Card className="bg-card/70 backdrop-blur-xl border-border/50">
       <CardBody className="p-6 space-y-4">
@@ -31,13 +28,14 @@ export function PromptTypeSelector({
 
             return (
               <button
+                type="button"
                 key={type.key}
                 onClick={() => onSelect(type.key as PromptType)}
                 className={cn(
-                  "relative p-4 rounded-2xl border text-left transition-all duration-300 group overflow-hidden active:scale-95",
+                  'relative p-4 rounded-2xl border text-left transition-all duration-300 group overflow-hidden active:scale-95',
                   isActive
-                    ? "bg-primary/10 border-primary"
-                    : "bg-muted/10 border-border/50 hover:border-primary/30 hover:bg-muted/20"
+                    ? 'bg-primary/10 border-primary'
+                    : 'bg-muted/10 border-border/50 hover:border-primary/30 hover:bg-muted/20',
                 )}
               >
                 {/* Active Indicator */}
@@ -47,10 +45,10 @@ export function PromptTypeSelector({
 
                 <div
                   className={cn(
-                    "w-10 h-10 rounded-xl flex items-center justify-center mb-3 transition-colors",
+                    'w-10 h-10 rounded-xl flex items-center justify-center mb-3 transition-colors',
                     isActive
-                      ? "bg-primary text-white"
-                      : "bg-muted/20 text-primary group-hover:bg-primary/20"
+                      ? 'bg-primary text-white'
+                      : 'bg-muted/20 text-primary group-hover:bg-primary/20',
                   )}
                 >
                   <Icon size={20} />

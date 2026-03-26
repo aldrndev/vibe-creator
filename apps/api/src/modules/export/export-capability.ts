@@ -32,7 +32,10 @@ export type ExportResolution = z.infer<typeof ExportResolution>;
 /**
  * Resolution specs
  */
-export const RESOLUTION_SPECS: Record<ExportResolution, { width: number; height: number; bitrate: string }> = {
+export const RESOLUTION_SPECS: Record<
+  ExportResolution,
+  { width: number; height: number; bitrate: string }
+> = {
   '720p': { width: 1280, height: 720, bitrate: '4M' },
   '1080p': { width: 1920, height: 1080, bitrate: '8M' },
   '2160p': { width: 3840, height: 2160, bitrate: '20M' },
@@ -41,7 +44,10 @@ export const RESOLUTION_SPECS: Record<ExportResolution, { width: number; height:
 /**
  * Format → Codec compatibility matrix
  */
-export const FORMAT_CODEC_MATRIX: Record<ExportFormat, { video: VideoCodec[]; audio: AudioCodec[] }> = {
+export const FORMAT_CODEC_MATRIX: Record<
+  ExportFormat,
+  { video: VideoCodec[]; audio: AudioCodec[] }
+> = {
   mp4: {
     video: ['h264', 'h265'],
     audio: ['aac'],
@@ -61,13 +67,16 @@ export const FORMAT_CODEC_MATRIX: Record<ExportFormat, { video: VideoCodec[]; au
  */
 export type ExportTier = 'free' | 'pro' | 'enterprise';
 
-export const TIER_LIMITS: Record<ExportTier, {
-  maxResolution: ExportResolution;
-  maxDurationMs: number;
-  hasWatermark: boolean;
-  maxConcurrentJobs: number;
-  maxJobsPerDay: number;
-}> = {
+export const TIER_LIMITS: Record<
+  ExportTier,
+  {
+    maxResolution: ExportResolution;
+    maxDurationMs: number;
+    hasWatermark: boolean;
+    maxConcurrentJobs: number;
+    maxJobsPerDay: number;
+  }
+> = {
   free: {
     maxResolution: '720p',
     maxDurationMs: 5 * 60 * 1000, // 5 min
@@ -97,24 +106,24 @@ export const TIER_LIMITS: Record<ExportTier, {
 export function validateFormatCodec(
   format: ExportFormat,
   videoCodec: VideoCodec,
-  audioCodec: AudioCodec
+  audioCodec: AudioCodec,
 ): { valid: boolean; error?: string } {
   const matrix = FORMAT_CODEC_MATRIX[format];
-  
+
   if (!matrix.video.includes(videoCodec)) {
     return {
       valid: false,
       error: `Video codec ${videoCodec} not supported for ${format} format`,
     };
   }
-  
+
   if (!matrix.audio.includes(audioCodec)) {
     return {
       valid: false,
       error: `Audio codec ${audioCodec} not supported for ${format} format`,
     };
   }
-  
+
   return { valid: true };
 }
 
@@ -123,21 +132,21 @@ export function validateFormatCodec(
  */
 export function validateResolutionForTier(
   resolution: ExportResolution,
-  tier: ExportTier
+  tier: ExportTier,
 ): { valid: boolean; error?: string } {
   const limits = TIER_LIMITS[tier];
   const resolutionOrder: ExportResolution[] = ['720p', '1080p', '2160p'];
-  
+
   const requestedIndex = resolutionOrder.indexOf(resolution);
   const maxIndex = resolutionOrder.indexOf(limits.maxResolution);
-  
+
   if (requestedIndex > maxIndex) {
     return {
       valid: false,
       error: `Resolution ${resolution} requires ${tier === 'free' ? 'Pro' : 'Enterprise'} plan`,
     };
   }
-  
+
   return { valid: true };
 }
 
@@ -146,10 +155,10 @@ export function validateResolutionForTier(
  */
 export function validateDurationForTier(
   durationMs: number,
-  tier: ExportTier
+  tier: ExportTier,
 ): { valid: boolean; error?: string } {
   const limits = TIER_LIMITS[tier];
-  
+
   if (durationMs > limits.maxDurationMs) {
     const maxMinutes = Math.floor(limits.maxDurationMs / 60000);
     return {
@@ -157,7 +166,7 @@ export function validateDurationForTier(
       error: `Video duration exceeds ${maxMinutes} minute limit for your plan`,
     };
   }
-  
+
   return { valid: true };
 }
 
@@ -181,32 +190,32 @@ export type ExportSettings = z.infer<typeof ExportSettingsSchema>;
 export function validateExportSettings(
   settings: ExportSettings,
   tier: ExportTier,
-  durationMs: number
+  durationMs: number,
 ): { valid: boolean; errors: string[] } {
   const errors: string[] = [];
-  
+
   // Format + codec compatibility
   const formatResult = validateFormatCodec(
     settings.format,
     settings.videoCodec,
-    settings.audioCodec
+    settings.audioCodec,
   );
   if (!formatResult.valid && formatResult.error) {
     errors.push(formatResult.error);
   }
-  
+
   // Resolution tier check
   const resolutionResult = validateResolutionForTier(settings.resolution, tier);
   if (!resolutionResult.valid && resolutionResult.error) {
     errors.push(resolutionResult.error);
   }
-  
+
   // Duration tier check
   const durationResult = validateDurationForTier(durationMs, tier);
   if (!durationResult.valid && durationResult.error) {
     errors.push(durationResult.error);
   }
-  
+
   return {
     valid: errors.length === 0,
     errors,

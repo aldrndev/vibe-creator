@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { ReactNode } from 'react';
+import type { ReactNode } from 'react';
 
 interface PageTransitionProps {
   children: ReactNode;
@@ -26,22 +26,14 @@ export function PageTransition({ children, className = '' }: PageTransitionProps
  * Staggered children animation - simple fade (UX: progressive reveal)
  */
 export function StaggerContainer({ children, className = '' }: PageTransitionProps) {
-  return (
-    <div className={className}>
-      {children}
-    </div>
-  );
+  return <div className={className}>{children}</div>;
 }
 
 /**
  * Stagger item - simple wrapper (keep for compatibility)
  */
 export function StaggerItem({ children, className = '' }: PageTransitionProps) {
-  return (
-    <div className={className}>
-      {children}
-    </div>
-  );
+  return <div className={className}>{children}</div>;
 }
 
 /**
@@ -64,9 +56,5 @@ export function HoverCard({ children, className = '' }: PageTransitionProps) {
  * Simple fade - removed (use CSS transition instead)
  */
 export function FadeIn({ children, className = '' }: PageTransitionProps & { delay?: number }) {
-  return (
-    <div className={className}>
-      {children}
-    </div>
-  );
+  return <div className={className}>{children}</div>;
 }

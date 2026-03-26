@@ -1,9 +1,9 @@
-import { useEffect } from "react";
-import { useDirectorStore } from "@/stores/director-store";
-import { authFetch } from "@/services/api";
-import { logger } from "@/lib/logger";
-import { Card, CardBody } from "@/components/ui";
-import { Sparkles, Loader2 } from "lucide-react";
+import { Loader2, Sparkles } from 'lucide-react';
+import { useEffect } from 'react';
+import { Card, CardBody } from '@/components/ui';
+import { logger } from '@/lib/logger';
+import { authFetch } from '@/services/api';
+import { useDirectorStore } from '@/stores/director-store';
 
 export const AnalyzeStep = () => {
   const {
@@ -25,20 +25,20 @@ export const AnalyzeStep = () => {
     // Log simulation
     logInterval = setInterval(() => {
       const tasks = [
-        "Menonton video kamu...",
-        "Mencari momen menarik...",
-        "Menemukan bagian seru...",
-        "Menganalisis suara dan musik...",
-        "Menandai potongan terbaik...",
-        "Menyusun rekomendasi klip...",
-        "Hampir selesai...",
+        'Menonton video kamu...',
+        'Mencari momen menarik...',
+        'Menemukan bagian seru...',
+        'Menganalisis suara dan musik...',
+        'Menandai potongan terbaik...',
+        'Menyusun rekomendasi klip...',
+        'Hampir selesai...',
       ];
       const randomTask = tasks[Math.floor(Math.random() * tasks.length)];
-      const timestamp = new Date().toLocaleTimeString("en-US", {
+      const timestamp = new Date().toLocaleTimeString('en-US', {
         hour12: false,
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
       });
       addAnalysisLog(`[${timestamp}] ${randomTask}`);
     }, 1200);
@@ -46,26 +46,24 @@ export const AnalyzeStep = () => {
     // Polling
     interval = setInterval(async () => {
       try {
-        const res = await authFetch(
-          `/api/v1/director/sessions/${activeSession.id}/analyze`
-        );
+        const res = await authFetch(`/api/v1/director/sessions/${activeSession.id}/analyze`);
         const data = await res.json();
 
         if (data.success && data.data) {
           const job = data.data;
-          if (job.status === "COMPLETED") {
+          if (job.status === 'COMPLETED') {
             if (job.candidates) {
               setCandidates(job.candidates);
             }
-            setStep("PICKING");
+            setStep('PICKING');
             setLoading(false);
-          } else if (job.status === "FAILED") {
-            setError(job.errorMessage || "Analysis failed");
+          } else if (job.status === 'FAILED') {
+            setError(job.errorMessage || 'Analysis failed');
             setLoading(false);
           }
         }
       } catch (err) {
-        logger.error("Polling error", err);
+        logger.error('Polling error', err);
       }
     }, 2000);
 
@@ -73,14 +71,7 @@ export const AnalyzeStep = () => {
       clearInterval(interval);
       clearInterval(logInterval);
     };
-  }, [
-    activeSession,
-    setStep,
-    setCandidates,
-    setLoading,
-    setError,
-    addAnalysisLog,
-  ]);
+  }, [activeSession, setStep, setCandidates, setLoading, setError, addAnalysisLog]);
 
   return (
     <div className="max-w-2xl mx-auto w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -95,8 +86,8 @@ export const AnalyzeStep = () => {
               Menganalisis Konten
             </h2>
             <p className="text-muted-foreground max-w-md mx-auto leading-relaxed font-medium">
-              AI kami sedang mempelajari video kamu untuk menemukan momen-momen
-              yang paling berpotensi viral. 🎬
+              AI kami sedang mempelajari video kamu untuk menemukan momen-momen yang paling
+              berpotensi viral. 🎬
             </p>
           </div>
 
@@ -112,20 +103,16 @@ export const AnalyzeStep = () => {
             <div className="space-y-1.5">
               {analysisLogs.map((log, i) => (
                 <div
-                  key={i}
+                  key={log}
                   className="text-foreground/60 truncate animate-in slide-in-from-left-2 fade-in duration-300 flex gap-2"
                 >
-                  <span className="text-primary/40 font-bold shrink-0">
-                    [{i + 1}]
-                  </span>
+                  <span className="text-primary/40 font-bold shrink-0">[{i + 1}]</span>
                   <span className="truncate">{log}</span>
                 </div>
               ))}
               <div className="pt-2 flex items-center gap-2">
                 <span className="text-primary font-bold">➜</span>
-                <span className="text-foreground/40 italic">
-                  Mengekstrak metadata visual...
-                </span>
+                <span className="text-foreground/40 italic">Mengekstrak metadata visual...</span>
                 <span className="w-1.5 h-4 bg-primary animate-pulse inline-block rounded-sm" />
               </div>
             </div>

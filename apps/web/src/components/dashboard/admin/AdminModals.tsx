@@ -1,20 +1,20 @@
+import { useState } from 'react';
 import {
+  Button,
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
-  Button,
+  Input,
   Select,
-  SelectTrigger,
-  SelectValue,
   SelectContent,
   SelectItem,
-  Input,
+  SelectTrigger,
+  SelectValue,
   Textarea,
-} from "@/components/ui";
-import { UserData } from "@/hooks/useAdminData";
-import { useState } from "react";
+} from '@/components/ui';
+import type { UserData } from '@/hooks/useAdminData';
 
 interface EditSubscriptionModalProps {
   isOpen: boolean;
@@ -47,7 +47,7 @@ export function EditSubscriptionModal({
                 <p className="text-sm text-muted-foreground">{user.email}</p>
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Subscription Tier</label>
+                <div className="text-sm font-medium">Subscription Tier</div>
                 <Select value={selectedTier} onValueChange={onSelectionChange}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select tier" />
@@ -84,13 +84,13 @@ export function CreateAnnouncementModal({
   onClose,
   onCreate,
 }: CreateAnnouncementModalProps) {
-  const [newTitle, setNewTitle] = useState("");
-  const [newContent, setNewContent] = useState("");
+  const [newTitle, setNewTitle] = useState('');
+  const [newContent, setNewContent] = useState('');
 
   const handleCreate = () => {
     onCreate(newTitle, newContent);
-    setNewTitle("");
-    setNewContent("");
+    setNewTitle('');
+    setNewContent('');
   };
 
   return (
@@ -104,18 +104,14 @@ export function CreateAnnouncementModal({
             label="Judul"
             placeholder="Contoh: 🎉 Fitur Baru!"
             value={newTitle}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-              setNewTitle(e.target.value)
-            }
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewTitle(e.target.value)}
             maxLength={200}
           />
           <Textarea
             label="Konten"
             placeholder="Isi pengumuman..."
             value={newContent}
-            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-              setNewContent(e.target.value)
-            }
+            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setNewContent(e.target.value)}
             maxLength={1000}
           />
         </div>
@@ -123,10 +119,7 @@ export function CreateAnnouncementModal({
           <Button variant="secondary" onClick={onClose}>
             Batal
           </Button>
-          <Button
-            onClick={handleCreate}
-            disabled={!newTitle.trim() || !newContent.trim()}
-          >
+          <Button onClick={handleCreate} disabled={!newTitle.trim() || !newContent.trim()}>
             Buat
           </Button>
         </DialogFooter>

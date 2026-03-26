@@ -1,5 +1,5 @@
-import { ShieldCheck } from "lucide-react";
-import { useAuthStore } from "@/stores/auth-store";
+import { ShieldCheck } from 'lucide-react';
+import { useAuthStore } from '@/stores/auth-store';
 
 export function AdminHeader() {
   const { user } = useAuthStore();

@@ -1,55 +1,43 @@
-import { useState } from "react";
-import { logger } from "@/lib/logger";
+import { Clock, Download, FileVideo, Play, RefreshCw, Trash2 } from 'lucide-react';
+import { useState } from 'react';
 import {
+  Badge,
+  Button,
   Card,
   CardBody,
-  Button,
-  Badge,
-  Progress,
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
-} from "@/components/ui";
-import {
-  Download,
-  FileVideo,
-  Clock,
-  Play,
-  RefreshCw,
-  Trash2,
-} from "lucide-react";
-import {
-  PageTransition,
-  StaggerContainer,
-  StaggerItem,
-} from "@/components/ui/PageTransition";
-import { SkeletonCard } from "@/components/ui/SkeletonLoader";
-import { EmptyState } from "@/components/ui/EmptyState";
-import { useDownloads, useRefreshDownloads } from "@/hooks/use-downloads";
-import { downloadApi } from "@/services/download-api";
-import { authFetch } from "@/services/api";
+  Progress,
+} from '@/components/ui';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { PageTransition, StaggerContainer, StaggerItem } from '@/components/ui/PageTransition';
+import { SkeletonCard } from '@/components/ui/SkeletonLoader';
+import { useDownloads, useRefreshDownloads } from '@/hooks/use-downloads';
+import { logger } from '@/lib/logger';
+import { authFetch } from '@/services/api';
+import { downloadApi } from '@/services/download-api';
 
 const PLATFORM_CONFIG: Record<string, { color: string; bgClass: string }> = {
-  tiktok: { color: "text-cyan-400", bgClass: "bg-cyan-500/20" },
-  youtube: { color: "text-red-400", bgClass: "bg-red-500/20" },
-  instagram: { color: "text-pink-400", bgClass: "bg-pink-500/20" },
-  twitter: { color: "text-blue-400", bgClass: "bg-blue-500/20" },
-  facebook: { color: "text-blue-500", bgClass: "bg-blue-600/20" },
-  vimeo: { color: "text-cyan-300", bgClass: "bg-cyan-400/20" },
-  reddit: { color: "text-orange-400", bgClass: "bg-orange-500/20" },
-  unknown: { color: "text-muted-foreground", bgClass: "bg-muted" },
+  tiktok: { color: 'text-cyan-400', bgClass: 'bg-cyan-500/20' },
+  youtube: { color: 'text-red-400', bgClass: 'bg-red-500/20' },
+  instagram: { color: 'text-pink-400', bgClass: 'bg-pink-500/20' },
+  twitter: { color: 'text-blue-400', bgClass: 'bg-blue-500/20' },
+  facebook: { color: 'text-blue-500', bgClass: 'bg-blue-600/20' },
+  vimeo: { color: 'text-cyan-300', bgClass: 'bg-cyan-400/20' },
+  reddit: { color: 'text-orange-400', bgClass: 'bg-orange-500/20' },
+  unknown: { color: 'text-muted-foreground', bgClass: 'bg-muted' },
 };
 
 function shortenUrl(url: string): string {
   try {
     const u = new URL(url);
-    const pathname =
-      u.pathname.length > 25 ? u.pathname.slice(0, 25) + "..." : u.pathname;
+    const pathname = u.pathname.length > 25 ? `${u.pathname.slice(0, 25)}...` : u.pathname;
     return u.host + pathname;
   } catch {
-    return url.length > 40 ? url.slice(0, 40) + "..." : url;
+    return url.length > 40 ? `${url.slice(0, 40)}...` : url;
   }
 }
 
@@ -65,7 +53,7 @@ export function DownloadsPage() {
   // Video preview modal
   const [isVideoOpen, setIsVideoOpen] = useState(false);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
-  const [videoTitle, setVideoTitle] = useState<string>("");
+  const [videoTitle, setVideoTitle] = useState<string>('');
   const [isLoadingVideo, setIsLoadingVideo] = useState(false);
 
   const handleRefresh = () => {
@@ -73,37 +61,37 @@ export function DownloadsPage() {
   };
 
   const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString("id-ID", {
-      day: "numeric",
-      month: "short",
-      hour: "2-digit",
-      minute: "2-digit",
+    return new Date(dateStr).toLocaleDateString('id-ID', {
+      day: 'numeric',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
     });
   };
 
   const getStatusVariant = (status: string) => {
     switch (status) {
-      case "COMPLETED":
-        return "default";
-      case "PROCESSING":
-      case "DOWNLOADING":
-        return "secondary";
-      case "PENDING":
-        return "outline";
+      case 'COMPLETED':
+        return 'default';
+      case 'PROCESSING':
+      case 'DOWNLOADING':
+        return 'secondary';
+      case 'PENDING':
+        return 'outline';
       default:
-        return "secondary";
+        return 'secondary';
     }
   };
 
   const getStatusLabel = (status: string) => {
     switch (status) {
-      case "COMPLETED":
-        return "Selesai";
-      case "PROCESSING":
-      case "DOWNLOADING":
-        return "Memproses...";
-      case "PENDING":
-        return "Menunggu";
+      case 'COMPLETED':
+        return 'Selesai';
+      case 'PROCESSING':
+      case 'DOWNLOADING':
+        return 'Memproses...';
+      case 'PENDING':
+        return 'Menunggu';
       default:
         return status;
     }
@@ -122,7 +110,7 @@ export function DownloadsPage() {
       await downloadApi.deleteDownload(deleteTarget);
       refetch();
     } catch (e) {
-      logger.error("Delete download failed", e);
+      logger.error('Delete download failed', e);
     } finally {
       setIsDeleting(false);
       setDeleteTarget(null);
@@ -138,7 +126,7 @@ export function DownloadsPage() {
       const response = await authFetch(`/api/v1/download/${downloadId}/file`);
 
       if (!response.ok) {
-        throw new Error("Gagal memuat video");
+        throw new Error('Gagal memuat video');
       }
 
       const blob = await response.blob();
@@ -146,7 +134,7 @@ export function DownloadsPage() {
       setVideoUrl(url);
       setIsVideoOpen(true);
     } catch (e) {
-      logger.error("Load video failed", e);
+      logger.error('Load video failed', e);
     } finally {
       setIsLoadingVideo(false);
     }
@@ -157,16 +145,14 @@ export function DownloadsPage() {
       URL.revokeObjectURL(videoUrl);
       setVideoUrl(null);
     }
-    setVideoTitle("");
+    setVideoTitle('');
     setIsVideoOpen(false);
   };
 
-  const getPlatformConfig = (
-    platform: string | null
-  ): { color: string; bgClass: string } => {
-    const key = platform?.toLowerCase() || "unknown";
+  const getPlatformConfig = (platform: string | null): { color: string; bgClass: string } => {
+    const key = platform?.toLowerCase() || 'unknown';
     const config = PLATFORM_CONFIG[key];
-    return config || { color: "text-muted-foreground", bgClass: "bg-muted" };
+    return config || { color: 'text-muted-foreground', bgClass: 'bg-muted' };
   };
 
   return (
@@ -180,11 +166,7 @@ export function DownloadsPage() {
           </h1>
           <p className="text-muted-foreground">Download audio/video dari URL</p>
         </div>
-        <Button
-          variant="secondary"
-          onClick={handleRefresh}
-          isLoading={isLoading}
-        >
+        <Button variant="secondary" onClick={handleRefresh} isLoading={isLoading}>
           <RefreshCw size={16} />
           Refresh
         </Button>
@@ -206,12 +188,8 @@ export function DownloadsPage() {
         <StaggerContainer className="space-y-3">
           {downloads.map((download) => {
             const platformConfig = getPlatformConfig(download.platform);
-            const isProcessing = [
-              "PROCESSING",
-              "DOWNLOADING",
-              "PENDING",
-            ].includes(download.status);
-            const isCompleted = download.status === "COMPLETED";
+            const isProcessing = ['PROCESSING', 'DOWNLOADING', 'PENDING'].includes(download.status);
+            const isCompleted = download.status === 'COMPLETED';
 
             return (
               <StaggerItem key={download.id}>
@@ -221,16 +199,12 @@ export function DownloadsPage() {
                       {/* Platform Icon */}
                       <div
                         className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-                          isProcessing
-                            ? "bg-primary/20 animate-pulse"
-                            : platformConfig.bgClass
+                          isProcessing ? 'bg-primary/20 animate-pulse' : platformConfig.bgClass
                         }`}
                       >
                         <FileVideo
                           size={24}
-                          className={
-                            isProcessing ? "text-primary" : platformConfig.color
-                          }
+                          className={isProcessing ? 'text-primary' : platformConfig.color}
                         />
                       </div>
 
@@ -246,11 +220,8 @@ export function DownloadsPage() {
                         </div>
 
                         <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                          <Badge
-                            variant="outline"
-                            className={platformConfig.color}
-                          >
-                            {(download.platform || "video").toUpperCase()}
+                          <Badge variant="outline" className={platformConfig.color}>
+                            {(download.platform || 'video').toUpperCase()}
                           </Badge>
                           <span className="flex items-center gap-1">
                             <Clock size={12} />
@@ -260,27 +231,19 @@ export function DownloadsPage() {
 
                         {/* Progress bar for processing */}
                         {isProcessing && (
-                          <Progress
-                            value={50}
-                            className="mt-2 max-w-xs animate-pulse"
-                          />
+                          <Progress value={50} className="mt-2 max-w-xs animate-pulse" />
                         )}
                       </div>
 
                       {/* Actions */}
                       <div className="flex items-center gap-2">
                         {/* Play button for completed */}
-                        {isCompleted && download.localPath && (
+                        {isCompleted && (
                           <Button
                             size="sm"
                             variant="secondary"
                             isLoading={isLoadingVideo}
-                            onClick={() =>
-                              handleOpenVideo(
-                                download.id,
-                                download.title || "Video"
-                              )
-                            }
+                            onClick={() => handleOpenVideo(download.id, download.title || 'Video')}
                           >
                             <Play size={14} />
                             Putar
@@ -318,11 +281,7 @@ export function DownloadsPage() {
             <Button variant="ghost" onClick={() => setIsDeleteOpen(false)}>
               Batal
             </Button>
-            <Button
-              variant="destructive"
-              onClick={handleDeleteConfirm}
-              isLoading={isDeleting}
-            >
+            <Button variant="destructive" onClick={handleDeleteConfirm} isLoading={isDeleting}>
               Hapus
             </Button>
           </DialogFooter>
@@ -343,6 +302,7 @@ export function DownloadsPage() {
                 autoPlay
                 className="w-full max-h-[70vh] bg-black rounded-lg"
               >
+                <track kind="captions" label="Download preview" />
                 Browser tidak mendukung video tag.
               </video>
             )}

@@ -4,21 +4,21 @@
  * BullMQ worker for cleaning up expired trending items
  */
 
-import { Worker, Job } from "bullmq";
-import { redisOptions } from "@/lib/redis";
-import { trendingService } from "../trending.service";
-import { logger } from "@/lib/logger";
-import type { RetentionJobData } from "./trending.queue";
+import { type Job, Worker } from 'bullmq';
+import { logger } from '@/lib/logger';
+import { redisOptions } from '@/lib/redis';
+import { trendingService } from '../trending.service';
+import type { RetentionJobData } from './trending.queue';
 
 // ============================================================================
 // RETENTION WORKER
 // ============================================================================
 
 export const trendingRetentionWorker = new Worker<RetentionJobData>(
-  "trending-retention",
+  'trending-retention',
   async (job: Job<RetentionJobData>) => {
     const startTime = Date.now();
-    logger.info({ jobId: job.id }, "Starting trending retention cleanup");
+    logger.info({ jobId: job.id }, 'Starting trending retention cleanup');
 
     try {
       const deletedCount = await trendingService.cleanupExpired();
@@ -26,40 +26,34 @@ export const trendingRetentionWorker = new Worker<RetentionJobData>(
 
       logger.info(
         { jobId: job.id, deletedCount, durationMs },
-        "Trending retention cleanup completed"
+        'Trending retention cleanup completed',
       );
 
       return { deletedCount };
     } catch (err) {
       const durationMs = Date.now() - startTime;
-      logger.error(
-        { jobId: job.id, error: err, durationMs },
-        "Trending retention cleanup failed"
-      );
+      logger.error({ jobId: job.id, error: err, durationMs }, 'Trending retention cleanup failed');
       throw err;
     }
   },
   {
     connection: redisOptions,
     concurrency: 1,
-  }
+  },
 );
 
 // ============================================================================
 // EVENT HANDLERS
 // ============================================================================
 
-trendingRetentionWorker.on("completed", (job) => {
-  logger.debug({ jobId: job.id }, "Trending retention job completed");
+trendingRetentionWorker.on('completed', (job) => {
+  logger.debug({ jobId: job.id }, 'Trending retention job completed');
 });
 
-trendingRetentionWorker.on("failed", (job, err) => {
-  logger.error(
-    { jobId: job?.id, error: err.message },
-    "Trending retention job failed"
-  );
+trendingRetentionWorker.on('failed', (job, err) => {
+  logger.error({ jobId: job?.id, error: err.message }, 'Trending retention job failed');
 });
 
-trendingRetentionWorker.on("error", (err) => {
-  logger.error({ error: err.message }, "Trending retention worker error");
+trendingRetentionWorker.on('error', (err) => {
+  logger.error({ error: err.message }, 'Trending retention worker error');
 });

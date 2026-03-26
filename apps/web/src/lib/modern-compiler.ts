@@ -12,23 +12,18 @@
  */
 
 import type {
-  ModernProject,
-  Layer,
-  VideoLayer,
-  ImageLayer,
-  TextLayer,
   AudioLayer,
-  CompilerMetadata,
   CompilerError,
   CompilerErrorCode,
-} from "@vibe-creator/shared";
-import { MODERN_COMPILER_VERSION, MODERN_LIMITS } from "@vibe-creator/shared";
-import type {
-  EditorTimeline,
-  EditorTrack,
-  EditorClip,
-  EditorAsset,
-} from "@/stores/editor-store";
+  CompilerMetadata,
+  ImageLayer,
+  Layer,
+  ModernProject,
+  TextLayer,
+  VideoLayer,
+} from '@vibe-creator/shared';
+import { MODERN_COMPILER_VERSION, MODERN_LIMITS } from '@vibe-creator/shared';
+import type { EditorAsset, EditorClip, EditorTimeline, EditorTrack } from '@/stores/editor-store';
 
 // -----------------------------------------------------------------------------
 // Types
@@ -61,11 +56,7 @@ interface AssetRegistry {
  * Formula: hash(layerId + trackType + segmentIndex)
  * This ensures same input always produces same IDs
  */
-function generateClipId(
-  layerId: string,
-  trackType: string,
-  segmentIndex: number
-): string {
+function generateClipId(layerId: string, trackType: string, segmentIndex: number): string {
   const input = `${layerId}:${trackType}:${segmentIndex}`;
   // Simple hash for determinism (not cryptographic)
   let hash = 0;
@@ -92,24 +83,39 @@ function createError(
   code: CompilerErrorCode,
   message: string,
   layerId?: string,
-  details?: Record<string, unknown>
+  details?: Record<string, unknown>,
 ): CompilerError {
   return { code, message, layerId, details };
 }
 
-function validateProject(
-  project: ModernProject,
-  assets: AssetRegistry
-): CompilerError[] {
+function getRequiredAssetId(layer: Layer): string {
+  if (!layer.assetId) {
+    throw new Error(`Layer '${layer.id}' is missing an asset reference`);
+  }
+
+  return layer.assetId;
+}
+
+function getRequiredAsset(assets: AssetRegistry, layer: Layer): EditorAsset {
+  const assetId = getRequiredAssetId(layer);
+  const asset = assets.getAsset(assetId);
+  if (!asset) {
+    throw new Error(`Asset '${assetId}' not found for layer '${layer.id}'`);
+  }
+
+  return asset;
+}
+
+function validateProject(project: ModernProject, assets: AssetRegistry): CompilerError[] {
   const errors: CompilerError[] = [];
 
   // Validate layer count
   if (project.layers.length > MODERN_LIMITS.MAX_LAYERS) {
     errors.push(
       createError(
-        "EXCEEDS_LAYER_LIMIT",
-        `Project has ${project.layers.length} layers, max is ${MODERN_LIMITS.MAX_LAYERS}`
-      )
+        'EXCEEDS_LAYER_LIMIT',
+        `Project has ${project.layers.length} layers, max is ${MODERN_LIMITS.MAX_LAYERS}`,
+      ),
     );
   }
 
@@ -120,12 +126,9 @@ function validateProject(
       const asset = assets.getAsset(layer.assetId);
       if (!asset) {
         errors.push(
-          createError(
-            "ASSET_MISSING",
-            `Asset '${layer.assetId}' not found`,
-            layer.id,
-            { assetId: layer.assetId }
-          )
+          createError('ASSET_MISSING', `Asset '${layer.assetId}' not found`, layer.id, {
+            assetId: layer.assetId,
+          }),
         );
       }
     }
@@ -134,30 +137,30 @@ function validateProject(
     if (layer.startMs < 0) {
       errors.push(
         createError(
-          "OUT_OF_BOUNDS_TIMING",
+          'OUT_OF_BOUNDS_TIMING',
           `Layer startMs (${layer.startMs}) cannot be negative`,
-          layer.id
-        )
+          layer.id,
+        ),
       );
     }
 
     if (layer.endMs <= layer.startMs) {
       errors.push(
         createError(
-          "VALIDATION_FAILED",
+          'VALIDATION_FAILED',
           `Layer endMs (${layer.endMs}) must be greater than startMs (${layer.startMs})`,
-          layer.id
-        )
+          layer.id,
+        ),
       );
     }
 
     if (layer.endMs > MODERN_LIMITS.MAX_DURATION_MS) {
       errors.push(
         createError(
-          "EXCEEDS_DURATION_LIMIT",
+          'EXCEEDS_DURATION_LIMIT',
           `Layer endMs (${layer.endMs}) exceeds max duration (${MODERN_LIMITS.MAX_DURATION_MS})`,
-          layer.id
-        )
+          layer.id,
+        ),
       );
     }
 
@@ -170,28 +173,20 @@ function validateProject(
 
 function validateLayerData(layer: Layer, errors: CompilerError[]): void {
   switch (layer.type) {
-    case "video":
-    case "image":
-    case "audio":
+    case 'video':
+    case 'image':
+    case 'audio':
       if (layer.assetId === null) {
         errors.push(
-          createError(
-            "VALIDATION_FAILED",
-            `${layer.type} layer must have an assetId`,
-            layer.id
-          )
+          createError('VALIDATION_FAILED', `${layer.type} layer must have an assetId`, layer.id),
         );
       }
       break;
-    case "text":
+    case 'text':
       // Text layers don't need assetId, but need text content
-      if (!layer.data.text || layer.data.text.trim() === "") {
+      if (!layer.data.text || layer.data.text.trim() === '') {
         errors.push(
-          createError(
-            "VALIDATION_FAILED",
-            "Text layer must have text content",
-            layer.id
-          )
+          createError('VALIDATION_FAILED', 'Text layer must have text content', layer.id),
         );
       }
       break;
@@ -200,10 +195,10 @@ function validateLayerData(layer: Layer, errors: CompilerError[]): void {
       const _exhaustive: never = layer;
       errors.push(
         createError(
-          "UNSUPPORTED_LAYER_TYPE",
+          'UNSUPPORTED_LAYER_TYPE',
           `Unsupported layer type: ${(_exhaustive as Layer).type}`,
-          (layer as Layer).id
-        )
+          (layer as Layer).id,
+        ),
       );
     }
   }
@@ -217,18 +212,12 @@ function validateLayerData(layer: Layer, errors: CompilerError[]): void {
  * Convert layer transforms to clip transforms
  * Maps percentage-based layer coords to pixel-based clip coords
  */
-function layerToClipTransforms(
-  layer: Layer,
-  projectWidth: number,
-  projectHeight: number
-) {
+function layerToClipTransforms(layer: Layer, projectWidth: number, projectHeight: number) {
   // Convert from percentage (0-100) to normalized pixel offset
   // For center anchor, x/y represent center position
   // Clip transforms use offset from center (0,0 = centered)
-  const centerX =
-    layer.anchor === "center" ? 0 : ((layer.x - 50) / 100) * projectWidth;
-  const centerY =
-    layer.anchor === "center" ? 0 : ((layer.y - 50) / 100) * projectHeight;
+  const centerX = layer.anchor === 'center' ? 0 : ((layer.x - 50) / 100) * projectWidth;
+  const centerY = layer.anchor === 'center' ? 0 : ((layer.y - 50) / 100) * projectHeight;
 
   return {
     x: centerX + ((layer.x - 50) / 100) * projectWidth,
@@ -245,23 +234,19 @@ function layerToClipTransforms(
 function compileVideoLayer(
   layer: VideoLayer,
   asset: EditorAsset,
-  projectSettings: ModernProject["settings"]
+  projectSettings: ModernProject['settings'],
 ): { videoClip: EditorClip; audioClip?: EditorClip } {
   const linkId = `link-${layer.id}`;
 
   const videoClip: EditorClip = {
-    id: generateClipId(layer.id, "VIDEO", 0),
+    id: generateClipId(layer.id, 'VIDEO', 0),
     assetId: layer.assetId,
     linkId,
     startMs: layer.startMs,
     endMs: layer.endMs,
     trimStartMs: layer.data.trimStartMs,
     trimEndMs: layer.data.trimEndMs,
-    transforms: layerToClipTransforms(
-      layer,
-      projectSettings.width,
-      projectSettings.height
-    ),
+    transforms: layerToClipTransforms(layer, projectSettings.width, projectSettings.height),
     effects: {
       filters: [],
       speed: 1,
@@ -274,7 +259,7 @@ function compileVideoLayer(
 
   // Create linked audio clip for video with audio
   const audioClip: EditorClip = {
-    id: generateClipId(layer.id, "AUDIO", 0),
+    id: generateClipId(layer.id, 'AUDIO', 0),
     assetId: layer.assetId,
     linkId,
     startMs: layer.startMs,
@@ -301,20 +286,16 @@ function compileVideoLayer(
 function compileImageLayer(
   layer: ImageLayer,
   asset: EditorAsset,
-  projectSettings: ModernProject["settings"]
+  projectSettings: ModernProject['settings'],
 ): EditorClip {
   return {
-    id: generateClipId(layer.id, "VIDEO", 0), // Images go on video track
+    id: generateClipId(layer.id, 'VIDEO', 0), // Images go on video track
     assetId: layer.assetId,
     startMs: layer.startMs,
     endMs: layer.endMs,
     trimStartMs: 0,
     trimEndMs: 0,
-    transforms: layerToClipTransforms(
-      layer,
-      projectSettings.width,
-      projectSettings.height
-    ),
+    transforms: layerToClipTransforms(layer, projectSettings.width, projectSettings.height),
     effects: {
       filters: [],
       speed: 1,
@@ -331,7 +312,7 @@ function compileImageLayer(
  */
 function compileAudioLayer(layer: AudioLayer, asset: EditorAsset): EditorClip {
   return {
-    id: generateClipId(layer.id, "AUDIO", 0),
+    id: generateClipId(layer.id, 'AUDIO', 0),
     assetId: layer.assetId,
     startMs: layer.startMs,
     endMs: layer.endMs,
@@ -357,7 +338,7 @@ function compileAudioLayer(layer: AudioLayer, asset: EditorAsset): EditorClip {
  */
 export function compileModernProject(
   project: ModernProject,
-  assetsArray: EditorAsset[]
+  assetsArray: EditorAsset[],
 ): CompilerOutput {
   // Build asset registry
   const assetMap = new Map(assetsArray.map((a) => [a.id, a]));
@@ -376,21 +357,19 @@ export function compileModernProject(
   const sortedLayers = [...project.layers].sort((a, b) => a.zIndex - b.zIndex);
 
   // Group layers: visual (video/image) vs audio
-  const visualLayers = sortedLayers.filter(
-    (l) => l.type === "video" || l.type === "image"
-  );
-  const audioLayers = sortedLayers.filter((l) => l.type === "audio");
+  const visualLayers = sortedLayers.filter((l) => l.type === 'video' || l.type === 'image');
+  const audioLayers = sortedLayers.filter((l) => l.type === 'audio');
   // Note: Text layers handled separately via extractTextOverlays()
 
   // Build video tracks (one per visual layer for z-ordering)
   const videoTracks: EditorTrack[] = [];
   const audioClips: EditorClip[] = [];
 
-  visualLayers.forEach((layer, index) => {
-    const trackId = generateTrackId("VIDEO", index);
+  for (const [index, layer] of visualLayers.entries()) {
+    const trackId = generateTrackId('VIDEO', index);
     const track: EditorTrack = {
       id: trackId,
-      type: "VIDEO",
+      type: 'VIDEO',
       order: index,
       muted: !layer.visible,
       volume: 1,
@@ -398,30 +377,26 @@ export function compileModernProject(
       clips: [],
     };
 
-    if (layer.type === "video") {
-      const asset = assets.getAsset(layer.assetId!)!;
-      const { videoClip, audioClip } = compileVideoLayer(
-        layer,
-        asset,
-        project.settings
-      );
+    if (layer.type === 'video') {
+      const asset = getRequiredAsset(assets, layer);
+      const { videoClip, audioClip } = compileVideoLayer(layer, asset, project.settings);
       track.clips.push(videoClip);
       if (audioClip) {
         audioClips.push(audioClip);
       }
-    } else if (layer.type === "image") {
-      const asset = assets.getAsset(layer.assetId!)!;
+    } else if (layer.type === 'image') {
+      const asset = getRequiredAsset(assets, layer);
       const clip = compileImageLayer(layer, asset, project.settings);
       track.clips.push(clip);
     }
 
     videoTracks.push(track);
-  });
+  }
 
   // Build audio track
   const audioTrack: EditorTrack = {
-    id: generateTrackId("AUDIO", 0),
-    type: "AUDIO",
+    id: generateTrackId('AUDIO', 0),
+    type: 'AUDIO',
     order: videoTracks.length,
     muted: false,
     volume: 1,
@@ -430,13 +405,13 @@ export function compileModernProject(
   };
 
   // Add standalone audio layer clips
-  audioLayers.forEach((layer) => {
-    if (layer.type === "audio") {
-      const asset = assets.getAsset(layer.assetId!)!;
+  for (const layer of audioLayers) {
+    if (layer.type === 'audio') {
+      const asset = getRequiredAsset(assets, layer);
       const clip = compileAudioLayer(layer, asset);
       audioTrack.clips.push(clip);
     }
-  });
+  }
 
   // Calculate duration
   const allTracks = [...videoTracks, audioTrack];
@@ -476,7 +451,7 @@ export function compileModernProject(
  */
 export function extractTextOverlays(project: ModernProject) {
   return project.layers
-    .filter((l): l is TextLayer => l.type === "text")
+    .filter((l): l is TextLayer => l.type === 'text')
     .map((layer) => ({
       id: layer.id,
       text: layer.data.text,
@@ -499,8 +474,6 @@ export function extractTextOverlays(project: ModernProject) {
 /**
  * Check if compiler output is successful
  */
-export function isCompileSuccess(
-  output: CompilerOutput
-): output is CompileResult {
+export function isCompileSuccess(output: CompilerOutput): output is CompileResult {
   return output.success === true;
 }

@@ -49,12 +49,7 @@ export const SUBSCRIPTION_TIERS: Record<SubscriptionTier, SubscriptionTierConfig
     tier: 'CREATOR',
     name: 'Creator',
     priceMonthly: 99000,
-    features: [
-      'Semua fitur Gratis',
-      'Export 720p-1080p',
-      '20 export/bulan',
-      'Tanpa watermark',
-    ],
+    features: ['Semua fitur Gratis', 'Export 720p-1080p', '20 export/bulan', 'Tanpa watermark'],
     exportsLimit: 20,
     maxResolution: '1080P',
     watermark: false,

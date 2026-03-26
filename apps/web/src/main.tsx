@@ -1,9 +1,9 @@
-import { StrictMode } from "react";
-import { createRoot } from "react-dom/client";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { TooltipProvider } from "@/components/ui";
-import App from "./App";
-import "./index.css";
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { StrictMode } from 'react';
+import { createRoot } from 'react-dom/client';
+import { TooltipProvider } from '@/components/ui';
+import App from './App';
+import './index.css';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -17,10 +17,10 @@ const queryClient = new QueryClient({
   },
 });
 
-const rootElement = document.getElementById("root");
+const rootElement = document.getElementById('root');
 
 if (!rootElement) {
-  throw new Error("Root element not found");
+  throw new Error('Root element not found');
 }
 
 createRoot(rootElement).render(
@@ -30,5 +30,5 @@ createRoot(rootElement).render(
         <App />
       </TooltipProvider>
     </QueryClientProvider>
-  </StrictMode>
+  </StrictMode>,
 );

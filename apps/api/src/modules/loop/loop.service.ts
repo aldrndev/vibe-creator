@@ -1,10 +1,7 @@
-import { cleanupOldLoops, getVideoDuration } from "./loop.utils";
-import { processLoop, CreateLoopInput } from "./processors/loop.processor";
-import {
-  processBoomerang,
-  CreateBoomerangInput,
-} from "./processors/boomerang.processor";
-import { processGif, CreateGifInput } from "./processors/gif.processor";
+import { cleanupOldLoops, getVideoDuration } from './loop.utils';
+import { type CreateBoomerangInput, processBoomerang } from './processors/boomerang.processor';
+import { type CreateGifInput, processGif } from './processors/gif.processor';
+import { type CreateLoopInput, processLoop } from './processors/loop.processor';
 
 /**
  * Loop service for creating looping videos

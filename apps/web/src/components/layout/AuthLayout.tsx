@@ -1,7 +1,7 @@
-import type { ReactNode } from "react";
-import { Link } from "react-router-dom";
-import { motion } from "framer-motion";
-import { Sparkles } from "lucide-react";
+import { motion } from 'framer-motion';
+import { Sparkles } from 'lucide-react';
+import type { ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 
 interface AuthLayoutProps {
   children: ReactNode;
@@ -45,8 +45,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
             Wujudkan Ide <br /> Menjadi Konten Viral.
           </h1>
           <p className="text-white/80 text-lg font-medium max-w-md">
-            Gabung dengan ribuan kreator yang sedang membangun masa depan konten
-            digital dengan AI.
+            Gabung dengan ribuan kreator yang sedang membangun masa depan konten digital dengan AI.
           </p>
         </motion.div>
 
@@ -90,9 +89,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
 
         {/* Mobile Footer Credit */}
         <div className="lg:hidden mt-12">
-          <p className="text-muted-foreground/60 text-xs font-medium">
-            © 2024 Vibe Creator.
-          </p>
+          <p className="text-muted-foreground/60 text-xs font-medium">© 2024 Vibe Creator.</p>
         </div>
       </div>
     </div>

@@ -7,9 +7,6 @@ interface DownloadJob {
   title: string | null;
   platform: string;
   status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
-  localPath: string | null;
-  r2Key: string | null;
-  metadata: Record<string, unknown> | null;
   errorMessage: string | null;
   createdAt: string;
   completedAt: string | null;
@@ -30,7 +27,7 @@ export function useDownloads() {
 // Hook to manually refetch downloads (for refresh button)
 export function useRefreshDownloads() {
   const queryClient = useQueryClient();
-  
+
   return () => {
     queryClient.invalidateQueries({ queryKey: ['downloads'] });
   };

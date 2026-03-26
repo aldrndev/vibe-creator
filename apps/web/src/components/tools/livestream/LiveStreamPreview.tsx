@@ -1,6 +1,6 @@
-import { useRef } from "react";
-import { Button, Card, CardBody } from "@/components/ui";
-import { Video, Upload } from "lucide-react";
+import { Upload, Video } from 'lucide-react';
+import { useRef } from 'react';
+import { Button, Card, CardBody } from '@/components/ui';
 
 interface LiveStreamPreviewProps {
   videoUrl: string;
@@ -8,11 +8,7 @@ interface LiveStreamPreviewProps {
   onFileSelect: (file: File) => void;
 }
 
-export function LiveStreamPreview({
-  videoUrl,
-  isStreaming,
-  onFileSelect,
-}: LiveStreamPreviewProps) {
+export function LiveStreamPreview({ videoUrl, isStreaming, onFileSelect }: LiveStreamPreviewProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -26,7 +22,9 @@ export function LiveStreamPreview({
     <Card className="bg-card/70 backdrop-blur-xl border-border/50 overflow-hidden group/container">
       <CardBody className="p-0">
         {!videoUrl ? (
-          <div
+          <button
+            type="button"
+            aria-label="Pilih file video"
             className="w-full min-h-[350px] md:min-h-0 md:aspect-video flex flex-col items-center justify-center p-8 transition-all duration-500 cursor-pointer group/card overflow-hidden active:scale-[0.99]"
             onClick={() => fileInputRef.current?.click()}
           >
@@ -47,22 +45,16 @@ export function LiveStreamPreview({
                 Pilih File Video
               </div>
             </div>
-          </div>
+          </button>
         ) : (
           <div className="relative aspect-video">
-            <video
-              src={videoUrl}
-              autoPlay
-              muted
-              loop
-              className="w-full h-full object-cover"
-            />
+            <video src={videoUrl} autoPlay muted loop className="w-full h-full object-cover" />
 
             {/* Status Overlays */}
             <div className="absolute top-4 left-4 flex gap-2">
               <div className="px-3 py-1.5 bg-black/60 backdrop-blur-md rounded-full border border-white/20 text-[9px] text-white font-black uppercase tracking-widest flex items-center gap-2">
                 <Video size={12} className="text-primary" />
-                Source: {videoUrl.split("/").pop()}
+                Source: {videoUrl.split('/').pop()}
               </div>
 
               {isStreaming && (

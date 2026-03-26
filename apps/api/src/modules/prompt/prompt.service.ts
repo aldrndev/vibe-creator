@@ -1,24 +1,24 @@
-import { prisma } from "@/lib/prisma";
-import type { Prisma } from "@prisma/client";
+import type { Prisma } from '@prisma/client';
+import type {
+  CreativeScanPromptInput,
+  ImagePromptInput,
+  PromptType,
+  RelaxingPromptInput,
+  ScriptPromptInput,
+  TimelapsePromptInput,
+  VideoGenPromptInput,
+  VoicePromptInput,
+} from '@vibe-creator/shared';
 import {
-  generateScriptPrompt,
-  generateVoicePrompt,
-  generateVideoGenPrompt,
+  generateCreativeScanPrompt,
   generateImagePrompt,
   generateRelaxingPrompt,
-  generateCreativeScanPrompt,
+  generateScriptPrompt,
   generateTimelapsePrompt,
-} from "@vibe-creator/shared";
-import type {
-  PromptType,
-  ScriptPromptInput,
-  VoicePromptInput,
-  VideoGenPromptInput,
-  ImagePromptInput,
-  RelaxingPromptInput,
-  CreativeScanPromptInput,
-  TimelapsePromptInput,
-} from "@vibe-creator/shared";
+  generateVideoGenPrompt,
+  generateVoicePrompt,
+} from '@vibe-creator/shared';
+import { prisma } from '@/lib/prisma';
 
 interface ListPromptsParams {
   userId: string;
@@ -50,9 +50,10 @@ export const promptService = {
     // Cursor pagination
     if (cursor) {
       try {
-        const decoded = JSON.parse(
-          Buffer.from(cursor, "base64url").toString("utf8")
-        ) as { id: string; ts: string };
+        const decoded = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')) as {
+          id: string;
+          ts: string;
+        };
         const cursorDate = new Date(decoded.ts);
 
         const prompts = await prisma.prompt.findMany({
@@ -66,12 +67,12 @@ export const promptService = {
           },
           include: {
             versions: {
-              orderBy: { version: "desc" },
+              orderBy: { version: 'desc' },
               take: 1,
               select: { id: true, version: true, generatedPrompt: true },
             },
           },
-          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
           take: limit + 1,
         });
 
@@ -84,8 +85,8 @@ export const promptService = {
                 JSON.stringify({
                   id: lastItem.id,
                   ts: lastItem.createdAt.toISOString(),
-                })
-              ).toString("base64url")
+                }),
+              ).toString('base64url')
             : null;
 
         const formattedPrompts = items.map((prompt) => ({
@@ -115,29 +116,27 @@ export const promptService = {
         where,
         include: {
           versions: {
-            orderBy: { version: "desc" },
+            orderBy: { version: 'desc' },
             take: 1,
             select: { id: true, version: true, generatedPrompt: true },
           },
         },
-        orderBy: { updatedAt: "desc" },
+        orderBy: { updatedAt: 'desc' },
         skip: (page - 1) * limit,
         take: limit,
       }),
       prisma.prompt.count({ where }),
     ]);
 
-    const formattedPrompts = prompts.map(
-      (prompt: (typeof prompts)[number]) => ({
-        id: prompt.id,
-        type: prompt.type,
-        title: prompt.title,
-        currentVersion: prompt.versions[0]?.version ?? 0,
-        lastGeneratedPrompt: prompt.versions[0]?.generatedPrompt ?? null,
-        createdAt: prompt.createdAt,
-        updatedAt: prompt.updatedAt,
-      })
-    );
+    const formattedPrompts = prompts.map((prompt: (typeof prompts)[number]) => ({
+      id: prompt.id,
+      type: prompt.type,
+      title: prompt.title,
+      currentVersion: prompt.versions[0]?.version ?? 0,
+      lastGeneratedPrompt: prompt.versions[0]?.generatedPrompt ?? null,
+      createdAt: prompt.createdAt,
+      updatedAt: prompt.updatedAt,
+    }));
 
     return { data: formattedPrompts, total };
   },
@@ -150,7 +149,7 @@ export const promptService = {
       where: { id: promptId, userId },
       include: {
         versions: {
-          orderBy: { version: "desc" },
+          orderBy: { version: 'desc' },
         },
       },
     });
@@ -194,17 +193,12 @@ export const promptService = {
   /**
    * Create new version
    */
-  async createVersion({
-    userId,
-    promptId,
-    inputData,
-    userNotes,
-  }: CreateVersionParams) {
+  async createVersion({ userId, promptId, inputData, userNotes }: CreateVersionParams) {
     const prompt = await prisma.prompt.findFirst({
       where: { id: promptId, userId },
       include: {
         versions: {
-          orderBy: { version: "desc" },
+          orderBy: { version: 'desc' },
           take: 1,
         },
       },
@@ -213,10 +207,7 @@ export const promptService = {
     if (!prompt) return null;
 
     const nextVersion = (prompt.versions[0]?.version ?? 0) + 1;
-    const generatedPrompt = this.generatePromptFromInput(
-      prompt.type as PromptType,
-      inputData
-    );
+    const generatedPrompt = this.generatePromptFromInput(prompt.type as PromptType, inputData);
 
     const version = await prisma.promptVersion.create({
       data: {
@@ -298,7 +289,7 @@ export const promptService = {
       where: { id: promptId, userId },
       include: {
         versions: {
-          orderBy: { version: "desc" },
+          orderBy: { version: 'desc' },
           take: 1,
         },
       },
@@ -311,7 +302,7 @@ export const promptService = {
 
     const generatedPrompt = this.generatePromptFromInput(
       prompt.type as PromptType,
-      latestVersion.inputData as Record<string, unknown>
+      latestVersion.inputData as Record<string, unknown>,
     );
 
     return {
@@ -323,42 +314,29 @@ export const promptService = {
   /**
    * Internal Helper: Generate prompt string
    */
-  generatePromptFromInput(
-    type: PromptType,
-    inputData: Record<string, unknown>
-  ): string {
+  generatePromptFromInput(type: PromptType, inputData: Record<string, unknown>): string {
     try {
       switch (type) {
-        case "SCRIPT":
-          return generateScriptPrompt(
-            inputData as unknown as ScriptPromptInput
-          );
-        case "VOICE":
+        case 'SCRIPT':
+          return generateScriptPrompt(inputData as unknown as ScriptPromptInput);
+        case 'VOICE':
           return generateVoicePrompt(inputData as unknown as VoicePromptInput);
-        case "VIDEO_GEN":
-          return generateVideoGenPrompt(
-            inputData as unknown as VideoGenPromptInput
-          );
-        case "IMAGE":
+        case 'VIDEO_GEN':
+          return generateVideoGenPrompt(inputData as unknown as VideoGenPromptInput);
+        case 'IMAGE':
           return generateImagePrompt(inputData as unknown as ImagePromptInput);
-        case "RELAXING":
-          return generateRelaxingPrompt(
-            inputData as unknown as RelaxingPromptInput
-          );
-        case "CREATIVE_SCAN":
-          return generateCreativeScanPrompt(
-            inputData as unknown as CreativeScanPromptInput
-          );
-        case "TIMELAPSE":
-          return generateTimelapsePrompt(
-            inputData as unknown as TimelapsePromptInput
-          );
+        case 'RELAXING':
+          return generateRelaxingPrompt(inputData as unknown as RelaxingPromptInput);
+        case 'CREATIVE_SCAN':
+          return generateCreativeScanPrompt(inputData as unknown as CreativeScanPromptInput);
+        case 'TIMELAPSE':
+          return generateTimelapsePrompt(inputData as unknown as TimelapsePromptInput);
         default:
-          return `// Prompt type tidak dikenali`;
+          return '// Prompt type tidak dikenali';
       }
     } catch (error) {
       return `// Error generating prompt: ${
-        error instanceof Error ? error.message : "Unknown error"
+        error instanceof Error ? error.message : 'Unknown error'
       }`;
     }
   },

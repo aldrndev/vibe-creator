@@ -1,5 +1,5 @@
-import { useRef, useEffect } from "react";
-import { useModernEditorStore } from "@/stores/modern-editor-store";
+import { useEffect, useRef } from 'react';
+import { useModernEditorStore } from '@/stores/modern-editor-store';
 
 interface VideoLayerContentProps {
   src: string;

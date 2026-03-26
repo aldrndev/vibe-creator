@@ -1,6 +1,6 @@
-import { FastifyPluginAsync, FastifyRequest, FastifyReply } from "fastify";
-import { z } from "zod";
-import { directorService } from "../director.service";
+import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
+import { z } from 'zod';
+import { directorService } from '../director.service';
 
 const selectClipsSchema = z.object({
   clipIds: z.array(z.string()),
@@ -17,60 +17,48 @@ export const analysisRoutes: FastifyPluginAsync = async (fastify) => {
    * Start analysis
    */
   fastify.post<{ Params: { id: string } }>(
-    "/sessions/:id/analyze",
-    async (
-      request: FastifyRequest<{ Params: { id: string } }>,
-      reply: FastifyReply
-    ) => {
+    '/sessions/:id/analyze',
+    async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
       const user = request.user;
       if (!user) {
         return reply.status(401).send({
           success: false,
-          error: { code: "UNAUTHORIZED", message: "Authentication required" },
+          error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
         });
       }
 
       try {
-        const job = await directorService.startAnalysis(
-          request.params.id,
-          user.id
-        );
+        const job = await directorService.startAnalysis(request.params.id, user.id);
         return reply.status(202).send({
           success: true,
           data: job,
         });
       } catch (err) {
-        const message = err instanceof Error ? err.message : "Analysis failed";
+        const message = err instanceof Error ? err.message : 'Analysis failed';
         return reply.status(400).send({
           success: false,
-          error: { code: "ANALYSIS_FAILED", message },
+          error: { code: 'ANALYSIS_FAILED', message },
         });
       }
-    }
+    },
   );
 
   /**
    * Get analysis status & results
    */
   fastify.get<{ Params: { id: string } }>(
-    "/sessions/:id/analyze",
-    async (
-      request: FastifyRequest<{ Params: { id: string } }>,
-      reply: FastifyReply
-    ) => {
+    '/sessions/:id/analyze',
+    async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
       const user = request.user;
       if (!user) {
         return reply.status(401).send({
           success: false,
-          error: { code: "UNAUTHORIZED", message: "Authentication required" },
+          error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
         });
       }
 
       try {
-        const result = await directorService.getAnalysisResult(
-          request.params.id,
-          user.id
-        );
+        const result = await directorService.getAnalysisResult(request.params.id, user.id);
         return reply.send({
           success: true,
           data: result,
@@ -78,36 +66,29 @@ export const analysisRoutes: FastifyPluginAsync = async (fastify) => {
       } catch {
         return reply.status(404).send({
           success: false,
-          error: { code: "NOT_FOUND", message: "Analysis not found" },
+          error: { code: 'NOT_FOUND', message: 'Analysis not found' },
         });
       }
-    }
+    },
   );
 
   /**
    * Select clips
    */
   fastify.post<{ Params: { id: string } }>(
-    "/sessions/:id/clips",
-    async (
-      request: FastifyRequest<{ Params: { id: string } }>,
-      reply: FastifyReply
-    ) => {
+    '/sessions/:id/clips',
+    async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
       const user = request.user;
       if (!user) {
         return reply.status(401).send({
           success: false,
-          error: { code: "UNAUTHORIZED", message: "Authentication required" },
+          error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
         });
       }
 
       try {
         const body = selectClipsSchema.parse(request.body);
-        const clips = await directorService.selectClips(
-          request.params.id,
-          user.id,
-          body.clipIds
-        );
+        const clips = await directorService.selectClips(request.params.id, user.id, body.clipIds);
         return reply.send({
           success: true,
           data: clips,
@@ -117,42 +98,36 @@ export const analysisRoutes: FastifyPluginAsync = async (fastify) => {
           return reply.status(400).send({
             success: false,
             error: {
-              code: "VALIDATION_ERROR",
+              code: 'VALIDATION_ERROR',
               message: err.issues[0]?.message,
             },
           });
         }
-        const message = err instanceof Error ? err.message : "Selection failed";
+        const message = err instanceof Error ? err.message : 'Selection failed';
         return reply.status(400).send({
           success: false,
-          error: { code: "SELECTION_FAILED", message },
+          error: { code: 'SELECTION_FAILED', message },
         });
       }
-    }
+    },
   );
 
   /**
    * Get selected clips
    */
   fastify.get<{ Params: { id: string } }>(
-    "/sessions/:id/clips",
-    async (
-      request: FastifyRequest<{ Params: { id: string } }>,
-      reply: FastifyReply
-    ) => {
+    '/sessions/:id/clips',
+    async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
       const user = request.user;
       if (!user) {
         return reply.status(401).send({
           success: false,
-          error: { code: "UNAUTHORIZED", message: "Authentication required" },
+          error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
         });
       }
 
       try {
-        const clips = await directorService.getSelectedClips(
-          request.params.id,
-          user.id
-        );
+        const clips = await directorService.getSelectedClips(request.params.id, user.id);
         return reply.send({
           success: true,
           data: clips,
@@ -160,26 +135,26 @@ export const analysisRoutes: FastifyPluginAsync = async (fastify) => {
       } catch {
         return reply.status(404).send({
           success: false,
-          error: { code: "NOT_FOUND", message: "Clips not found" },
+          error: { code: 'NOT_FOUND', message: 'Clips not found' },
         });
       }
-    }
+    },
   );
 
   /**
    * Update clip
    */
   fastify.patch<{ Params: { id: string; clipId: string } }>(
-    "/sessions/:id/clips/:clipId",
+    '/sessions/:id/clips/:clipId',
     async (
       request: FastifyRequest<{ Params: { id: string; clipId: string } }>,
-      reply: FastifyReply
+      reply: FastifyReply,
     ) => {
       const user = request.user;
       if (!user) {
         return reply.status(401).send({
           success: false,
-          error: { code: "UNAUTHORIZED", message: "Authentication required" },
+          error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
         });
       }
 
@@ -189,7 +164,7 @@ export const analysisRoutes: FastifyPluginAsync = async (fastify) => {
           request.params.id,
           user.id,
           request.params.clipId,
-          body
+          body,
         );
         return reply.send({
           success: true,
@@ -200,17 +175,17 @@ export const analysisRoutes: FastifyPluginAsync = async (fastify) => {
           return reply.status(400).send({
             success: false,
             error: {
-              code: "VALIDATION_ERROR",
+              code: 'VALIDATION_ERROR',
               message: err.issues[0]?.message,
             },
           });
         }
-        const message = err instanceof Error ? err.message : "Update failed";
+        const message = err instanceof Error ? err.message : 'Update failed';
         return reply.status(400).send({
           success: false,
-          error: { code: "UPDATE_FAILED", message },
+          error: { code: 'UPDATE_FAILED', message },
         });
       }
-    }
+    },
   );
 };

@@ -4,19 +4,14 @@
  * Zod schemas for API validation
  */
 
-import { z } from "zod";
+import { z } from 'zod';
 
 // ============================================================================
 // ENUMS
 // ============================================================================
 
-export const TrendingTypeSchema = z.enum([
-  "HASHTAG",
-  "TOPIC",
-  "SEARCH",
-  "VIDEO",
-]);
-export const PlatformStatusSchema = z.enum(["ok", "degraded", "down"]);
+export const TrendingTypeSchema = z.enum(['HASHTAG', 'TOPIC', 'SEARCH', 'VIDEO']);
+export const PlatformStatusSchema = z.enum(['ok', 'degraded', 'down']);
 
 // ============================================================================
 // QUERY PARAMS
@@ -25,7 +20,7 @@ export const PlatformStatusSchema = z.enum(["ok", "degraded", "down"]);
 export const TrendingQuerySchema = z.object({
   type: TrendingTypeSchema.optional(),
   category: z.string().optional(),
-  region: z.string().length(2).default("ID"),
+  region: z.string().length(2).default('ID'),
   limit: z.coerce.number().int().min(1).max(100).default(20),
   cursor: z.string().optional(),
 });

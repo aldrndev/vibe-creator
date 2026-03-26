@@ -3,8 +3,8 @@
  * Handles session lifecycle and settings
  */
 
-import { logger } from "@/lib/logger";
-import { directorRepo } from "../director.repo";
+import { logger } from '@/lib/logger';
+import { directorRepo } from '../director.repo';
 
 export const directorSessionService = {
   /**
@@ -12,7 +12,7 @@ export const directorSessionService = {
    */
   async createSession(userId: string) {
     const session = await directorRepo.createSession(userId);
-    logger.info({ sessionId: session.id, userId }, "Director session created");
+    logger.info({ sessionId: session.id, userId }, 'Director session created');
     return session;
   },
 
@@ -24,7 +24,7 @@ export const directorSessionService = {
     const session = await directorRepo.findSession(sessionId, userId);
 
     if (!session) {
-      throw new Error("Session not found or not authorized");
+      throw new Error('Session not found or not authorized');
     }
 
     return session;
@@ -41,14 +41,14 @@ export const directorSessionService = {
     // Check first to ensure valid request
     const exists = await directorRepo.exists(sessionId, userId);
     if (!exists) {
-      throw new Error("Session not found");
+      throw new Error('Session not found');
     }
 
     // TODO: Trigger async cleanup of files if needed (s3 delete etc)
 
     const deleted = await directorRepo.deleteSession(sessionId, userId);
 
-    logger.info({ sessionId, userId, deleted }, "Director session deleted");
+    logger.info({ sessionId, userId, deleted }, 'Director session deleted');
     return { deleted };
   },
 
@@ -65,11 +65,11 @@ export const directorSessionService = {
       fontSize?: number;
       position?: string;
       animation?: string;
-    }
+    },
   ) {
     const exists = await directorRepo.exists(sessionId, userId);
     if (!exists) {
-      throw new Error("Session not found");
+      throw new Error('Session not found');
     }
 
     const style = await directorRepo.upsertSubtitleStyle(sessionId, updates);

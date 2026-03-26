@@ -1,18 +1,19 @@
-import { useState, useEffect } from "react";
+import { AlertCircle, CheckCircle, CreditCard, Zap } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { z } from 'zod';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
+  Badge,
   Button,
   Card,
   CardBody,
-  Badge,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
   Spinner,
-} from "@/components/ui";
-import { CreditCard, CheckCircle, Zap, AlertCircle } from "lucide-react";
-import { authFetch } from "@/services/api";
+} from '@/components/ui';
+import { authFetch } from '@/services/api';
 
 interface TopupPackage {
   id: string;
@@ -26,6 +27,27 @@ interface TopupModalProps {
   onClose: () => void;
 }
 
+const topupPackageSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  minutes: z.number(),
+  price: z.number(),
+});
+
+const topupPackagesResponseSchema = z.object({
+  data: z.array(topupPackageSchema),
+});
+
+const topupPurchaseResponseSchema = z.object({
+  success: z.boolean(),
+  data: z
+    .object({
+      invoiceUrl: z.string().url(),
+    })
+    .optional(),
+  error: z.string().optional(),
+});
+
 export function TopupModal({ isOpen, onClose }: TopupModalProps) {
   const [packages, setPackages] = useState<TopupPackage[]>([]);
   const [selectedPackage, setSelectedPackage] = useState<string | null>(null);
@@ -33,57 +55,64 @@ export function TopupModal({ isOpen, onClose }: TopupModalProps) {
   const [purchasing, setPurchasing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (isOpen) {
-      fetchPackages();
-      setError(null);
-    }
-  }, [isOpen]);
-
-  const fetchPackages = async () => {
+  const fetchPackages = useCallback(async () => {
+    setLoading(true);
     try {
-      const res = await authFetch("/api/v1/billing/packages");
+      const res = await authFetch('/api/v1/billing/packages');
       if (res.ok) {
-        const data = await res.json();
+        const data = topupPackagesResponseSchema.parse(await res.json());
         setPackages(data.data);
       } else {
-        setError("Gagal memuat paket");
+        setError('Gagal memuat paket');
       }
     } catch {
-      setError("Gagal memuat paket");
+      setError('Gagal memuat paket');
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (isOpen) {
+      setSelectedPackage(null);
+      fetchPackages();
+      setError(null);
+    }
+  }, [isOpen, fetchPackages]);
 
   const handlePurchase = async () => {
     if (!selectedPackage) return;
     setError(null);
     setPurchasing(true);
     try {
-      const res = await authFetch("/api/v1/billing/topup", {
-        method: "POST",
+      const res = await authFetch('/api/v1/billing/topup', {
+        method: 'POST',
         body: JSON.stringify({ packageId: selectedPackage }),
       });
 
-      const data = await res.json();
+      const data = topupPurchaseResponseSchema.parse(await res.json());
 
       if (res.ok && data.success) {
+        if (!data.data?.invoiceUrl) {
+          setError('Tautan invoice tidak tersedia');
+          return;
+        }
+
         window.location.href = data.data.invoiceUrl;
       } else {
-        setError(data.error || "Gagal memproses pembayaran");
+        setError(data.error || 'Gagal memproses pembayaran');
       }
     } catch {
-      setError("Terjadi kesalahan");
+      setError('Terjadi kesalahan');
     } finally {
       setPurchasing(false);
     }
   };
 
   const formatPrice = (price: number) => {
-    return new Intl.NumberFormat("id-ID", {
-      style: "currency",
-      currency: "IDR",
+    return new Intl.NumberFormat('id-ID', {
+      style: 'currency',
+      currency: 'IDR',
       minimumFractionDigits: 0,
     }).format(price);
   };
@@ -117,12 +146,21 @@ export function TopupModal({ isOpen, onClose }: TopupModalProps) {
             {packages.map((pkg) => (
               <Card
                 key={pkg.id}
+                role="button"
+                tabIndex={0}
+                aria-pressed={selectedPackage === pkg.id}
                 className={`cursor-pointer border-2 transition-all ${
                   selectedPackage === pkg.id
-                    ? "border-primary bg-primary/5"
-                    : "border-transparent hover:border-primary/50"
+                    ? 'border-primary bg-primary/5'
+                    : 'border-transparent hover:border-primary/50'
                 }`}
                 onClick={() => setSelectedPackage(pkg.id)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    setSelectedPackage(pkg.id);
+                  }
+                }}
               >
                 <CardBody className="flex flex-col gap-2 p-4">
                   <div className="flex justify-between items-start">
@@ -151,11 +189,7 @@ export function TopupModal({ isOpen, onClose }: TopupModalProps) {
           <Button variant="ghost" onClick={onClose}>
             Batal
           </Button>
-          <Button
-            onClick={handlePurchase}
-            isLoading={purchasing}
-            disabled={!selectedPackage}
-          >
+          <Button onClick={handlePurchase} isLoading={purchasing} disabled={!selectedPackage}>
             {!purchasing && <CreditCard size={18} />}
             Bayar Sekarang
           </Button>

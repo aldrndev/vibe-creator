@@ -1,10 +1,10 @@
-import { useDirectorStore } from "@/stores/director-store";
-import { StepIndicator } from "@/components/director/StepIndicator";
-import { ImportStep } from "@/components/director/steps/ImportStep";
-import { AnalyzeStep } from "@/components/director/steps/AnalyzeStep";
-import { PickingStep } from "@/components/director/steps/PickingStep";
-import { EditingStep } from "@/components/director/steps/EditingStep";
-import { ExportStep } from "@/components/director/steps/ExportStep";
+import { StepIndicator } from '@/components/director/StepIndicator';
+import { AnalyzeStep } from '@/components/director/steps/AnalyzeStep';
+import { EditingStep } from '@/components/director/steps/EditingStep';
+import { ExportStep } from '@/components/director/steps/ExportStep';
+import { ImportStep } from '@/components/director/steps/ImportStep';
+import { PickingStep } from '@/components/director/steps/PickingStep';
+import { useDirectorStore } from '@/stores/director-store';
 
 export function AiDirectorPage() {
   const { step } = useDirectorStore();
@@ -17,12 +17,12 @@ export function AiDirectorPage() {
 
         {/* Content */}
         <div className="min-h-[400px] flex items-center justify-center">
-          {step === "IMPORT" && <ImportStep />}
-          {step === "ANALYZING" && <AnalyzeStep />}
-          {step === "PICKING" && <PickingStep />}
-          {step === "EDITING" && <EditingStep />}
-          {step === "EXPORTING" && <ExportStep />}
-          {step === "COMPLETED" && <ExportStep />}
+          {step === 'IMPORT' && <ImportStep />}
+          {step === 'ANALYZING' && <AnalyzeStep />}
+          {step === 'PICKING' && <PickingStep />}
+          {step === 'EDITING' && <EditingStep />}
+          {step === 'EXPORTING' && <ExportStep />}
+          {step === 'COMPLETED' && <ExportStep />}
         </div>
       </div>
     </div>

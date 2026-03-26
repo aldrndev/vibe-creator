@@ -2,8 +2,8 @@
  * Utility function for merging class names
  * Combines clsx and tailwind-merge for optimal Tailwind CSS class handling
  */
-import { type ClassValue, clsx } from "clsx";
-import { twMerge } from "tailwind-merge";
+import { type ClassValue, clsx } from 'clsx';
+import { twMerge } from 'tailwind-merge';
 
 /**
  * Merges multiple class values into a single className string

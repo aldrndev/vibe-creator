@@ -5,59 +5,53 @@
  * Three-column layout: Assets | Canvas | Properties
  */
 
-import { useEffect, useRef, useState } from "react";
 import {
-  Button,
-  Badge,
-  Tooltip,
-  TooltipTrigger,
-  TooltipContent,
-  TooltipProvider,
-} from "@/components/ui";
-import { cn } from "@/lib/utils";
-import {
-  Undo2,
-  Redo2,
-  Download,
-  Settings,
-  Wand2,
-  Images,
-  MonitorPlay,
-  SlidersHorizontal,
   ChevronLeft,
   ChevronRight,
-} from "lucide-react";
-import { useModernEditorStore } from "@/stores/modern-editor-store";
-import { useModernExport } from "@/hooks/use-modern-export";
+  Download,
+  Images,
+  MonitorPlay,
+  Redo2,
+  Settings,
+  SlidersHorizontal,
+  Undo2,
+  Wand2,
+} from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import {
-  EditorCanvas,
   AssetSidebar,
-  PropertiesPanel,
+  EditorCanvas,
   LayerStack,
   PlaybackBar,
-} from "@/components/modern-editor";
+  PropertiesPanel,
+} from '@/components/modern-editor';
+import {
+  Badge,
+  Button,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui';
+import { useModernExport } from '@/hooks/use-modern-export';
+import { cn } from '@/lib/utils';
+import { useModernEditorStore } from '@/stores/modern-editor-store';
 
 export function ModernEditorPage() {
-  const {
-    initProject,
-    projectTitle,
-    isDirty,
-    getProject,
-    isPlaying,
-    selectLayer,
-  } = useModernEditorStore();
+  const { initProject, projectTitle, isDirty, getProject, isPlaying, selectLayer } =
+    useModernEditorStore();
 
   const { exportProject, isExporting } = useModernExport();
 
-  const [activeMobileTab, setActiveMobileTab] = useState<
-    "assets" | "canvas" | "properties"
-  >("canvas");
+  const [activeMobileTab, setActiveMobileTab] = useState<'assets' | 'canvas' | 'properties'>(
+    'canvas',
+  );
 
   const [showLeftPanel, setShowLeftPanel] = useState(true);
   const [showRightPanel, setShowRightPanel] = useState(true);
 
   useEffect(() => {
-    initProject(`project-${Date.now()}`, "Untitled Project", {
+    initProject(`project-${Date.now()}`, 'Untitled Project', {
       width: 1920,
       height: 1080,
     });
@@ -157,7 +151,7 @@ export function ModernEditorPage() {
               isLoading={isExporting}
             >
               {!isExporting && <Download size={18} className="mr-2" />}
-              {isExporting ? "Exporting..." : "Export"}
+              {isExporting ? 'Exporting...' : 'Export'}
             </Button>
           </div>
         </header>
@@ -167,11 +161,11 @@ export function ModernEditorPage() {
           {/* Left Sidebar - Assets */}
           <aside
             className={cn(
-              activeMobileTab === "assets"
-                ? "flex w-full absolute inset-0 z-30 bg-background"
-                : "hidden",
-              "md:w-[320px] md:relative md:z-20 md:border-r md:border-border/60 md:bg-card/70 flex-shrink-0 overflow-hidden flex-col transition-all duration-300",
-              showLeftPanel ? "md:flex" : "md:hidden"
+              activeMobileTab === 'assets'
+                ? 'flex w-full absolute inset-0 z-30 bg-background'
+                : 'hidden',
+              'md:w-[320px] md:relative md:z-20 md:border-r md:border-border/60 md:bg-card/70 flex-shrink-0 overflow-hidden flex-col transition-all duration-300',
+              showLeftPanel ? 'md:flex' : 'md:hidden',
             )}
           >
             <div className="h-14 px-4 border-b border-border/40 flex justify-between items-center bg-card/20">
@@ -201,15 +195,15 @@ export function ModernEditorPage() {
           {/* Center - Canvas */}
           <main
             className={cn(
-              activeMobileTab === "canvas" ? "flex" : "hidden",
-              "md:flex flex-1 flex-col overflow-hidden relative z-10 bg-background"
+              activeMobileTab === 'canvas' ? 'flex' : 'hidden',
+              'md:flex flex-1 flex-col overflow-hidden relative z-10 bg-background',
             )}
           >
             {/* Left Expand Handle */}
             <div
               className={cn(
-                "absolute left-0 top-1/2 -translate-y-1/2 z-50 hidden md:flex",
-                showLeftPanel ? "pointer-events-none opacity-0" : "opacity-100"
+                'absolute left-0 top-1/2 -translate-y-1/2 z-50 hidden md:flex',
+                showLeftPanel ? 'pointer-events-none opacity-0' : 'opacity-100',
               )}
             >
               <Tooltip>
@@ -230,8 +224,8 @@ export function ModernEditorPage() {
             {/* Right Expand Handle */}
             <div
               className={cn(
-                "absolute right-0 top-1/2 -translate-y-1/2 z-50 hidden md:flex",
-                showRightPanel ? "pointer-events-none opacity-0" : "opacity-100"
+                'absolute right-0 top-1/2 -translate-y-1/2 z-50 hidden md:flex',
+                showRightPanel ? 'pointer-events-none opacity-0' : 'opacity-100',
               )}
             >
               <Tooltip>
@@ -256,11 +250,11 @@ export function ModernEditorPage() {
           {/* Right Sidebar - Properties & Layers */}
           <aside
             className={cn(
-              activeMobileTab === "properties"
-                ? "flex w-full absolute inset-0 z-30 bg-background"
-                : "hidden",
-              "md:w-[360px] md:relative md:z-20 md:border-l md:border-border/60 md:bg-card/70 flex-shrink-0 overflow-hidden flex-col transition-all duration-300",
-              showRightPanel ? "md:flex" : "md:hidden"
+              activeMobileTab === 'properties'
+                ? 'flex w-full absolute inset-0 z-30 bg-background'
+                : 'hidden',
+              'md:w-[360px] md:relative md:z-20 md:border-l md:border-border/60 md:bg-card/70 flex-shrink-0 overflow-hidden flex-col transition-all duration-300',
+              showRightPanel ? 'md:flex' : 'md:hidden',
             )}
           >
             <div className="h-14 px-4 border-b border-border/40 flex justify-between items-center bg-card/20">
@@ -308,66 +302,57 @@ export function ModernEditorPage() {
         {/* Mobile Bottom Navigation */}
         <div className="md:hidden h-20 bg-card/80 backdrop-blur-xl border-t border-border/50 flex items-center justify-around px-2 flex-shrink-0 z-50 safe-area-bottom">
           <button
+            type="button"
             className={`flex-1 flex flex-col items-center justify-center gap-1.5 h-full transition-all active:scale-95 ${
-              activeMobileTab === "assets"
-                ? "text-primary"
-                : "text-muted-foreground"
+              activeMobileTab === 'assets' ? 'text-primary' : 'text-muted-foreground'
             }`}
-            onClick={() => setActiveMobileTab("assets")}
+            onClick={() => setActiveMobileTab('assets')}
           >
             <div
               className={cn(
-                "p-2 rounded-xl transition-all",
-                activeMobileTab === "assets" && "bg-primary/10"
+                'p-2 rounded-xl transition-all',
+                activeMobileTab === 'assets' && 'bg-primary/10',
               )}
             >
               <Images size={20} />
             </div>
-            <span className="text-[10px] font-black uppercase tracking-tight">
-              Assets
-            </span>
+            <span className="text-[10px] font-black uppercase tracking-tight">Assets</span>
           </button>
 
           <button
+            type="button"
             className={`flex-1 flex flex-col items-center justify-center gap-1.5 h-full transition-all active:scale-95 ${
-              activeMobileTab === "canvas"
-                ? "text-primary"
-                : "text-muted-foreground"
+              activeMobileTab === 'canvas' ? 'text-primary' : 'text-muted-foreground'
             }`}
-            onClick={() => setActiveMobileTab("canvas")}
+            onClick={() => setActiveMobileTab('canvas')}
           >
             <div
               className={cn(
-                "p-2 rounded-xl transition-all",
-                activeMobileTab === "canvas" && "bg-primary/10"
+                'p-2 rounded-xl transition-all',
+                activeMobileTab === 'canvas' && 'bg-primary/10',
               )}
             >
               <MonitorPlay size={22} />
             </div>
-            <span className="text-[10px] font-black uppercase tracking-tight">
-              Studio
-            </span>
+            <span className="text-[10px] font-black uppercase tracking-tight">Studio</span>
           </button>
 
           <button
+            type="button"
             className={`flex-1 flex flex-col items-center justify-center gap-1.5 h-full transition-all active:scale-95 ${
-              activeMobileTab === "properties"
-                ? "text-primary"
-                : "text-muted-foreground"
+              activeMobileTab === 'properties' ? 'text-primary' : 'text-muted-foreground'
             }`}
-            onClick={() => setActiveMobileTab("properties")}
+            onClick={() => setActiveMobileTab('properties')}
           >
             <div
               className={cn(
-                "p-2 rounded-xl transition-all",
-                activeMobileTab === "properties" && "bg-primary/10"
+                'p-2 rounded-xl transition-all',
+                activeMobileTab === 'properties' && 'bg-primary/10',
               )}
             >
               <SlidersHorizontal size={20} />
             </div>
-            <span className="text-[10px] font-black uppercase tracking-tight">
-              Edit
-            </span>
+            <span className="text-[10px] font-black uppercase tracking-tight">Edit</span>
           </button>
         </div>
       </div>

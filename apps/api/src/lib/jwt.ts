@@ -10,10 +10,10 @@
  * - Clock skew tolerance (±60s)
  */
 
-import { SignJWT, jwtVerify, importJWK, type JWK } from "jose";
-import { nanoid } from "nanoid";
-import { env } from "@/config/env";
-import { logger } from "@/lib/logger";
+import { importJWK, type JWK, jwtVerify, SignJWT } from 'jose';
+import { nanoid } from 'nanoid';
+import { env } from '@/config/env';
+import { logger } from '@/lib/logger';
 
 // JWT Payload structure
 export interface JWTPayload {
@@ -48,7 +48,7 @@ export async function initializeKeyRing(): Promise<void> {
     // Active signing key
     const signingKeyId = env.JWT_SIGNING_KEY_ID || nanoid();
     const signingKeyJWK: JWK =
-      typeof env.JWT_SIGNING_KEY === "string"
+      typeof env.JWT_SIGNING_KEY === 'string'
         ? JSON.parse(env.JWT_SIGNING_KEY)
         : env.JWT_SIGNING_KEY;
 
@@ -59,11 +59,11 @@ export async function initializeKeyRing(): Promise<void> {
 
     // Verify keys (includes active + previous for rotation overlap)
     const verifyKeysArray: JWK[] =
-      typeof env.JWT_VERIFY_KEYS === "string"
+      typeof env.JWT_VERIFY_KEYS === 'string'
         ? JSON.parse(env.JWT_VERIFY_KEYS)
         : Array.isArray(env.JWT_VERIFY_KEYS)
-        ? env.JWT_VERIFY_KEYS
-        : [signingKeyJWK];
+          ? env.JWT_VERIFY_KEYS
+          : [signingKeyJWK];
 
     verifyKeys = new Map();
     for (const jwk of verifyKeysArray) {
@@ -77,8 +77,8 @@ export async function initializeKeyRing(): Promise<void> {
       const publicKeyJWK = { ...signingKey.key };
       // Remove private key component 'd' to get public key only
       // ES256 verification requires public key, not private key
-      if ("d" in publicKeyJWK) {
-        delete (publicKeyJWK as Record<string, unknown>)["d"];
+      if ('d' in publicKeyJWK) {
+        delete (publicKeyJWK as Record<string, unknown>).d;
       }
       verifyKeys.set(signingKey.kid, publicKeyJWK);
     }
@@ -88,11 +88,11 @@ export async function initializeKeyRing(): Promise<void> {
         signingKeyId: signingKey.kid,
         verifyKeyCount: verifyKeys.size,
       },
-      "JWT key ring initialized"
+      'JWT key ring initialized',
     );
   } catch (error) {
-    logger.error({ err: error }, "Failed to initialize JWT key ring");
-    throw new Error("JWT key ring initialization failed - check env vars");
+    logger.error({ err: error }, 'Failed to initialize JWT key ring');
+    throw new Error('JWT key ring initialization failed - check env vars');
   }
 }
 
@@ -103,12 +103,9 @@ export async function initializeKeyRing(): Promise<void> {
  * @param tenantId - Tenant ID (becomes 'tid' claim, same as userId for user-scoped app)
  * @returns Signed JWT string
  */
-export async function signAccessToken(
-  userId: string,
-  tenantId?: string
-): Promise<string> {
+export async function signAccessToken(userId: string, tenantId?: string): Promise<string> {
   if (!signingKey) {
-    throw new Error("JWT key ring not initialized");
+    throw new Error('JWT key ring not initialized');
   }
 
   const now = Math.floor(Date.now() / 1000);
@@ -124,11 +121,11 @@ export async function signAccessToken(
     nbf: now,
   };
 
-  const key = await importJWK(signingKey.key, "ES256");
+  const key = await importJWK(signingKey.key, 'ES256');
 
   const jwt = await new SignJWT(payload as unknown as Record<string, unknown>)
     .setProtectedHeader({
-      alg: "ES256",
+      alg: 'ES256',
       kid: signingKey.kid, // REQUIRED for rotation
     })
     .setIssuedAt(now)
@@ -148,25 +145,25 @@ export async function signAccessToken(
  */
 export async function verifyAccessToken(token: string): Promise<JWTPayload> {
   if (verifyKeys.size === 0) {
-    throw new Error("JWT key ring not initialized");
+    throw new Error('JWT key ring not initialized');
   }
 
   try {
     // Extract kid from header with validation
-    const parts = token.split(".");
+    const parts = token.split('.');
     const headerB64 = parts[0];
 
     if (!headerB64) {
-      throw new Error("Invalid JWT format - missing header");
+      throw new Error('Invalid JWT format - missing header');
     }
 
-    const header = JSON.parse(Buffer.from(headerB64, "base64").toString()) as {
+    const header = JSON.parse(Buffer.from(headerB64, 'base64').toString()) as {
       kid?: string;
     };
     const kid = header.kid;
 
     if (!kid) {
-      throw new Error("JWT missing kid in header");
+      throw new Error('JWT missing kid in header');
     }
 
     const jwk = verifyKeys.get(kid);
@@ -174,7 +171,7 @@ export async function verifyAccessToken(token: string): Promise<JWTPayload> {
       throw new Error(`Unknown kid: ${kid}`);
     }
 
-    const key = await importJWK(jwk, "ES256");
+    const key = await importJWK(jwk, 'ES256');
 
     const { payload } = await jwtVerify(token, key, {
       issuer: env.JWT_ISSUER,
@@ -184,16 +181,13 @@ export async function verifyAccessToken(token: string): Promise<JWTPayload> {
 
     // Validate required claims
     if (!payload.sub || !payload.tid) {
-      throw new Error("JWT missing required claims (sub, tid)");
+      throw new Error('JWT missing required claims (sub, tid)');
     }
 
     return payload as unknown as JWTPayload;
   } catch (error) {
     if (error instanceof Error) {
-      logger.warn(
-        { err: error, message: error.message },
-        "JWT verification failed"
-      );
+      logger.warn({ err: error, message: error.message }, 'JWT verification failed');
     }
     throw error;
   }

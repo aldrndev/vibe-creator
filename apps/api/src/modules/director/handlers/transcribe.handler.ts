@@ -9,15 +9,15 @@
  * The session handler spawns individual clip jobs for parallel processing.
  */
 
-import { Job } from "bullmq";
-import { prisma } from "@/lib/prisma";
-import { logger } from "@/lib/logger";
+import type { Job } from 'bullmq';
+import { logger } from '@/lib/logger';
+import { prisma } from '@/lib/prisma';
+import { transcribeService } from '../../transcribe/transcribe.service';
 import {
-  DirectorTranscribeSessionJobData,
-  DirectorTranscribeClipJobData,
+  type DirectorTranscribeClipJobData,
+  type DirectorTranscribeSessionJobData,
   directorQueue,
-} from "../director.queue";
-import { transcribeService } from "../../transcribe/transcribe.service";
+} from '../director.queue';
 
 /**
  * Orchestrates transcription for all selected clips in a session.
@@ -26,11 +26,9 @@ import { transcribeService } from "../../transcribe/transcribe.service";
  * @param job - BullMQ job containing session information
  * @throws Error if session or transcribe job not found
  */
-export async function processTranscribeSessionJob(
-  job: Job<DirectorTranscribeSessionJobData>
-) {
+export async function processTranscribeSessionJob(job: Job<DirectorTranscribeSessionJobData>) {
   const { sessionId } = job.data;
-  logger.info({ sessionId }, "Processing transcribe session job");
+  logger.info({ sessionId }, 'Processing transcribe session job');
 
   const session = await prisma.directorSession.findUnique({
     where: { id: sessionId },
@@ -38,40 +36,35 @@ export async function processTranscribeSessionJob(
   });
 
   if (!session || !session.transcribeJob) {
-    throw new Error("Session or transcribe job not found");
+    throw new Error('Session or transcribe job not found');
   }
 
   await prisma.directorTranscribeJob.update({
     where: { id: session.transcribeJob.id },
-    data: { status: "PROCESSING" },
+    data: { status: 'PROCESSING' },
   });
 
-  const clipJobs = session.selectedClips.map(
-    (clip: (typeof session.selectedClips)[number]) => {
-      const jobData: DirectorTranscribeClipJobData = {
-        type: "TRANSCRIBE_CLIP",
-        sessionId,
-        selectedClipId: clip.id,
-        userId: job.data.userId,
-      };
+  const clipJobs = session.selectedClips.map((clip: (typeof session.selectedClips)[number]) => {
+    const jobData: DirectorTranscribeClipJobData = {
+      type: 'TRANSCRIBE_CLIP',
+      sessionId,
+      selectedClipId: clip.id,
+      userId: job.data.userId,
+    };
 
-      return {
-        name: "transcribe_clip" as const,
-        data: jobData,
-        opts: {
-          removeOnComplete: true,
-          jobId: `director:transcribe:clip:${clip.id}`,
-        },
-      };
-    }
-  );
+    return {
+      name: 'transcribe_clip' as const,
+      data: jobData,
+      opts: {
+        removeOnComplete: true,
+        jobId: `director:transcribe:clip:${clip.id}`,
+      },
+    };
+  });
 
   await directorQueue.addBulk(clipJobs);
 
-  logger.info(
-    { sessionId, count: clipJobs.length },
-    "Queued clip transcription jobs"
-  );
+  logger.info({ sessionId, count: clipJobs.length }, 'Queued clip transcription jobs');
 }
 
 /**
@@ -81,11 +74,9 @@ export async function processTranscribeSessionJob(
  * @param job - BullMQ job containing clip ID
  */
 
-export async function processTranscribeClipJob(
-  job: Job<DirectorTranscribeClipJobData>
-) {
+export async function processTranscribeClipJob(job: Job<DirectorTranscribeClipJobData>) {
   const { selectedClipId } = job.data;
-  logger.info({ selectedClipId }, "Processing transcribe clip job");
+  logger.info({ selectedClipId }, 'Processing transcribe clip job');
 
   await transcribeService.transcribeSelectedClip(selectedClipId);
 
@@ -102,7 +93,7 @@ export async function processTranscribeClipJob(
     const completedTranscripts = await prisma.directorClipTranscript.count({
       where: {
         sessionId,
-        status: { in: ["COMPLETED", "FAILED"] },
+        status: { in: ['COMPLETED', 'FAILED'] },
       },
     });
 
@@ -115,12 +106,9 @@ export async function processTranscribeClipJob(
       if (session?.transcribeJob) {
         await prisma.directorTranscribeJob.update({
           where: { id: session.transcribeJob.id },
-          data: { status: "COMPLETED" },
+          data: { status: 'COMPLETED' },
         });
-        logger.info(
-          { sessionId },
-          "All clips transcribed - marked job COMPLETED"
-        );
+        logger.info({ sessionId }, 'All clips transcribed - marked job COMPLETED');
       }
     }
   }

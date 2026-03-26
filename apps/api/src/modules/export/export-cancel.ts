@@ -3,9 +3,9 @@
  * End-to-end cancellation: API → BullMQ → FFmpeg process
  */
 
-import { exportQueue } from './export.queue';
-import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
+import { prisma } from '@/lib/prisma';
+import { exportQueue } from './export.queue';
 import { unregisterActiveJob } from './export-concurrency';
 import { cleanupTempDir, createJobTempDir } from './ffmpeg/index';
 
@@ -19,17 +19,14 @@ export interface CancelResult {
  * Cancel an export job
  * Handles: queued jobs, active jobs, and already-completed jobs
  */
-export async function cancelExportJob(
-  jobId: string,
-  userId: string
-): Promise<CancelResult> {
+export async function cancelExportJob(jobId: string, userId: string): Promise<CancelResult> {
   try {
     // 1. Verify ownership
     const exportRecord = await prisma.exportHistory.findUnique({
       where: { id: jobId },
       select: { userId: true, status: true, phase: true },
     });
-    
+
     if (!exportRecord) {
       return {
         success: false,
@@ -37,7 +34,7 @@ export async function cancelExportJob(
         message: 'Export job not found',
       };
     }
-    
+
     if (exportRecord.userId !== userId) {
       return {
         success: false,
@@ -45,7 +42,7 @@ export async function cancelExportJob(
         message: 'Export job not found', // Don't leak existence
       };
     }
-    
+
     // 2. Check if already cancelled (phase CANCELLED means user-cancelled)
     if (exportRecord.phase === 'CANCELLED') {
       return {
@@ -54,7 +51,7 @@ export async function cancelExportJob(
         message: 'Export job was already cancelled',
       };
     }
-    
+
     // 3. Check if already completed/failed
     if (exportRecord.status === 'COMPLETED' || exportRecord.status === 'FAILED') {
       return {
@@ -63,7 +60,7 @@ export async function cancelExportJob(
         message: 'Export job has already finished',
       };
     }
-    
+
     // 4. Mark as CANCEL_REQUESTED in database
     await prisma.exportHistory.update({
       where: { id: jobId },
@@ -71,12 +68,12 @@ export async function cancelExportJob(
         phase: 'CANCEL_REQUESTED',
       },
     });
-    
+
     // 5. Try to remove from BullMQ queue (if still waiting)
     const queueJob = await exportQueue.getJob(jobId);
     if (queueJob) {
       const state = await queueJob.getState();
-      
+
       if (state === 'waiting' || state === 'delayed') {
         // Job hasn't started yet - remove from queue
         await queueJob.remove();
@@ -86,7 +83,7 @@ export async function cancelExportJob(
         logger.info({ jobId }, 'Export job is active, will be cancelled by worker');
       }
     }
-    
+
     // 6. Update final status (use FAILED with CANCELLED phase)
     await prisma.exportHistory.update({
       where: { id: jobId },
@@ -96,16 +93,16 @@ export async function cancelExportJob(
         errorMessage: 'Cancelled by user',
       },
     });
-    
+
     // 7. Cleanup concurrency tracking
     await unregisterActiveJob(userId, jobId);
-    
+
     // 8. Cleanup temp directory
     const tempDir = createJobTempDir(jobId);
     await cleanupTempDir(tempDir);
-    
+
     logger.info({ jobId, userId }, 'Export job cancelled successfully');
-    
+
     return {
       success: true,
       status: 'CANCELLED',
@@ -113,7 +110,7 @@ export async function cancelExportJob(
     };
   } catch (error) {
     logger.error({ jobId, userId, error }, 'Failed to cancel export job');
-    
+
     return {
       success: false,
       status: 'ERROR',
@@ -135,18 +132,18 @@ export async function cancelAllUserExports(userId: string): Promise<number> {
       },
       select: { id: true },
     });
-    
+
     let cancelledCount = 0;
-    
+
     for (const exportRecord of activeExports) {
       const result = await cancelExportJob(exportRecord.id, userId);
       if (result.success) {
         cancelledCount++;
       }
     }
-    
+
     logger.info({ userId, cancelledCount }, 'Cancelled all user exports');
-    
+
     return cancelledCount;
   } catch (error) {
     logger.error({ userId, error }, 'Failed to cancel all user exports');

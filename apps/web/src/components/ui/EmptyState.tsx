@@ -1,22 +1,16 @@
-import { Button } from "@/components/ui";
 import {
-  FolderOpen,
-  FileText,
   Download,
-  Megaphone,
-  Users,
-  Sparkles,
-  Plus,
+  FileText,
+  FolderOpen,
   type LucideIcon,
-} from "lucide-react";
+  Megaphone,
+  Plus,
+  Sparkles,
+  Users,
+} from 'lucide-react';
+import { Button } from '@/components/ui';
 
-type EmptyStateType =
-  | "projects"
-  | "prompts"
-  | "downloads"
-  | "announcements"
-  | "users"
-  | "default";
+type EmptyStateType = 'projects' | 'prompts' | 'downloads' | 'announcements' | 'users' | 'default';
 
 interface EmptyStateProps {
   type?: EmptyStateType;
@@ -33,39 +27,38 @@ const emptyStateConfig: Record<
 > = {
   projects: {
     icon: FolderOpen,
-    title: "Belum ada project",
-    description: "Mulai buat project pertamamu untuk membuat konten menarik",
+    title: 'Belum ada project',
+    description: 'Mulai buat project pertamamu untuk membuat konten menarik',
   },
   prompts: {
     icon: Sparkles,
-    title: "Belum ada prompt",
-    description: "Generate prompt dengan AI untuk mempercepat workflow kreatif",
+    title: 'Belum ada prompt',
+    description: 'Generate prompt dengan AI untuk mempercepat workflow kreatif',
   },
   downloads: {
     icon: Download,
-    title: "Belum ada unduhan",
-    description:
-      "Download audio atau video dari URL untuk digunakan di project",
+    title: 'Belum ada unduhan',
+    description: 'Download audio atau video dari URL untuk digunakan di project',
   },
   announcements: {
     icon: Megaphone,
-    title: "Belum ada pengumuman",
-    description: "Pengumuman terbaru akan muncul di sini",
+    title: 'Belum ada pengumuman',
+    description: 'Pengumuman terbaru akan muncul di sini',
   },
   users: {
     icon: Users,
-    title: "Tidak ada pengguna",
-    description: "Belum ada pengguna yang terdaftar",
+    title: 'Tidak ada pengguna',
+    description: 'Belum ada pengguna yang terdaftar',
   },
   default: {
     icon: FileText,
-    title: "Tidak ada data",
-    description: "Data yang kamu cari belum tersedia",
+    title: 'Tidak ada data',
+    description: 'Data yang kamu cari belum tersedia',
   },
 };
 
 export function EmptyState({
-  type = "default",
+  type = 'default',
   title,
   description,
   actionLabel,
@@ -83,9 +76,7 @@ export function EmptyState({
       </div>
 
       {/* Text */}
-      <h3 className="text-lg font-semibold text-foreground/80 mb-2">
-        {title || config.title}
-      </h3>
+      <h3 className="text-lg font-semibold text-foreground/80 mb-2">{title || config.title}</h3>
       <p className="text-muted-foreground text-center max-w-sm mb-6">
         {description || config.description}
       </p>

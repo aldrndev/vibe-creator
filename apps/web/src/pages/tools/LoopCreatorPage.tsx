@@ -1,9 +1,9 @@
-import { PageTransition } from "@/components/ui/PageTransition";
-import { LoopHeader } from "@/components/tools/loop/LoopHeader";
-import { LoopVideoPreview } from "@/components/tools/loop/LoopVideoPreview";
-import { LoopSettingsPanel } from "@/components/tools/loop/LoopSettingsPanel";
-import { LoopResultPanel } from "@/components/tools/loop/LoopResultPanel";
-import { useLoopCreator } from "@/hooks/useLoopCreator";
+import { LoopHeader } from '@/components/tools/loop/LoopHeader';
+import { LoopResultPanel } from '@/components/tools/loop/LoopResultPanel';
+import { LoopSettingsPanel } from '@/components/tools/loop/LoopSettingsPanel';
+import { LoopVideoPreview } from '@/components/tools/loop/LoopVideoPreview';
+import { PageTransition } from '@/components/ui/PageTransition';
+import { useLoopCreator } from '@/hooks/useLoopCreator';
 
 export function LoopCreatorPage() {
   const {
@@ -82,10 +82,7 @@ export function LoopCreatorPage() {
         </div>
 
         {/* Result Preview */}
-        <LoopResultPanel
-          loopMode={loopMode}
-          resultUrl={results[loopMode] || ""}
-        />
+        <LoopResultPanel loopMode={loopMode} resultUrl={results[loopMode] || ''} />
       </div>
     </PageTransition>
   );

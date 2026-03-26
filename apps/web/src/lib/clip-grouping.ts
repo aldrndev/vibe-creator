@@ -56,13 +56,9 @@ export function createGroupId(): string {
 /**
  * Create a new clip group
  */
-export function createClipGroup(
-  clipIds: string[],
-  name?: string,
-  color?: string
-): ClipGroup {
+export function createClipGroup(clipIds: string[], name?: string, color?: string): ClipGroup {
   const colorIndex = Math.floor(Math.random() * GROUP_COLORS.length);
-  
+
   return {
     id: createGroupId(),
     name: name || `Group ${Date.now() % 1000}`,
@@ -76,10 +72,7 @@ export function createClipGroup(
 /**
  * Add clips to an existing group
  */
-export function addClipsToGroup(
-  group: ClipGroup,
-  clipIds: string[]
-): ClipGroup {
+export function addClipsToGroup(group: ClipGroup, clipIds: string[]): ClipGroup {
   const newClipIds = [...new Set([...group.clipIds, ...clipIds])];
   return { ...group, clipIds: newClipIds };
 }
@@ -87,34 +80,25 @@ export function addClipsToGroup(
 /**
  * Remove clips from a group
  */
-export function removeClipsFromGroup(
-  group: ClipGroup,
-  clipIds: string[]
-): ClipGroup {
+export function removeClipsFromGroup(group: ClipGroup, clipIds: string[]): ClipGroup {
   const clipIdSet = new Set(clipIds);
   return {
     ...group,
-    clipIds: group.clipIds.filter(id => !clipIdSet.has(id)),
+    clipIds: group.clipIds.filter((id) => !clipIdSet.has(id)),
   };
 }
 
 /**
  * Find which group a clip belongs to
  */
-export function findClipGroup(
-  clipId: string,
-  groups: ClipGroup[]
-): ClipGroup | undefined {
-  return groups.find(g => g.clipIds.includes(clipId));
+export function findClipGroup(clipId: string, groups: ClipGroup[]): ClipGroup | undefined {
+  return groups.find((g) => g.clipIds.includes(clipId));
 }
 
 /**
  * Get all clips in the same group as the given clip
  */
-export function getGroupedClipIds(
-  clipId: string,
-  groups: ClipGroup[]
-): string[] {
+export function getGroupedClipIds(clipId: string, groups: ClipGroup[]): string[] {
   const group = findClipGroup(clipId, groups);
   return group ? group.clipIds : [clipId];
 }
@@ -122,20 +106,14 @@ export function getGroupedClipIds(
 /**
  * Check if a clip is in any group
  */
-export function isClipInGroup(
-  clipId: string,
-  groups: ClipGroup[]
-): boolean {
-  return groups.some(g => g.clipIds.includes(clipId));
+export function isClipInGroup(clipId: string, groups: ClipGroup[]): boolean {
+  return groups.some((g) => g.clipIds.includes(clipId));
 }
 
 /**
  * Check if a clip's group is locked
  */
-export function isClipLocked(
-  clipId: string,
-  groups: ClipGroup[]
-): boolean {
+export function isClipLocked(clipId: string, groups: ClipGroup[]): boolean {
   const group = findClipGroup(clipId, groups);
   return group?.locked ?? false;
 }
@@ -165,7 +143,7 @@ export function changeGroupColor(group: ClipGroup, color: string): ClipGroup {
  * Dissolve a group (ungroup all clips)
  */
 export function dissolveGroup(groups: ClipGroup[], groupId: string): ClipGroup[] {
-  return groups.filter(g => g.id !== groupId);
+  return groups.filter((g) => g.id !== groupId);
 }
 
 /**
@@ -174,20 +152,20 @@ export function dissolveGroup(groups: ClipGroup[], groupId: string): ClipGroup[]
 export function mergeGroups(
   groups: ClipGroup[],
   groupIds: string[],
-  mergedName?: string
+  mergedName?: string,
 ): ClipGroup[] {
-  const toMerge = groups.filter(g => groupIds.includes(g.id));
-  const remaining = groups.filter(g => !groupIds.includes(g.id));
-  
+  const toMerge = groups.filter((g) => groupIds.includes(g.id));
+  const remaining = groups.filter((g) => !groupIds.includes(g.id));
+
   if (toMerge.length < 2) return groups;
-  
-  const allClipIds = toMerge.flatMap(g => g.clipIds);
+
+  const allClipIds = toMerge.flatMap((g) => g.clipIds);
   const mergedGroup = createClipGroup(
     [...new Set(allClipIds)],
     mergedName || toMerge[0]?.name || 'Merged Group',
-    toMerge[0]?.color
+    toMerge[0]?.color,
   );
-  
+
   return [...remaining, mergedGroup];
 }
 
@@ -208,11 +186,8 @@ export function createTrackLockState(trackId: string): TrackLockState {
 /**
  * Check if any operation is locked on a track
  */
-export function isTrackLocked(
-  trackId: string,
-  lockStates: TrackLockState[]
-): boolean {
-  const state = lockStates.find(s => s.trackId === trackId);
+export function isTrackLocked(trackId: string, lockStates: TrackLockState[]): boolean {
+  const state = lockStates.find((s) => s.trackId === trackId);
   return state?.locked ?? false;
 }
 
@@ -222,13 +197,13 @@ export function isTrackLocked(
 export function isTrackOperationLocked(
   trackId: string,
   operation: 'delete' | 'move' | 'all',
-  lockStates: TrackLockState[]
+  lockStates: TrackLockState[],
 ): boolean {
-  const state = lockStates.find(s => s.trackId === trackId);
+  const state = lockStates.find((s) => s.trackId === trackId);
   if (!state) return false;
-  
+
   if (state.locked) return true;
-  
+
   switch (operation) {
     case 'delete':
       return state.deleteLocked;
@@ -247,26 +222,21 @@ export function isTrackOperationLocked(
 export function updateTrackLock(
   lockStates: TrackLockState[],
   trackId: string,
-  updates: Partial<Omit<TrackLockState, 'trackId'>>
+  updates: Partial<Omit<TrackLockState, 'trackId'>>,
 ): TrackLockState[] {
-  const existing = lockStates.find(s => s.trackId === trackId);
-  
+  const existing = lockStates.find((s) => s.trackId === trackId);
+
   if (existing) {
-    return lockStates.map(s =>
-      s.trackId === trackId ? { ...s, ...updates } : s
-    );
+    return lockStates.map((s) => (s.trackId === trackId ? { ...s, ...updates } : s));
   }
-  
+
   return [...lockStates, { ...createTrackLockState(trackId), ...updates }];
 }
 
 /**
  * Toggle full track lock
  */
-export function toggleTrackLock(
-  lockStates: TrackLockState[],
-  trackId: string
-): TrackLockState[] {
+export function toggleTrackLock(lockStates: TrackLockState[], trackId: string): TrackLockState[] {
   const current = isTrackLocked(trackId, lockStates);
   return updateTrackLock(lockStates, trackId, { locked: !current });
 }

@@ -9,24 +9,24 @@
  * - Janitor functions for cleaning up old files
  */
 
-import { join } from "path";
-import { existsSync } from "fs";
-import { mkdir, readdir, stat, unlink } from "fs/promises";
-import { env } from "@/config/env";
-import { logger } from "@/lib/logger";
+import { existsSync } from 'node:fs';
+import { mkdir, readdir, stat, unlink } from 'node:fs/promises';
+import { join } from 'node:path';
+import { env } from '@/config/env';
+import { logger } from '@/lib/logger';
 
 /** Base directory for reaction output files */
-export const REACTIONS_DIR = join(env.MEDIA_INPUT_DIR, "reactions");
+export const REACTIONS_DIR = join(env.MEDIA_INPUT_DIR, 'reactions');
 
 /**
  * Standard resolution presets for various aspect ratios.
  * All resolutions are 1080p-based for quality consistency.
  */
 export const RESOLUTIONS: Record<string, { w: number; h: number }> = {
-  "16:9": { w: 1920, h: 1080 }, // Landscape HD
-  "9:16": { w: 1080, h: 1920 }, // Portrait/Stories
-  "1:1": { w: 1080, h: 1080 }, // Square
-  "4:5": { w: 1080, h: 1350 }, // Instagram Portrait
+  '16:9': { w: 1920, h: 1080 }, // Landscape HD
+  '9:16': { w: 1080, h: 1920 }, // Portrait/Stories
+  '1:1': { w: 1080, h: 1080 }, // Square
+  '4:5': { w: 1080, h: 1350 }, // Instagram Portrait
 };
 
 /**
@@ -39,11 +39,7 @@ export async function ensureReactionsDir(): Promise<void> {
 }
 
 /** Predefined overlay positions for PiP videos */
-export type OverlayPosition =
-  | "top-left"
-  | "top-right"
-  | "bottom-left"
-  | "bottom-right";
+export type OverlayPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 
 /**
  * Generates FFmpeg overlay position filter string.
@@ -65,20 +61,20 @@ export type OverlayPosition =
 export function getOverlayPosition(
   position: OverlayPosition,
   margin: number,
-  custom?: { x: number; y: number }
+  custom?: { x: number; y: number },
 ): string {
   if (custom) {
     return `${Math.round(custom.x)}:${Math.round(custom.y)}`;
   }
 
   switch (position) {
-    case "top-left":
+    case 'top-left':
       return `${margin}:${margin}`;
-    case "top-right":
+    case 'top-right':
       return `main_w-overlay_w-${margin}:${margin}`;
-    case "bottom-left":
+    case 'bottom-left':
       return `${margin}:main_h-overlay_h-${margin}`;
-    case "bottom-right":
+    case 'bottom-right':
       return `main_w-overlay_w-${margin}:main_h-overlay_h-${margin}`;
   }
 }
@@ -104,7 +100,7 @@ export async function cleanupOldReactions(maxAgeMs: number): Promise<void> {
     let deletedCount = 0;
 
     for (const file of files) {
-      if (!file.endsWith(".mp4")) continue;
+      if (!file.endsWith('.mp4')) continue;
 
       const filePath = join(REACTIONS_DIR, file);
       try {
@@ -119,9 +115,9 @@ export async function cleanupOldReactions(maxAgeMs: number): Promise<void> {
     }
 
     if (deletedCount > 0) {
-      logger.info({ deletedCount }, "Cleaned up old reaction files");
+      logger.info({ deletedCount }, 'Cleaned up old reaction files');
     }
   } catch (error) {
-    logger.error({ error }, "Failed to cleanup reaction files");
+    logger.error({ error }, 'Failed to cleanup reaction files');
   }
 }

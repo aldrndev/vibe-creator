@@ -1,22 +1,22 @@
-import { Card, CardBody } from "@/components/ui";
-import { cn } from "@/lib/utils";
+import { Card, CardBody } from '@/components/ui';
+import { cn } from '@/lib/utils';
 
 interface SkeletonCardProps {
   count?: number;
-  type?: "card" | "row" | "stat";
+  type?: 'card' | 'row' | 'stat';
   className?: string;
 }
 
 /**
  * Skeleton placeholder with shimmer animation
  */
-function Skeleton({ className }: { className?: string }) {
+function Skeleton({ className }: Readonly<{ className?: string }>) {
   return (
     <div
       className={cn(
-        "relative overflow-hidden rounded-md bg-muted/40 animate-pulse",
-        "after:absolute after:inset-0 after:-translate-x-full after:animate-[shimmer_2s_infinite] after:bg-gradient-to-r after:from-transparent after:via-white/5 after:to-transparent",
-        className
+        'relative overflow-hidden rounded-md bg-muted/40 animate-pulse',
+        'after:absolute after:inset-0 after:-translate-x-full after:animate-[shimmer_2s_infinite] after:bg-linear-to-r after:from-transparent after:via-white/5 after:to-transparent',
+        className,
       )}
     />
   );
@@ -25,21 +25,12 @@ function Skeleton({ className }: { className?: string }) {
 /**
  * Reusable skeleton loader for cards
  */
-export function SkeletonCard({
-  count = 1,
-  type = "card",
-  className,
-}: SkeletonCardProps) {
+export function SkeletonCard({ count = 1, type = 'card', className }: Readonly<SkeletonCardProps>) {
   const items = Array.from({ length: count }, (_, i) => i);
 
-  if (type === "stat") {
+  if (type === 'stat') {
     return (
-      <div
-        className={cn(
-          "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4",
-          className
-        )}
-      >
+      <div className={cn('grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4', className)}>
         {items.map((i) => (
           <Card key={i}>
             <CardBody className="flex flex-row items-center gap-4">
@@ -55,9 +46,9 @@ export function SkeletonCard({
     );
   }
 
-  if (type === "row") {
+  if (type === 'row') {
     return (
-      <div className={cn("space-y-3", className)}>
+      <div className={cn('space-y-3', className)}>
         {items.map((i) => (
           <Card key={i}>
             <CardBody className="flex items-center gap-4 p-4">
@@ -76,12 +67,7 @@ export function SkeletonCard({
 
   // Default card grid
   return (
-    <div
-      className={cn(
-        "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4",
-        className
-      )}
-    >
+    <div className={cn('grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4', className)}>
       {items.map((i) => (
         <Card key={i}>
           <CardBody className="space-y-3 p-4">
@@ -102,7 +88,7 @@ export function SkeletonCard({
 /**
  * Table skeleton loader
  */
-export function SkeletonTable({ rows = 5 }: { rows?: number }) {
+export function SkeletonTable({ rows = 5 }: Readonly<{ rows?: number }>) {
   const items = Array.from({ length: rows }, (_, i) => i);
 
   return (

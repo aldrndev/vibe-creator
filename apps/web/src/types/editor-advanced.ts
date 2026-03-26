@@ -54,7 +54,7 @@ export const TRANSITION_PRESETS: Array<{
  */
 export interface SpeedKeyframe {
   timeMs: number; // Position in clip
-  speed: number;  // 0.25 - 4.0
+  speed: number; // 0.25 - 4.0
 }
 
 /**
@@ -93,14 +93,14 @@ export const SPEED_LIMITS = {
  * Color grading types
  */
 export interface ColorGradingSettings {
-  brightness: number;  // -100 to 100
-  contrast: number;    // -100 to 100
-  saturation: number;  // -100 to 100
+  brightness: number; // -100 to 100
+  contrast: number; // -100 to 100
+  saturation: number; // -100 to 100
   temperature: number; // -100 (cool) to 100 (warm)
-  tint: number;        // -100 (green) to 100 (magenta)
-  shadows: number;     // -100 to 100
-  highlights: number;  // -100 to 100
-  vibrance: number;    // -100 to 100
+  tint: number; // -100 (green) to 100 (magenta)
+  shadows: number; // -100 to 100
+  highlights: number; // -100 to 100
+  vibrance: number; // -100 to 100
 }
 
 /**

@@ -3,9 +3,9 @@
  * Deterministic FFmpeg binary path resolution with version pinning
  */
 
-import { existsSync } from "fs";
-import { execSync } from "child_process";
-import { logger } from "@/lib/logger";
+import { spawnSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { logger } from '@/lib/logger';
 
 /**
  * Get FFmpeg binary path
@@ -18,19 +18,22 @@ export function getFFmpegPath(): string {
     if (!existsSync(envPath)) {
       throw new Error(`FFMPEG_PATH specified but binary not found: ${envPath}`);
     }
-    logger.info({ ffmpegPath: envPath }, "Using FFmpeg from FFMPEG_PATH");
+    logger.info({ ffmpegPath: envPath }, 'Using FFmpeg from FFMPEG_PATH');
     return envPath;
   }
 
   // 2. Try system PATH (common on macOS with Homebrew, Linux apt/yum)
   try {
-    const result = execSync("which ffmpeg", {
-      encoding: "utf-8",
+    const result = spawnSync('which', ['ffmpeg'], {
+      encoding: 'utf-8',
       timeout: 5000,
     });
-    const systemPath = result.trim();
+    if (result.error) {
+      throw result.error;
+    }
+    const systemPath = result.stdout.trim();
     if (systemPath && existsSync(systemPath)) {
-      logger.info({ ffmpegPath: systemPath }, "Using FFmpeg from system PATH");
+      logger.info({ ffmpegPath: systemPath }, 'Using FFmpeg from system PATH');
       return systemPath;
     }
   } catch {
@@ -39,20 +42,20 @@ export function getFFmpegPath(): string {
 
   // 3. Try @ffmpeg-installer/ffmpeg (if installed)
   try {
-    const ffmpegInstaller = require("@ffmpeg-installer/ffmpeg");
+    const ffmpegInstaller = require('@ffmpeg-installer/ffmpeg');
     const ffmpegPath = ffmpegInstaller.path;
     if (ffmpegPath && existsSync(ffmpegPath)) {
-      logger.info({ ffmpegPath }, "Using FFmpeg from @ffmpeg-installer/ffmpeg");
+      logger.info({ ffmpegPath }, 'Using FFmpeg from @ffmpeg-installer/ffmpeg');
       return ffmpegPath;
     }
   } catch (error) {
     // @ffmpeg-installer/ffmpeg not installed or failed to load
-    logger.debug({ error }, "Could not load @ffmpeg-installer/ffmpeg");
+    logger.debug({ error }, 'Could not load @ffmpeg-installer/ffmpeg');
   }
 
   // 4. Fail fast - no valid FFmpeg found
   throw new Error(
-    "FFmpeg binary not found. Install FFmpeg via package manager (brew/apt/yum) or set FFMPEG_PATH env."
+    'FFmpeg binary not found. Install FFmpeg via package manager (brew/apt/yum) or set FFMPEG_PATH env.',
   );
 }
 
@@ -65,21 +68,22 @@ export function getFFprobePath(): string {
   const envPath = process.env.FFPROBE_PATH;
   if (envPath) {
     if (!existsSync(envPath)) {
-      throw new Error(
-        `FFPROBE_PATH specified but binary not found: ${envPath}`
-      );
+      throw new Error(`FFPROBE_PATH specified but binary not found: ${envPath}`);
     }
-    logger.info({ ffprobePath: envPath }, "Using FFprobe from FFPROBE_PATH");
+    logger.info({ ffprobePath: envPath }, 'Using FFprobe from FFPROBE_PATH');
     return envPath;
   }
 
   // 2. Try system PATH
   try {
-    const result = execSync("which ffprobe", {
-      encoding: "utf-8",
+    const result = spawnSync('which', ['ffprobe'], {
+      encoding: 'utf-8',
       timeout: 5000,
     });
-    const systemPath = result.trim();
+    if (result.error) {
+      throw result.error;
+    }
+    const systemPath = result.stdout.trim();
     if (systemPath && existsSync(systemPath)) {
       // Quiet log for ffprobe to avoid noise
       return systemPath;
@@ -90,7 +94,7 @@ export function getFFprobePath(): string {
 
   // 3. Try @ffmpeg-installer/ffprobe
   try {
-    const ffprobeInstaller = require("@ffmpeg-installer/ffprobe");
+    const ffprobeInstaller = require('@ffmpeg-installer/ffprobe');
     const ffprobePath = ffprobeInstaller.path;
     if (ffprobePath && existsSync(ffprobePath)) {
       return ffprobePath;
@@ -100,9 +104,7 @@ export function getFFprobePath(): string {
   }
 
   // 4. Fail fast
-  throw new Error(
-    "FFprobe binary not found. Install FFmpeg/FFprobe via package manager."
-  );
+  throw new Error('FFprobe binary not found. Install FFmpeg/FFprobe via package manager.');
 }
 
 /**
@@ -113,19 +115,23 @@ export function validateFFmpegVersion(binaryPath: string): {
   valid: boolean;
 } {
   try {
-    const output = execSync(`"${binaryPath}" -version`, {
-      encoding: "utf-8",
+    const result = spawnSync(binaryPath, ['-version'], {
+      encoding: 'utf-8',
       timeout: 5000,
     });
+    if (result.error) {
+      throw result.error;
+    }
+    const output = result.stdout;
 
     const match = output.match(/ffmpeg version ([^\s]+)/);
-    const version = match?.[1] || "unknown";
+    const version = match?.[1] || 'unknown';
 
     // For now, any version is valid
     // Future: enforce minimum version (e.g., >= 5.0)
     return { version, valid: true };
   } catch (error) {
-    logger.warn({ binaryPath, error }, "Failed to validate FFmpeg version");
-    return { version: "unknown", valid: false };
+    logger.warn({ binaryPath, error }, 'Failed to validate FFmpeg version');
+    return { version: 'unknown', valid: false };
   }
 }

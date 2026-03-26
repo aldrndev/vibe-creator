@@ -4,11 +4,11 @@
  * Database access layer for trending items
  */
 
-import { prisma } from "@/lib/prisma";
-import { Prisma } from "@prisma/client";
-import { createHash } from "crypto";
-import type { ScrapedItem } from "./trending.schema";
-import { DATA_EXPIRY_HOURS, RETENTION_CONFIG } from "./trending.constants";
+import { createHash } from 'node:crypto';
+import type { Prisma } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
+import { DATA_EXPIRY_HOURS, RETENTION_CONFIG } from './trending.constants';
+import type { ScrapedItem } from './trending.schema';
 
 // ============================================================================
 // HASH UTILITY
@@ -17,12 +17,9 @@ import { DATA_EXPIRY_HOURS, RETENTION_CONFIG } from "./trending.constants";
 /**
  * Generate deterministic hash for deduplication
  */
-export function generateExternalUrlHash(
-  externalId: string,
-  externalUrl?: string
-): string {
+export function generateExternalUrlHash(externalId: string, externalUrl?: string): string {
   const input = externalUrl ?? externalId;
-  return createHash("sha256").update(input).digest("hex");
+  return createHash('sha256').update(input).digest('hex');
 }
 
 // ============================================================================
@@ -35,8 +32,13 @@ export function generateExternalUrlHash(
  */
 export function sanitizeText(input: string, maxLength: number): string {
   return input
-    .replace(/[\x00-\x1F\x7F]/g, "") // Strip control chars
-    .replace(/<[^>]*>/g, "") // Strip HTML tags
+    .split('')
+    .filter((char) => {
+      const code = char.charCodeAt(0);
+      return code > 31 && code !== 127;
+    })
+    .join('')
+    .replace(/<[^>]*>/g, '') // Strip HTML tags
     .trim()
     .slice(0, maxLength);
 }
@@ -49,22 +51,13 @@ export const trendingRepository = {
   /**
    * Upsert trending items (dedupe by unique constraint)
    */
-  async upsertItems(
-    items: ScrapedItem[],
-    platform: string,
-    region: string
-  ): Promise<number> {
+  async upsertItems(items: ScrapedItem[], platform: string, region: string): Promise<number> {
     const now = new Date();
-    const expiresAt = new Date(
-      now.getTime() + DATA_EXPIRY_HOURS * 60 * 60 * 1000
-    );
+    const expiresAt = new Date(now.getTime() + DATA_EXPIRY_HOURS * 60 * 60 * 1000);
     let upsertedCount = 0;
 
     for (const item of items) {
-      const externalUrlHash = generateExternalUrlHash(
-        item.externalId,
-        item.externalUrl
-      );
+      const externalUrlHash = generateExternalUrlHash(item.externalId, item.externalUrl);
 
       await prisma.trendingItem.upsert({
         where: {
@@ -77,9 +70,7 @@ export const trendingRepository = {
         },
         update: {
           title: sanitizeText(item.title, 200),
-          description: item.description
-            ? sanitizeText(item.description, 500)
-            : null,
+          description: item.description ? sanitizeText(item.description, 500) : null,
           thumbnailUrl: item.thumbnailUrl,
           externalUrl: item.externalUrl,
           rank: item.rank,
@@ -94,9 +85,7 @@ export const trendingRepository = {
           externalId: item.externalId,
           externalUrlHash,
           title: sanitizeText(item.title, 200),
-          description: item.description
-            ? sanitizeText(item.description, 500)
-            : null,
+          description: item.description ? sanitizeText(item.description, 500) : null,
           thumbnailUrl: item.thumbnailUrl,
           externalUrl: item.externalUrl,
           rank: item.rank,
@@ -144,7 +133,7 @@ export const trendingRepository = {
 
     const items = await prisma.trendingItem.findMany({
       where,
-      orderBy: [{ fetchedAt: "desc" }, { rank: "asc" }], // Sort by Rank ASC within the batch
+      orderBy: [{ fetchedAt: 'desc' }, { rank: 'asc' }], // Sort by Rank ASC within the batch
       take: limit + 1, // Fetch one extra to check if there's a next page
     });
 
@@ -180,8 +169,8 @@ export const trendingRepository = {
   async updateStatus(
     platform: string,
     region: string,
-    status: "ok" | "degraded" | "down",
-    errorMessage?: string
+    status: 'ok' | 'degraded' | 'down',
+    errorMessage?: string,
   ) {
     const now = new Date();
     return prisma.trendingPlatformStatus.upsert({
@@ -190,15 +179,15 @@ export const trendingRepository = {
       },
       update: {
         status,
-        ...(status === "ok" && { lastSuccessAt: now }),
-        ...(status !== "ok" && { lastFailureAt: now, errorMessage }),
+        ...(status === 'ok' && { lastSuccessAt: now }),
+        ...(status !== 'ok' && { lastFailureAt: now, errorMessage }),
       },
       create: {
         platform,
         region,
         status,
-        ...(status === "ok" && { lastSuccessAt: now }),
-        ...(status !== "ok" && { lastFailureAt: now, errorMessage }),
+        ...(status === 'ok' && { lastSuccessAt: now }),
+        ...(status !== 'ok' && { lastFailureAt: now, errorMessage }),
       },
     });
   },
@@ -207,9 +196,7 @@ export const trendingRepository = {
    * Delete expired items in batches
    */
   async deleteExpired(): Promise<number> {
-    const cutoff = new Date(
-      Date.now() - RETENTION_CONFIG.CLEANUP_AFTER_HOURS * 60 * 60 * 1000
-    );
+    const cutoff = new Date(Date.now() - RETENTION_CONFIG.CLEANUP_AFTER_HOURS * 60 * 60 * 1000);
 
     const result = await prisma.trendingItem.deleteMany({
       where: {

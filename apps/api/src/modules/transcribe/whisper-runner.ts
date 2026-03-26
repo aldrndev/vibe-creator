@@ -1,7 +1,7 @@
-import { spawn } from "child_process";
-import path from "path";
-import { fileURLToPath } from "url";
-import { logger } from "@/lib/logger";
+import { spawn } from 'node:child_process';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { logger } from '@/lib/logger';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -21,33 +21,30 @@ export interface WhisperResult {
 }
 
 export class WhisperRunner {
-  private scriptPath: string;
+  private readonly scriptPath: string;
 
   constructor() {
-    this.scriptPath = path.join(__dirname, "run_whisper.py");
+    this.scriptPath = path.join(__dirname, 'run_whisper.py');
   }
 
   async runWhisperOnAudio(audioPath: string): Promise<WhisperResult> {
     return new Promise((resolve, reject) => {
-      const pythonProcess = spawn("python3", [this.scriptPath, audioPath]);
+      const pythonProcess = spawn('python3', [this.scriptPath, audioPath]);
 
-      let stdoutData = "";
-      let stderrData = "";
+      let stdoutData = '';
+      let stderrData = '';
 
-      pythonProcess.stdout.on("data", (data) => {
+      pythonProcess.stdout.on('data', (data) => {
         stdoutData += data.toString();
       });
 
-      pythonProcess.stderr.on("data", (data) => {
+      pythonProcess.stderr.on('data', (data) => {
         stderrData += data.toString();
       });
 
-      pythonProcess.on("close", (code) => {
+      pythonProcess.on('close', (code) => {
         if (code !== 0) {
-          logger.error(
-            { code, stderr: stderrData },
-            "Whisper process exited with error"
-          );
+          logger.error({ code, stderr: stderrData }, 'Whisper process exited with error');
           return resolve({
             success: false,
             error: `Process exited with code ${code}. Stderr: ${stderrData}`,
@@ -58,19 +55,16 @@ export class WhisperRunner {
           const result = JSON.parse(stdoutData) as WhisperResult;
           resolve(result);
         } catch {
-          logger.error(
-            { output: stdoutData.slice(0, 500) },
-            "Failed to parse Whisper output"
-          );
+          logger.error({ output: stdoutData.slice(0, 500) }, 'Failed to parse Whisper output');
           resolve({
             success: false,
-            error: "Failed to parse JSON output from Whisper script.",
+            error: 'Failed to parse JSON output from Whisper script.',
           });
         }
       });
 
-      pythonProcess.on("error", (err) => {
-        logger.error({ err }, "Failed to spawn python process");
+      pythonProcess.on('error', (err) => {
+        logger.error({ err }, 'Failed to spawn python process');
         reject(err);
       });
     });

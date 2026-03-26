@@ -1,26 +1,26 @@
 import {
   Card,
   CardBody,
+  Divider,
   Select,
-  SelectTrigger,
-  SelectValue,
   SelectContent,
   SelectItem,
+  SelectTrigger,
+  SelectValue,
   Textarea,
-  Divider,
-} from "@/components/ui";
-import { SelectionGrid } from "@/components/ui/SelectionGrid";
-import { VoiceFormData } from "../types";
+} from '@/components/ui';
+import { SelectionGrid } from '@/components/ui/SelectionGrid';
+import { TargetModelSelector } from '../components/TargetModelSelector';
 import {
-  voiceStyles,
-  languages,
-  genders,
-  paces,
   emotions,
   emphasisOptions,
+  genders,
+  languages,
+  paces,
   pauseOptions,
-} from "../constants";
-import { TargetModelSelector } from "../components/TargetModelSelector";
+  voiceStyles,
+} from '../constants';
+import type { VoiceFormData } from '../types';
 
 interface VoiceFormProps {
   data: VoiceFormData;
@@ -28,10 +28,7 @@ interface VoiceFormProps {
 }
 
 export function VoiceForm({ data, onChange }: VoiceFormProps) {
-  const handleChange = (
-    key: keyof VoiceFormData,
-    value: VoiceFormData[keyof VoiceFormData]
-  ) => {
+  const handleChange = (key: keyof VoiceFormData, value: VoiceFormData[keyof VoiceFormData]) => {
     onChange({ ...data, [key]: value });
   };
 
@@ -41,7 +38,7 @@ export function VoiceForm({ data, onChange }: VoiceFormProps) {
         <TargetModelSelector
           promptType="VOICE"
           value={data.targetModel}
-          onChange={(v) => handleChange("targetModel", v)}
+          onChange={(v) => handleChange('targetModel', v)}
         />
 
         {/* Section: Script & Language */}
@@ -54,14 +51,14 @@ export function VoiceForm({ data, onChange }: VoiceFormProps) {
           </div>
 
           <div className="space-y-3">
-            <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+            <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
               Script/Teks yang Dibacakan
-            </label>
+            </div>
             <Textarea
               placeholder="Masukkan script yang akan dijadikan voice-over..."
               value={data.script}
               onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                handleChange("script", e.target.value)
+                handleChange('script', e.target.value)
               }
               className="min-h-[140px] rounded-3xl bg-muted/10 border-border/50 font-bold p-6 focus:bg-muted/20 transition-all leading-relaxed"
             />
@@ -69,13 +66,10 @@ export function VoiceForm({ data, onChange }: VoiceFormProps) {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <div className="space-y-3">
-              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+              <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
                 Bahasa
-              </label>
-              <Select
-                value={data.language}
-                onValueChange={(v) => handleChange("language", v)}
-              >
+              </div>
+              <Select value={data.language} onValueChange={(v) => handleChange('language', v)}>
                 <SelectTrigger className="h-14 rounded-2xl bg-muted/10 border-border/50 font-bold px-5 text-sm">
                   <SelectValue />
                 </SelectTrigger>
@@ -94,13 +88,10 @@ export function VoiceForm({ data, onChange }: VoiceFormProps) {
             </div>
 
             <div className="space-y-3">
-              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+              <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
                 Gender
-              </label>
-              <Select
-                value={data.gender}
-                onValueChange={(v) => handleChange("gender", v)}
-              >
+              </div>
+              <Select value={data.gender} onValueChange={(v) => handleChange('gender', v)}>
                 <SelectTrigger className="h-14 rounded-2xl bg-muted/10 border-border/50 font-bold px-5 text-sm">
                   <SelectValue />
                 </SelectTrigger>
@@ -133,13 +124,10 @@ export function VoiceForm({ data, onChange }: VoiceFormProps) {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <div className="space-y-3">
-              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+              <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
                 Gaya Suara (Voice Style)
-              </label>
-              <Select
-                value={data.voiceStyle}
-                onValueChange={(v) => handleChange("voiceStyle", v)}
-              >
+              </div>
+              <Select value={data.voiceStyle} onValueChange={(v) => handleChange('voiceStyle', v)}>
                 <SelectTrigger className="h-14 rounded-2xl bg-muted/10 border-border/50 font-bold px-5 text-sm">
                   <SelectValue />
                 </SelectTrigger>
@@ -158,13 +146,10 @@ export function VoiceForm({ data, onChange }: VoiceFormProps) {
             </div>
 
             <div className="space-y-3">
-              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+              <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
                 Kecepatan (Pace)
-              </label>
-              <Select
-                value={data.pace}
-                onValueChange={(v) => handleChange("pace", v)}
-              >
+              </div>
+              <Select value={data.pace} onValueChange={(v) => handleChange('pace', v)}>
                 <SelectTrigger className="h-14 rounded-2xl bg-muted/10 border-border/50 font-bold px-5 text-sm">
                   <SelectValue />
                 </SelectTrigger>
@@ -187,7 +172,7 @@ export function VoiceForm({ data, onChange }: VoiceFormProps) {
             label="Emosi"
             options={emotions}
             value={data.emotion}
-            onChange={(v) => handleChange("emotion", v)}
+            onChange={(v) => handleChange('emotion', v)}
             columns={3}
           />
 
@@ -195,7 +180,7 @@ export function VoiceForm({ data, onChange }: VoiceFormProps) {
             label="Penekanan Kalimat"
             options={emphasisOptions}
             value={data.emphasis}
-            onChange={(v) => handleChange("emphasis", v)}
+            onChange={(v) => handleChange('emphasis', v)}
             columns={3}
           />
 
@@ -203,7 +188,7 @@ export function VoiceForm({ data, onChange }: VoiceFormProps) {
             label="Jeda & Pause"
             options={pauseOptions}
             value={data.pauses}
-            onChange={(v) => handleChange("pauses", v)}
+            onChange={(v) => handleChange('pauses', v)}
             columns={3}
           />
         </div>

@@ -99,18 +99,16 @@ export const FONT_REGISTRY: FontDefinition[] = [
  */
 export async function loadGoogleFont(familyName: string): Promise<void> {
   // Check if already loaded
-  const existingLink = document.querySelector(
-    `link[href*="${encodeURIComponent(familyName)}"]`
-  );
+  const existingLink = document.querySelector(`link[href*="${encodeURIComponent(familyName)}"]`);
   if (existingLink) return;
 
   const weights = getFontWeights(familyName);
   const weightString = weights.join(';');
-  
+
   const link = document.createElement('link');
   link.href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(familyName)}:wght@${weightString}&display=swap`;
   link.rel = 'stylesheet';
-  
+
   return new Promise((resolve, reject) => {
     link.onload = () => resolve();
     link.onerror = () => reject(new Error(`Failed to load font: ${familyName}`));
@@ -122,7 +120,7 @@ export async function loadGoogleFont(familyName: string): Promise<void> {
  * Get available weights for a font
  */
 export function getFontWeights(familyName: string): number[] {
-  const font = FONT_REGISTRY.find(f => f.family === familyName);
+  const font = FONT_REGISTRY.find((f) => f.family === familyName);
   return font?.weights ?? [400];
 }
 
@@ -130,28 +128,28 @@ export function getFontWeights(familyName: string): number[] {
  * Get font by ID
  */
 export function getFontById(id: string): FontDefinition | undefined {
-  return FONT_REGISTRY.find(f => f.id === id);
+  return FONT_REGISTRY.find((f) => f.id === id);
 }
 
 /**
  * Get font by family name
  */
 export function getFontByFamily(family: string): FontDefinition | undefined {
-  return FONT_REGISTRY.find(f => f.family === family);
+  return FONT_REGISTRY.find((f) => f.family === family);
 }
 
 /**
  * Preload all fonts used in text overlays
  */
-export async function preloadFontsForOverlays(
-  fontFamilies: string[]
-): Promise<void> {
+export async function preloadFontsForOverlays(fontFamilies: string[]): Promise<void> {
   const uniqueFamilies = [...new Set(fontFamilies)];
-  
+
   await Promise.all(
-    uniqueFamilies.map(family => loadGoogleFont(family).catch(() => {
-      // Font loading failed, silently continue
-    }))
+    uniqueFamilies.map((family) =>
+      loadGoogleFont(family).catch(() => {
+        // Font loading failed, silently continue
+      }),
+    ),
   );
 }
 
@@ -167,26 +165,26 @@ export function isFontLoaded(familyName: string): boolean {
  */
 export async function waitForFont(familyName: string, timeoutMs = 5000): Promise<boolean> {
   if (isFontLoaded(familyName)) return true;
-  
+
   await loadGoogleFont(familyName);
-  
-  return new Promise(resolve => {
+
+  return new Promise((resolve) => {
     const startTime = Date.now();
-    
+
     const check = () => {
       if (isFontLoaded(familyName)) {
         resolve(true);
         return;
       }
-      
+
       if (Date.now() - startTime > timeoutMs) {
         resolve(false);
         return;
       }
-      
+
       requestAnimationFrame(check);
     };
-    
+
     check();
   });
 }

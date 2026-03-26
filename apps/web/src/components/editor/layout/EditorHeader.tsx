@@ -1,21 +1,7 @@
-import {
-  Button,
-  Tooltip,
-  TooltipTrigger,
-  TooltipContent,
-} from "@/components/ui";
-import {
-  Upload,
-  Link,
-  Mic,
-  Type,
-  Undo2,
-  Redo2,
-  ChevronLeft,
-  Zap,
-} from "lucide-react";
-import { useNavigate } from "react-router-dom";
-import { cn } from "@/lib/utils";
+import { ChevronLeft, Link, Mic, Redo2, Type, Undo2, Upload, Zap } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Button, Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui';
+import { cn } from '@/lib/utils';
 
 interface EditorHeaderProps {
   projectTitle: string;
@@ -56,7 +42,7 @@ export const EditorHeader = ({
         <Button
           size="sm"
           variant="ghost"
-          onClick={() => navigate("/dashboard")}
+          onClick={() => navigate('/dashboard')}
           className="h-9 w-9 md:h-10 md:w-10 rounded-full hover:bg-muted transition-colors p-0"
         >
           <ChevronLeft size={20} className="text-muted-foreground" />
@@ -64,17 +50,18 @@ export const EditorHeader = ({
 
         <div className="flex flex-col">
           <h1 className="text-sm md:text-base font-semibold text-foreground truncate max-w-[150px] md:max-w-[300px]">
-            {projectTitle || "Untitled Project"}
+            {projectTitle || 'Untitled Project'}
           </h1>
           <div className="flex items-center gap-1">
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
+                  type="button"
                   disabled={!canUndo}
                   onClick={onUndo}
                   className={cn(
-                    "p-1 hover:text-foreground transition-colors disabled:opacity-30",
-                    canUndo ? "text-foreground" : "text-muted-foreground"
+                    'p-1 hover:text-foreground transition-colors disabled:opacity-30',
+                    canUndo ? 'text-foreground' : 'text-muted-foreground',
                   )}
                 >
                   <Undo2 size={14} />
@@ -85,11 +72,12 @@ export const EditorHeader = ({
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
+                  type="button"
                   disabled={!canRedo}
                   onClick={onRedo}
                   className={cn(
-                    "p-1 hover:text-foreground transition-colors disabled:opacity-30",
-                    canRedo ? "text-foreground" : "text-muted-foreground"
+                    'p-1 hover:text-foreground transition-colors disabled:opacity-30',
+                    canRedo ? 'text-foreground' : 'text-muted-foreground',
                   )}
                 >
                   <Redo2 size={14} />

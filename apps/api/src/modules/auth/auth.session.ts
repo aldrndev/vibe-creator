@@ -13,11 +13,11 @@
  * - Refresh tokens are opaque with rotation and replay detection
  */
 
-import { prisma } from "@/lib/prisma";
-import { generateToken, hashToken } from "@/utils/crypto";
-import { signAccessToken } from "@/lib/jwt";
-import { nanoid } from "nanoid";
-import { randomUUID } from "node:crypto";
+import { randomUUID } from 'node:crypto';
+import { nanoid } from 'nanoid';
+import { signAccessToken } from '@/lib/jwt';
+import { prisma } from '@/lib/prisma';
+import { generateToken, hashToken } from '@/utils/crypto';
 
 /**
  * Access token duration in minutes.
@@ -86,7 +86,7 @@ function buildRefreshExpiry(now: Date): Date {
 export async function createSession(
   userId: string,
   userAgent: string | null,
-  ipAddress: string
+  ipAddress: string,
 ): Promise<SessionTokens> {
   // Single session enforcement: invalidate all existing sessions
   await prisma.userSession.deleteMany({

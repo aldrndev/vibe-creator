@@ -1,22 +1,22 @@
+import { Info, Play, Settings, Square, Wifi, WifiOff } from 'lucide-react';
 import {
+  Badge,
   Button,
   Card,
   CardBody,
   CardHeader,
-  Badge,
   Divider,
   Input,
   Select,
-  SelectTrigger,
-  SelectValue,
   SelectContent,
   SelectItem,
+  SelectTrigger,
+  SelectValue,
   Slider,
   Switch,
-} from "@/components/ui";
-import { Info, Play, Settings, Square, Wifi, WifiOff } from "lucide-react";
-import { StreamPlatform } from "@/hooks/useLiveStream";
-import { cn } from "@/lib/utils";
+} from '@/components/ui';
+import type { StreamPlatform } from '@/hooks/useLiveStream';
+import { cn } from '@/lib/utils';
 
 interface LiveStreamSettingsProps {
   platform: StreamPlatform;
@@ -26,8 +26,8 @@ interface LiveStreamSettingsProps {
   setCustomRtmpUrl: (u: string) => void;
   isStreaming: boolean;
   streamStatus: string;
-  quality: "720p" | "1080p";
-  setQuality: (q: "720p" | "1080p") => void;
+  quality: '720p' | '1080p';
+  setQuality: (q: '720p' | '1080p') => void;
   bitrate: number;
   setBitrate: (b: number) => void;
   duration: number;
@@ -85,17 +85,14 @@ export function LiveStreamSettings({
               <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-2">
                 Advanced RTMP Mode
               </span>
-              <Switch
-                checked={showAdvanced}
-                onCheckedChange={setShowAdvanced}
-              />
+              <Switch checked={showAdvanced} onCheckedChange={setShowAdvanced} />
             </div>
 
-            {(platform === "custom" || showAdvanced) && (
+            {(platform === 'custom' || showAdvanced) && (
               <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
-                <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+                <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
                   RTMP URL
-                </label>
+                </div>
                 <Input
                   placeholder="rtmp://your-server.com/live"
                   value={customRtmpUrl}
@@ -109,16 +106,14 @@ export function LiveStreamSettings({
             )}
 
             <div className="space-y-2">
-              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+              <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
                 Stream Key
-              </label>
+              </div>
               <Input
                 type="password"
                 placeholder="Paste stream key here..."
                 value={streamKey}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                  setStreamKey(e.target.value)
-                }
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setStreamKey(e.target.value)}
                 disabled={isStreaming}
                 className="h-12 rounded-xl bg-muted/20 border-border/50 font-bold"
               />
@@ -135,15 +130,15 @@ export function LiveStreamSettings({
         <div className="space-y-8">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+              <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
                 Resolusi
-              </label>
+              </div>
               <Select
                 value={quality}
                 onValueChange={(v) => {
-                  const q = v as "720p" | "1080p";
+                  const q = v as '720p' | '1080p';
                   setQuality(q);
-                  if (q === "1080p") setBitrate(4500);
+                  if (q === '1080p') setBitrate(4500);
                   else setBitrate(2500);
                 }}
               >
@@ -158,9 +153,9 @@ export function LiveStreamSettings({
             </div>
 
             <div className="space-y-2">
-              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+              <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
                 Auto-Stop
-              </label>
+              </div>
               <Select
                 value={duration.toString()}
                 onValueChange={(v) => setDuration(Number(v))}
@@ -181,9 +176,9 @@ export function LiveStreamSettings({
 
           <div className="space-y-5 bg-muted/10 p-5 rounded-3xl border border-border/40">
             <div className="flex justify-between items-center px-1">
-              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+              <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
                 Target Bitrate
-              </label>
+              </div>
               <div className="text-[10px] font-black tracking-widest bg-primary/10 text-primary px-3 py-1 rounded-full border border-primary/20 font-mono">
                 {bitrate} KBPS
               </div>
@@ -204,17 +199,13 @@ export function LiveStreamSettings({
           {streamStatus && (
             <div
               className={cn(
-                "p-4 rounded-2xl text-center flex items-center justify-center gap-2 border transition-colors",
+                'p-4 rounded-2xl text-center flex items-center justify-center gap-2 border transition-colors',
                 isStreaming
-                  ? "bg-rose-500/5 border-rose-500/20 text-rose-500"
-                  : "bg-muted/10 border-border/50 text-muted-foreground"
+                  ? 'bg-rose-500/5 border-rose-500/20 text-rose-500'
+                  : 'bg-muted/10 border-border/50 text-muted-foreground',
               )}
             >
-              {isStreaming ? (
-                <Wifi size={16} className="animate-pulse" />
-              ) : (
-                <WifiOff size={16} />
-              )}
+              {isStreaming ? <Wifi size={16} className="animate-pulse" /> : <WifiOff size={16} />}
               <span className="text-[10px] font-black uppercase tracking-widest leading-none">
                 {streamStatus}
               </span>
@@ -232,16 +223,16 @@ export function LiveStreamSettings({
             </div>
             <Badge
               className={cn(
-                "px-4 py-2 rounded-xl text-[10px] font-black tracking-widest cursor-pointer hover:scale-105 active:scale-95 transition-all flex items-center gap-2",
+                'px-4 py-2 rounded-xl text-[10px] font-black tracking-widest cursor-pointer hover:scale-105 active:scale-95 transition-all flex items-center gap-2',
                 quotaRemaining === null
-                  ? "bg-muted"
+                  ? 'bg-muted'
                   : quotaRemaining < 60
-                  ? "bg-rose-500"
-                  : "bg-primary"
+                    ? 'bg-rose-500'
+                    : 'bg-primary',
               )}
               onClick={() => setShowTopup(true)}
             >
-              {quotaRemaining === null ? "..." : `${quotaRemaining} MINS`}
+              {quotaRemaining === null ? '...' : `${quotaRemaining} MINS`}
               <div className="w-4 h-4 rounded-full bg-white/20 flex items-center justify-center">
                 <span className="text-white text-[10px] font-black">+</span>
               </div>
@@ -288,17 +279,15 @@ export function LiveStreamSettings({
           </p>
           <div className="grid grid-cols-1 gap-3">
             {[
-              { label: "YouTube", text: "Studio → Live → Key" },
-              { label: "TikTok", text: "Live Studio → Key" },
-              { label: "Twitch", text: "Settings → Stream Key" },
+              { label: 'YouTube', text: 'Studio → Live → Key' },
+              { label: 'TikTok', text: 'Live Studio → Key' },
+              { label: 'Twitch', text: 'Settings → Stream Key' },
             ].map((item) => (
               <div
                 key={item.label}
                 className="flex items-center justify-between px-3 py-2 rounded-xl bg-white/5 border border-white/5"
               >
-                <span className="text-[10px] font-black text-foreground">
-                  {item.label}
-                </span>
+                <span className="text-[10px] font-black text-foreground">{item.label}</span>
                 <span className="text-[9px] font-bold text-muted-foreground uppercase opacity-80">
                   {item.text}
                 </span>

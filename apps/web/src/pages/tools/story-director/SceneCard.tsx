@@ -1,8 +1,8 @@
-import { Card, CardBody, Button, Badge } from "@/components/ui";
-import { Play, Wand2, Mic, Move, Trash2 } from "lucide-react";
-import type { StoryScene } from "@vibe-creator/shared";
-import { useSortable } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
+import { useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import type { StoryScene } from '@vibe-creator/shared';
+import { Mic, Move, Play, Trash2, Wand2 } from 'lucide-react';
+import { Badge, Button, Card, CardBody } from '@/components/ui';
 
 interface SceneCardProps {
   scene: StoryScene;
@@ -11,20 +11,10 @@ interface SceneCardProps {
   onUpdate: (id: string, updates: Partial<StoryScene>) => void;
 }
 
-export function SceneCard({
-  scene,
-  index,
-  onRemove,
-  onUpdate,
-}: SceneCardProps) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: scene.id });
+export function SceneCard({ scene, index, onRemove, onUpdate }: SceneCardProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: scene.id,
+  });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -43,7 +33,7 @@ export function SceneCard({
             {...listeners}
           >
             <span className="text-lg font-bold text-muted-foreground">
-              {(index + 1).toString().padStart(2, "0")}
+              {(index + 1).toString().padStart(2, '0')}
             </span>
             <Move size={14} className="text-muted-foreground/50" />
           </div>
@@ -79,11 +69,11 @@ export function SceneCard({
             <div className="flex items-center gap-2 mb-1">
               <Badge
                 variant={
-                  scene.type === "intro"
-                    ? "secondary"
-                    : scene.type === "outro"
-                    ? "outline"
-                    : "default"
+                  scene.type === 'intro'
+                    ? 'secondary'
+                    : scene.type === 'outro'
+                      ? 'outline'
+                      : 'default'
                 }
                 className="h-5 text-xs px-1"
               >
@@ -100,19 +90,17 @@ export function SceneCard({
               className="w-full bg-transparent text-sm text-muted-foreground resize-none focus:outline-none h-10"
               placeholder="Describe what happens in this scene..."
               value={scene.description}
-              onChange={(e) =>
-                onUpdate(scene.id, { description: e.target.value })
-              }
+              onChange={(e) => onUpdate(scene.id, { description: e.target.value })}
             />
 
             <div className="flex items-center gap-3 mt-2">
               <div
                 className={`flex items-center gap-1 text-xs ${
-                  scene.assets.audio ? "text-primary" : "text-muted-foreground"
+                  scene.assets.audio ? 'text-primary' : 'text-muted-foreground'
                 }`}
               >
                 <Mic size={12} />
-                <span>{scene.assets.audio ? "AI Voice" : "No Voice"}</span>
+                <span>{scene.assets.audio ? 'AI Voice' : 'No Voice'}</span>
               </div>
               <div className="flex items-center gap-1 text-xs text-muted-foreground ml-auto bg-muted px-2 py-0.5 rounded cursor-pointer hover:bg-muted/80">
                 <span>{scene.targetDurationMs / 1000}s</span>
@@ -122,11 +110,7 @@ export function SceneCard({
 
           {/* Actions */}
           <div className="flex flex-col gap-2">
-            <Button
-              size="icon"
-              variant="ghost"
-              onClick={() => onRemove(scene.id)}
-            >
+            <Button size="icon" variant="ghost" onClick={() => onRemove(scene.id)}>
               <Trash2 size={16} />
             </Button>
           </div>

@@ -1,104 +1,100 @@
-import { Link } from "react-router-dom";
-import { Button } from "@/components/ui";
-import { motion } from "framer-motion";
+import { motion } from 'framer-motion';
 import {
-  Sparkles,
-  Video,
-  Mic,
-  Download,
-  BarChart3,
-  Radio,
   ArrowRight,
+  BarChart3,
   Check,
-  Moon,
-  Sun,
+  Download,
   Menu,
+  Mic,
+  Moon,
+  Radio,
+  Sparkles,
+  Sun,
+  Video,
   X,
-} from "lucide-react";
-import { useState } from "react";
-import { useThemeStore } from "@/stores/theme-store";
-import { cn } from "@/lib/utils";
+} from 'lucide-react';
+import { useState } from 'react';
+import { Link } from 'react-router-dom';
+import { Button } from '@/components/ui';
+import { cn } from '@/lib/utils';
+import { useThemeStore } from '@/stores/theme-store';
 
 const features = [
   {
     icon: Sparkles,
-    title: "Prompt Builder",
-    description:
-      "Generate script, voice, video, dan image prompt yang detail dan siap pakai.",
+    title: 'Prompt Builder',
+    description: 'Generate script, voice, video, dan image prompt yang detail dan siap pakai.',
   },
   {
     icon: Video,
-    title: "Video Editor",
-    description:
-      "Edit video dengan mudah - cut, trim, dan tambahkan voice over.",
+    title: 'Video Editor',
+    description: 'Edit video dengan mudah - cut, trim, dan tambahkan voice over.',
   },
   {
     icon: Mic,
-    title: "Voice Recording",
-    description: "Rekam suara langsung atau import audio untuk dubbing.",
+    title: 'Voice Recording',
+    description: 'Rekam suara langsung atau import audio untuk dubbing.',
   },
   {
     icon: Download,
-    title: "URL Import",
-    description:
-      "Download video dari YouTube, TikTok, Instagram, dan Facebook.",
+    title: 'URL Import',
+    description: 'Download video dari YouTube, TikTok, Instagram, dan Facebook.',
   },
   {
     icon: BarChart3,
-    title: "Creative Scan",
-    description:
-      "Analisis video kompetitor dan dapatkan insight untuk konten lebih baik.",
+    title: 'Creative Scan',
+    description: 'Analisis video kompetitor dan dapatkan insight untuk konten lebih baik.',
   },
   {
     icon: Radio,
-    title: "Live Streaming",
-    description: "Setup live streaming ke multiple platform sekaligus.",
+    title: 'Live Streaming',
+    description: 'Setup live streaming ke multiple platform sekaligus.',
   },
 ];
 
 const pricingPlans = [
   {
-    name: "Gratis",
-    price: "Rp 0",
-    description: "Untuk mencoba fitur dasar",
+    name: 'Gratis',
+    price: 'Rp 0',
+    description: 'Untuk mencoba fitur dasar',
     features: [
-      "Preview penuh",
-      "Prompt Builder lengkap",
-      "Edit video",
-      "URL Import",
-      "Rekam suara",
+      'Preview penuh',
+      'Prompt Builder lengkap',
+      'Edit video',
+      'URL Import',
+      'Rekam suara',
     ],
-    cta: "Mulai Gratis",
+    cta: 'Mulai Gratis',
     popular: false,
   },
   {
-    name: "Creator",
-    price: "Rp 99.000",
-    period: "/bulan",
-    description: "Untuk content creator aktif",
+    name: 'Creator',
+    price: 'Rp 99.000',
+    period: '/bulan',
+    description: 'Untuk content creator aktif',
     features: [
-      "Semua fitur Gratis",
-      "Export 720p-1080p",
-      "20 export/bulan",
-      "Tanpa watermark",
-      "Priority support",
+      'Semua fitur Gratis',
+      'Export 720p-1080p',
+      '20 export/bulan',
+      'Tanpa watermark',
+      'Priority support',
     ],
-    cta: "Mulai Creator",
+    cta: 'Mulai Creator',
     popular: true,
   },
   {
-    name: "Pro",
-    price: "Rp 249.000",
-    period: "/bulan",
-    description: "Untuk professional & agency",
+    name: 'Pro',
+    price: 'Rp 249.000',
+    period: '/bulan',
+    description: 'Untuk professional & agency',
     features: [
-      "Semua fitur Creator",
-      "Export hingga 4K",
-      "Unlimited export",
-      "Priority queue",
-      "Live streaming",
+      'Semua fitur Creator',
+      'Export hingga 4K',
+      'Unlimited export',
+      'Priority queue',
+      'Live streaming',
     ],
-    cta: "Mulai Pro",
+    cta: 'Mulai Pro',
     popular: false,
   },
 ];
@@ -106,6 +102,11 @@ const pricingPlans = [
 export function LandingPage() {
   const { theme, toggleTheme } = useThemeStore();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+  const scrollToSection = (sectionId: 'features' | 'pricing') => {
+    document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setIsMenuOpen(false);
+  };
 
   return (
     <div className="min-h-screen bg-background text-foreground selection:bg-primary/30">
@@ -122,10 +123,10 @@ export function LandingPage() {
             to="/"
             className="flex items-center gap-2 group transition-opacity hover:opacity-90"
           >
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary via-orange-500 to-rose-600 flex items-center justify-center shadow-lg shadow-primary/20 group-hover:scale-105 transition-transform">
+            <div className="w-9 h-9 rounded-xl bg-linear-to-br from-primary via-orange-500 to-rose-600 flex items-center justify-center shadow-lg shadow-primary/20 group-hover:scale-105 transition-transform">
               <Sparkles className="text-white w-5 h-5" />
             </div>
-            <span className="text-xl font-black bg-clip-text text-transparent bg-gradient-to-r from-primary via-orange-500 to-rose-600 tracking-tighter">
+            <span className="text-xl font-black bg-clip-text text-transparent bg-linear-to-r from-primary via-orange-500 to-rose-600 tracking-tighter">
               Vibe Creator
             </span>
           </Link>
@@ -153,17 +154,14 @@ export function LandingPage() {
               className="rounded-full cursor-pointer"
               aria-label="Toggle theme"
             >
-              {theme === "dark" ? <Sun size={19} /> : <Moon size={19} />}
+              {theme === 'dark' ? <Sun size={19} /> : <Moon size={19} />}
             </Button>
 
             <div className="hidden sm:flex items-center gap-3">
               <Button variant="ghost" asChild className="rounded-full">
                 <Link to="/login">Masuk</Link>
               </Button>
-              <Button
-                asChild
-                className="rounded-full px-6 transition-all font-bold"
-              >
+              <Button asChild className="rounded-full px-6 transition-all font-bold">
                 <Link to="/register">Mulai Sekarang</Link>
               </Button>
             </div>
@@ -187,33 +185,26 @@ export function LandingPage() {
             className="lg:hidden absolute top-20 left-0 right-0 bg-background border-b border-border p-6 space-y-6 z-50 shadow-2xl"
           >
             <nav className="flex flex-col gap-4">
-              <a
-                href="#features"
-                onClick={() => setIsMenuOpen(false)}
-                className="text-lg font-medium"
+              <button
+                type="button"
+                onClick={() => scrollToSection('features')}
+                className="text-lg font-medium text-left"
               >
                 Fitur
-              </a>
-              <a
-                href="#pricing"
-                onClick={() => setIsMenuOpen(false)}
-                className="text-lg font-medium"
+              </button>
+              <button
+                type="button"
+                onClick={() => scrollToSection('pricing')}
+                className="text-lg font-medium text-left"
               >
                 Harga
-              </a>
+              </button>
             </nav>
             <div className="flex flex-col gap-3 pt-4 border-t border-border">
-              <Button
-                variant="outline"
-                asChild
-                className="w-full rounded-xl justify-center"
-              >
+              <Button variant="outline" asChild className="w-full rounded-xl justify-center">
                 <Link to="/login">Masuk</Link>
               </Button>
-              <Button
-                asChild
-                className="w-full rounded-xl justify-center font-bold"
-              >
+              <Button asChild className="w-full rounded-xl justify-center font-bold">
                 <Link to="/register">Daftar Sekarang</Link>
               </Button>
             </div>
@@ -227,28 +218,27 @@ export function LandingPage() {
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, ease: "easeOut" }}
+            transition={{ duration: 0.8, ease: 'easeOut' }}
             className="text-center max-w-4xl mx-auto"
           >
             <div className="inline-flex items-center gap-2 px-4 py-2 mb-8 text-xs font-semibold tracking-wide uppercase text-primary bg-primary/10 rounded-full border border-primary/20">
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
-              </span>
+              </span>{' '}
               Next-Gen AI Video Platform
             </div>
 
             <h1 className="text-4xl sm:text-5xl md:text-7xl font-extrabold mb-6 sm:mb-8 tracking-tight leading-[1.1]">
               Buat Konten Luar Biasa, <br className="hidden sm:block" />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary via-orange-400 to-rose-600 animate-gradient">
+              <span className="text-transparent bg-clip-text bg-linear-to-r from-primary via-orange-400 to-rose-600 animate-gradient">
                 Tanpa Hambatan
-              </span>{" "}
+              </span>
             </h1>
 
             <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto mb-8 sm:mb-10 leading-relaxed font-medium px-4 sm:px-0">
-              Vibe Creator adalah workspace cerdas untuk para konten kreator.
-              Gabungkan AI video, automasi script, dan toolkit editing
-              profesional dalam satu platform intuitif.
+              Vibe Creator adalah workspace cerdas untuk para konten kreator. Gabungkan AI video,
+              automasi script, dan toolkit editing profesional dalam satu platform intuitif.
             </p>
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-6 mb-20">
@@ -279,10 +269,7 @@ export function LandingPage() {
       </section>
 
       {/* Feature Grid */}
-      <section
-        id="features"
-        className="py-20 sm:py-32 bg-secondary/10 relative"
-      >
+      <section id="features" className="py-20 sm:py-32 bg-secondary/10 relative">
         <div className="container mx-auto px-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 lg:gap-20 items-center mb-16 lg:mb-24">
             <div>
@@ -291,28 +278,28 @@ export function LandingPage() {
                 dengan Kecerdasan <span className="text-primary">AI</span>
               </h2>
               <p className="text-lg text-muted-foreground mb-8 leading-relaxed">
-                Platform kami memberikan Anda kekuatan untuk memproduksi konten
-                berkualitas tinggi dalam hitungan menit, bukan jam. Semua fitur
-                dirancang untuk mempercepat alur kerja Anda.
+                Platform kami memberikan Anda kekuatan untuk memproduksi konten berkualitas tinggi
+                dalam hitungan menit, bukan jam. Semua fitur dirancang untuk mempercepat alur kerja
+                Anda.
               </p>
 
               <div className="grid gap-6">
                 {[
                   {
-                    title: "AI-Powered Storyboard",
-                    desc: "Ubah ide kasar menjadi struktur video yang matang.",
+                    title: 'AI-Powered Storyboard',
+                    desc: 'Ubah ide kasar menjadi struktur video yang matang.',
                   },
                   {
-                    title: "One-Click Optimization",
-                    desc: "Optimalkan video untuk setiap platform media sosial.",
+                    title: 'One-Click Optimization',
+                    desc: 'Optimalkan video untuk setiap platform media sosial.',
                   },
                   {
-                    title: "Real-time Collaboration",
-                    desc: "Bekerja sama dengan tim secara langsung di editor.",
+                    title: 'Real-time Collaboration',
+                    desc: 'Bekerja sama dengan tim secara langsung di editor.',
                   },
-                ].map((item, i) => (
+                ].map((item) => (
                   <div
-                    key={i}
+                    key={item.title}
                     className="flex gap-4 items-start p-4 rounded-2xl bg-muted/50 border border-border hover:ring-2 hover:ring-primary hover:border-transparent transition-all cursor-default group"
                   >
                     <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0 group-hover:bg-primary group-hover:text-primary-foreground transition-all text-primary">
@@ -320,9 +307,7 @@ export function LandingPage() {
                     </div>
                     <div>
                       <h4 className="font-bold text-lg mb-1">{item.title}</h4>
-                      <p className="text-muted-foreground text-sm leading-relaxed">
-                        {item.desc}
-                      </p>
+                      <p className="text-muted-foreground text-sm leading-relaxed">{item.desc}</p>
                     </div>
                   </div>
                 ))}
@@ -342,9 +327,7 @@ export function LandingPage() {
                   <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mb-6 group-hover:scale-110 group-hover:bg-primary transition-all">
                     <feature.icon className="text-primary group-hover:text-primary-foreground w-7 h-7" />
                   </div>
-                  <h3 className="text-xl font-bold mb-3 tracking-tight">
-                    {feature.title}
-                  </h3>
+                  <h3 className="text-xl font-bold mb-3 tracking-tight">{feature.title}</h3>
                   <p className="text-muted-foreground text-sm leading-relaxed opacity-80">
                     {feature.description}
                   </p>
@@ -363,8 +346,7 @@ export function LandingPage() {
               Investasi Untuk Karir Anda
             </h2>
             <p className="text-muted-foreground max-w-2xl mx-auto text-base sm:text-lg leading-relaxed">
-              Plan yang fleksibel untuk setiap tahap perjalanan Anda sebagai
-              kreator.
+              Plan yang fleksibel untuk setiap tahap perjalanan Anda sebagai kreator.
             </p>
           </div>
 
@@ -377,10 +359,10 @@ export function LandingPage() {
                 viewport={{ once: true }}
                 transition={{ duration: 0.5, delay: index * 0.1 }}
                 className={cn(
-                  "relative flex flex-col p-8 sm:p-10 rounded-2xl sm:rounded-3xl border transition-all duration-300",
+                  'relative flex flex-col p-8 sm:p-10 rounded-2xl sm:rounded-3xl border transition-all duration-300',
                   plan.popular
-                    ? "bg-card border-primary shadow-xl sm:scale-105 z-20 ring-1 ring-primary/20"
-                    : "bg-card border-border shadow-sm z-10"
+                    ? 'bg-card border-primary shadow-xl sm:scale-105 z-20 ring-1 ring-primary/20'
+                    : 'bg-card border-border shadow-sm z-10',
                 )}
               >
                 {plan.popular && (
@@ -391,9 +373,7 @@ export function LandingPage() {
                   </div>
                 )}
 
-                <h3 className="text-2xl font-bold mb-6 text-left">
-                  {plan.name}
-                </h3>
+                <h3 className="text-2xl font-bold mb-6 text-left">{plan.name}</h3>
 
                 <div className="text-left mb-8">
                   <span className="text-5xl font-black">{plan.price}</span>
@@ -410,14 +390,11 @@ export function LandingPage() {
 
                 <ul className="space-y-5 mb-auto">
                   {plan.features.map((feature) => (
-                    <li
-                      key={feature}
-                      className="flex items-center gap-3 text-sm font-medium"
-                    >
+                    <li key={feature} className="flex items-center gap-3 text-sm font-medium">
                       <div
                         className={cn(
-                          "w-5 h-5 rounded-full flex items-center justify-center shrink-0",
-                          plan.popular ? "bg-white/20" : "bg-primary/10"
+                          'w-5 h-5 rounded-full flex items-center justify-center shrink-0',
+                          plan.popular ? 'bg-white/20' : 'bg-primary/10',
                         )}
                       >
                         <Check size={12} className="text-primary" />
@@ -428,7 +405,7 @@ export function LandingPage() {
                 </ul>
 
                 <Button
-                  variant={plan.popular ? "default" : "outline"}
+                  variant={plan.popular ? 'default' : 'outline'}
                   className="mt-12 h-14 rounded-full text-base font-bold transition-all shadow-sm active:scale-95"
                   asChild
                 >
@@ -442,15 +419,15 @@ export function LandingPage() {
 
       {/* CTA Section */}
       <section className="container mx-auto px-6 py-20 sm:py-24">
-        <div className="relative overflow-hidden rounded-[2rem] bg-primary p-8 sm:p-12 md:p-24 text-center text-primary-foreground shadow-xl">
+        <div className="relative overflow-hidden rounded-4xl bg-primary p-8 sm:p-12 md:p-24 text-center text-primary-foreground shadow-xl">
           <div className="relative z-10 space-y-8 sm:space-y-10">
             <h2 className="text-3xl sm:text-5xl md:text-6xl font-black tracking-tighter max-w-3xl mx-auto leading-[1.1]">
               Mulai Petualangan <br className="hidden sm:block" />
               Kreatif Anda Hari Ini.
             </h2>
             <p className="text-lg sm:text-xl text-primary-foreground/80 max-w-2xl mx-auto font-medium">
-              Tidak perlu kartu kredit. Hanya butuh satu visi untuk mengubah
-              dunia dengan konten Anda.
+              Tidak perlu kartu kredit. Hanya butuh satu visi untuk mengubah dunia dengan konten
+              Anda.
             </p>
             <Button
               size="lg"
@@ -476,13 +453,13 @@ export function LandingPage() {
             </div>
 
             <div className="flex gap-8 text-sm font-medium text-muted-foreground">
-              <a href="#" className="hover:text-primary">
+              <a href="/terms" className="hover:text-primary">
                 Term of Service
               </a>
-              <a href="#" className="hover:text-primary">
+              <a href="/privacy" className="hover:text-primary">
                 Privacy Policy
               </a>
-              <a href="#" className="hover:text-primary">
+              <a href="/help" className="hover:text-primary">
                 Help Center
               </a>
             </div>

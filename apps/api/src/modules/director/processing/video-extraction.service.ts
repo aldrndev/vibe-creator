@@ -3,23 +3,20 @@
  * Handles extraction of audio, thumbnails, and preview clips.
  */
 
-import { spawn } from "child_process";
-import { join } from "path";
-import { randomUUID } from "crypto";
-import { existsSync } from "fs";
-import { logger } from "@/lib/logger";
+import { spawn } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { logger } from '@/lib/logger';
 
-const ffmpegPath = process.env.FFMPEG_PATH || "ffmpeg";
+const ffmpegPath = process.env.FFMPEG_PATH || 'ffmpeg';
 
 export const videoExtractionService = {
   /**
    * Extract a lightweight audio proxy (16kHz mono WAV) for fast analysis.
    * Prevents reading the full video file multiple times.
    */
-  async extractAudioProxy(
-    inputPath: string,
-    outputDir: string
-  ): Promise<string> {
+  async extractAudioProxy(inputPath: string, outputDir: string): Promise<string> {
     if (!existsSync(inputPath)) {
       throw new Error(`Input file not found: ${inputPath}`);
     }
@@ -29,34 +26,34 @@ export const videoExtractionService = {
     const outputPath = join(outputDir, fileName);
 
     const args = [
-      "-y", // Overwrite output
-      "-i",
+      '-y', // Overwrite output
+      '-i',
       inputPath,
-      "-vn", // No video
-      "-ac",
-      "1", // Mono
-      "-ar",
-      "16000", // 16kHz sample rate
-      "-f",
-      "wav",
+      '-vn', // No video
+      '-ac',
+      '1', // Mono
+      '-ar',
+      '16000', // 16kHz sample rate
+      '-f',
+      'wav',
       outputPath,
     ];
 
-    logger.info({ inputPath, outputPath }, "Extracting audio proxy");
+    logger.info({ inputPath, outputPath }, 'Extracting audio proxy');
 
     return new Promise((resolve, reject) => {
       const proc = spawn(ffmpegPath, args);
 
-      let errorData = "";
-      proc.stderr.on("data", (data) => {
+      let errorData = '';
+      proc.stderr.on('data', (data) => {
         errorData += data.toString();
       });
 
-      proc.on("close", (code) => {
+      proc.on('close', (code) => {
         if (code === 0 && existsSync(outputPath)) {
           resolve(outputPath);
         } else {
-          logger.error({ code, errorData }, "Audio proxy extraction failed");
+          logger.error({ code, errorData }, 'Audio proxy extraction failed');
           reject(new Error(`FFmpeg exited with code ${code}`));
         }
       });
@@ -70,7 +67,7 @@ export const videoExtractionService = {
     inputPath: string,
     outputDir: string,
     startMs: number,
-    endMs: number
+    endMs: number,
   ): Promise<string> {
     if (!existsSync(inputPath)) {
       throw new Error(`Input file not found: ${inputPath}`);
@@ -83,44 +80,38 @@ export const videoExtractionService = {
     const outputPath = join(outputDir, fileName);
 
     const args = [
-      "-y",
-      "-ss",
+      '-y',
+      '-ss',
       startSec.toFixed(3),
-      "-i",
+      '-i',
       inputPath,
-      "-t",
+      '-t',
       durationSec.toFixed(3),
-      "-vn",
-      "-ac",
-      "1",
-      "-ar",
-      "16000",
-      "-f",
-      "wav",
+      '-vn',
+      '-ac',
+      '1',
+      '-ar',
+      '16000',
+      '-f',
+      'wav',
       outputPath,
     ];
 
-    logger.info(
-      { inputPath, outputPath, startSec },
-      "Extracting clip audio proxy"
-    );
+    logger.info({ inputPath, outputPath, startSec }, 'Extracting clip audio proxy');
 
     return new Promise((resolve, reject) => {
       const proc = spawn(ffmpegPath, args);
 
-      let errorData = "";
-      proc.stderr.on("data", (data) => {
+      let errorData = '';
+      proc.stderr.on('data', (data) => {
         errorData += data.toString();
       });
 
-      proc.on("close", (code) => {
+      proc.on('close', (code) => {
         if (code === 0 && existsSync(outputPath)) {
           resolve(outputPath);
         } else {
-          logger.error(
-            { code, errorData },
-            "Clip audio proxy extraction failed"
-          );
+          logger.error({ code, errorData }, 'Clip audio proxy extraction failed');
           reject(new Error(`FFmpeg proxy extraction failed: ${code}`));
         }
       });
@@ -131,11 +122,7 @@ export const videoExtractionService = {
    * Generate a visual preview (thumbnail) for a clip.
    * Extracts the middle frame of the segment.
    */
-  async generateClipPreview(
-    inputPath: string,
-    outputDir: string,
-    timeMs: number
-  ): Promise<string> {
+  async generateClipPreview(inputPath: string, outputDir: string, timeMs: number): Promise<string> {
     if (!existsSync(inputPath)) {
       throw new Error(`Input file not found: ${inputPath}`);
     }
@@ -146,38 +133,38 @@ export const videoExtractionService = {
 
     // Fast seek to time, extract 1 frame, scale to 480px height
     const args = [
-      "-y",
-      "-ss",
+      '-y',
+      '-ss',
       timeSec.toFixed(3),
-      "-i",
+      '-i',
       inputPath,
-      "-frames:v",
-      "1",
-      "-vf",
-      "scale=-1:480",
-      "-q:v",
-      "2", // High quality JPEG
+      '-frames:v',
+      '1',
+      '-vf',
+      'scale=-1:480',
+      '-q:v',
+      '2', // High quality JPEG
       outputPath,
     ];
 
-    logger.debug({ inputPath, timeSec }, "Generating clip preview");
+    logger.debug({ inputPath, timeSec }, 'Generating clip preview');
 
     return new Promise((resolve) => {
       const proc = spawn(ffmpegPath, args);
 
-      proc.on("close", (code) => {
+      proc.on('close', (code) => {
         if (code === 0 && existsSync(outputPath)) {
           resolve(fileName); // Return filename only (relative to outputDir/uploads)
         } else {
-          logger.warn({ code }, "Preview generation failed");
+          logger.warn({ code }, 'Preview generation failed');
           // Do not reject, just return empty string to avoid failing the job
-          resolve("");
+          resolve('');
         }
       });
 
-      proc.on("error", (err) => {
-        logger.error({ err }, "Preview generation process error");
-        resolve("");
+      proc.on('error', (err) => {
+        logger.error({ err }, 'Preview generation process error');
+        resolve('');
       });
     });
   },
@@ -189,7 +176,7 @@ export const videoExtractionService = {
     inputPath: string,
     outputDir: string,
     startMs: number,
-    endMs: number
+    endMs: number,
   ): Promise<string> {
     if (!existsSync(inputPath)) {
       throw new Error(`Input file not found: ${inputPath}`);
@@ -206,50 +193,47 @@ export const videoExtractionService = {
     const outputPath = join(outputDir, fileName);
 
     const args = [
-      "-y",
-      "-ss",
+      '-y',
+      '-ss',
       startSec.toFixed(3),
-      "-i",
+      '-i',
       inputPath,
-      "-t",
+      '-t',
       durationSec.toFixed(3),
-      "-vf",
-      "scale=-2:480",
-      "-c:v",
-      "libx264",
-      "-preset",
-      "veryfast",
-      "-crf",
-      "28",
-      "-c:a",
-      "aac",
-      "-b:a",
-      "96k",
-      "-movflags",
-      "+faststart",
+      '-vf',
+      'scale=-2:480',
+      '-c:v',
+      'libx264',
+      '-preset',
+      'veryfast',
+      '-crf',
+      '28',
+      '-c:a',
+      'aac',
+      '-b:a',
+      '96k',
+      '-movflags',
+      '+faststart',
       outputPath,
     ];
 
-    logger.debug(
-      { inputPath, startSec, durationSec },
-      "Generating video clip preview"
-    );
+    logger.debug({ inputPath, startSec, durationSec }, 'Generating video clip preview');
 
     return new Promise((resolve) => {
       const proc = spawn(ffmpegPath, args);
 
-      proc.on("close", (code) => {
+      proc.on('close', (code) => {
         if (code === 0 && existsSync(outputPath)) {
           resolve(fileName);
         } else {
-          logger.warn({ code }, "Video clip generation failed");
-          resolve("");
+          logger.warn({ code }, 'Video clip generation failed');
+          resolve('');
         }
       });
 
-      proc.on("error", (err) => {
-        logger.error({ err }, "Video clip generation error");
-        resolve("");
+      proc.on('error', (err) => {
+        logger.error({ err }, 'Video clip generation error');
+        resolve('');
       });
     });
   },

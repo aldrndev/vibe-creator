@@ -13,10 +13,10 @@
  * - SameSite=Lax: CSRF protection
  */
 
-import type { FastifyReply } from "fastify";
+import type { FastifyReply } from 'fastify';
 
 /** Cookie name for the refresh token */
-export const REFRESH_TOKEN_COOKIE = "vibe_refresh_token";
+export const REFRESH_TOKEN_COOKIE = 'vibe_refresh_token';
 
 /**
  * Sets the refresh token as a secure HttpOnly cookie.
@@ -33,15 +33,15 @@ export const REFRESH_TOKEN_COOKIE = "vibe_refresh_token";
 export function setRefreshTokenCookie(
   reply: FastifyReply,
   refreshToken: string,
-  expiresAt: Date
+  expiresAt: Date,
 ): void {
-  const isProduction = process.env.NODE_ENV === "production";
+  const isProduction = process.env.NODE_ENV === 'production';
 
   reply.setCookie(REFRESH_TOKEN_COOKIE, refreshToken, {
     httpOnly: true,
     secure: isProduction,
-    sameSite: "lax",
-    path: "/",
+    sameSite: 'lax',
+    path: '/',
     expires: expiresAt,
   });
 }
@@ -60,12 +60,12 @@ export function setRefreshTokenCookie(
  * ```
  */
 export function clearRefreshTokenCookie(reply: FastifyReply): void {
-  const isProduction = process.env.NODE_ENV === "production";
+  const isProduction = process.env.NODE_ENV === 'production';
 
   reply.clearCookie(REFRESH_TOKEN_COOKIE, {
     httpOnly: true,
     secure: isProduction,
-    sameSite: "lax",
-    path: "/",
+    sameSite: 'lax',
+    path: '/',
   });
 }

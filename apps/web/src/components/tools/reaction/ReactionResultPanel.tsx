@@ -1,16 +1,13 @@
-import { Card, CardBody, CardHeader, Badge, Button } from "@/components/ui";
-import { AlertCircle, CheckCircle2, Download } from "lucide-react";
-import { LayoutMode } from "@/hooks/useReactionCreator";
+import { AlertCircle, CheckCircle2, Download } from 'lucide-react';
+import { Badge, Button, Card, CardBody, CardHeader } from '@/components/ui';
+import type { LayoutMode } from '@/hooks/useReactionCreator';
 
 interface ReactionResultPanelProps {
   layoutMode: LayoutMode;
   resultUrl: string;
 }
 
-export function ReactionResultPanel({
-  layoutMode,
-  resultUrl,
-}: ReactionResultPanelProps) {
+export function ReactionResultPanel({ layoutMode, resultUrl }: Readonly<ReactionResultPanelProps>) {
   if (!resultUrl) return null;
 
   return (
@@ -22,9 +19,7 @@ export function ReactionResultPanel({
               <CheckCircle2 size={20} className="text-emerald-500" />
             </div>
             <div>
-              <h2 className="text-lg font-black tracking-tight">
-                Reaction Selesai
-              </h2>
+              <h2 className="text-lg font-black tracking-tight">Reaction Selesai</h2>
               <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">
                 Siap Unduh
               </p>
@@ -42,22 +37,14 @@ export function ReactionResultPanel({
                 Simpan Segera
               </h3>
               <p className="text-xs text-muted-foreground font-medium leading-relaxed">
-                Hasil video ini hanya tersimpan di server selama <b>60 menit</b>
-                . Harap segera unduh video Anda sebelum dihapus otomatis oleh
-                sistem.
+                Hasil video ini hanya tersimpan di server selama <b>60 menit</b>. Harap segera unduh
+                video Anda sebelum dihapus otomatis oleh sistem.
               </p>
             </div>
           </div>
 
-          <div className="relative group rounded-[2rem] overflow-hidden border border-border/50 bg-black/40 shadow-inner max-w-2xl mx-auto">
-            <video
-              src={resultUrl}
-              controls
-              loop
-              autoPlay
-              muted
-              className="w-full"
-            />
+          <div className="relative group rounded-4xl overflow-hidden border border-border/50 bg-black/40 shadow-inner max-w-2xl mx-auto">
+            <video src={resultUrl} controls loop autoPlay muted className="w-full" />
 
             <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
               <Button

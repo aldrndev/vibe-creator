@@ -1,39 +1,38 @@
-import {
-  PrismaClient,
-  UserRole,
-  SubscriptionTier,
-  SubscriptionStatus,
-} from "@prisma/client";
-import { hash } from "argon2";
+import { PrismaClient, SubscriptionStatus, SubscriptionTier, UserRole } from '@prisma/client';
+import { hash } from 'argon2';
 
 const prisma = new PrismaClient();
 
+function writeLine(message: string) {
+  process.stdout.write(`${message}\n`);
+}
+
 const users = [
   {
-    email: "demo@vibecreator.id",
-    password: "demo123",
+    email: 'demo@vibecreator.id',
+    password: 'demo123',
     role: UserRole.USER,
     tier: SubscriptionTier.CREATOR,
-    name: "Demo Creator",
+    name: 'Demo Creator',
   },
   {
-    email: "admin@vibecreator.id",
-    password: "admin123",
+    email: 'admin@vibecreator.id',
+    password: 'admin123',
     role: UserRole.ADMIN,
     tier: SubscriptionTier.PRO,
-    name: "Super Admin",
+    name: 'Super Admin',
   },
   {
-    email: "free@vibecreator.id",
-    password: "free123",
+    email: 'free@vibecreator.id',
+    password: 'free123',
     role: UserRole.USER,
     tier: SubscriptionTier.FREE,
-    name: "Free User",
+    name: 'Free User',
   },
 ];
 
 async function main() {
-  console.log(`🌱 Start seeding ${users.length} users...`);
+  writeLine(`🌱 Start seeding ${users.length} users...`);
 
   for (const u of users) {
     const hashedPassword = await hash(u.password);
@@ -73,15 +72,13 @@ async function main() {
       },
     });
 
-    console.log(
-      `✅ Created/Updated user: ${u.email} | Role: ${u.role} | Tier: ${u.tier}`
-    );
+    writeLine(`✅ Created/Updated user: ${u.email} | Role: ${u.role} | Tier: ${u.tier}`);
   }
 }
 
 main()
   .catch((e) => {
-    console.error("❌ Error Seeding:", e);
+    console.error('❌ Error Seeding:', e);
     process.exit(1);
   })
   .finally(async () => {

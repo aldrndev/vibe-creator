@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from 'zod';
 
 /**
  * Schema version for editor project state
@@ -24,25 +24,25 @@ export const EDITOR_LIMITS = {
  */
 export const EXPORT_CAPABILITIES = {
   MP4: {
-    codecs: ["h264", "h265"] as const,
-    defaultCodec: "h264",
-    resolutions: ["720p", "1080p", "4K"] as const,
-    container: "mp4",
-    mimeType: "video/mp4",
+    codecs: ['h264', 'h265'] as const,
+    defaultCodec: 'h264',
+    resolutions: ['720p', '1080p', '4K'] as const,
+    container: 'mp4',
+    mimeType: 'video/mp4',
   },
   WEBM: {
-    codecs: ["vp9"] as const,
-    defaultCodec: "vp9",
-    resolutions: ["720p", "1080p", "4K"] as const,
-    container: "webm",
-    mimeType: "video/webm",
+    codecs: ['vp9'] as const,
+    defaultCodec: 'vp9',
+    resolutions: ['720p', '1080p', '4K'] as const,
+    container: 'webm',
+    mimeType: 'video/webm',
   },
   MOV: {
-    codecs: ["prores"] as const,
-    defaultCodec: "prores",
-    resolutions: ["1080p", "4K"] as const, // ProRes typically for high quality
-    container: "mov",
-    mimeType: "video/quicktime",
+    codecs: ['prores'] as const,
+    defaultCodec: 'prores',
+    resolutions: ['1080p', '4K'] as const, // ProRes typically for high quality
+    container: 'mov',
+    mimeType: 'video/quicktime',
   },
 } as const;
 
@@ -50,19 +50,19 @@ export const EXPORT_CAPABILITIES = {
  * Resolution to pixel dimensions mapping
  */
 export const RESOLUTION_MAP = {
-  "720p": { width: 1280, height: 720 },
-  "1080p": { width: 1920, height: 1080 },
-  "4K": { width: 3840, height: 2160 },
+  '720p': { width: 1280, height: 720 },
+  '1080p': { width: 1920, height: 1080 },
+  '4K': { width: 3840, height: 2160 },
 } as const;
 
 /**
  * Quality presets with explicit bitrates
  */
 export const QUALITY_PRESETS = {
-  low: { videoBitrate: "2M", audioBitrate: "128k", crf: 28 },
-  medium: { videoBitrate: "5M", audioBitrate: "192k", crf: 23 },
-  high: { videoBitrate: "10M", audioBitrate: "256k", crf: 18 },
-  lossless: { videoBitrate: "20M", audioBitrate: "320k", crf: 0 },
+  low: { videoBitrate: '2M', audioBitrate: '128k', crf: 28 },
+  medium: { videoBitrate: '5M', audioBitrate: '192k', crf: 23 },
+  high: { videoBitrate: '10M', audioBitrate: '256k', crf: 18 },
+  lossless: { videoBitrate: '20M', audioBitrate: '320k', crf: 0 },
 } as const;
 
 /**
@@ -70,34 +70,34 @@ export const QUALITY_PRESETS = {
  */
 export const EXPORT_PRESETS = {
   youtube: {
-    format: "MP4",
-    resolution: "1080p",
-    quality: "high",
-    aspectRatio: "16:9",
+    format: 'MP4',
+    resolution: '1080p',
+    quality: 'high',
+    aspectRatio: '16:9',
   },
   tiktok: {
-    format: "MP4",
-    resolution: "1080p",
-    quality: "medium",
-    aspectRatio: "9:16",
+    format: 'MP4',
+    resolution: '1080p',
+    quality: 'medium',
+    aspectRatio: '9:16',
   },
   instagram_feed: {
-    format: "MP4",
-    resolution: "1080p",
-    quality: "medium",
-    aspectRatio: "1:1",
+    format: 'MP4',
+    resolution: '1080p',
+    quality: 'medium',
+    aspectRatio: '1:1',
   },
   instagram_story: {
-    format: "MP4",
-    resolution: "1080p",
-    quality: "medium",
-    aspectRatio: "9:16",
+    format: 'MP4',
+    resolution: '1080p',
+    quality: 'medium',
+    aspectRatio: '9:16',
   },
   twitter: {
-    format: "MP4",
-    resolution: "720p",
-    quality: "medium",
-    aspectRatio: "16:9",
+    format: 'MP4',
+    resolution: '720p',
+    quality: 'medium',
+    aspectRatio: '16:9',
   },
 } as const;
 
@@ -142,27 +142,21 @@ export const timelineClipSchema = z
     transforms: clipTransformsSchema.optional(),
   })
   .refine((data) => data.endMs > data.startMs, {
-    message: "endMs must be greater than startMs",
+    message: 'endMs must be greater than startMs',
   })
-  .refine(
-    (data) => data.endMs - data.startMs >= EDITOR_LIMITS.MIN_CLIP_DURATION_MS,
-    {
-      message: `Clip duration must be at least ${EDITOR_LIMITS.MIN_CLIP_DURATION_MS}ms`,
-    }
-  )
-  .refine(
-    (data) => data.endMs - data.startMs <= EDITOR_LIMITS.MAX_CLIP_DURATION_MS,
-    {
-      message: `Clip duration must not exceed ${EDITOR_LIMITS.MAX_CLIP_DURATION_MS}ms`,
-    }
-  );
+  .refine((data) => data.endMs - data.startMs >= EDITOR_LIMITS.MIN_CLIP_DURATION_MS, {
+    message: `Clip duration must be at least ${EDITOR_LIMITS.MIN_CLIP_DURATION_MS}ms`,
+  })
+  .refine((data) => data.endMs - data.startMs <= EDITOR_LIMITS.MAX_CLIP_DURATION_MS, {
+    message: `Clip duration must not exceed ${EDITOR_LIMITS.MAX_CLIP_DURATION_MS}ms`,
+  });
 
 /**
  * Timeline track schema
  */
 export const timelineTrackSchema = z.object({
   id: z.uuid(),
-  type: z.enum(["VIDEO", "AUDIO"]),
+  type: z.enum(['VIDEO', 'AUDIO']),
   order: z.number().min(0),
   muted: z.boolean().default(false),
   volume: z.number().min(0).max(2).default(1),
@@ -174,31 +168,29 @@ export const timelineTrackSchema = z.object({
  * Text overlay animation schema
  */
 export const textAnimationSchema = z.object({
-  type: z.enum(["none", "fade", "slide", "typewriter"]).default("none"),
+  type: z.enum(['none', 'fade', 'slide', 'typewriter']).default('none'),
   durationMs: z.number().min(0).max(5000).default(500),
-  easing: z
-    .enum(["linear", "ease-in", "ease-out", "ease-in-out"])
-    .default("ease-out"),
+  easing: z.enum(['linear', 'ease-in', 'ease-out', 'ease-in-out']).default('ease-out'),
 });
 
 /**
  * Text overlay style schema
  */
 export const textStyleSchema = z.object({
-  fontFamily: z.string().default("Inter"),
+  fontFamily: z.string().default('Inter'),
   fontSize: z.number().min(8).max(200).default(48),
-  fontWeight: z.enum(["normal", "bold"]).default("normal"),
+  fontWeight: z.enum(['normal', 'bold']).default('normal'),
   color: z
     .string()
     .regex(/^#[0-9A-Fa-f]{6,8}$/)
-    .default("#ffffff"),
+    .default('#ffffff'),
   stroke: z
     .object({
       width: z.number().min(0).max(10).default(0),
       color: z
         .string()
         .regex(/^#[0-9A-Fa-f]{6,8}$/)
-        .default("#000000"),
+        .default('#000000'),
     })
     .optional(),
   shadow: z
@@ -209,7 +201,7 @@ export const textStyleSchema = z.object({
       color: z
         .string()
         .regex(/^#[0-9A-Fa-f]{6,8}$/)
-        .default("#00000080"),
+        .default('#00000080'),
     })
     .optional(),
 });
@@ -231,7 +223,7 @@ export const textOverlaySchema = z
     animation: textAnimationSchema.optional(),
   })
   .refine((data) => data.endMs > data.startMs, {
-    message: "Text overlay endMs must be greater than startMs",
+    message: 'Text overlay endMs must be greater than startMs',
   });
 
 /**
@@ -244,7 +236,7 @@ export const timelineSettingsSchema = z.object({
   backgroundColor: z
     .string()
     .regex(/^#[0-9A-Fa-f]{6}$/)
-    .default("#000000"),
+    .default('#000000'),
 });
 
 /**
@@ -260,18 +252,12 @@ export const timelineSchema = z.object({
  */
 export const exportSettingsSchema = z
   .object({
-    format: z.enum(["MP4", "WEBM", "MOV"]).default("MP4"),
-    resolution: z.enum(["720p", "1080p", "4K"]).default("1080p"),
-    quality: z.enum(["low", "medium", "high", "lossless"]).default("high"),
+    format: z.enum(['MP4', 'WEBM', 'MOV']).default('MP4'),
+    resolution: z.enum(['720p', '1080p', '4K']).default('1080p'),
+    quality: z.enum(['low', 'medium', 'high', 'lossless']).default('high'),
     addWatermark: z.boolean().default(true),
     preset: z
-      .enum([
-        "youtube",
-        "tiktok",
-        "instagram_feed",
-        "instagram_story",
-        "twitter",
-      ])
+      .enum(['youtube', 'tiktok', 'instagram_feed', 'instagram_story', 'twitter'])
       .optional(),
   })
   .refine(
@@ -280,7 +266,7 @@ export const exportSettingsSchema = z
       const capabilities = EXPORT_CAPABILITIES[data.format];
       return capabilities.resolutions.includes(data.resolution as never);
     },
-    { message: "Resolution not supported for selected format" }
+    { message: 'Resolution not supported for selected format' },
   );
 
 /**
@@ -297,12 +283,12 @@ export const editorProjectDTOSchema = z.object({
     .array(
       z.object({
         id: z.uuid(),
-        type: z.enum(["VIDEO", "AUDIO", "IMAGE"]),
+        type: z.enum(['VIDEO', 'AUDIO', 'IMAGE']),
         storageKey: z.string(), // R2/S3 key
         durationMs: z.number().optional(),
         width: z.number().optional(),
         height: z.number().optional(),
-      })
+      }),
     )
     .max(EDITOR_LIMITS.MAX_ASSETS),
 });

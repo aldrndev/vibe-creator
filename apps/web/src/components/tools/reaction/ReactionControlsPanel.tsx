@@ -1,40 +1,33 @@
+import { AlertCircle, Grid, Layers, Settings2, Sparkles, Volume2 } from 'lucide-react';
 import {
   Button,
   Card,
   CardBody,
   CardHeader,
-  Slider,
   Divider,
+  Progress,
   Select,
-  SelectTrigger,
-  SelectValue,
   SelectContent,
   SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Slider,
   Switch,
-  Progress,
-} from "@/components/ui";
-import {
-  Grid,
-  Layers,
-  Settings2,
-  Volume2,
-  Sparkles,
-  AlertCircle,
-} from "lucide-react";
-import { LayoutMode, SideBySideLayout } from "@/hooks/useReactionCreator";
-import { cn } from "@/lib/utils";
+} from '@/components/ui';
+import type { LayoutMode, SideBySideLayout } from '@/hooks/useReactionCreator';
+import { cn } from '@/lib/utils';
 
 const layoutModes = [
   {
-    id: "pip" as const,
-    name: "Picture-in-Picture",
-    description: "Overlay video reaksi",
+    id: 'pip' as const,
+    name: 'Picture-in-Picture',
+    description: 'Overlay video reaksi',
     icon: Layers,
   },
   {
-    id: "side-by-side" as const,
-    name: "Side by Side",
-    description: "Berdampingan",
+    id: 'side-by-side' as const,
+    name: 'Side by Side',
+    description: 'Berdampingan',
     icon: Grid,
   },
 ];
@@ -109,29 +102,30 @@ export function ReactionControlsPanel({
       <CardBody className="p-6 space-y-8">
         {/* Mode Selector */}
         <div className="space-y-4">
-          <label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">
+          <div className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">
             Mode Layout
-          </label>
+          </div>
           <div className="grid grid-cols-2 gap-3">
             {layoutModes.map((mode) => {
               const isActive = layoutMode === mode.id;
               return (
                 <button
+                  type="button"
                   key={mode.id}
                   onClick={() => setLayoutMode(mode.id)}
                   className={cn(
-                    "flex flex-col items-center gap-3 p-4 rounded-2xl border transition-all duration-300 relative group overflow-hidden",
+                    'flex flex-col items-center gap-3 p-4 rounded-2xl border transition-all duration-300 relative group overflow-hidden',
                     isActive
-                      ? "bg-primary/10 border-primary"
-                      : "bg-muted/10 border-border/50 hover:border-primary/30 hover:bg-muted/20"
+                      ? 'bg-primary/10 border-primary'
+                      : 'bg-muted/10 border-border/50 hover:border-primary/30 hover:bg-muted/20',
                   )}
                 >
                   <div
                     className={cn(
-                      "w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-300",
+                      'w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-300',
                       isActive
-                        ? "bg-primary text-white scale-110"
-                        : "bg-muted text-muted-foreground group-hover:scale-110"
+                        ? 'bg-primary text-white scale-110'
+                        : 'bg-muted text-muted-foreground group-hover:scale-110',
                     )}
                   >
                     <mode.icon size={22} />
@@ -139,8 +133,8 @@ export function ReactionControlsPanel({
                   <div className="text-center">
                     <p
                       className={cn(
-                        "text-xs font-black tracking-tight",
-                        isActive ? "text-primary" : "text-foreground"
+                        'text-xs font-black tracking-tight',
+                        isActive ? 'text-primary' : 'text-foreground',
                       )}
                     >
                       {mode.name}
@@ -158,9 +152,9 @@ export function ReactionControlsPanel({
         <div className="space-y-6">
           {/* Visual Settings Section */}
           <div className="space-y-4">
-            <label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">
+            <div className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">
               Format Output
-            </label>
+            </div>
             <Select value={aspectRatio} onValueChange={setAspectRatio}>
               <SelectTrigger className="h-12 rounded-xl bg-muted/20 border-border/50 font-bold px-4">
                 <SelectValue placeholder="Pilih Rasio" />
@@ -194,9 +188,9 @@ export function ReactionControlsPanel({
 
           {/* Audio Settings */}
           <div className="space-y-4">
-            <label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1 flex items-center gap-2">
+            <div className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1 flex items-center gap-2">
               <Volume2 size={14} className="text-primary" /> Audio Mixer
-            </label>
+            </div>
             <div className="bg-muted/5 p-6 rounded-3xl border border-border/40 space-y-8">
               <AudioControls
                 mainVolume={mainVolume}
@@ -211,9 +205,7 @@ export function ReactionControlsPanel({
           {isProcessing && (
             <div className="space-y-3 p-5 rounded-3xl bg-secondary/10 border border-secondary/20">
               <div className="flex items-center justify-between text-xs font-bold uppercase tracking-widest mb-1">
-                <span className="text-primary animate-pulse">
-                  Memproses Video...
-                </span>
+                <span className="text-primary animate-pulse">Memproses Video...</span>
                 <span>75%</span>
               </div>
               <Progress value={75} className="h-2 bg-muted transition-all" />
@@ -233,7 +225,7 @@ export function ReactionControlsPanel({
               onClick={onProcess}
             >
               {!isProcessing && <Sparkles size={18} className="mr-2" />}
-              {isProcessing ? processingStatus : "Proses Video Reaction"}
+              {isProcessing ? processingStatus : 'Proses Video Reaction'}
             </Button>
 
             {!hasFiles && (
@@ -280,14 +272,14 @@ function DynamicControls({
   overlayMode: boolean;
   setOverlayMode: (val: boolean) => void;
 }) {
-  if (layoutMode === "pip") {
+  if (layoutMode === 'pip') {
     return (
       <div className="space-y-8 animate-in fade-in duration-500">
         <div className="flex justify-between items-center px-1">
           <div className="space-y-1">
-            <label className="text-xs font-black tracking-tight uppercase text-foreground">
+            <div className="text-xs font-black tracking-tight uppercase text-foreground">
               Frame Lingkaran
-            </label>
+            </div>
             <p className="text-[9px] text-muted-foreground font-medium uppercase tracking-wider">
               Ubah menjadi circle
             </p>
@@ -301,9 +293,9 @@ function DynamicControls({
 
         <div className="space-y-5">
           <div className="flex justify-between items-center px-1">
-            <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+            <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
               Ukuran (Scale)
-            </label>
+            </div>
             <div className="text-[10px] font-black tracking-widest bg-primary/10 text-primary px-3 py-1 rounded-full border border-primary/20">
               {Math.round(pipScale * 100)}%
             </div>
@@ -324,45 +316,43 @@ function DynamicControls({
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="space-y-4">
-        <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+        <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
           Orientasi
-        </label>
+        </div>
         <div className="grid grid-cols-2 gap-3">
           <button
-            onClick={() => setSideBySideLayout("horizontal")}
+            type="button"
+            onClick={() => setSideBySideLayout('horizontal')}
             className={cn(
-              "p-4 rounded-2xl border transition-all flex flex-col items-center gap-2 group",
-              sideBySideLayout === "horizontal"
-                ? "bg-primary/10 border-primary"
-                : "bg-muted/10 border-border/50 hover:bg-muted/20"
+              'p-4 rounded-2xl border transition-all flex flex-col items-center gap-2 group',
+              sideBySideLayout === 'horizontal'
+                ? 'bg-primary/10 border-primary'
+                : 'bg-muted/10 border-border/50 hover:bg-muted/20',
             )}
           >
             <p
               className={cn(
-                "text-[10px] font-black uppercase tracking-tight",
-                sideBySideLayout === "horizontal"
-                  ? "text-primary"
-                  : "text-foreground"
+                'text-[10px] font-black uppercase tracking-tight',
+                sideBySideLayout === 'horizontal' ? 'text-primary' : 'text-foreground',
               )}
             >
               Horizontal
             </p>
           </button>
           <button
-            onClick={() => setSideBySideLayout("vertical")}
+            type="button"
+            onClick={() => setSideBySideLayout('vertical')}
             className={cn(
-              "p-4 rounded-2xl border transition-all flex flex-col items-center gap-2 group",
-              sideBySideLayout === "vertical"
-                ? "bg-primary/10 border-primary"
-                : "bg-muted/10 border-border/50 hover:bg-muted/20"
+              'p-4 rounded-2xl border transition-all flex flex-col items-center gap-2 group',
+              sideBySideLayout === 'vertical'
+                ? 'bg-primary/10 border-primary'
+                : 'bg-muted/10 border-border/50 hover:bg-muted/20',
             )}
           >
             <p
               className={cn(
-                "text-[10px] font-black uppercase tracking-tight",
-                sideBySideLayout === "vertical"
-                  ? "text-primary"
-                  : "text-foreground"
+                'text-[10px] font-black uppercase tracking-tight',
+                sideBySideLayout === 'vertical' ? 'text-primary' : 'text-foreground',
               )}
             >
               Vertikal
@@ -373,12 +363,11 @@ function DynamicControls({
 
       <div className="space-y-5">
         <div className="flex justify-between items-center px-1">
-          <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+          <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
             Split Ratio
-          </label>
+          </div>
           <div className="text-[10px] font-black tracking-widest bg-primary/10 text-primary px-3 py-1 rounded-full border border-primary/20">
-            {Math.round(splitRatio * 100)}% :{" "}
-            {Math.round((1 - splitRatio) * 100)}%
+            {Math.round(splitRatio * 100)}% : {Math.round((1 - splitRatio) * 100)}%
           </div>
         </div>
         <Slider
@@ -394,9 +383,9 @@ function DynamicControls({
       <div className="grid grid-cols-1 gap-4 pt-2">
         <div className="flex justify-between items-center px-1">
           <div className="space-y-1">
-            <label className="text-xs font-black uppercase tracking-tight text-foreground">
+            <div className="text-xs font-black uppercase tracking-tight text-foreground">
               Faded Border
-            </label>
+            </div>
             <p className="text-[9px] text-muted-foreground font-medium uppercase tracking-widest">
               Gradasi halus antar video
             </p>
@@ -409,9 +398,9 @@ function DynamicControls({
         </div>
         <div className="flex justify-between items-center px-1">
           <div className="space-y-1">
-            <label className="text-xs font-black uppercase tracking-tight text-foreground">
+            <div className="text-xs font-black uppercase tracking-tight text-foreground">
               Blur Overlay
-            </label>
+            </div>
             <p className="text-[9px] text-muted-foreground font-medium uppercase tracking-widest">
               Background area blur
             </p>
@@ -442,9 +431,9 @@ function AudioControls({
     <div className="space-y-10">
       <div className="space-y-5">
         <div className="flex justify-between items-center px-1">
-          <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+          <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
             Main Audio
-          </label>
+          </div>
           <div className="text-[10px] font-black tracking-widest bg-emerald-500/10 text-emerald-500 px-3 py-1 rounded-full border border-emerald-500/20">
             {Math.round(mainVolume * 100)}%
           </div>
@@ -461,9 +450,9 @@ function AudioControls({
 
       <div className="space-y-5">
         <div className="flex justify-between items-center px-1">
-          <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+          <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
             Reaction Audio
-          </label>
+          </div>
           <div className="text-[10px] font-black tracking-widest bg-orange-500/10 text-orange-500 px-3 py-1 rounded-full border border-orange-500/20">
             {Math.round(reactionVolume * 100)}%
           </div>

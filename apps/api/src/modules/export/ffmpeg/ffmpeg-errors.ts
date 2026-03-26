@@ -79,7 +79,7 @@ const ERROR_PATTERNS: Array<{ pattern: RegExp; code: FFmpegErrorCode; message: s
 export function detectError(
   exitCode: number | null,
   signal: string | null,
-  stderr: string
+  stderr: string,
 ): FFmpegError {
   // Timeout (killed by timeout)
   if (signal === 'SIGKILL' && stderr.includes('timeout')) {
@@ -89,7 +89,7 @@ export function detectError(
       details: stderr.slice(0, 200),
     };
   }
-  
+
   // Cancelled (killed by user)
   if (signal === 'SIGTERM' || signal === 'SIGKILL') {
     return {
@@ -97,7 +97,7 @@ export function detectError(
       message: 'Export was cancelled',
     };
   }
-  
+
   // Success
   if (exitCode === 0) {
     return {
@@ -105,7 +105,7 @@ export function detectError(
       message: 'FFmpeg completed successfully',
     };
   }
-  
+
   // Pattern matching on stderr
   for (const { pattern, code, message } of ERROR_PATTERNS) {
     if (pattern.test(stderr)) {
@@ -116,7 +116,7 @@ export function detectError(
       };
     }
   }
-  
+
   // Unknown error
   return {
     code: FFmpegErrorCode.UNKNOWN,
@@ -132,29 +132,27 @@ export function getUserMessage(error: FFmpegError): string {
   switch (error.code) {
     case FFmpegErrorCode.INPUT_NOT_FOUND:
       return 'One or more input files could not be found. Please re-upload your media.';
-    
+
     case FFmpegErrorCode.UNSUPPORTED_CODEC:
       return 'The video or audio codec is not supported. Please try a different file.';
-    
+
     case FFmpegErrorCode.DECODE_FAILED:
       return 'Failed to process the input file. The file may be corrupted.';
-    
+
     case FFmpegErrorCode.ENCODE_FAILED:
       return 'Failed to encode the output video. Please try different export settings.';
-    
+
     case FFmpegErrorCode.OUT_OF_MEMORY:
       return 'Export failed due to insufficient memory. Try reducing resolution or duration.';
-    
+
     case FFmpegErrorCode.TIMEOUT:
       return 'Export timed out. Please try a shorter video or lower resolution.';
-    
+
     case FFmpegErrorCode.CANCELLED:
       return 'Export was cancelled.';
-    
+
     case FFmpegErrorCode.INVALID_FILTER:
       return 'Invalid video effect or filter configuration.';
-    
-    case FFmpegErrorCode.UNKNOWN:
     default:
       return 'An unexpected error occurred during export. Please try again.';
   }

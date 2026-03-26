@@ -3,7 +3,7 @@
  * API documentation for video download endpoints
  */
 
-import { z } from "zod";
+import { z } from 'zod';
 
 // ============================================================================
 // Request Schemas
@@ -50,7 +50,7 @@ export const jobStatusResponseSchema = z.object({
     status: z.string(),
     progress: z.number().nullable(),
     title: z.string().nullable(),
-    localPath: z.string().nullable(),
+    sourceUrl: z.string().url(),
     error: z.string().nullable(),
   }),
 });
@@ -66,7 +66,7 @@ export const historyResponseSchema = z.object({
         status: z.string(),
         title: z.string().nullable(),
         createdAt: z.date(),
-      })
+      }),
     ),
     nextCursor: z.string().nullable(),
     hasMore: z.boolean(),
@@ -85,10 +85,9 @@ export const deleteResponseSchema = z.object({
 // ============================================================================
 
 export const createDownloadRouteSchema = {
-  tags: ["Media"],
-  summary: "Create download job",
-  description:
-    "Create a new video download job from a URL (YouTube, TikTok, etc).",
+  tags: ['Media'],
+  summary: 'Create download job',
+  description: 'Create a new video download job from a URL (YouTube, TikTok, etc).',
   body: createDownloadRequestSchema,
   response: {
     201: createJobResponseSchema,
@@ -98,9 +97,9 @@ export const createDownloadRouteSchema = {
 };
 
 export const getJobStatusRouteSchema = {
-  tags: ["Media"],
-  summary: "Get download job status",
-  description: "Check the status of a download job.",
+  tags: ['Media'],
+  summary: 'Get download job status',
+  description: 'Check the status of a download job.',
   params: jobIdParamsSchema,
   response: {
     200: jobStatusResponseSchema,
@@ -110,9 +109,9 @@ export const getJobStatusRouteSchema = {
 };
 
 export const getJobFileRouteSchema = {
-  tags: ["Media"],
-  summary: "Download completed file",
-  description: "Download the completed video file.",
+  tags: ['Media'],
+  summary: 'Download completed file',
+  description: 'Download the completed video file.',
   params: jobIdParamsSchema,
   response: {
     400: errorResponseSchema,
@@ -123,8 +122,8 @@ export const getJobFileRouteSchema = {
 };
 
 export const getHistoryRouteSchema = {
-  tags: ["Media"],
-  summary: "Get download history",
+  tags: ['Media'],
+  summary: 'Get download history',
   description: "Get user's download history with cursor pagination.",
   querystring: historyQuerySchema,
   response: {
@@ -134,9 +133,9 @@ export const getHistoryRouteSchema = {
 };
 
 export const deleteJobRouteSchema = {
-  tags: ["Media"],
-  summary: "Delete download job",
-  description: "Delete a download job and its associated file.",
+  tags: ['Media'],
+  summary: 'Delete download job',
+  description: 'Delete a download job and its associated file.',
   params: jobIdParamsSchema,
   response: {
     200: deleteResponseSchema,

@@ -1,19 +1,15 @@
-import { join } from "path";
-import { randomUUID } from "crypto";
-import { spawn } from "child_process";
-import { getFFmpegPath } from "@/modules/export/ffmpeg/ffmpeg-binary";
-import { getVideoDuration } from "@/utils/video-info";
-import { logger } from "@/lib/logger";
-import {
-  REACTIONS_DIR,
-  RESOLUTIONS,
-  ensureReactionsDir,
-} from "../reaction.utils";
+import { spawn } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
+import { join } from 'node:path';
+import { logger } from '@/lib/logger';
+import { getFFmpegPath } from '@/modules/export/ffmpeg/ffmpeg-binary';
+import { getVideoDuration } from '@/utils/video-info';
+import { ensureReactionsDir, REACTIONS_DIR, RESOLUTIONS } from '../reaction.utils';
 
 export interface CreateSideBySideInput {
   leftVideoPath: string;
   rightVideoPath: string;
-  layout: "horizontal" | "vertical";
+  layout: 'horizontal' | 'vertical';
   aspectRatio?: string;
   reactionVolume?: number;
   mainVolume?: number;
@@ -22,16 +18,14 @@ export interface CreateSideBySideInput {
   overlayMode?: boolean;
 }
 
-export async function processSideBySide(
-  input: CreateSideBySideInput
-): Promise<string> {
+export async function processSideBySide(input: CreateSideBySideInput): Promise<string> {
   await ensureReactionsDir();
 
   const {
     leftVideoPath,
     rightVideoPath,
     layout,
-    aspectRatio = "16:9",
+    aspectRatio = '16:9',
     mainVolume = 1.0,
     reactionVolume = 0.8,
     splitRatio = 0.5,
@@ -48,7 +42,7 @@ export async function processSideBySide(
   ]);
 
   if (leftDuration > 300 * 1000 || rightDuration > 300 * 1000) {
-    throw new Error("Video duration exceeds 5 minutes limit");
+    throw new Error('Video duration exceeds 5 minutes limit');
   }
 
   const outputId = randomUUID();
@@ -59,7 +53,7 @@ export async function processSideBySide(
 
   let leftW: number, rightW: number, leftH: number, rightH: number;
 
-  if (layout === "horizontal") {
+  if (layout === 'horizontal') {
     leftW = toEven(targetW * splitRatio);
     rightW = targetW - leftW;
     if (rightW % 2 !== 0) {
@@ -105,38 +99,33 @@ export async function processSideBySide(
       isOverlayMode,
       isSmoothBorder,
     },
-    "Reaction Debug"
+    'Reaction Debug',
   );
 
-  const getFillFilter = (
-    idx: number,
-    w: number,
-    h: number,
-    outLabel: string
-  ) => {
+  const getFillFilter = (idx: number, w: number, h: number, outLabel: string) => {
     return `[${idx}:v]scale=${w}:${h}:force_original_aspect_ratio=increase,crop=${w}:${h}[${outLabel}]`;
   };
 
-  const leftFilter = getFillFilter(0, mainW, mainH, "left");
-  const rightFilter = getFillFilter(1, rightW, rightH, "right");
+  const leftFilter = getFillFilter(0, mainW, mainH, 'left');
+  const rightFilter = getFillFilter(1, rightW, rightH, 'right');
 
   const featherSize = 150;
-  let reactionFeatherFilter = "";
+  let reactionFeatherFilter = '';
 
   if (isSmoothBorder) {
-    if (layout === "horizontal") {
+    if (layout === 'horizontal') {
       reactionFeatherFilter = `[right]format=yuva420p,geq=lum='p(X,Y)':a='if(lt(X,${featherSize}),(X/${featherSize})*255,255)'[right_processed]`;
     } else {
       reactionFeatherFilter = `[right]format=yuva420p,geq=lum='p(X,Y)':a='if(lt(Y,${featherSize}),(Y/${featherSize})*255,255)'[right_processed]`;
     }
   } else {
-    reactionFeatherFilter = `[right]copy[right_processed]`;
+    reactionFeatherFilter = '[right]copy[right_processed]';
   }
 
   const baseFilter = `color=c=black:s=${targetW}x${targetH}[base]`;
 
-  let stackFilter = "";
-  if (layout === "horizontal") {
+  let stackFilter = '';
+  if (layout === 'horizontal') {
     stackFilter = `[base][left]overlay=0:0:shortest=1[tmp1];[tmp1][right_processed]overlay=${leftW}:0:shortest=1[v]`;
   } else {
     stackFilter = `[base][left]overlay=0:0:shortest=1[tmp1];[tmp1][right_processed]overlay=0:${leftH}:shortest=1[v]`;
@@ -148,48 +137,48 @@ export async function processSideBySide(
 
   return new Promise((resolve, reject) => {
     const args = [
-      "-i",
+      '-i',
       leftVideoPath,
-      "-i",
+      '-i',
       rightVideoPath,
-      "-filter_complex",
+      '-filter_complex',
       filterComplex,
-      "-map",
-      "[v]",
-      "-map",
-      "[a]",
-      "-c:v",
-      "libx264",
-      "-preset",
-      "ultrafast",
-      "-crf",
-      "23",
-      "-c:a",
-      "aac",
-      "-b:a",
-      "128k",
-      "-y",
+      '-map',
+      '[v]',
+      '-map',
+      '[a]',
+      '-c:v',
+      'libx264',
+      '-preset',
+      'ultrafast',
+      '-crf',
+      '23',
+      '-c:a',
+      'aac',
+      '-b:a',
+      '128k',
+      '-y',
       outputPath,
     ];
 
     const process = spawn(getFFmpegPath(), args);
-    let errorOutput = "";
+    let errorOutput = '';
 
-    process.stderr.on("data", (data) => {
+    process.stderr.on('data', (data) => {
       errorOutput += data.toString();
     });
 
-    process.on("close", (code) => {
+    process.on('close', (code) => {
       if (code === 0) {
-        logger.info({ outputPath }, "Side-by-side video created");
+        logger.info({ outputPath }, 'Side-by-side video created');
         resolve(outputPath);
       } else {
-        logger.error({ code, errorOutput }, "Side-by-side creation failed");
+        logger.error({ code, errorOutput }, 'Side-by-side creation failed');
         reject(new Error(`FFmpeg failed with code ${code}`));
       }
     });
 
-    process.on("error", (err) => {
+    process.on('error', (err) => {
       reject(new Error(`FFmpeg not found: ${err.message}`));
     });
   });

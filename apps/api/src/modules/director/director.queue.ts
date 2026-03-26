@@ -1,10 +1,10 @@
-import { Queue } from "bullmq";
-import { redisOptions } from "@/lib/redis";
+import { Queue } from 'bullmq';
+import { redisOptions } from '@/lib/redis';
 
-export const DIRECTOR_QUEUE_NAME = "director-analysis";
+export const DIRECTOR_QUEUE_NAME = 'director-analysis';
 
 export interface DirectorAnalysisJobData {
-  type: "ANALYSIS";
+  type: 'ANALYSIS';
   sessionId: string;
   assetId: string;
   filePath: string;
@@ -12,13 +12,13 @@ export interface DirectorAnalysisJobData {
 }
 
 export interface DirectorTranscribeSessionJobData {
-  type: "TRANSCRIBE_SESSION";
+  type: 'TRANSCRIBE_SESSION';
   sessionId: string;
   userId: string;
 }
 
 export interface DirectorTranscribeClipJobData {
-  type: "TRANSCRIBE_CLIP";
+  type: 'TRANSCRIBE_CLIP';
   sessionId: string;
   selectedClipId: string;
   userId: string;
@@ -31,13 +31,13 @@ export type DirectorJobData =
   | DirectorExportJobData;
 
 export interface DirectorExportJobData {
-  type: "EXPORT";
+  type: 'EXPORT';
   sessionId: string;
   userId: string;
   options: {
     includeSubtitles?: boolean;
-    aspectRatio?: "9:16" | "16:9" | "1:1";
-    quality?: "720p" | "1080p";
+    aspectRatio?: '9:16' | '16:9' | '1:1';
+    quality?: '720p' | '1080p';
   };
 }
 
@@ -45,23 +45,20 @@ export interface DirectorExportJobData {
  * Queue for Director Analysis Jobs
  * Worker implementation is separate (see director.worker.ts)
  */
-export const directorQueue = new Queue<DirectorJobData, unknown, string>(
-  DIRECTOR_QUEUE_NAME,
-  {
-    connection: redisOptions,
-    defaultJobOptions: {
-      attempts: 3,
-      backoff: {
-        type: "exponential",
-        delay: 1000,
-      },
-      removeOnComplete: {
-        age: 24 * 3600, // 24h
-        count: 100,
-      },
-      removeOnFail: {
-        age: 7 * 24 * 3600, // 7d
-      },
+export const directorQueue = new Queue<DirectorJobData, unknown, string>(DIRECTOR_QUEUE_NAME, {
+  connection: redisOptions,
+  defaultJobOptions: {
+    attempts: 3,
+    backoff: {
+      type: 'exponential',
+      delay: 1000,
     },
-  }
-);
+    removeOnComplete: {
+      age: 24 * 3600, // 24h
+      count: 100,
+    },
+    removeOnFail: {
+      age: 7 * 24 * 3600, // 7d
+    },
+  },
+});

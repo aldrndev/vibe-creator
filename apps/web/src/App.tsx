@@ -1,107 +1,106 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { useAuthStore } from "@/stores/auth-store";
-import { useThemeStore } from "@/stores/theme-store";
-import { useEffect, lazy, Suspense } from "react";
-import { ErrorBoundary } from "@/components/ui";
-
+import { lazy, Suspense, useEffect } from 'react';
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 // Layouts (keep synchronous for layout stability)
-import { AuthLayout } from "@/components/layout/AuthLayout";
-import { DashboardLayout } from "@/components/layout/DashboardLayout";
+import { AuthLayout } from '@/components/layout/AuthLayout';
+import { DashboardLayout } from '@/components/layout/DashboardLayout';
+import { ErrorBoundary } from '@/components/ui';
+import { LoginPage } from '@/pages/auth/LoginPage';
+import { RegisterPage } from '@/pages/auth/RegisterPage';
 
 // Landing and Auth pages (synchronous for fast first paint)
-import { LandingPage } from "@/pages/LandingPage";
-import { LoginPage } from "@/pages/auth/LoginPage";
-import { RegisterPage } from "@/pages/auth/RegisterPage";
+import { LandingPage } from '@/pages/LandingPage';
+import { useAuthStore } from '@/stores/auth-store';
+import { useThemeStore } from '@/stores/theme-store';
 
 // Lazy load dashboard pages for code splitting
 const DashboardPage = lazy(() =>
-  import("@/pages/dashboard/DashboardPage").then((m) => ({
+  import('@/pages/dashboard/DashboardPage').then((m) => ({
     default: m.DashboardPage,
-  }))
+  })),
 );
 const ProjectsPage = lazy(() =>
-  import("@/pages/dashboard/ProjectsPage").then((m) => ({
+  import('@/pages/dashboard/ProjectsPage').then((m) => ({
     default: m.ProjectsPage,
-  }))
+  })),
 );
 const PromptsPage = lazy(() =>
-  import("@/pages/dashboard/PromptsPage").then((m) => ({
+  import('@/pages/dashboard/PromptsPage').then((m) => ({
     default: m.PromptsPage,
-  }))
+  })),
 );
 const PromptBuilderPage = lazy(() =>
-  import("@/pages/dashboard/PromptBuilderPage").then((m) => ({
+  import('@/pages/dashboard/PromptBuilderPage').then((m) => ({
     default: m.PromptBuilderPage,
-  }))
+  })),
 );
 const PromptDetailPage = lazy(() =>
-  import("@/pages/dashboard/PromptDetailPage").then((m) => ({
+  import('@/pages/dashboard/PromptDetailPage').then((m) => ({
     default: m.PromptDetailPage,
-  }))
+  })),
 );
 const DownloadsPage = lazy(() =>
-  import("@/pages/dashboard/DownloadsPage").then((m) => ({
+  import('@/pages/dashboard/DownloadsPage').then((m) => ({
     default: m.DownloadsPage,
-  }))
+  })),
 );
-const SettingsPage = lazy(() => import("@/pages/dashboard/SettingsPage"));
+const SettingsPage = lazy(() => import('@/pages/dashboard/SettingsPage'));
 const PricingPage = lazy(() =>
-  import("@/pages/dashboard/PricingPage").then((m) => ({
+  import('@/pages/dashboard/PricingPage').then((m) => ({
     default: m.PricingPage,
-  }))
+  })),
 );
 const AdminPage = lazy(() =>
-  import("@/pages/dashboard/AdminPage").then((m) => ({ default: m.AdminPage }))
+  import('@/pages/dashboard/AdminPage').then((m) => ({ default: m.AdminPage })),
 );
 const CommunityPage = lazy(() =>
-  import("@/pages/dashboard/CommunityPage").then((m) => ({
+  import('@/pages/dashboard/CommunityPage').then((m) => ({
     default: m.CommunityPage,
-  }))
+  })),
 );
 const TrendingPage = lazy(() =>
-  import("@/pages/dashboard/TrendingPage").then((m) => ({
+  import('@/pages/dashboard/TrendingPage').then((m) => ({
     default: m.TrendingPage,
-  }))
+  })),
 );
 
 // Lazy load heavy editor and tools pages
 const EditorPage = lazy(() =>
-  import("@/pages/editor/EditorPage").then((m) => ({ default: m.EditorPage }))
+  import('@/pages/editor/EditorPage').then((m) => ({ default: m.EditorPage })),
 );
 const LoopCreatorPage = lazy(() =>
-  import("@/pages/tools/LoopCreatorPage").then((m) => ({
+  import('@/pages/tools/LoopCreatorPage').then((m) => ({
     default: m.LoopCreatorPage,
-  }))
+  })),
 );
 const ReactionCreatorPage = lazy(() =>
-  import("@/pages/tools/ReactionCreatorPage").then((m) => ({
+  import('@/pages/tools/ReactionCreatorPage').then((m) => ({
     default: m.ReactionCreatorPage,
-  }))
+  })),
 );
 const LiveStreamPage = lazy(() =>
-  import("@/pages/tools/LiveStreamPage").then((m) => ({
+  import('@/pages/tools/LiveStreamPage').then((m) => ({
     default: m.LiveStreamPage,
-  }))
+  })),
 );
 const LiveStreamHistoryPage = lazy(() =>
-  import("@/pages/tools/LiveStreamHistoryPage").then((m) => ({
+  import('@/pages/tools/LiveStreamHistoryPage').then((m) => ({
     default: m.LiveStreamHistoryPage,
-  }))
+  })),
 );
 const StoryDirectorPage = lazy(() =>
-  import("@/pages/tools/StoryDirectorPage").then((m) => ({
+  import('@/pages/tools/StoryDirectorPage').then((m) => ({
     default: m.StoryDirectorPage,
-  }))
+  })),
 );
 const ModernEditorPage = lazy(() =>
-  import("@/pages/tools/ModernEditorPage").then((m) => ({
+  import('@/pages/tools/ModernEditorPage').then((m) => ({
     default: m.ModernEditorPage,
-  }))
+  })),
 );
 const AiDirectorPage = lazy(() =>
-  import("@/pages/tools/AiDirectorPage").then((m) => ({
+  import('@/pages/tools/AiDirectorPage').then((m) => ({
     default: m.AiDirectorPage,
-  }))
+  })),
 );
 
 // Loading fallback component
@@ -157,7 +156,7 @@ export default function App() {
 
   useEffect(() => {
     // Apply theme class to document
-    document.documentElement.classList.remove("light", "dark");
+    document.documentElement.classList.remove('light', 'dark');
     document.documentElement.classList.add(theme);
   }, [theme]);
 

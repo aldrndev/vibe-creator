@@ -1,20 +1,20 @@
-import { Worker, Job } from "bullmq";
-import { redisOptions } from "@/lib/redis";
-import { logger } from "@/lib/logger";
+import { type Job, Worker } from 'bullmq';
+import { logger } from '@/lib/logger';
+import { redisOptions } from '@/lib/redis';
 import {
   DIRECTOR_QUEUE_NAME,
-  DirectorAnalysisJobData,
-  DirectorJobData,
-  DirectorTranscribeSessionJobData,
-  DirectorTranscribeClipJobData,
-  DirectorExportJobData,
-} from "./director.queue";
-import { processAnalysisJob } from "./handlers/analysis.handler";
+  type DirectorAnalysisJobData,
+  type DirectorExportJobData,
+  type DirectorJobData,
+  type DirectorTranscribeClipJobData,
+  type DirectorTranscribeSessionJobData,
+} from './director.queue';
+import { processAnalysisJob } from './handlers/analysis.handler';
+import { processExportJob } from './handlers/export.handler';
 import {
-  processTranscribeSessionJob,
   processTranscribeClipJob,
-} from "./handlers/transcribe.handler";
-import { processExportJob } from "./handlers/export.handler";
+  processTranscribeSessionJob,
+} from './handlers/transcribe.handler';
 
 /**
  * Main Job Dispatcher
@@ -22,21 +22,17 @@ import { processExportJob } from "./handlers/export.handler";
 async function jobProcessor(job: Job<DirectorJobData>) {
   const jobType = job.data.type;
   switch (jobType) {
-    case "ANALYSIS":
+    case 'ANALYSIS':
       return processAnalysisJob(job as Job<DirectorAnalysisJobData>);
-    case "TRANSCRIBE_SESSION":
-      return processTranscribeSessionJob(
-        job as Job<DirectorTranscribeSessionJobData>
-      );
-    case "TRANSCRIBE_CLIP":
-      return processTranscribeClipJob(
-        job as Job<DirectorTranscribeClipJobData>
-      );
-    case "EXPORT":
+    case 'TRANSCRIBE_SESSION':
+      return processTranscribeSessionJob(job as Job<DirectorTranscribeSessionJobData>);
+    case 'TRANSCRIBE_CLIP':
+      return processTranscribeClipJob(job as Job<DirectorTranscribeClipJobData>);
+    case 'EXPORT':
       return processExportJob(job as Job<DirectorExportJobData>);
     default: {
       // Fallback for legacy jobs
-      if (job.name === "analyze") {
+      if (job.name === 'analyze') {
         return processAnalysisJob(job as Job<DirectorAnalysisJobData>);
       }
       const _exhaustiveCheck: never = jobType;
@@ -48,26 +44,19 @@ async function jobProcessor(job: Job<DirectorJobData>) {
 /**
  * Director Worker Instance
  */
-export const directorWorker = new Worker<DirectorJobData>(
-  DIRECTOR_QUEUE_NAME,
-  jobProcessor,
-  {
-    connection: redisOptions,
-    concurrency: 5,
-    limiter: {
-      max: 10,
-      duration: 1000,
-    },
-  }
-);
-
-directorWorker.on("completed", (job) => {
-  logger.info(
-    { jobId: job.id, type: job.data.type },
-    "Job completed successfully"
-  );
+export const directorWorker = new Worker<DirectorJobData>(DIRECTOR_QUEUE_NAME, jobProcessor, {
+  connection: redisOptions,
+  concurrency: 5,
+  limiter: {
+    max: 10,
+    duration: 1000,
+  },
 });
 
-directorWorker.on("failed", (job, err) => {
-  logger.error({ jobId: job?.id, type: job?.data.type, err }, "Job failed");
+directorWorker.on('completed', (job) => {
+  logger.info({ jobId: job.id, type: job.data.type }, 'Job completed successfully');
+});
+
+directorWorker.on('failed', (job, err) => {
+  logger.error({ jobId: job?.id, type: job?.data.type, err }, 'Job failed');
 });

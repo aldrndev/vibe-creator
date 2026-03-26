@@ -49,7 +49,7 @@ export function addKeyframe(
   envelope: VolumeEnvelope,
   timeMs: number,
   volume: number,
-  interpolation: VolumeKeyframe['interpolation'] = 'linear'
+  interpolation: VolumeKeyframe['interpolation'] = 'linear',
 ): VolumeEnvelope {
   const newKeyframe: VolumeKeyframe = {
     id: createKeyframeId(),
@@ -58,9 +58,7 @@ export function addKeyframe(
     interpolation,
   };
 
-  const keyframes = [...envelope.keyframes, newKeyframe].sort(
-    (a, b) => a.timeMs - b.timeMs
-  );
+  const keyframes = [...envelope.keyframes, newKeyframe].sort((a, b) => a.timeMs - b.timeMs);
 
   return { ...envelope, keyframes };
 }
@@ -68,10 +66,7 @@ export function addKeyframe(
 /**
  * Remove a keyframe by ID
  */
-export function removeKeyframe(
-  envelope: VolumeEnvelope,
-  keyframeId: string
-): VolumeEnvelope {
+export function removeKeyframe(envelope: VolumeEnvelope, keyframeId: string): VolumeEnvelope {
   // Don't allow removing all keyframes
   if (envelope.keyframes.length <= 1) {
     return envelope;
@@ -79,7 +74,7 @@ export function removeKeyframe(
 
   return {
     ...envelope,
-    keyframes: envelope.keyframes.filter(kf => kf.id !== keyframeId),
+    keyframes: envelope.keyframes.filter((kf) => kf.id !== keyframeId),
   };
 }
 
@@ -89,17 +84,15 @@ export function removeKeyframe(
 export function updateKeyframe(
   envelope: VolumeEnvelope,
   keyframeId: string,
-  updates: Partial<Omit<VolumeKeyframe, 'id'>>
+  updates: Partial<Omit<VolumeKeyframe, 'id'>>,
 ): VolumeEnvelope {
-  const keyframes = envelope.keyframes.map(kf => {
+  const keyframes = envelope.keyframes.map((kf) => {
     if (kf.id !== keyframeId) return kf;
-    
+
     return {
       ...kf,
       ...updates,
-      volume: updates.volume !== undefined 
-        ? Math.max(0, Math.min(2, updates.volume)) 
-        : kf.volume,
+      volume: updates.volume !== undefined ? Math.max(0, Math.min(2, updates.volume)) : kf.volume,
     };
   });
 
@@ -114,12 +107,9 @@ export function updateKeyframe(
 /**
  * Get volume at a specific time using interpolation
  */
-export function getVolumeAtTime(
-  envelope: VolumeEnvelope,
-  timeMs: number
-): number {
+export function getVolumeAtTime(envelope: VolumeEnvelope, timeMs: number): number {
   const { keyframes } = envelope;
-  
+
   if (keyframes.length === 0) return 1;
   if (keyframes.length === 1) return keyframes[0]?.volume ?? 1;
 
@@ -130,7 +120,7 @@ export function getVolumeAtTime(
   for (let i = 0; i < keyframes.length - 1; i++) {
     const current = keyframes[i];
     const next = keyframes[i + 1];
-    
+
     if (current && next && timeMs >= current.timeMs && timeMs <= next.timeMs) {
       prevKeyframe = current;
       nextKeyframe = next;
@@ -152,18 +142,16 @@ export function getVolumeAtTime(
 
   // Interpolate between keyframes
   const t = (timeMs - prevKeyframe.timeMs) / (nextKeyframe.timeMs - prevKeyframe.timeMs);
-  
+
   switch (prevKeyframe.interpolation) {
     case 'step':
       return prevKeyframe.volume;
-      
+
     case 'smooth': {
       // Smooth step (ease in-out)
       const smoothT = t * t * (3 - 2 * t);
       return prevKeyframe.volume + (nextKeyframe.volume - prevKeyframe.volume) * smoothT;
     }
-      
-    case 'linear':
     default:
       return prevKeyframe.volume + (nextKeyframe.volume - prevKeyframe.volume) * t;
   }
@@ -174,18 +162,18 @@ export function getVolumeAtTime(
  */
 export function envelopeToAutomation(
   envelope: VolumeEnvelope,
-  clipDurationMs: number
+  clipDurationMs: number,
 ): Array<{ timeMs: number; volume: number }> {
   const points: Array<{ timeMs: number; volume: number }> = [];
   const sampleRate = 100; // Sample every 100ms
-  
+
   for (let timeMs = 0; timeMs <= clipDurationMs; timeMs += sampleRate) {
     points.push({
       timeMs,
       volume: getVolumeAtTime(envelope, timeMs),
     });
   }
-  
+
   return points;
 }
 
@@ -200,16 +188,19 @@ export const ENVELOPE_PRESETS: Array<{
   {
     id: 'constant',
     name: 'Constant',
-    create: () => [
-      { id: createKeyframeId(), timeMs: 0, volume: 1, interpolation: 'linear' },
-    ],
+    create: () => [{ id: createKeyframeId(), timeMs: 0, volume: 1, interpolation: 'linear' }],
   },
   {
     id: 'fade-in',
     name: 'Fade In',
     create: (durationMs) => [
       { id: createKeyframeId(), timeMs: 0, volume: 0, interpolation: 'smooth' },
-      { id: createKeyframeId(), timeMs: Math.min(1000, durationMs * 0.2), volume: 1, interpolation: 'linear' },
+      {
+        id: createKeyframeId(),
+        timeMs: Math.min(1000, durationMs * 0.2),
+        volume: 1,
+        interpolation: 'linear',
+      },
     ],
   },
   {
@@ -217,7 +208,12 @@ export const ENVELOPE_PRESETS: Array<{
     name: 'Fade Out',
     create: (durationMs) => [
       { id: createKeyframeId(), timeMs: 0, volume: 1, interpolation: 'linear' },
-      { id: createKeyframeId(), timeMs: durationMs - Math.min(1000, durationMs * 0.2), volume: 1, interpolation: 'smooth' },
+      {
+        id: createKeyframeId(),
+        timeMs: durationMs - Math.min(1000, durationMs * 0.2),
+        volume: 1,
+        interpolation: 'smooth',
+      },
       { id: createKeyframeId(), timeMs: durationMs, volume: 0, interpolation: 'linear' },
     ],
   },
@@ -226,8 +222,18 @@ export const ENVELOPE_PRESETS: Array<{
     name: 'Fade In/Out',
     create: (durationMs) => [
       { id: createKeyframeId(), timeMs: 0, volume: 0, interpolation: 'smooth' },
-      { id: createKeyframeId(), timeMs: Math.min(500, durationMs * 0.1), volume: 1, interpolation: 'linear' },
-      { id: createKeyframeId(), timeMs: durationMs - Math.min(500, durationMs * 0.1), volume: 1, interpolation: 'smooth' },
+      {
+        id: createKeyframeId(),
+        timeMs: Math.min(500, durationMs * 0.1),
+        volume: 1,
+        interpolation: 'linear',
+      },
+      {
+        id: createKeyframeId(),
+        timeMs: durationMs - Math.min(500, durationMs * 0.1),
+        volume: 1,
+        interpolation: 'smooth',
+      },
       { id: createKeyframeId(), timeMs: durationMs, volume: 0, interpolation: 'linear' },
     ],
   },

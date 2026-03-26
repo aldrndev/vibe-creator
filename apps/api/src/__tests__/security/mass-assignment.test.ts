@@ -8,8 +8,8 @@
  * - User role/permissions MUST NOT be settable via input
  */
 
-import { describe, it, expect } from "vitest";
-import { z } from "zod";
+import { describe, expect, it } from 'vitest';
+import { z } from 'zod';
 
 // Simulate user update schema with allowlist
 const userUpdateSchema = z.object({
@@ -22,82 +22,82 @@ const userUpdateSchema = z.object({
 const adminUserUpdateSchema = z.object({
   name: z.string().min(2).max(100).optional(),
   avatarUrl: z.url().optional(),
-  role: z.enum(["USER", "ADMIN"]).optional(),
+  role: z.enum(['USER', 'ADMIN']).optional(),
   email: z.email().optional(),
 });
 
-describe("Mass Assignment Protection", () => {
-  describe("User Update Schema", () => {
-    it("should allow name update", () => {
-      const input = { name: "New Name" };
+describe('Mass Assignment Protection', () => {
+  describe('User Update Schema', () => {
+    it('should allow name update', () => {
+      const input = { name: 'New Name' };
       expect(() => userUpdateSchema.parse(input)).not.toThrow();
     });
 
-    it("should allow avatarUrl update", () => {
-      const input = { avatarUrl: "https://example.com/avatar.jpg" };
+    it('should allow avatarUrl update', () => {
+      const input = { avatarUrl: 'https://example.com/avatar.jpg' };
       expect(() => userUpdateSchema.parse(input)).not.toThrow();
     });
 
-    it("should strip role from input (protected field)", () => {
-      const input = { name: "Hacker", role: "ADMIN" };
+    it('should strip role from input (protected field)', () => {
+      const input = { name: 'Hacker', role: 'ADMIN' };
       const result = userUpdateSchema.parse(input);
 
-      expect(result).not.toHaveProperty("role");
-      expect(result).toEqual({ name: "Hacker" });
+      expect(result).not.toHaveProperty('role');
+      expect(result).toEqual({ name: 'Hacker' });
     });
 
-    it("should strip email from input (protected field)", () => {
-      const input = { name: "Valid", email: "hacker@evil.com" };
+    it('should strip email from input (protected field)', () => {
+      const input = { name: 'Valid', email: 'hacker@evil.com' };
       const result = userUpdateSchema.parse(input);
 
-      expect(result).not.toHaveProperty("email");
+      expect(result).not.toHaveProperty('email');
     });
 
-    it("should strip password from input", () => {
-      const input = { name: "Valid", password: "newpassword123" };
+    it('should strip password from input', () => {
+      const input = { name: 'Valid', password: 'newpassword123' };
       const result = userUpdateSchema.parse(input);
 
-      expect(result).not.toHaveProperty("password");
+      expect(result).not.toHaveProperty('password');
     });
 
-    it("should strip id from input", () => {
-      const input = { name: "Valid", id: "other-user-id" };
+    it('should strip id from input', () => {
+      const input = { name: 'Valid', id: 'other-user-id' };
       const result = userUpdateSchema.parse(input);
 
-      expect(result).not.toHaveProperty("id");
+      expect(result).not.toHaveProperty('id');
     });
   });
 
-  describe("Admin Update Schema", () => {
-    it("should allow role update for admin schema", () => {
-      const input = { role: "ADMIN" };
+  describe('Admin Update Schema', () => {
+    it('should allow role update for admin schema', () => {
+      const input = { role: 'ADMIN' };
       expect(() => adminUserUpdateSchema.parse(input)).not.toThrow();
     });
 
-    it("should validate role enum", () => {
-      const input = { role: "SUPERADMIN" };
+    it('should validate role enum', () => {
+      const input = { role: 'SUPERADMIN' };
       expect(() => adminUserUpdateSchema.parse(input)).toThrow();
     });
   });
 
-  describe("Subscription Protection", () => {
+  describe('Subscription Protection', () => {
     const subscriptionUpdateSchema = z.object({
       // Only allow specific fields
       autoRenew: z.boolean().optional(),
     });
 
-    it("should not allow tier upgrade via input", () => {
-      const input = { tier: "PRO", autoRenew: true };
+    it('should not allow tier upgrade via input', () => {
+      const input = { tier: 'PRO', autoRenew: true };
       const result = subscriptionUpdateSchema.parse(input);
 
-      expect(result).not.toHaveProperty("tier");
+      expect(result).not.toHaveProperty('tier');
     });
 
-    it("should not allow exportsLimit modification", () => {
+    it('should not allow exportsLimit modification', () => {
       const input = { exportsLimit: 9999, autoRenew: true };
       const result = subscriptionUpdateSchema.parse(input);
 
-      expect(result).not.toHaveProperty("exportsLimit");
+      expect(result).not.toHaveProperty('exportsLimit');
     });
   });
 });

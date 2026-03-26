@@ -1,48 +1,48 @@
+import { Film, Settings2, Unlink, Volume2 } from 'lucide-react';
 import {
-  Slider,
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-  Switch,
   Badge,
   Button,
-} from "@/components/ui";
-import { Settings2, Volume2, Film, Unlink } from "lucide-react";
-import { useEditorStore } from "@/stores/editor-store";
-import { cn } from "@/lib/utils";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Slider,
+  Switch,
+} from '@/components/ui';
+import { cn } from '@/lib/utils';
+import { useEditorStore } from '@/stores/editor-store';
 
 // Filter presets
 const FILTER_PRESETS = [
-  { id: "none", name: "None", css: "" },
-  { id: "grayscale", name: "B&W", css: "grayscale(100%)" },
-  { id: "sepia", name: "Sepia", css: "sepia(100%)" },
+  { id: 'none', name: 'None', css: '' },
+  { id: 'grayscale', name: 'B&W', css: 'grayscale(100%)' },
+  { id: 'sepia', name: 'Sepia', css: 'sepia(100%)' },
   {
-    id: "vintage",
-    name: "Vintage",
-    css: "sepia(50%) contrast(1.1) brightness(0.9)",
+    id: 'vintage',
+    name: 'Vintage',
+    css: 'sepia(50%) contrast(1.1) brightness(0.9)',
   },
-  { id: "cold", name: "Cold", css: "saturate(0.8) hue-rotate(180deg)" },
-  { id: "warm", name: "Warm", css: "saturate(1.2) sepia(20%)" },
-  { id: "high-contrast", name: "High Contrast", css: "contrast(1.4)" },
+  { id: 'cold', name: 'Cold', css: 'saturate(0.8) hue-rotate(180deg)' },
+  { id: 'warm', name: 'Warm', css: 'saturate(1.2) sepia(20%)' },
+  { id: 'high-contrast', name: 'High Contrast', css: 'contrast(1.4)' },
   {
-    id: "fade",
-    name: "Fade",
-    css: "contrast(0.9) brightness(1.1) saturate(0.8)",
+    id: 'fade',
+    name: 'Fade',
+    css: 'contrast(0.9) brightness(1.1) saturate(0.8)',
   },
-  { id: "vivid", name: "Vivid", css: "saturate(1.5) contrast(1.1)" },
+  { id: 'vivid', name: 'Vivid', css: 'saturate(1.5) contrast(1.1)' },
 ];
 
 // Speed presets
 const SPEED_PRESETS = [
-  { value: 0.25, label: "0.25x" },
-  { value: 0.5, label: "0.5x" },
-  { value: 0.75, label: "0.75x" },
-  { value: 1, label: "1x (Normal)" },
-  { value: 1.25, label: "1.25x" },
-  { value: 1.5, label: "1.5x" },
-  { value: 2, label: "2x" },
+  { value: 0.25, label: '0.25x' },
+  { value: 0.5, label: '0.5x' },
+  { value: 0.75, label: '0.75x' },
+  { value: 1, label: '1x (Normal)' },
+  { value: 1.25, label: '1.25x' },
+  { value: 1.5, label: '1.5x' },
+  { value: 2, label: '2x' },
 ];
 
 interface InspectorPanelProps {
@@ -50,13 +50,12 @@ interface InspectorPanelProps {
 }
 
 export function InspectorPanel({ className }: InspectorPanelProps) {
-  const { timeline, selectedClipId, updateClip, detachLinkedClips } =
-    useEditorStore();
+  const { timeline, selectedClipId, updateClip, detachLinkedClips } = useEditorStore();
 
   // Find selected clip and its track type
   let selectedClip = null;
   let selectedTrackId: string | null = null;
-  let selectedTrackType: "VIDEO" | "AUDIO" | "TEXT" | "OVERLAY" | null = null;
+  let selectedTrackType: 'VIDEO' | 'AUDIO' | 'TEXT' | 'OVERLAY' | null = null;
 
   for (const track of timeline.tracks) {
     const clip = track.clips.find((c) => c.id === selectedClipId);
@@ -90,10 +89,7 @@ export function InspectorPanel({ className }: InspectorPanelProps) {
     });
   };
 
-  const handleEffectChange = (
-    key: string,
-    value: number | string | string[]
-  ) => {
+  const handleEffectChange = (key: string, value: number | string | string[]) => {
     if (!selectedTrackId || !selectedClipId || !selectedClip) return;
 
     const currentEffects = selectedClip.effects || {
@@ -120,26 +116,24 @@ export function InspectorPanel({ className }: InspectorPanelProps) {
     const minutes = Math.floor(totalSeconds / 60);
     const seconds = totalSeconds % 60;
     const milliseconds = Math.floor((ms % 1000) / 10);
-    return `${minutes.toString().padStart(2, "0")}:${seconds
+    return `${minutes.toString().padStart(2, '0')}:${seconds
       .toString()
-      .padStart(2, "0")}.${milliseconds.toString().padStart(2, "0")}`;
+      .padStart(2, '0')}.${milliseconds.toString().padStart(2, '0')}`;
   };
 
   if (!selectedClip) {
     return (
       <div
         className={cn(
-          "w-full md:w-80 bg-background border-l border-border flex flex-col pt-12 text-center text-muted-foreground",
-          className
+          'w-full md:w-80 bg-background border-l border-border flex flex-col pt-12 text-center text-muted-foreground',
+          className,
         )}
       >
         <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
           <Settings2 size={20} className="opacity-50" />
         </div>
         <p className="text-sm font-medium">No Selection</p>
-        <p className="text-xs opacity-60 mt-1">
-          Select a clip to edit properties
-        </p>
+        <p className="text-xs opacity-60 mt-1">Select a clip to edit properties</p>
       </div>
     );
   }
@@ -159,13 +153,13 @@ export function InspectorPanel({ className }: InspectorPanelProps) {
     fadeOut: 0,
   };
   const isMuted = effects.volume === 0;
-  const currentFilter = effects.filters?.[0] || "none";
+  const currentFilter = effects.filters?.[0] || 'none';
 
   return (
     <div
       className={cn(
-        "w-full md:w-80 bg-background border-l border-border flex flex-col overflow-hidden",
-        className
+        'w-full md:w-80 bg-background border-l border-border flex flex-col overflow-hidden',
+        className,
       )}
     >
       {/* Header */}
@@ -179,25 +173,21 @@ export function InspectorPanel({ className }: InspectorPanelProps) {
         <div className="flex items-start gap-4">
           <div
             className={cn(
-              "w-10 h-10 rounded-lg flex items-center justify-center shrink-0",
-              selectedTrackType === "AUDIO"
-                ? "bg-emerald-500/10 text-emerald-500"
-                : "bg-blue-500/10 text-blue-500"
+              'w-10 h-10 rounded-lg flex items-center justify-center shrink-0',
+              selectedTrackType === 'AUDIO'
+                ? 'bg-emerald-500/10 text-emerald-500'
+                : 'bg-blue-500/10 text-blue-500',
             )}
           >
-            {selectedTrackType === "AUDIO" ? (
-              <Volume2 size={20} />
-            ) : (
-              <Film size={20} />
-            )}
+            {selectedTrackType === 'AUDIO' ? <Volume2 size={20} /> : <Film size={20} />}
           </div>
           <div className="flex-1 min-w-0">
             <h4 className="font-medium text-sm truncate">
-              {selectedClip.asset?.name || "Untitled Clip"}
+              {selectedClip.asset?.name || 'Untitled Clip'}
             </h4>
             <div className="flex items-center gap-2 mt-1">
               <Badge variant="secondary" className="text-[10px] h-5 px-1.5">
-                {selectedTrackType === "AUDIO" ? "AUDIO" : "VIDEO"}
+                {selectedTrackType === 'AUDIO' ? 'AUDIO' : 'VIDEO'}
               </Badge>
               <span className="text-xs text-muted-foreground font-mono">
                 {formatTime(selectedClip.endMs - selectedClip.startMs)}
@@ -224,7 +214,7 @@ export function InspectorPanel({ className }: InspectorPanelProps) {
         </div>
 
         {/* Transform Section - VIDEO ONLY */}
-        {selectedTrackType !== "AUDIO" && (
+        {selectedTrackType !== 'AUDIO' && (
           <div className="space-y-4">
             <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
               Transform
@@ -243,7 +233,7 @@ export function InspectorPanel({ className }: InspectorPanelProps) {
                     min={-1000}
                     max={1000}
                     value={[transforms.x ?? 0]}
-                    onValueChange={(v) => handleTransformChange("x", v[0] ?? 0)}
+                    onValueChange={(v) => handleTransformChange('x', v[0] ?? 0)}
                   />
                 </div>
                 <div className="space-y-2">
@@ -257,7 +247,7 @@ export function InspectorPanel({ className }: InspectorPanelProps) {
                     min={-1000}
                     max={1000}
                     value={[transforms.y ?? 0]}
-                    onValueChange={(v) => handleTransformChange("y", v[0] ?? 0)}
+                    onValueChange={(v) => handleTransformChange('y', v[0] ?? 0)}
                   />
                 </div>
               </div>
@@ -275,9 +265,7 @@ export function InspectorPanel({ className }: InspectorPanelProps) {
                     max={5}
                     step={0.01}
                     value={[transforms.scale ?? 1]}
-                    onValueChange={(v) =>
-                      handleTransformChange("scale", v[0] ?? 1)
-                    }
+                    onValueChange={(v) => handleTransformChange('scale', v[0] ?? 1)}
                   />
                 </div>
                 <div className="space-y-2">
@@ -291,9 +279,7 @@ export function InspectorPanel({ className }: InspectorPanelProps) {
                     min={-180}
                     max={180}
                     value={[transforms.rotation ?? 0]}
-                    onValueChange={(v) =>
-                      handleTransformChange("rotation", v[0] ?? 0)
-                    }
+                    onValueChange={(v) => handleTransformChange('rotation', v[0] ?? 0)}
                   />
                 </div>
               </div>
@@ -310,9 +296,7 @@ export function InspectorPanel({ className }: InspectorPanelProps) {
                   max={1}
                   step={0.01}
                   value={[transforms.opacity ?? 1]}
-                  onValueChange={(v) =>
-                    handleTransformChange("opacity", v[0] ?? 1)
-                  }
+                  onValueChange={(v) => handleTransformChange('opacity', v[0] ?? 1)}
                 />
               </div>
             </div>
@@ -327,9 +311,7 @@ export function InspectorPanel({ className }: InspectorPanelProps) {
             </h4>
             <Switch
               checked={!isMuted}
-              onCheckedChange={(checked) =>
-                handleEffectChange("volume", checked ? 1 : 0)
-              }
+              onCheckedChange={(checked) => handleEffectChange('volume', checked ? 1 : 0)}
             />
           </div>
 
@@ -338,7 +320,7 @@ export function InspectorPanel({ className }: InspectorPanelProps) {
               <div className="flex justify-between text-xs">
                 <span className="text-muted-foreground">Volume</span>
                 <span className="font-mono text-[10px] text-muted-foreground/70">
-                  {isMuted ? "Muted" : `${Math.round(effects.volume * 100)}%`}
+                  {isMuted ? 'Muted' : `${Math.round(effects.volume * 100)}%`}
                 </span>
               </div>
               <Slider
@@ -346,36 +328,28 @@ export function InspectorPanel({ className }: InspectorPanelProps) {
                 max={2}
                 step={0.01}
                 value={[effects.volume ?? 1]}
-                onValueChange={(v) => handleEffectChange("volume", v[0] ?? 1)}
+                onValueChange={(v) => handleEffectChange('volume', v[0] ?? 1)}
                 disabled={isMuted}
               />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1">
-                <span className="text-xs text-muted-foreground">
-                  Fade In (ms)
-                </span>
+                <span className="text-xs text-muted-foreground">Fade In (ms)</span>
                 <input
                   type="number"
                   className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                   value={effects.fadeIn}
-                  onChange={(e) =>
-                    handleEffectChange("fadeIn", parseInt(e.target.value) || 0)
-                  }
+                  onChange={(e) => handleEffectChange('fadeIn', parseInt(e.target.value, 10) || 0)}
                 />
               </div>
               <div className="space-y-1">
-                <span className="text-xs text-muted-foreground">
-                  Fade Out (ms)
-                </span>
+                <span className="text-xs text-muted-foreground">Fade Out (ms)</span>
                 <input
                   type="number"
                   className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                   value={effects.fadeOut}
-                  onChange={(e) =>
-                    handleEffectChange("fadeOut", parseInt(e.target.value) || 0)
-                  }
+                  onChange={(e) => handleEffectChange('fadeOut', parseInt(e.target.value, 10) || 0)}
                 />
               </div>
             </div>
@@ -393,19 +367,14 @@ export function InspectorPanel({ className }: InspectorPanelProps) {
               <span className="text-xs text-muted-foreground">Speed</span>
               <Select
                 value={effects.speed.toString()}
-                onValueChange={(v) =>
-                  handleEffectChange("speed", parseFloat(v))
-                }
+                onValueChange={(v) => handleEffectChange('speed', parseFloat(v))}
               >
                 <SelectTrigger className="h-9">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   {SPEED_PRESETS.map((preset) => (
-                    <SelectItem
-                      key={preset.value.toString()}
-                      value={preset.value.toString()}
-                    >
+                    <SelectItem key={preset.value.toString()} value={preset.value.toString()}>
                       {preset.label}
                     </SelectItem>
                   ))}
@@ -413,14 +382,12 @@ export function InspectorPanel({ className }: InspectorPanelProps) {
               </Select>
             </div>
 
-            {selectedTrackType !== "AUDIO" && (
+            {selectedTrackType !== 'AUDIO' && (
               <div className="space-y-2">
                 <span className="text-xs text-muted-foreground">Filter</span>
                 <Select
                   value={currentFilter}
-                  onValueChange={(v) =>
-                    handleEffectChange("filters", v === "none" ? [] : [v])
-                  }
+                  onValueChange={(v) => handleEffectChange('filters', v === 'none' ? [] : [v])}
                 >
                   <SelectTrigger className="h-9">
                     <SelectValue />

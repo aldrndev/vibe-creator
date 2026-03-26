@@ -8,7 +8,7 @@
  * - Retries do not duplicate artifacts
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Mock Redis
 const mockRedis = {
@@ -18,20 +18,16 @@ const mockRedis = {
   exists: vi.fn(),
 };
 
-vi.mock("@/lib/redis", () => ({
+vi.mock('@/lib/redis', () => ({
   redis: mockRedis,
 }));
 
-vi.mock("@/lib/logger", () => ({
+vi.mock('@/lib/logger', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 
 // Idempotency key generator
-function generateIdempotencyKey(
-  jobType: string,
-  resourceId: string,
-  inputHash: string
-): string {
+function generateIdempotencyKey(jobType: string, resourceId: string, inputHash: string): string {
   return `${jobType}:${resourceId}:${inputHash}`;
 }
 
@@ -42,83 +38,75 @@ async function isJobProcessed(key: string): Promise<boolean> {
 }
 
 // Mark job as processed
-async function markJobProcessed(
-  key: string,
-  ttlSeconds: number
-): Promise<void> {
-  await mockRedis.set(key, "1", "EX", ttlSeconds);
+async function markJobProcessed(key: string, ttlSeconds: number): Promise<void> {
+  await mockRedis.set(key, '1', 'EX', ttlSeconds);
 }
 
-describe("Job Idempotency", () => {
+describe('Job Idempotency', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  describe("Idempotency Key Generation", () => {
-    it("should generate consistent key for same input", () => {
-      const key1 = generateIdempotencyKey("analyze", "session-123", "abc123");
-      const key2 = generateIdempotencyKey("analyze", "session-123", "abc123");
+  describe('Idempotency Key Generation', () => {
+    it('should generate consistent key for same input', () => {
+      const key1 = generateIdempotencyKey('analyze', 'session-123', 'abc123');
+      const key2 = generateIdempotencyKey('analyze', 'session-123', 'abc123');
 
       expect(key1).toBe(key2);
     });
 
-    it("should generate different key for different input", () => {
-      const key1 = generateIdempotencyKey("analyze", "session-123", "abc123");
-      const key2 = generateIdempotencyKey("analyze", "session-123", "xyz789");
+    it('should generate different key for different input', () => {
+      const key1 = generateIdempotencyKey('analyze', 'session-123', 'abc123');
+      const key2 = generateIdempotencyKey('analyze', 'session-123', 'xyz789');
 
       expect(key1).not.toBe(key2);
     });
 
-    it("should generate different key for different job type", () => {
-      const key1 = generateIdempotencyKey("analyze", "session-123", "abc123");
-      const key2 = generateIdempotencyKey("export", "session-123", "abc123");
+    it('should generate different key for different job type', () => {
+      const key1 = generateIdempotencyKey('analyze', 'session-123', 'abc123');
+      const key2 = generateIdempotencyKey('export', 'session-123', 'abc123');
 
       expect(key1).not.toBe(key2);
     });
 
-    it("should include all components in key", () => {
-      const key = generateIdempotencyKey("analyze", "session-123", "abc123");
+    it('should include all components in key', () => {
+      const key = generateIdempotencyKey('analyze', 'session-123', 'abc123');
 
-      expect(key).toContain("analyze");
-      expect(key).toContain("session-123");
-      expect(key).toContain("abc123");
+      expect(key).toContain('analyze');
+      expect(key).toContain('session-123');
+      expect(key).toContain('abc123');
     });
   });
 
-  describe("Duplicate Detection", () => {
-    it("should detect already processed job", async () => {
+  describe('Duplicate Detection', () => {
+    it('should detect already processed job', async () => {
       mockRedis.exists.mockResolvedValue(1);
 
-      const isProcessed = await isJobProcessed("analyze:session-123:abc123");
+      const isProcessed = await isJobProcessed('analyze:session-123:abc123');
 
       expect(isProcessed).toBe(true);
     });
 
-    it("should allow new job", async () => {
+    it('should allow new job', async () => {
       mockRedis.exists.mockResolvedValue(0);
 
-      const isProcessed = await isJobProcessed("analyze:session-123:abc123");
+      const isProcessed = await isJobProcessed('analyze:session-123:abc123');
 
       expect(isProcessed).toBe(false);
     });
   });
 
-  describe("Job Marking", () => {
-    it("should mark job as processed with TTL", async () => {
-      await markJobProcessed("analyze:session-123:abc123", 3600);
+  describe('Job Marking', () => {
+    it('should mark job as processed with TTL', async () => {
+      await markJobProcessed('analyze:session-123:abc123', 3600);
 
-      expect(mockRedis.set).toHaveBeenCalledWith(
-        "analyze:session-123:abc123",
-        "1",
-        "EX",
-        3600
-      );
+      expect(mockRedis.set).toHaveBeenCalledWith('analyze:session-123:abc123', '1', 'EX', 3600);
     });
   });
 
-  describe("Retry Safety", () => {
-    it("same job ID should not be processed twice", async () => {
-      const jobKey = "export:session-123:hash";
+  describe('Retry Safety', () => {
+    it('same job ID should not be processed twice', async () => {
+      const jobKey = 'export:session-123:hash';
       let processCount = 0;
 
       // Simulate first processing

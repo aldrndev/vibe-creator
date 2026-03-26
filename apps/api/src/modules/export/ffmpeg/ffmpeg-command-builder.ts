@@ -3,20 +3,19 @@
  * Re-exports all builders from organized modules
  */
 
+export { buildAudioMixCommand } from './builders/audio.builder';
 export type {
+  ExportPreset,
   FFmpegCommand,
   Resolution,
-  ExportPreset,
-} from "./builders/basic.builder";
-export type { VideoEffectsOptions } from "./builders/effects.builder";
+} from './builders/basic.builder';
 
 export {
-  buildTrimCommand,
   buildEncodeCommand,
   buildMuxCommand,
   buildTextOverlayCommand,
-} from "./builders/basic.builder";
+  buildTrimCommand,
+} from './builders/basic.builder';
+export type { VideoEffectsOptions } from './builders/effects.builder';
 
-export { buildAudioMixCommand } from "./builders/audio.builder";
-
-export { buildVideoEffectsCommand } from "./builders/effects.builder";
+export { buildVideoEffectsCommand } from './builders/effects.builder';

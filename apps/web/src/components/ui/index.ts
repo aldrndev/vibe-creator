@@ -3,139 +3,120 @@
  * Radix UI based components following Digitesia standards
  */
 
+// Accordion
+export {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from './Accordion';
+export type { AvatarProps } from './Avatar';
+// Avatar
+export { Avatar } from './Avatar';
+export type { BadgeProps } from './Badge';
+// Badge/Chip
+export { Badge, badgeVariants, Chip } from './Badge';
+export type { ButtonProps } from './Button';
 // Button
-export { Button, buttonVariants } from "./Button";
-export type { ButtonProps } from "./Button";
-
-// Error Boundary
-export { ErrorBoundary } from "./ErrorBoundary";
-
-// Input
-export { Input } from "./Input";
-export type { InputProps } from "./Input";
-
-// Textarea
-export { Textarea } from "./Textarea";
-export type { TextareaProps } from "./Textarea";
+export { Button, buttonVariants } from './Button';
 
 // Card
 export {
   Card,
-  CardHeader,
-  CardFooter,
-  CardTitle,
-  CardDescription,
   CardBody,
-} from "./Card";
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from './Card';
 
 // Dialog/Modal
 export {
   Dialog,
-  DialogPortal,
-  DialogOverlay,
-  DialogTrigger,
   DialogClose,
   DialogContent,
-  DialogHeader,
-  DialogFooter,
-  DialogTitle,
   DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogOverlay,
+  DialogPortal,
+  DialogTitle,
+  DialogTrigger,
   Modal,
-  ModalContent,
-  ModalHeader,
   ModalBody,
+  ModalContent,
   ModalFooter,
-} from "./Dialog";
-
-// Tabs
-export { Tabs, TabsList, TabsTrigger, TabsContent, Tab } from "./Tabs";
-
-// Select
-export {
-  Select,
-  SelectGroup,
-  SelectValue,
-  SelectTrigger,
-  SelectContent,
-  SelectLabel,
-  SelectItem,
-  SelectSeparator,
-} from "./Select";
-
-// Progress
-export { Progress } from "./Progress";
-
-// Switch
-export { Switch } from "./Switch";
-
-// Slider
-export { Slider } from "./Slider";
-
-// Tooltip
-export {
-  Tooltip,
-  TooltipTrigger,
-  TooltipContent,
-  TooltipProvider,
-} from "./Tooltip";
-
-// Badge/Chip
-export { Badge, Chip, badgeVariants } from "./Badge";
-export type { BadgeProps } from "./Badge";
-
-// ScrollArea
-export { ScrollArea, ScrollBar, ScrollShadow } from "./ScrollArea";
-
-// Spinner
-export { Spinner } from "./Spinner";
-export type { SpinnerProps } from "./Spinner";
-
+  ModalHeader,
+} from './Dialog';
 // Divider
-export { Divider } from "./Divider";
-
-// Re-export existing components
-export { EmptyState } from "./EmptyState";
-export { PageTransition } from "./PageTransition";
-export { SelectionGrid, MultiSelectGrid } from "./SelectionGrid";
-export { SkeletonCard, SkeletonTable, Skeleton } from "./SkeletonLoader";
-export { TurnstileWidget } from "./turnstile-widget";
-
+export { Divider } from './Divider';
 // DropdownMenu
 export {
   DropdownMenu,
-  DropdownMenuTrigger,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuShortcut,
-  DropdownMenuGroup,
-} from "./DropdownMenu";
-
-// Avatar
-export { Avatar } from "./Avatar";
-export type { AvatarProps } from "./Avatar";
-
+  DropdownMenuTrigger,
+} from './DropdownMenu';
+// Re-export existing components
+export { EmptyState } from './EmptyState';
+// Error Boundary
+export { ErrorBoundary } from './ErrorBoundary';
+export type { InputProps } from './Input';
+// Input
+export { Input } from './Input';
+export { PageTransition } from './PageTransition';
+export type { PaginationProps } from './Pagination';
 // Pagination
-export { Pagination } from "./Pagination";
-export type { PaginationProps } from "./Pagination";
-
+export { Pagination } from './Pagination';
+// Progress
+export { Progress } from './Progress';
+// ScrollArea
+export { ScrollArea, ScrollBar, ScrollShadow } from './ScrollArea';
+// Select
+export {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectSeparator,
+  SelectTrigger,
+  SelectValue,
+} from './Select';
+export { MultiSelectGrid, SelectionGrid } from './SelectionGrid';
+export { Skeleton, SkeletonCard, SkeletonTable } from './SkeletonLoader';
+// Slider
+export { Slider } from './Slider';
+export type { SpinnerProps } from './Spinner';
+// Spinner
+export { Spinner } from './Spinner';
+// Switch
+export { Switch } from './Switch';
 // Table
 export {
   Table,
-  TableHeader,
   TableBody,
+  TableCaption,
+  TableCell,
   TableFooter,
   TableHead,
+  TableHeader,
   TableRow,
-  TableCell,
-  TableCaption,
-} from "./Table";
-
-// Accordion
+} from './Table';
+// Tabs
+export { Tab, Tabs, TabsContent, TabsList, TabsTrigger } from './Tabs';
+export type { TextareaProps } from './Textarea';
+// Textarea
+export { Textarea } from './Textarea';
+// Tooltip
 export {
-  Accordion,
-  AccordionItem,
-  AccordionTrigger,
-  AccordionContent,
-} from "./Accordion";
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from './Tooltip';
+export { TurnstileWidget } from './turnstile-widget';

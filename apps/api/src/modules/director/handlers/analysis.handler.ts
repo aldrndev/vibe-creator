@@ -12,17 +12,17 @@
  * Idempotent: Yes (checks for existing completion)
  */
 
-import { Job } from "bullmq";
-import { join } from "path";
-import { unlink, mkdir } from "fs/promises";
-import { existsSync } from "fs";
-import { prisma } from "@/lib/prisma";
-import { logger } from "@/lib/logger";
-import { env } from "@/config/env";
-import { DirectorAnalysisJobData } from "../director.queue";
-import { directorProcessor } from "../director.processor";
+import { existsSync } from 'node:fs';
+import { mkdir, unlink } from 'node:fs/promises';
+import { join } from 'node:path';
+import type { Job } from 'bullmq';
+import { env } from '@/config/env';
+import { logger } from '@/lib/logger';
+import { prisma } from '@/lib/prisma';
+import { directorProcessor } from '../director.processor';
+import type { DirectorAnalysisJobData } from '../director.queue';
 
-const TEMP_DIR = join(env.MEDIA_INPUT_DIR, "temp");
+const TEMP_DIR = join(env.MEDIA_INPUT_DIR, 'temp');
 
 /**
  * Processes a video analysis job for the AI Director.
@@ -46,7 +46,7 @@ export async function processAnalysisJob(job: Job<DirectorAnalysisJobData>) {
   const { sessionId, assetId, filePath } = job.data;
   const logCtx = { jobId: job.id, sessionId, assetId };
 
-  logger.info(logCtx, "Starting analysis job");
+  logger.info(logCtx, 'Starting analysis job');
 
   const session = await prisma.directorSession.findUnique({
     where: { id: sessionId },
@@ -57,9 +57,9 @@ export async function processAnalysisJob(job: Job<DirectorAnalysisJobData>) {
     throw new Error(`Session not found: ${sessionId}`);
   }
 
-  const existingJob = session.analysisJob?.status === "COMPLETED";
+  const existingJob = session.analysisJob?.status === 'COMPLETED';
   if (existingJob) {
-    logger.info(logCtx, "Analysis already completed for session");
+    logger.info(logCtx, 'Analysis already completed for session');
     return;
   }
 
@@ -68,10 +68,10 @@ export async function processAnalysisJob(job: Job<DirectorAnalysisJobData>) {
   if (dbJob) {
     await prisma.directorAnalysisJob.update({
       where: { id: dbJob.id },
-      data: { status: "PROCESSING" },
+      data: { status: 'PROCESSING' },
     });
   } else {
-    logger.warn(logCtx, "No analysis job record found in session");
+    logger.warn(logCtx, 'No analysis job record found in session');
   }
 
   let audioProxyPath: string | null = null;
@@ -81,15 +81,12 @@ export async function processAnalysisJob(job: Job<DirectorAnalysisJobData>) {
       throw new Error(`Asset file missing at path: ${filePath}`);
     }
 
-    const previewDir = join(env.MEDIA_INPUT_DIR, "director", "previews");
+    const previewDir = join(env.MEDIA_INPUT_DIR, 'director', 'previews');
     if (!existsSync(previewDir)) {
       await mkdir(previewDir, { recursive: true });
     }
 
-    audioProxyPath = await directorProcessor.extractAudioProxy(
-      filePath,
-      TEMP_DIR
-    );
+    audioProxyPath = await directorProcessor.extractAudioProxy(filePath, TEMP_DIR);
 
     const segments = await directorProcessor.detectSegments(audioProxyPath);
 
@@ -97,13 +94,10 @@ export async function processAnalysisJob(job: Job<DirectorAnalysisJobData>) {
       segments,
       audioProxyPath,
       {},
-      filePath
+      filePath,
     );
 
-    logger.info(
-      { ...logCtx, candidatesCount: candidates.length },
-      "Analysis complete"
-    );
+    logger.info({ ...logCtx, candidatesCount: candidates.length }, 'Analysis complete');
 
     await prisma.$transaction(
       async (tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0]) => {
@@ -111,7 +105,7 @@ export async function processAnalysisJob(job: Job<DirectorAnalysisJobData>) {
           await tx.directorAnalysisJob.update({
             where: { id: dbJob.id },
             data: {
-              status: "COMPLETED",
+              status: 'COMPLETED',
               completedAt: new Date(),
             },
           });
@@ -126,30 +120,27 @@ export async function processAnalysisJob(job: Job<DirectorAnalysisJobData>) {
               try {
                 const previewFile = await directorProcessor.generateClipPreview(
                   filePath,
-                  join(env.MEDIA_INPUT_DIR, "director", "previews"),
-                  midPointMs
+                  join(env.MEDIA_INPUT_DIR, 'director', 'previews'),
+                  midPointMs,
                 );
 
                 if (previewFile) {
                   previewKey = `director/previews/${previewFile}`;
                 }
               } catch (err) {
-                logger.warn(
-                  { err, candidateIndex: i },
-                  "Failed to generate thumbnail preview"
-                );
+                logger.warn({ err, candidateIndex: i }, 'Failed to generate thumbnail preview');
               }
 
               return {
-                analysisJobId: dbJob!.id,
+                analysisJobId: dbJob?.id,
                 startMs: Math.round(c.start * 1000),
                 endMs: Math.round(c.end * 1000),
                 score: c.score,
                 rank: i + 1,
-                tags: c.tags && c.tags.length > 0 ? c.tags : ["highlight"],
+                tags: c.tags && c.tags.length > 0 ? c.tags : ['highlight'],
                 previewStorageKey: previewKey,
               };
-            })
+            }),
           );
 
           await tx.directorClipCandidate.createMany({
@@ -159,19 +150,19 @@ export async function processAnalysisJob(job: Job<DirectorAnalysisJobData>) {
 
         await tx.directorSession.update({
           where: { id: sessionId },
-          data: { step: "PICKING" },
+          data: { step: 'PICKING' },
         });
-      }
+      },
     );
   } catch (err) {
-    logger.error({ ...logCtx, err }, "Analysis job failed");
+    logger.error({ ...logCtx, err }, 'Analysis job failed');
 
     if (dbJob) {
       await prisma.directorAnalysisJob.update({
         where: { id: dbJob.id },
         data: {
-          status: "FAILED",
-          errorMessage: err instanceof Error ? err.message : "Unknown error",
+          status: 'FAILED',
+          errorMessage: err instanceof Error ? err.message : 'Unknown error',
         },
       });
     }
@@ -180,9 +171,9 @@ export async function processAnalysisJob(job: Job<DirectorAnalysisJobData>) {
     if (audioProxyPath && existsSync(audioProxyPath)) {
       try {
         await unlink(audioProxyPath);
-        logger.debug(logCtx, "Cleaned up audio proxy");
+        logger.debug(logCtx, 'Cleaned up audio proxy');
       } catch (cleanupErr) {
-        logger.error({ ...logCtx, cleanupErr }, "Failed to cleanup proxy");
+        logger.error({ ...logCtx, cleanupErr }, 'Failed to cleanup proxy');
       }
     }
   }

@@ -1,20 +1,20 @@
-import { prisma } from "@/lib/prisma";
-import { logger } from "@/lib/logger";
-import { env } from "@/config/env";
-import { join } from "path";
-import { existsSync, mkdir } from "fs";
-import { promisify } from "util";
-import { randomUUID } from "crypto";
-
-import { detectPlatform, isDirectVideoUrl, isSoraUrl } from "./download.utils";
-import { downloadMetadataService } from "./services/download.metadata.service";
-import { downloadCobaltService } from "./services/download.cobalt.service";
-import { downloadYtDlpService } from "./services/download.ytdlp.service";
-import { downloadDirectService } from "./services/download.direct.service";
-import { downloadSoraService } from "./services/download.sora.service";
+import { randomUUID } from 'node:crypto';
+import { existsSync, mkdir } from 'node:fs';
+import { join } from 'node:path';
+import { promisify } from 'node:util';
+import { env } from '@/config/env';
+import { logger } from '@/lib/logger';
+import { prisma } from '@/lib/prisma';
+import { assertSafeUrl } from '@/utils/ssrf';
+import { detectPlatform, isDirectVideoUrl, isSoraUrl } from './download.utils';
+import { downloadCobaltService } from './services/download.cobalt.service';
+import { downloadDirectService } from './services/download.direct.service';
+import { downloadMetadataService } from './services/download.metadata.service';
+import { downloadSoraService } from './services/download.sora.service';
+import { downloadYtDlpService } from './services/download.ytdlp.service';
 
 const mkdirAsync = promisify(mkdir);
-const DOWNLOADS_DIR = join(env.MEDIA_INPUT_DIR, "downloads");
+const DOWNLOADS_DIR = join(env.MEDIA_INPUT_DIR, 'downloads');
 
 // Ensure downloads directory exists
 async function ensureDownloadsDir() {
@@ -36,9 +36,7 @@ export const downloadService = {
   /**
    * Get video metadata (duration, title) without downloading
    */
-  async getVideoMetadata(
-    url: string
-  ): Promise<{ duration: number; title: string; size?: number }> {
+  async getVideoMetadata(url: string): Promise<{ duration: number; title: string; size?: number }> {
     return downloadMetadataService.getVideoMetadata(url);
   },
 
@@ -48,20 +46,20 @@ export const downloadService = {
   async createJob(input: CreateDownloadJobInput) {
     const { userId, sourceUrl } = input;
 
+    await assertSafeUrl(sourceUrl);
+
     // Check rate limit (max 5 pending downloads per user)
     const pendingJobs = await prisma.downloadJob.count({
       where: {
         userId,
         status: {
-          in: ["PENDING", "DOWNLOADING"],
+          in: ['PENDING', 'DOWNLOADING'],
         },
       },
     });
 
     if (pendingJobs >= 5) {
-      throw new Error(
-        "Too many pending downloads. Please wait for current downloads to complete."
-      );
+      throw new Error('Too many pending downloads. Please wait for current downloads to complete.');
     }
 
     const platform = detectPlatform(sourceUrl);
@@ -71,13 +69,13 @@ export const downloadService = {
         userId,
         sourceUrl,
         platform,
-        status: "PENDING",
+        status: 'PENDING',
       },
     });
 
     // Start processing in background
     this.processJob(job.id).catch((err) => {
-      logger.error({ err, jobId: job.id }, "Download job failed");
+      logger.error({ err, jobId: job.id }, 'Download job failed');
     });
 
     return job;
@@ -86,7 +84,7 @@ export const downloadService = {
   /**
    * Get job status
    */
-  async getJobStatus(jobId: string, userId: string) {
+  async getOwnedJob(jobId: string, userId: string) {
     const job = await prisma.downloadJob.findFirst({
       where: {
         id: jobId,
@@ -95,8 +93,17 @@ export const downloadService = {
     });
 
     if (!job) {
-      throw new Error("Download job not found");
+      throw new Error('Download job not found');
     }
+
+    return job;
+  },
+
+  /**
+   * Get job status
+   */
+  async getJobStatus(jobId: string, userId: string) {
+    const job = await this.getOwnedJob(jobId, userId);
 
     return {
       id: job.id,
@@ -104,7 +111,6 @@ export const downloadService = {
       platform: job.platform,
       title: job.title,
       sourceUrl: job.sourceUrl,
-      localPath: job.localPath,
       errorMessage: job.errorMessage,
       completedAt: job.completedAt,
     };
@@ -123,21 +129,18 @@ export const downloadService = {
 
     if (!job) {
       // Job already deleted or not found - treat as success
-      logger.info({ jobId }, "Job already deleted or not found");
+      logger.info({ jobId }, 'Job already deleted or not found');
       return { deleted: true };
     }
 
     // Delete file if exists
     if (job.localPath && existsSync(job.localPath)) {
-      const { unlink } = await import("fs/promises");
+      const { unlink } = await import('node:fs/promises');
       try {
         await unlink(job.localPath);
-        logger.info(
-          { jobId, localPath: job.localPath },
-          "Deleted download file"
-        );
+        logger.info({ jobId, localPath: job.localPath }, 'Deleted download file');
       } catch (err) {
-        logger.warn({ jobId, err }, "Failed to delete download file");
+        logger.warn({ jobId, err }, 'Failed to delete download file');
       }
     }
 
@@ -155,11 +158,11 @@ export const downloadService = {
   async downloadVideo(
     url: string,
     outputPath: string,
-    onProgress?: (percent: number) => void
+    onProgress?: (percent: number) => void,
   ): Promise<{ title: string; metadata: Record<string, unknown> }> {
     // Check if it's a Sora video URL (prioritize Sora handler)
     if (isSoraUrl(url)) {
-      logger.info({ url }, "Downloading Sora video via multi-CDN fallback");
+      logger.info({ url }, 'Downloading Sora video via multi-CDN fallback');
       if (onProgress) onProgress(10);
       const res = await downloadSoraService.downloadSoraVideo(url, outputPath);
       if (onProgress) onProgress(100);
@@ -168,41 +171,29 @@ export const downloadService = {
 
     // Check if it's a direct video URL
     if (isDirectVideoUrl(url)) {
-      logger.info({ url }, "Downloading direct video URL");
-      return await downloadDirectService.downloadDirectUrl(
-        url,
-        outputPath,
-        onProgress
-      );
+      logger.info({ url }, 'Downloading direct video URL');
+      return await downloadDirectService.downloadDirectUrl(url, outputPath, onProgress);
     }
 
     if (env.COBALT_API_URL) {
       // Use self-hosted Cobalt API if configured
       try {
-        logger.info(
-          { url, cobaltUrl: env.COBALT_API_URL },
-          "Downloading with Cobalt API"
-        );
-        return await downloadCobaltService.runCobalt(
-          url,
-          outputPath,
-          onProgress
-        );
+        logger.info({ url, cobaltUrl: env.COBALT_API_URL }, 'Downloading with Cobalt API');
+        return await downloadCobaltService.runCobalt(url, outputPath, onProgress);
       } catch (cobaltError) {
         // Fallback to yt-dlp if Cobalt fails
         logger.warn(
           {
-            error:
-              cobaltError instanceof Error ? cobaltError.message : "Unknown",
+            error: cobaltError instanceof Error ? cobaltError.message : 'Unknown',
           },
-          "Cobalt failed, falling back to yt-dlp"
+          'Cobalt failed, falling back to yt-dlp',
         );
         return await downloadYtDlpService.runYtDlp(url, outputPath, onProgress);
       }
     }
 
     // No Cobalt configured, use yt-dlp directly
-    logger.info({ url }, "Downloading with yt-dlp");
+    logger.info({ url }, 'Downloading with yt-dlp');
     return await downloadYtDlpService.runYtDlp(url, outputPath, onProgress);
   },
 
@@ -215,7 +206,7 @@ export const downloadService = {
     // Update status to downloading
     await prisma.downloadJob.update({
       where: { id: jobId },
-      data: { status: "DOWNLOADING" },
+      data: { status: 'DOWNLOADING' },
     });
 
     try {
@@ -224,21 +215,19 @@ export const downloadService = {
       });
 
       if (!job) {
-        throw new Error("Job not found");
+        throw new Error('Job not found');
       }
 
       const outputId = randomUUID();
       const outputPath = join(DOWNLOADS_DIR, `${outputId}.mp4`);
 
-      let result: { title: string; metadata: Record<string, unknown> };
-
-      result = await this.downloadVideo(job.sourceUrl, outputPath);
+      const result = await this.downloadVideo(job.sourceUrl, outputPath);
 
       // Mark as completed
       await prisma.downloadJob.update({
         where: { id: jobId },
         data: {
-          status: "COMPLETED",
+          status: 'COMPLETED',
           title: result.title,
           localPath: outputPath,
           metadata: result.metadata as Record<string, string>,
@@ -246,16 +235,16 @@ export const downloadService = {
         },
       });
 
-      logger.info({ jobId, output: outputPath }, "Download completed");
+      logger.info({ jobId, output: outputPath }, 'Download completed');
     } catch (err) {
-      logger.error({ err, jobId }, "Download processing failed");
+      logger.error({ err, jobId }, 'Download processing failed');
 
       // Delete the failed record - only successful downloads are kept
       await prisma.downloadJob.delete({
         where: { id: jobId },
       });
 
-      logger.info({ jobId }, "Deleted failed download job");
+      logger.info({ jobId }, 'Deleted failed download job');
     }
   },
 
@@ -268,9 +257,10 @@ export const downloadService = {
     // Cursor pagination
     if (cursor) {
       try {
-        const decoded = JSON.parse(
-          Buffer.from(cursor, "base64url").toString("utf8")
-        ) as { id: string; ts: string };
+        const decoded = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')) as {
+          id: string;
+          ts: string;
+        };
         const cursorDate = new Date(decoded.ts);
         cursorWhere = {
           OR: [
@@ -285,7 +275,7 @@ export const downloadService = {
 
     const jobs = await prisma.downloadJob.findMany({
       where: { userId, ...cursorWhere },
-      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: limit + 1,
     });
 
@@ -298,8 +288,8 @@ export const downloadService = {
             JSON.stringify({
               id: lastItem.id,
               ts: lastItem.createdAt.toISOString(),
-            })
-          ).toString("base64url")
+            }),
+          ).toString('base64url')
         : null;
 
     return {

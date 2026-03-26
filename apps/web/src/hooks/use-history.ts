@@ -1,5 +1,5 @@
-import { useCallback, useRef, useEffect, useState } from "react";
-import { useEditorStore } from "@/stores/editor-store";
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEditorStore } from '@/stores/editor-store';
 
 // Performance constants
 const MAX_HISTORY_SIZE_MB = 10;
@@ -8,13 +8,13 @@ const MEMORY_CHECK_INTERVAL = 5000;
 
 interface HistoryCommand {
   type:
-    | "ADD_CLIP"
-    | "REMOVE_CLIP"
-    | "MOVE_CLIP"
-    | "ADD_TEXT"
-    | "REMOVE_TEXT"
-    | "ADD_TRACK"
-    | "REMOVE_TRACK";
+    | 'ADD_CLIP'
+    | 'REMOVE_CLIP'
+    | 'MOVE_CLIP'
+    | 'ADD_TEXT'
+    | 'REMOVE_TEXT'
+    | 'ADD_TRACK'
+    | 'REMOVE_TRACK';
   payload: unknown;
   undo: () => void;
   redo: () => void;
@@ -22,9 +22,9 @@ interface HistoryCommand {
 }
 
 interface EditorSnapshot {
-  timeline: ReturnType<typeof useEditorStore.getState>["timeline"];
-  textOverlays: ReturnType<typeof useEditorStore.getState>["textOverlays"];
-  assets: ReturnType<typeof useEditorStore.getState>["assets"];
+  timeline: ReturnType<typeof useEditorStore.getState>['timeline'];
+  textOverlays: ReturnType<typeof useEditorStore.getState>['textOverlays'];
+  assets: ReturnType<typeof useEditorStore.getState>['assets'];
   timestamp: number;
   sizeBytes: number;
 }
@@ -34,7 +34,7 @@ interface UseHistoryReturn {
   canRedo: boolean;
   undo: () => void;
   redo: () => void;
-  pushCommand: (command: Omit<HistoryCommand, "timestamp">) => void;
+  pushCommand: (command: Omit<HistoryCommand, 'timestamp'>) => void;
   saveSnapshot: () => void;
   clearHistory: () => void;
   historySize: number;
@@ -69,16 +69,13 @@ export function useHistory(): UseHistoryReturn {
   const trimHistoryToMemoryLimit = useCallback(() => {
     const maxBytes = MAX_HISTORY_SIZE_MB * 1024 * 1024;
 
-    while (
-      totalMemoryBytes.current > maxBytes &&
-      snapshotHistory.current.length > 1
-    ) {
+    while (totalMemoryBytes.current > maxBytes && snapshotHistory.current.length > 1) {
       const removed = snapshotHistory.current.shift();
       if (removed) {
         totalMemoryBytes.current -= removed.sizeBytes;
       }
     }
-  }, [totalMemoryBytes]);
+  }, []);
 
   // Save current state as snapshot
   const saveSnapshot = useCallback(() => {
@@ -111,7 +108,7 @@ export function useHistory(): UseHistoryReturn {
 
   // Push a command for structural changes
   const pushCommand = useCallback(
-    (cmd: Omit<HistoryCommand, "timestamp">) => {
+    (cmd: Omit<HistoryCommand, 'timestamp'>) => {
       const command: HistoryCommand = {
         ...cmd,
         timestamp: Date.now(),
@@ -123,7 +120,7 @@ export function useHistory(): UseHistoryReturn {
       // Also save snapshot for safety
       saveSnapshot();
     },
-    [saveSnapshot]
+    [saveSnapshot],
   );
 
   // Undo last action
@@ -147,8 +144,7 @@ export function useHistory(): UseHistoryReturn {
         totalMemoryBytes.current -= current.sizeBytes;
       }
 
-      const previous =
-        snapshotHistory.current[snapshotHistory.current.length - 1];
+      const previous = snapshotHistory.current[snapshotHistory.current.length - 1];
       if (previous) {
         // Restore state - this is a partial restore
         useEditorStore.setState({
@@ -202,34 +198,31 @@ export function useHistory(): UseHistoryReturn {
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (
-        e.target instanceof HTMLInputElement ||
-        e.target instanceof HTMLTextAreaElement
-      ) {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
         return;
       }
 
       // Cmd/Ctrl + Z = Undo
-      if ((e.metaKey || e.ctrlKey) && e.key === "z" && !e.shiftKey) {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey) {
         e.preventDefault();
         undo();
       }
 
       // Cmd/Ctrl + Shift + Z = Redo
-      if ((e.metaKey || e.ctrlKey) && e.key === "z" && e.shiftKey) {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'z' && e.shiftKey) {
         e.preventDefault();
         redo();
       }
 
       // Cmd/Ctrl + Y = Redo (Windows style)
-      if ((e.metaKey || e.ctrlKey) && e.key === "y") {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'y') {
         e.preventDefault();
         redo();
       }
     };
 
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, [undo, redo]);
 
   // Periodic memory check
@@ -242,10 +235,8 @@ export function useHistory(): UseHistoryReturn {
   }, [trimHistoryToMemoryLimit]);
 
   return {
-    canUndo:
-      commandHistory.current.length > 0 || snapshotHistory.current.length > 1,
-    canRedo:
-      commandFuture.current.length > 0 || snapshotFuture.current.length > 0,
+    canUndo: commandHistory.current.length > 0 || snapshotHistory.current.length > 1,
+    canRedo: commandFuture.current.length > 0 || snapshotFuture.current.length > 0,
     undo,
     redo,
     pushCommand,

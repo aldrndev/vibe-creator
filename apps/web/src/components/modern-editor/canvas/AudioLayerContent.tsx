@@ -1,6 +1,6 @@
-import { useRef, useEffect } from "react";
-import { useModernEditorStore } from "@/stores/modern-editor-store";
-import type { AudioLayer } from "@vibe-creator/shared";
+import type { AudioLayer } from '@vibe-creator/shared';
+import { useEffect, useRef } from 'react';
+import { useModernEditorStore } from '@/stores/modern-editor-store';
 
 interface AudioLayerContentProps {
   layer: AudioLayer;
@@ -8,11 +8,7 @@ interface AudioLayerContentProps {
   layerStartMs: number;
 }
 
-export function AudioLayerContent({
-  layer,
-  assets,
-  layerStartMs,
-}: AudioLayerContentProps) {
+export function AudioLayerContent({ layer, assets, layerStartMs }: AudioLayerContentProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const { isPlaying, currentTimeMs } = useModernEditorStore();
   const asset = assets.find((a) => a.id === layer.assetId);
@@ -49,5 +45,9 @@ export function AudioLayerContent({
 
   if (!asset) return null;
 
-  return <audio ref={audioRef} src={asset.url} />;
+  return (
+    <audio ref={audioRef} src={asset.url}>
+      <track kind="captions" label="Decorative audio layer" />
+    </audio>
+  );
 }

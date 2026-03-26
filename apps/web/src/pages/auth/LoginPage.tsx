@@ -1,14 +1,11 @@
-import { Link, useNavigate } from "react-router-dom";
-import { Button, Input } from "@/components/ui";
-import { useForm } from "react-hook-form";
-import { Eye, EyeOff, Mail, Lock, LogIn, AlertCircle } from "lucide-react";
-import { useState, useRef } from "react";
-import { api } from "@/services/api";
-import { useAuthStore } from "@/stores/auth-store";
-import {
-  TurnstileWidget,
-  type TurnstileWidgetRef,
-} from "@/components/ui/turnstile-widget";
+import { AlertCircle, Eye, EyeOff, Lock, LogIn, Mail } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { Link, useNavigate } from 'react-router-dom';
+import { Button, Input } from '@/components/ui';
+import { TurnstileWidget, type TurnstileWidgetRef } from '@/components/ui/turnstile-widget';
+import { api } from '@/services/api';
+import { useAuthStore } from '@/stores/auth-store';
 
 interface AuthApiResponse {
   user: {
@@ -16,11 +13,11 @@ interface AuthApiResponse {
     email: string;
     name: string;
     avatarUrl: string | null;
-    role: "USER" | "ADMIN";
+    role: 'USER' | 'ADMIN';
   };
   subscription: {
-    tier: "FREE" | "CREATOR" | "PRO";
-    status: "ACTIVE" | "EXPIRED" | "CANCELLED";
+    tier: 'FREE' | 'CREATOR' | 'PRO';
+    status: 'ACTIVE' | 'EXPIRED' | 'CANCELLED';
     exportsUsed: number;
     exportsLimit: number;
     validUntil: string | null;
@@ -53,27 +50,27 @@ export function LoginPage() {
     setErrorMessage(null);
 
     if (!turnstileToken) {
-      setErrorMessage("Harap selesaikan verifikasi captcha");
+      setErrorMessage('Harap selesaikan verifikasi captcha');
       return;
     }
 
     setIsLoading(true);
     try {
-      const response = await api.post<AuthApiResponse>("/auth/login", {
+      const response = await api.post<AuthApiResponse>('/auth/login', {
         ...data,
         turnstileToken,
       });
 
       if (response.success) {
         setAuth(response.data);
-        navigate("/dashboard");
+        navigate('/dashboard');
       } else {
         setErrorMessage(response.error.message);
         turnstileRef.current?.reset();
         setTurnstileToken(undefined);
       }
     } catch {
-      setErrorMessage("Terjadi kesalahan. Silakan coba lagi.");
+      setErrorMessage('Terjadi kesalahan. Silakan coba lagi.');
       turnstileRef.current?.reset();
       setTurnstileToken(undefined);
     } finally {
@@ -84,9 +81,7 @@ export function LoginPage() {
   return (
     <div>
       <div className="mb-10 text-center sm:text-left">
-        <h1 className="text-3xl font-black tracking-tight mb-2">
-          Selamat Datang Kembali
-        </h1>
+        <h1 className="text-3xl font-black tracking-tight mb-2">Selamat Datang Kembali</h1>
         <p className="text-muted-foreground font-medium">
           Masuk ke akun kamu untuk melanjutkan petualangan kreatif.
         </p>
@@ -107,18 +102,18 @@ export function LoginPage() {
           placeholder="nama@email.com"
           leftIcon={<Mail size={20} />}
           error={errors.email?.message}
-          {...register("email", {
-            required: "Email diperlukan",
+          {...register('email', {
+            required: 'Email diperlukan',
             pattern: {
               value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
-              message: "Email tidak valid",
+              message: 'Email tidak valid',
             },
           })}
         />
 
         <Input
           label="Password"
-          type={showPassword ? "text" : "password"}
+          type={showPassword ? 'text' : 'password'}
           placeholder="Masukkan password"
           leftIcon={<Lock size={20} />}
           rightIcon={
@@ -131,8 +126,8 @@ export function LoginPage() {
             </button>
           }
           error={errors.password?.message}
-          {...register("password", {
-            required: "Password diperlukan",
+          {...register('password', {
+            required: 'Password diperlukan',
           })}
         />
 
@@ -155,7 +150,7 @@ export function LoginPage() {
       </form>
 
       <p className="mt-8 text-center text-sm font-medium text-muted-foreground">
-        Belum punya akun?{" "}
+        Belum punya akun?{' '}
         <Link to="/register" className="text-primary font-bold hover:underline">
           Daftar sekarang
         </Link>

@@ -1,4 +1,4 @@
-declare module "google-trends-api" {
+declare module 'google-trends-api' {
   interface TrendOptions {
     geo?: string;
     trendDate?: Date;

@@ -3,7 +3,7 @@
  * Centralized authorization and business rules for Director module
  */
 
-import { DirectorSession } from "@prisma/client";
+import type { DirectorSession } from '@prisma/client';
 
 export const directorPolicy = {
   /**
@@ -25,7 +25,7 @@ export const directorPolicy = {
    * Verify if analysis can be started
    */
   canAnalyze(session: DirectorSession): boolean {
-    return !!(session.step === "IMPORT" || session.step === "ANALYZING");
+    return !!(session.step === 'IMPORT' || session.step === 'ANALYZING');
   },
 
   /**
@@ -41,9 +41,7 @@ export const directorPolicy = {
    */
   canExport(session: DirectorSession): boolean {
     return (
-      session.step === "EDITING" ||
-      session.step === "EXPORTING" ||
-      session.step === "COMPLETED"
+      session.step === 'EDITING' || session.step === 'EXPORTING' || session.step === 'COMPLETED'
     );
   },
 };
