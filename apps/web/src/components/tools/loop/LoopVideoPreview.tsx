@@ -74,13 +74,13 @@ export function LoopVideoPreview({
             className="aspect-video bg-muted/20 rounded-4xl flex flex-col items-center justify-center cursor-pointer hover:bg-muted/30 transition-all duration-300 border-2 border-dashed border-border/50 hover:border-primary/50 group"
             onClick={handleSelectVideo}
           >
-            <div className="w-20 h-20 rounded-3xl bg-primary/10 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform group-hover:bg-primary/20">
+            <div className="w-20 h-20 rounded-3xl bg-primary/10 flex items-center justify-center mt-4 mb-6 group-hover:scale-110 transition-transform group-hover:bg-primary/20">
               <Upload size={32} className="text-primary" />
             </div>
             <p className="text-foreground font-black tracking-tight text-lg">
               Klik untuk upload video
             </p>
-            <p className="text-muted-foreground text-sm mt-1 font-medium">
+            <p className="text-muted-foreground text-sm font-medium p-5">
               {LOOP_VIDEO_LIMIT_LABEL}
             </p>
           </button>

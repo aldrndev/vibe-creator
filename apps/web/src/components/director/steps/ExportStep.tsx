@@ -1,6 +1,7 @@
 import { AlertCircle, CheckCircle2, Download, RotateCcw } from 'lucide-react';
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Button, Card, CardBody, Spinner } from '@/components/ui';
+import { useAuthenticatedObjectUrl } from '@/hooks/use-authenticated-object-url';
 import { logger } from '@/lib/logger';
 import { authFetch, downloadAuthenticatedFile } from '@/services/api';
 import { useDirectorStore } from '@/stores/director-store';
@@ -54,8 +55,14 @@ function ExportStatusPanel({ isCompleted, isFailed, errorMessage }: ExportStatus
 }
 
 export const ExportStep = () => {
+  const [downloadError, setDownloadError] = useState<string | null>(null);
   const { activeSession, exportJob, setExportJob, reset, step } = useDirectorStore();
   const isTerminalStatus = exportJob?.status === 'COMPLETED' || exportJob?.status === 'FAILED';
+  const exportPreviewUrl = useAuthenticatedObjectUrl(
+    activeSession && exportJob?.status === 'COMPLETED' && exportJob.outputUrl
+      ? exportJob.outputUrl
+      : null,
+  );
 
   const pollExportStatus = useCallback(async () => {
     if (!activeSession) {
@@ -123,12 +130,14 @@ export const ExportStep = () => {
     }
 
     try {
+      setDownloadError(null);
       await downloadAuthenticatedFile(
         exportJob.outputUrl,
         `director-export-${activeSession?.id ?? Date.now()}.mp4`,
       );
     } catch (error) {
       logger.error('Director export download failed', error);
+      setDownloadError('File export sudah selesai dibuat, tetapi unduhan gagal dibuka.');
     }
   };
 
@@ -153,17 +162,36 @@ export const ExportStep = () => {
             errorMessage={exportJob.errorMessage}
           />
 
+          {downloadError ? (
+            <div className="flex w-full items-center gap-2 rounded-2xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-500">
+              <AlertCircle size={18} className="shrink-0" />
+              <span className="font-semibold text-left">{downloadError}</span>
+            </div>
+          ) : null}
+
           {isCompleted && exportJob.outputUrl && (
-            <div className="w-full aspect-9/16 max-w-[280px] rounded-4xl overflow-hidden border border-border/50 shadow-2xl relative bg-linear-to-br from-emerald-500/10 via-background to-primary/10 flex items-center justify-center">
-              <div className="text-center space-y-3 px-6">
-                <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto" />
-                <div>
-                  <p className="text-sm font-bold text-foreground">File siap diunduh</p>
-                  <p className="text-xs text-muted-foreground">
-                    Preview inline dimatikan untuk menghindari auth di URL.
-                  </p>
+            <div className="w-full aspect-9/16 max-w-70 rounded-4xl overflow-hidden border border-border/50 shadow-2xl relative bg-black flex items-center justify-center">
+              {exportPreviewUrl ? (
+                <video
+                  src={exportPreviewUrl}
+                  controls
+                  playsInline
+                  preload="metadata"
+                  className="h-full w-full object-contain bg-black"
+                >
+                  <track kind="captions" label="Preview hasil ekspor" />
+                </video>
+              ) : (
+                <div className="text-center space-y-3 px-6">
+                  <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto" />
+                  <div>
+                    <p className="text-sm font-bold text-foreground">Menyiapkan preview video</p>
+                    <p className="text-xs text-muted-foreground">
+                      Hasil ekspor sudah siap dan sedang dimuat untuk dipreview.
+                    </p>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           )}
 

@@ -8,6 +8,8 @@ FROM node:20-slim AS base
 WORKDIR /app
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
+ARG DATABASE_URL=postgresql://postgres:postgres@localhost:5432/vibe_creator?schema=public
+ENV DATABASE_URL="${DATABASE_URL}"
 RUN corepack enable
 
 # Install system dependencies (ffmpeg, python, openssl)
@@ -23,7 +25,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies globally
-RUN pip3 install --no-cache-dir --break-system-packages yt-dlp faster-whisper
+RUN pip3 install --no-cache-dir --break-system-packages yt-dlp faster-whisper opencv-python-headless
 
 # 2. Development Stage (Hot Reload)
 FROM base AS development
@@ -33,6 +35,7 @@ WORKDIR /app
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 COPY packages ./packages
 COPY apps/api/package.json ./apps/api/
+COPY apps/web/package.json ./apps/web/
 COPY apps/api/prisma ./apps/api/prisma
 COPY apps/api/prisma.config.ts ./apps/api/prisma.config.ts
 
@@ -60,6 +63,7 @@ WORKDIR /app
 
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 COPY packages ./packages
+COPY apps/web/package.json ./apps/web/
 COPY apps/api ./apps/api
 
 # Install full dependencies for build
@@ -85,6 +89,7 @@ WORKDIR /app
 COPY --from=builder /app/package.json /app/pnpm-lock.yaml /app/pnpm-workspace.yaml ./
 COPY --from=builder /app/packages ./packages
 COPY --from=builder /app/apps/api/package.json ./apps/api/
+COPY --from=builder /app/apps/web/package.json ./apps/web/
 
 # Install PROD dependencies only
 RUN pnpm install --prod --frozen-lockfile
@@ -100,6 +105,7 @@ COPY --from=builder /app/node_modules/.pnpm/@prisma+client*/node_modules/@prisma
 
 # Copy Python Scripts for Transcription
 COPY --from=builder /app/apps/api/src/modules/transcribe/run_whisper.py ./dist/modules/transcribe/
+COPY --from=builder /app/apps/api/src/modules/director/processing/run_face_tracking.py ./dist/modules/director/processing/
 
 
 # Create upload directories & permissions

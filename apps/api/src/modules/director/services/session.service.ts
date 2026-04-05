@@ -5,6 +5,7 @@
 
 import { logger } from '@/lib/logger';
 import { directorRepo } from '../director.repo';
+import { directorAnalysisReuseService } from './analysis-reuse.service';
 
 export const directorSessionService = {
   /**
@@ -25,6 +26,24 @@ export const directorSessionService = {
 
     if (!session) {
       throw new Error('Session not found or not authorized');
+    }
+
+    if (
+      session.analysisJob?.status === 'COMPLETED' &&
+      session.analysisJob.candidates.length === 0 &&
+      session.asset
+    ) {
+      const reusableCandidates = await directorAnalysisReuseService.getReusableCandidates(
+        session.asset,
+      );
+
+      return {
+        ...session,
+        analysisJob: {
+          ...session.analysisJob,
+          candidates: reusableCandidates ?? [],
+        },
+      };
     }
 
     return session;

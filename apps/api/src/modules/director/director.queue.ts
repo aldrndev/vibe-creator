@@ -15,6 +15,7 @@ export interface DirectorTranscribeSessionJobData {
   type: 'TRANSCRIBE_SESSION';
   sessionId: string;
   userId: string;
+  forceRefresh?: boolean;
 }
 
 export interface DirectorTranscribeClipJobData {
@@ -22,6 +23,7 @@ export interface DirectorTranscribeClipJobData {
   sessionId: string;
   selectedClipId: string;
   userId: string;
+  forceRefresh?: boolean;
 }
 
 export type DirectorJobData =
@@ -36,9 +38,27 @@ export interface DirectorExportJobData {
   userId: string;
   options: {
     includeSubtitles?: boolean;
+    normalizeAudio?: boolean;
     aspectRatio?: '9:16' | '16:9' | '1:1';
     quality?: '720p' | '1080p';
+    refineSettings?: Record<
+      string,
+      {
+        faceTracking?: boolean;
+        removeSilence?: boolean;
+        optimizeHook?: boolean;
+        stabilize?: boolean;
+      }
+    >;
   };
+}
+
+export function buildDirectorQueueJobId(...parts: Array<string | number>): string {
+  return parts
+    .map((part) => String(part).trim())
+    .filter(Boolean)
+    .join('-')
+    .replace(/[^a-zA-Z0-9_-]+/g, '-');
 }
 
 /**

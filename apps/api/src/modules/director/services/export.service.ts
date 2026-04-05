@@ -5,7 +5,7 @@
 
 import { DirectorJobStatus, DirectorStep } from '@prisma/client';
 import { logger } from '@/lib/logger';
-import { directorQueue } from '../director.queue';
+import { buildDirectorQueueJobId, directorQueue } from '../director.queue';
 import { directorRepo } from '../director.repo';
 
 export const directorExportService = {
@@ -19,6 +19,16 @@ export const directorExportService = {
       aspectRatio?: string;
       quality?: string;
       includeSubtitles?: boolean;
+      normalizeAudio?: boolean;
+      refineSettings?: Record<
+        string,
+        {
+          faceTracking?: boolean;
+          removeSilence?: boolean;
+          optimizeHook?: boolean;
+          stabilize?: boolean;
+        }
+      >;
     },
   ) {
     const session = await directorRepo.findSession(sessionId, userId);
@@ -63,12 +73,14 @@ export const directorExportService = {
         userId,
         options: {
           includeSubtitles: job.includeSubtitles,
+          normalizeAudio: options.normalizeAudio ?? true,
           aspectRatio: job.aspectRatio as '9:16' | '16:9' | '1:1',
           quality: job.quality as '720p' | '1080p',
+          refineSettings: options.refineSettings,
         },
       },
       {
-        jobId: `director:export:${job.id}`,
+        jobId: buildDirectorQueueJobId('director', 'export', job.id),
         removeOnComplete: true,
       },
     );

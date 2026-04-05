@@ -4,6 +4,7 @@
  * Business logic for trending feature
  */
 
+import { logger } from '@/lib/logger';
 import { redis } from '@/lib/redis';
 import { youtubeScraper } from './scrapers/youtube.scraper';
 import {
@@ -27,6 +28,60 @@ function getCacheKey(region: string, type?: string, category?: string): string {
   return parts.join(':');
 }
 
+function isRedisReady(): boolean {
+  return redis.status === 'ready';
+}
+
+async function getCachedValue(key: string): Promise<string | null> {
+  if (!isRedisReady()) {
+    return null;
+  }
+
+  try {
+    return await redis.get(key);
+  } catch (error) {
+    logger.warn({ error, key }, 'Trending cache read failed, falling back to database');
+    return null;
+  }
+}
+
+async function setCachedValue(key: string, value: string, ttlSeconds: number): Promise<void> {
+  if (!isRedisReady()) {
+    return;
+  }
+
+  try {
+    await redis.set(key, value, 'EX', ttlSeconds);
+  } catch (error) {
+    logger.warn({ error, key }, 'Trending cache write failed');
+  }
+}
+
+async function deleteCachedValue(key: string): Promise<void> {
+  if (!isRedisReady()) {
+    return;
+  }
+
+  try {
+    await redis.del(key);
+  } catch (error) {
+    logger.warn({ error, key }, 'Trending cache invalidation failed');
+  }
+}
+
+async function cacheKeyExists(key: string): Promise<boolean> {
+  if (!isRedisReady()) {
+    return false;
+  }
+
+  try {
+    return (await redis.exists(key)) === 1;
+  } catch (error) {
+    logger.warn({ error, key }, 'Trending cooldown check failed, allowing request');
+    return false;
+  }
+}
+
 // ============================================================================
 // SERVICE
 // ============================================================================
@@ -41,7 +96,7 @@ export const trendingService = {
     // Cache first page (no cursor) - including filtered results
     if (!cursor) {
       const cacheKey = getCacheKey(region, type, category);
-      const cached = await redis.get(cacheKey);
+      const cached = await getCachedValue(cacheKey);
       if (cached) {
         const parsed = JSON.parse(cached);
         return parsed;
@@ -111,7 +166,7 @@ export const trendingService = {
     // Cache first page (including filtered results)
     if (!cursor && items.length > 0) {
       const cacheKey = getCacheKey(region, type, category);
-      await redis.set(cacheKey, JSON.stringify(result), 'EX', CACHE_CONFIG.FIRST_PAGE_TTL_SECONDS);
+      await setCachedValue(cacheKey, JSON.stringify(result), CACHE_CONFIG.FIRST_PAGE_TTL_SECONDS);
     }
 
     return result;
@@ -159,8 +214,7 @@ export const trendingService = {
    */
   async canRefresh(region: string): Promise<boolean> {
     const key = `trending:cooldown:${region}`;
-    const exists = await redis.exists(key);
-    return exists === 0;
+    return !(await cacheKeyExists(key));
   },
 
   /**
@@ -168,7 +222,7 @@ export const trendingService = {
    */
   async setRefreshCooldown(region: string): Promise<void> {
     const key = `trending:cooldown:${region}`;
-    await redis.set(key, '1', 'EX', REFRESH_COOLDOWN_SECONDS);
+    await setCachedValue(key, '1', REFRESH_COOLDOWN_SECONDS);
   },
 
   /**
@@ -184,7 +238,7 @@ export const trendingService = {
     ];
 
     for (const key of patterns) {
-      await redis.del(key);
+      await deleteCachedValue(key);
     }
   },
 

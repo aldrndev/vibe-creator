@@ -16,6 +16,13 @@ import { Button } from '@/components/ui';
 import { Skeleton } from '@/components/ui/SkeletonLoader';
 import { cn } from '@/lib/utils';
 import type { TrendingItem } from './trending.types';
+import {
+  getFormatLabel,
+  getFreshnessLabel,
+  getMetricSummary,
+  getSignalLabel,
+  getSourceLabel,
+} from './trending-utils';
 
 const THUMBNAIL_FALLBACK_SRC = 'https://placehold.co/600x400/1a1a1a/666?text=No+Thumbnail';
 const THUMBNAIL_DEFAULT_SRC = '/placeholder-image.jpg';
@@ -44,19 +51,12 @@ function getDirectorTopicUrl(title: string): string {
   return `/director?topic=${encodeURIComponent(title)}`;
 }
 
-function getPrimaryMetric(item: TrendingItem, fallback: string): string {
-  const traffic = item.metrics.traffic;
-  if (typeof traffic === 'number' || typeof traffic === 'string') {
-    return String(traffic);
-  }
-  return fallback;
-}
-
 /**
  * Hero card for the top trending item.
  */
 export function TrendingHero({ item }: Readonly<{ item: TrendingItem }>) {
   const navigate = useNavigate();
+  const metric = getMetricSummary(item);
 
   return (
     <div className="relative group overflow-hidden rounded-3xl border border-yellow-500/30 bg-card/50 shadow-2xl shadow-yellow-900/10">
@@ -83,14 +83,23 @@ export function TrendingHero({ item }: Readonly<{ item: TrendingItem }>) {
         <div className="flex-1 space-y-6 pb-2">
           <div className="space-y-3">
             <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs font-semibold text-white backdrop-blur-sm">
+                {getFormatLabel(item)}
+              </span>
               {item.category ? (
                 <span className="rounded-full border border-primary/20 bg-primary/20 px-3 py-1 text-xs font-semibold text-primary backdrop-blur-sm">
                   {item.category}
                 </span>
               ) : null}
-              {item.metrics.traffic ? (
+              <span className="rounded-full border border-white/10 bg-black/30 px-3 py-1 text-xs font-semibold text-white/80 backdrop-blur-sm">
+                {getSourceLabel(item)}
+              </span>
+              <span className="rounded-full border border-white/10 bg-black/30 px-3 py-1 text-xs font-semibold text-white/80 backdrop-blur-sm">
+                {getFreshnessLabel(item.fetchedAt)}
+              </span>
+              {metric.value ? (
                 <span className="flex items-center gap-1.5 rounded-full border border-red-500/20 bg-red-500/10 px-3 py-1 text-xs font-semibold text-red-500 backdrop-blur-sm">
-                  <Flame size={12} className="fill-red-500" /> {getPrimaryMetric(item, '0')} Views
+                  <Flame size={12} className="fill-red-500" /> {metric.value} {metric.label}
                 </span>
               ) : null}
             </div>
@@ -101,6 +110,7 @@ export function TrendingHero({ item }: Readonly<{ item: TrendingItem }>) {
             <p className="text-base text-muted-foreground line-clamp-2 md:w-3/4">
               {item.description}
             </p>
+            <p className="text-sm font-medium text-white/70">{getSignalLabel(item)}</p>
           </div>
 
           <div className="flex flex-wrap items-center gap-4">
@@ -143,6 +153,7 @@ export function TrendingBento({ items }: Readonly<{ items: TrendingItem[] }>) {
         const rank = item.rank ?? index + 2;
         const isSilver = rank === 2;
         const isBronze = rank === 3;
+        const metric = getMetricSummary(item);
 
         return (
           <div
@@ -178,13 +189,20 @@ export function TrendingBento({ items }: Readonly<{ items: TrendingItem[] }>) {
                 <h3 className="text-lg font-bold leading-snug line-clamp-2 transition-colors group-hover:text-primary">
                   {item.title}
                 </h3>
+                <div className="flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-[0.2em] text-muted-foreground/70">
+                  <span>{getFormatLabel(item)}</span>
+                  <span className="h-1 w-1 rounded-full bg-border" />
+                  <span>{getSourceLabel(item)}</span>
+                  <span className="h-1 w-1 rounded-full bg-border" />
+                  <span>{getFreshnessLabel(item.fetchedAt)}</span>
+                </div>
                 <div className="flex items-center gap-2 text-xs text-muted-foreground/80">
                   <span className="flex items-center gap-1">
                     <Flame size={10} className="text-orange-500" />
-                    {getPrimaryMetric(item, 'Rising')}
+                    {metric.value}
                   </span>
                   <span>•</span>
-                  <span>{item.category ?? 'General'}</span>
+                  <span>{item.category ?? metric.label}</span>
                 </div>
               </div>
 
@@ -195,7 +213,7 @@ export function TrendingBento({ items }: Readonly<{ items: TrendingItem[] }>) {
                   className="-ml-2 h-8 px-2 text-xs text-muted-foreground hover:text-primary"
                   onClick={() => navigate(getDirectorTopicUrl(item.title))}
                 >
-                  <Wand2 size={12} className="mr-1.5" /> Use Idea
+                  <Wand2 size={12} className="mr-1.5" /> Pakai Ide
                 </Button>
                 <Button
                   variant="ghost"
@@ -240,10 +258,10 @@ export function TrendingBillboard({ items }: Readonly<{ items: TrendingItem[] }>
       <div className="flex items-center justify-between px-1">
         <h3 className="flex items-center gap-2 text-lg font-bold">
           <Sparkles size={16} className="text-yellow-500" />
-          Top 20 Spotlight
+          Sorotan Top 20
         </h3>
         <div className="flex items-center gap-2">
-          <span className="mr-2 text-xs text-muted-foreground">Rising Fast</span>
+          <span className="mr-2 text-xs text-muted-foreground">Naik Cepat</span>
           <button
             type="button"
             onClick={() => scroll('left')}
@@ -270,6 +288,7 @@ export function TrendingBillboard({ items }: Readonly<{ items: TrendingItem[] }>
         >
           {items.map((item, index) => {
             const rank = item.rank ?? index + 6;
+            const metric = getMetricSummary(item);
 
             return (
               <button
@@ -296,14 +315,22 @@ export function TrendingBillboard({ items }: Readonly<{ items: TrendingItem[] }>
                   <div className="absolute inset-0 bg-linear-to-t from-black/90 via-black/40 to-transparent" />
 
                   <div className="absolute right-0 bottom-0 left-0 p-4">
-                    <div className="mb-2 w-fit rounded border border-primary/20 bg-primary/20 px-2 py-0.5 text-[10px] font-bold text-primary backdrop-blur-sm">
-                      TOP 20
+                    <div className="mb-2 flex flex-wrap items-center gap-2">
+                      <span className="w-fit rounded border border-primary/20 bg-primary/20 px-2 py-0.5 text-[10px] font-bold text-primary backdrop-blur-sm">
+                        TOP 20
+                      </span>
+                      <span className="w-fit rounded border border-white/10 bg-black/30 px-2 py-0.5 text-[10px] font-bold text-white/80 backdrop-blur-sm">
+                        {getFormatLabel(item)}
+                      </span>
                     </div>
                     <h4 className="mb-2 text-sm font-semibold leading-tight text-white line-clamp-3">
                       {item.title}
                     </h4>
                     <div className="flex items-center justify-between text-[10px] text-white/60">
-                      <span>{getPrimaryMetric(item, '0')} views</span>
+                      <span>
+                        {metric.value} {metric.label}
+                      </span>
+                      <span>{getFreshnessLabel(item.fetchedAt)}</span>
                       <Wand2 size={12} className="text-white/80" />
                     </div>
                   </div>
@@ -323,6 +350,7 @@ export function TrendingBillboard({ items }: Readonly<{ items: TrendingItem[] }>
 export function TrendingFeedItem({ item, index }: Readonly<{ item: TrendingItem; index: number }>) {
   const navigate = useNavigate();
   const [copied, setCopied] = useState(false);
+  const metric = getMetricSummary(item);
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(item.title);
@@ -354,11 +382,15 @@ export function TrendingFeedItem({ item, index }: Readonly<{ item: TrendingItem;
         >
           {item.title}
         </button>
-        <div className="mt-2 flex items-center gap-3 text-xs text-muted-foreground/70">
-          <span>{item.category}</span>
+        <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-muted-foreground/70">
+          <span>{getFormatLabel(item)}</span>
+          <span className="h-1 w-1 rounded-full bg-border" />
+          <span>{item.category ?? getSourceLabel(item)}</span>
+          <span className="h-1 w-1 rounded-full bg-border" />
+          <span>{getFreshnessLabel(item.fetchedAt)}</span>
           <span className="h-1 w-1 rounded-full bg-border" />
           <span className="flex items-center gap-1">
-            <Flame size={10} /> {getPrimaryMetric(item, 'Rising')}
+            <Flame size={10} /> {metric.value} {metric.label}
           </span>
         </div>
       </div>

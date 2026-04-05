@@ -5,17 +5,27 @@
 
 import { DirectorJobStatus } from '@prisma/client';
 import { logger } from '@/lib/logger';
-import { directorQueue } from '../director.queue';
+import { redis } from '@/lib/redis';
+import { buildDirectorQueueJobId, directorQueue } from '../director.queue';
 import { directorRepo } from '../director.repo';
+import {
+  buildInitialTranscribeProgressMeta,
+  parseTranscribeProgressMeta,
+  toTranscribeProgressJson,
+} from './transcribe-progress';
 
 type TranscribeJob = NonNullable<Awaited<ReturnType<typeof directorRepo.createTranscribeJob>>>;
+export interface StartTranscribeOptions {
+  forceRefresh?: boolean;
+}
 
 export const directorTranscribeService = {
   /**
    * Start transcription job
    */
-  async startTranscribe(sessionId: string, userId: string) {
+  async startTranscribe(sessionId: string, userId: string, options: StartTranscribeOptions = {}) {
     const session = await directorRepo.findSession(sessionId, userId);
+    const forceRefresh = options.forceRefresh === true;
 
     if (!session) {
       throw new Error('Session not found');
@@ -25,30 +35,44 @@ export const directorTranscribeService = {
       throw new Error('No clips selected');
     }
 
+    if (redis.status !== 'ready') {
+      throw new Error('Transcription queue belum siap. Pastikan Redis aktif lalu coba lagi.');
+    }
+
+    const clipDurationTotalMs = session.selectedClips.reduce(
+      (total, clip) => total + Math.max(0, clip.candidate.endMs - clip.candidate.startMs),
+      0,
+    );
+    const progressMeta = buildInitialTranscribeProgressMeta({
+      clipCount: session.selectedClips.length,
+      clipDurationTotalMs,
+    });
+
     let job: TranscribeJob;
 
     // Check existing job
     if (session.transcribeJob) {
       const status = session.transcribeJob.status;
+      const isActiveStatus =
+        status === DirectorJobStatus.PENDING || status === DirectorJobStatus.PROCESSING;
 
       // If active or completed, return existing
-      if (
-        status === DirectorJobStatus.PENDING ||
-        status === DirectorJobStatus.PROCESSING ||
-        status === DirectorJobStatus.COMPLETED
-      ) {
+      if (isActiveStatus || (!forceRefresh && status === DirectorJobStatus.COMPLETED)) {
         return session.transcribeJob;
       }
 
-      // If FAILED, reset and retry
-      if (status === DirectorJobStatus.FAILED) {
+      // Force refresh or retry failed job by resetting state.
+      if (status === DirectorJobStatus.FAILED || forceRefresh) {
         logger.info(
-          { sessionId, jobId: session.transcribeJob.id },
-          'Retrying failed transcribe job',
+          { sessionId, jobId: session.transcribeJob.id, forceRefresh },
+          'Resetting transcribe job for retry',
         );
         job = await directorRepo.updateTranscribeJob(session.transcribeJob.id, {
           status: DirectorJobStatus.PENDING,
           errorMessage: null,
+          startedAt: null,
+          completedAt: null,
+          segments: toTranscribeProgressJson(progressMeta),
         });
       } else {
         // Should not happen, but safe fallback
@@ -62,11 +86,12 @@ export const directorTranscribeService = {
         idempotencyKey,
         status: DirectorJobStatus.PENDING,
         engine: 'WHISPER_LOCAL',
+        segments: toTranscribeProgressJson(progressMeta),
       });
     }
 
     // Queue BullMQ job
-    const queueJobId = `director:transcribe:${job.id}:${Date.now()}`;
+    const queueJobId = buildDirectorQueueJobId('director', 'transcribe', job.id, Date.now());
 
     await directorQueue.add(
       'transcribe_session',
@@ -74,6 +99,7 @@ export const directorTranscribeService = {
         type: 'TRANSCRIBE_SESSION',
         sessionId,
         userId,
+        forceRefresh,
       },
       {
         jobId: queueJobId,
@@ -99,7 +125,14 @@ export const directorTranscribeService = {
       throw new Error('Session not found');
     }
 
-    return session.transcribeJob || null;
+    if (!session.transcribeJob) {
+      return null;
+    }
+
+    return {
+      ...session.transcribeJob,
+      progressMeta: parseTranscribeProgressMeta(session.transcribeJob.segments),
+    };
   },
 
   /**

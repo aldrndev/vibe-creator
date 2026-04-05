@@ -75,6 +75,7 @@ vi.mock('@/lib/logger', () => ({
 vi.mock('@/config/env', () => ({
   env: {
     MEDIA_INPUT_DIR: '/tmp/test',
+    REDIS_URL: 'redis://localhost:6379',
   },
 }));
 
@@ -173,6 +174,46 @@ describe('director handlers', () => {
       await expect(processTranscribeSessionJob(mockJob)).rejects.toThrow(
         'Session or transcribe job not found',
       );
+    });
+
+    it('marks the parent transcribe job as failed when any clip transcript fails', async () => {
+      const mockDirectorSelectedClipCount = vi.mocked(
+        (await import('@/lib/prisma')).prisma.directorSelectedClip.count,
+      );
+      const mockDirectorClipTranscriptCount = vi.mocked(
+        (await import('@/lib/prisma')).prisma.directorClipTranscript.count,
+      );
+
+      mockFindUnique.mockResolvedValueOnce({ sessionId: 'session-1' }).mockResolvedValueOnce({
+        id: 'session-1',
+        transcribeJob: { id: 'transcribe-1' },
+      });
+      mockDirectorSelectedClipCount.mockResolvedValue(2);
+      mockDirectorClipTranscriptCount.mockResolvedValueOnce(2).mockResolvedValueOnce(1);
+
+      const { processTranscribeClipJob } = await import(
+        '@/modules/director/handlers/transcribe.handler'
+      );
+
+      const mockJob = {
+        id: 'job-1',
+        data: {
+          type: 'TRANSCRIBE_CLIP',
+          sessionId: 'session-1',
+          selectedClipId: 'clip-1',
+          userId: 'user-1',
+        },
+      } as unknown as Job;
+
+      await processTranscribeClipJob(mockJob);
+
+      expect(mockUpdate).toHaveBeenCalledWith({
+        where: { id: 'transcribe-1' },
+        data: expect.objectContaining({
+          status: 'FAILED',
+          errorMessage: '1 klip gagal ditranskripsi.',
+        }),
+      });
     });
   });
 

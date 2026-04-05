@@ -5,9 +5,43 @@
 | Requirement | Version | Check Command      |
 | ----------- | ------- | ------------------ |
 | Node.js     | 20+     | `node --version`   |
-| pnpm        | 9+      | `pnpm --version`   |
+| pnpm        | 10+     | `pnpm --version`   |
 | Docker      | Latest  | `docker --version` |
-| FFmpeg      | Latest  | `ffmpeg -version`  |
+
+## Dependency Modes
+
+Ada dua mode development yang didukung, dan kebutuhan dependency lokalnya berbeda:
+
+### Full Docker
+
+Mode ini menjalankan API di dalam container Docker.
+
+Dependency runtime untuk AI Director dan video processing sudah termasuk di image API:
+
+- `python3`
+- `ffmpeg`
+- `yt-dlp`
+- `faster-whisper`
+
+Kalau Anda memakai mode ini, Mac lokal tidak perlu memasang dependency tersebut untuk runtime aplikasi.
+
+### Hybrid: Docker Infra + App Lokal
+
+Mode ini menjalankan PostgreSQL, Redis, dan Cobalt di Docker, tetapi `web` dan `api` tetap jalan dari source code lokal lewat `pnpm dev`.
+
+Dependency lokal yang tetap diperlukan:
+
+- `python3`
+- `ffmpeg`
+- `yt-dlp`
+
+`faster-whisper` dan dependency Python lainnya tidak perlu dipasang secara global. Gunakan virtual environment project lewat:
+
+```bash
+pnpm api:python:setup
+```
+
+Command di atas akan membuat `apps/api/venv` dan menginstal dependency dari [requirements.txt](/Users/aldrnmrsd/Documents/Coding/contencreative/apps/api/requirements.txt) ke environment project, bukan ke Python user site global.
 
 ## Quick Start (Recommended)
 
@@ -18,11 +52,15 @@
 git clone https://github.com/aldrndev/vibe-creator.git
 cd contencreative
 
-# 2. Start all services
-docker compose -f infra/compose/docker-compose.dev.yml up -d --build
+# 2. Copy Docker env files
+cp infra/compose/.env.docker.infra.example infra/compose/.env.docker.infra
+cp infra/compose/apps/api/.env.docker.example infra/compose/apps/api/.env.docker
 
-# 3. Verify
-docker ps
+# 3. Start all services
+pnpm docker:up:build
+
+# 4. Verify
+pnpm docker:ps
 curl http://localhost:3000/health
 ```
 
@@ -34,7 +72,7 @@ curl http://localhost:3000/health
 - Redis: localhost:6379
 - Cobalt: localhost:9000
 
-### Option B: Hybrid (Docker DB + Local API)
+### Option B: Hybrid (Docker Infra + App Lokal)
 
 ```bash
 # 1. Clone repository
@@ -44,20 +82,17 @@ cd contencreative
 # 2. Install dependencies
 pnpm install
 
-# 3. Start infrastructure only
-docker compose -f infra/compose/docker-compose.dev.yml up -d postgres redis
-
-# 4. Setup API environment
+# 3. Setup API environment
 cp apps/api/.env.example apps/api/.env
 # Edit apps/api/.env with your values
 
-# 5. Generate Prisma client
-pnpm --filter @vibe-creator/api exec prisma generate
+# 4. Setup Python virtualenv for transcription
+pnpm api:python:setup
 
-# 6. Run migrations
-pnpm --filter @vibe-creator/api exec prisma migrate dev
+# 5. Start infrastructure only
+pnpm docker:infra:up
 
-# 7. Start development servers
+# 6. Start development servers
 pnpm dev
 ```
 
@@ -65,6 +100,26 @@ pnpm dev
 
 - Web: http://localhost:5173
 - API: http://localhost:3000
+- PostgreSQL: localhost:5433
+- Redis: localhost:6379
+- Cobalt: localhost:9000
+
+### Recommended Hybrid Flow
+
+Untuk workflow harian tanpa rebuild Docker tiap ada perubahan code:
+
+```bash
+pnpm docker:infra:up
+pnpm api:python:setup
+pnpm dev
+```
+
+Kalau virtual environment Python sudah pernah dibuat dan dependency tidak berubah, cukup:
+
+```bash
+pnpm docker:infra:up
+pnpm dev
+```
 
 ## Environment Variables
 
@@ -97,6 +152,7 @@ console.log('JWT_VERIFY_KEYS=' + JSON.stringify([publicKey.export({ format: 'jwk
 | `XENDIT_SECRET_KEY`    | Payments      |
 | `R2_*`                 | Cloud storage |
 | `TURNSTILE_SECRET_KEY` | Captcha       |
+| `WHISPER_MODEL_SIZE`   | Model transcribe lokal (`small` default) |
 
 ## Common Commands
 
@@ -109,6 +165,10 @@ pnpm dev
 # Start individually
 pnpm web          # Frontend only
 pnpm api          # Backend only
+
+# Setup Python venv untuk transcribe lokal
+pnpm api:python:setup
+pnpm api:python:install
 
 # Database
 pnpm --filter @vibe-creator/api exec prisma studio     # DB GUI
@@ -140,21 +200,45 @@ pnpm layout:check  # Blueprint compliance
 ## Docker Commands
 
 ```bash
-# Start all
-docker compose -f infra/compose/docker-compose.dev.yml up -d
+# Start infra only for hybrid mode
+pnpm docker:infra:up
+
+# Stop infra only
+pnpm docker:infra:down
+
+# Restart infra only
+pnpm docker:infra:restart
+
+# Start full dev stack in Docker
+pnpm docker:up
 
 # View logs
-docker logs -f vibe-creator-server
+pnpm docker:logs
 
 # Rebuild after code changes
-docker compose -f infra/compose/docker-compose.dev.yml up -d --build
+pnpm docker:up:build
 
 # Stop all
-docker compose -f infra/compose/docker-compose.dev.yml down
+pnpm docker:down
 
 # Reset (remove volumes)
 docker compose -f infra/compose/docker-compose.dev.yml down -v
 ```
+
+## AI Director Local Requirements
+
+Kalau AI Director dijalankan lewat `pnpm dev`, processing lokal membutuhkan:
+
+- `python3`
+- `ffmpeg`
+- `yt-dlp`
+- `apps/api/venv` hasil `pnpm api:python:setup`
+
+Catatan:
+
+- `faster-whisper` tidak perlu dipasang global di Mac.
+- API akan otomatis memakai `apps/api/venv/bin/python` jika tersedia.
+- Kalau `venv` project tidak ada, backend akan fallback ke `python3` global.
 
 ## Troubleshooting
 
@@ -179,6 +263,25 @@ kill -9 <PID>
 docker rm -f vibe-creator-server vibe-creator-db vibe-creator-redis vibe-creator-cobalt
 ```
 
+### AI Director Transcribe Tidak Jalan di Hybrid Mode
+
+1. Pastikan `python3` terpasang.
+2. Pastikan `ffmpeg -version` berhasil.
+3. Pastikan `yt-dlp --version` berhasil.
+4. Jalankan `pnpm api:python:setup`.
+5. Restart `pnpm dev`.
+
+### Warning `pip` Script Not on PATH
+
+Kalau warning ini muncul saat Anda dulu menginstal `faster-whisper` secara global, itu bukan error fatal. Workflow yang direkomendasikan sekarang adalah memakai virtual environment project, bukan Python user site global.
+
+Kalau ingin membersihkan install global lama:
+
+```bash
+python3 -m pip uninstall faster-whisper
+python3 -m pip uninstall yt-dlp
+```
+
 ### Database Connection Failed
 
 1. Check PostgreSQL is running: `docker ps | grep postgres`
@@ -194,8 +297,7 @@ docker rm -f vibe-creator-server vibe-creator-db vibe-creator-redis vibe-creator
 
 ### VS Code Extensions
 
-- ESLint
-- Prettier
+- Biome
 - Prisma
 - Tailwind CSS IntelliSense
 - TypeScript
@@ -205,7 +307,7 @@ docker rm -f vibe-creator-server vibe-creator-db vibe-creator-redis vibe-creator
 ```json
 {
   "editor.formatOnSave": true,
-  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "editor.defaultFormatter": "biomejs.biome",
   "typescript.tsdk": "node_modules/typescript/lib"
 }
 ```

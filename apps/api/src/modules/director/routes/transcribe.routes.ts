@@ -11,14 +11,20 @@ const updateTranscriptSchema = z.object({
     }),
   ),
 });
+const startTranscribeSchema = z.object({
+  forceRefresh: z.boolean().optional(),
+});
 
 export const transcribeRoutes: FastifyPluginAsync = async (fastify) => {
   /**
    * Start transcription
    */
-  fastify.post<{ Params: { id: string } }>(
+  fastify.post<{ Params: { id: string }; Body: { forceRefresh?: boolean } }>(
     '/sessions/:id/transcribe',
-    async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+    async (
+      request: FastifyRequest<{ Params: { id: string }; Body: { forceRefresh?: boolean } }>,
+      reply: FastifyReply,
+    ) => {
       const user = request.user;
       if (!user) {
         return reply.status(401).send({
@@ -28,14 +34,28 @@ export const transcribeRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       try {
-        const job = await directorService.startTranscribe(request.params.id, user.id);
+        const body = startTranscribeSchema.parse(request.body ?? {});
+        const job = await directorService.startTranscribe(request.params.id, user.id, {
+          forceRefresh: body.forceRefresh ?? false,
+        });
         return reply.status(202).send({
           success: true,
           data: job,
         });
       } catch (err) {
+        if (err instanceof z.ZodError) {
+          return reply.status(400).send({
+            success: false,
+            error: {
+              code: 'VALIDATION_ERROR',
+              message: err.issues[0]?.message ?? 'Body request tidak valid',
+            },
+          });
+        }
+
         const message = err instanceof Error ? err.message : 'Transcription failed';
-        return reply.status(400).send({
+        const statusCode = message.includes('queue belum siap') ? 503 : 400;
+        return reply.status(statusCode).send({
           success: false,
           error: { code: 'TRANSCRIBE_FAILED', message },
         });

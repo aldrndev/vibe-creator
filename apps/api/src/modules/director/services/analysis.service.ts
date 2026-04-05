@@ -4,12 +4,13 @@
  */
 
 import { basename, join } from 'node:path';
-import { DirectorIngestStatus, DirectorJobStatus, DirectorStep } from '@prisma/client';
+import { DirectorIngestStatus, DirectorJobStatus, DirectorStep, Prisma } from '@prisma/client';
 import { env } from '@/config/env';
 import { logger } from '@/lib/logger';
 import { directorProcessor } from '../director.processor';
-import { directorQueue } from '../director.queue';
+import { buildDirectorQueueJobId, directorQueue } from '../director.queue';
 import { directorRepo } from '../director.repo';
+import { directorAnalysisReuseService } from './analysis-reuse.service';
 
 export const directorAnalysisService = {
   /**
@@ -26,27 +27,23 @@ export const directorAnalysisService = {
       throw new Error('Asset not ready for analysis');
     }
 
-    // Check if already has analysis job
-    if (session.analysisJob) {
+    if (
+      session.analysisJob &&
+      (session.analysisJob.status === DirectorJobStatus.PENDING ||
+        session.analysisJob.status === DirectorJobStatus.PROCESSING ||
+        session.analysisJob.status === DirectorJobStatus.COMPLETED)
+    ) {
       return session.analysisJob;
     }
 
-    const idempotencyKey = `${sessionId}:analyze:v1`;
-
-    // Create analysis job
-    const job = await directorRepo.createAnalysisJob({
-      sessionId,
-      idempotencyKey,
-      status: DirectorJobStatus.PENDING,
-      config: {
-        silenceThreshold: -30,
-        silenceMinDuration: 0.5,
-        sceneChangeThreshold: 0.4,
-        minClipDuration: 5000,
-        maxClipDuration: 35000,
-        maxCandidates: 20,
-      },
-    });
+    const analysisConfig = {
+      silenceThreshold: -30,
+      silenceMinDuration: 0.5,
+      sceneChangeThreshold: 0.4,
+      minClipDuration: 5000,
+      maxClipDuration: 35000,
+      maxCandidates: 20,
+    };
 
     // Update session step
     await directorRepo.updateStep(sessionId, userId, DirectorStep.ANALYZING);
@@ -66,6 +63,62 @@ export const directorAnalysisService = {
       );
     }
 
+    const reusableCandidates = await directorAnalysisReuseService.getReusableCandidates(
+      session.asset,
+    );
+    if (reusableCandidates && reusableCandidates.length > 0) {
+      const completedAt = new Date();
+      const completedJob = await directorRepo.upsertAnalysisJobBySession(
+        sessionId,
+        {
+          idempotencyKey: `${sessionId}:analyze:reused`,
+          status: DirectorJobStatus.COMPLETED,
+          startedAt: completedAt,
+          completedAt,
+          metrics: {
+            reused: true,
+            candidateCount: reusableCandidates.length,
+          },
+          config: analysisConfig,
+        },
+        {
+          status: DirectorJobStatus.COMPLETED,
+          startedAt: session.analysisJob?.startedAt ?? completedAt,
+          completedAt,
+          errorMessage: null,
+          metrics: {
+            reused: true,
+            candidateCount: reusableCandidates.length,
+          },
+          config: analysisConfig,
+        },
+      );
+
+      await directorRepo.updateStep(sessionId, userId, DirectorStep.PICKING);
+      logger.info(
+        { sessionId, candidateCount: reusableCandidates.length },
+        'Director analysis reused cached candidates',
+      );
+      return completedJob;
+    }
+
+    const job = await directorRepo.upsertAnalysisJobBySession(
+      sessionId,
+      {
+        idempotencyKey: `${sessionId}:analyze:v1`,
+        status: DirectorJobStatus.PENDING,
+        config: analysisConfig,
+      },
+      {
+        status: DirectorJobStatus.PENDING,
+        completedAt: null,
+        startedAt: null,
+        errorMessage: null,
+        metrics: Prisma.JsonNull,
+        config: analysisConfig,
+      },
+    );
+
     // Add to BullMQ
     await directorQueue.add(
       'analyze',
@@ -77,7 +130,7 @@ export const directorAnalysisService = {
         userId: session.userId,
       },
       {
-        jobId: `director:analyze:${sessionId}`, // Idempotency
+        jobId: buildDirectorQueueJobId('director', 'analyze', sessionId), // Idempotency
         removeOnComplete: true,
         removeOnFail: false,
       },
@@ -98,6 +151,20 @@ export const directorAnalysisService = {
       throw new Error('Analysis not found');
     }
 
+    if (
+      session.analysisJob.status === DirectorJobStatus.COMPLETED &&
+      session.analysisJob.candidates.length === 0 &&
+      session.asset
+    ) {
+      const reusableCandidates = await directorAnalysisReuseService.getReusableCandidates(
+        session.asset,
+      );
+      return {
+        ...session.analysisJob,
+        candidates: reusableCandidates ?? [],
+      };
+    }
+
     return session.analysisJob;
   },
 
@@ -115,10 +182,15 @@ export const directorAnalysisService = {
       throw new Error('Analysis not completed');
     }
 
+    const sourceCandidates =
+      session.analysisJob.candidates.length > 0
+        ? session.analysisJob.candidates
+        : session.asset
+          ? ((await directorAnalysisReuseService.getReusableCandidates(session.asset)) ?? [])
+          : [];
+
     // Validate candidate IDs
-    const validCandidateIds = session.analysisJob.candidates.map(
-      (c: (typeof session.analysisJob.candidates)[number]) => c.id,
-    );
+    const validCandidateIds = sourceCandidates.map((candidate) => candidate.id);
     const invalidIds = candidateIds.filter((id) => !validCandidateIds.includes(id));
     if (invalidIds.length > 0) {
       throw new Error(`Invalid candidate IDs: ${invalidIds.join(', ')}`);
@@ -190,5 +262,34 @@ export const directorAnalysisService = {
 
     const updated = await directorRepo.updateSelectedClip(clipId, updates);
     return updated;
+  },
+
+  /**
+   * Delete a selected clip
+   */
+  async deleteClip(sessionId: string, userId: string, clipId: string) {
+    const sessionExists = await directorRepo.exists(sessionId, userId);
+    if (!sessionExists) {
+      throw new Error('Session not found');
+    }
+
+    const clip = await directorRepo.findSelectedClip(clipId, sessionId);
+    if (!clip) {
+      throw new Error('Clip not found or access denied');
+    }
+
+    await directorRepo.deleteSelectedClip(clipId);
+
+    const remainingCount = await directorRepo.countSelectedClips(sessionId);
+    if (remainingCount === 0) {
+      await directorRepo.updateStep(sessionId, userId, DirectorStep.PICKING);
+    }
+
+    logger.info({ sessionId, clipId, remainingCount }, 'Selected clip deleted');
+
+    return {
+      deleted: true,
+      remainingCount,
+    };
   },
 };

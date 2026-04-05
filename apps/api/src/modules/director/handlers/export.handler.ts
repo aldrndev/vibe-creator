@@ -18,8 +18,10 @@ import type { Job } from 'bullmq';
 import { env } from '@/config/env';
 import { logger } from '@/lib/logger';
 import { prisma } from '@/lib/prisma';
+import { applyClipRefineSettings, resolveClipRefineSettings } from '../clip-refine';
 import { directorProcessor } from '../director.processor';
 import type { DirectorExportJobData } from '../director.queue';
+import { resolveSelectedClipRangeMs } from '../selected-clip-range';
 
 /**
  * Processes a video export job for the AI Director.
@@ -47,6 +49,7 @@ export async function processExportJob(job: Job<DirectorExportJobData>) {
         orderBy: { orderIndex: 'asc' },
       },
       exportJob: true,
+      subtitleStyle: true,
     },
   });
 
@@ -81,15 +84,40 @@ export async function processExportJob(job: Job<DirectorExportJobData>) {
       sourcePath: string;
       start: number;
       end: number;
+      faceTracking?: boolean;
       transcript?: {
-        segments?: Array<{ startMs: number; endMs: number; text: string }>;
+        segments?: Array<{
+          startMs: number;
+          endMs: number;
+          text: string;
+          words?: Array<{
+            startMs: number;
+            endMs: number;
+            text: string;
+            confidence?: number;
+          }>;
+        }>;
       };
     }> = [];
+    const subtitleStyle = session.subtitleStyle
+      ? {
+          fontToken: session.subtitleStyle.fontToken,
+          textColorToken: session.subtitleStyle.textColorToken,
+          bgColorToken: session.subtitleStyle.bgColorToken,
+          fontSize: session.subtitleStyle.fontSize,
+          position: session.subtitleStyle.position,
+          animation: session.subtitleStyle.animation,
+        }
+      : undefined;
     const startExportClips = session.selectedClips;
 
     for (const clip of startExportClips) {
-      const startMs = clip.candidate.startMs + (clip.trimStartMs || 0);
-      const endMs = clip.candidate.endMs - (clip.trimEndMs || 0);
+      const clipRange = resolveSelectedClipRangeMs({
+        candidateStartMs: clip.candidate.startMs,
+        candidateEndMs: clip.candidate.endMs,
+        trimStartMs: clip.trimStartMs,
+        trimEndMs: clip.trimEndMs,
+      });
 
       const transcriptData = clip.transcript?.segments
         ? {
@@ -97,16 +125,51 @@ export async function processExportJob(job: Job<DirectorExportJobData>) {
               startMs: number;
               endMs: number;
               text: string;
+              words?: Array<{
+                startMs: number;
+                endMs: number;
+                text: string;
+                confidence?: number;
+              }>;
             }>,
           }
         : undefined;
 
+      const candidateMetadata =
+        typeof clip.candidate.metadata === 'object' &&
+        clip.candidate.metadata !== null &&
+        !Array.isArray(clip.candidate.metadata)
+          ? (clip.candidate.metadata as {
+              scoreBreakdown?: {
+                contentModeSuggestion?: 'podcast' | 'talking-head' | 'cinematic' | 'general';
+              };
+            })
+          : {};
+      const resolvedRefineSettings = resolveClipRefineSettings(options.refineSettings?.[clip.id], {
+        contentModeSuggestion: candidateMetadata.scoreBreakdown?.contentModeSuggestion,
+      });
+
+      const refinedClip = applyClipRefineSettings(
+        {
+          startMs: clipRange.startMs,
+          endMs: clipRange.endMs,
+          contentModeSuggestion: candidateMetadata.scoreBreakdown?.contentModeSuggestion,
+          transcript: transcriptData,
+        },
+        resolvedRefineSettings,
+      );
+
       clipsToExport.push({
         sourcePath,
-        start: startMs / 1000,
-        end: endMs / 1000,
-        transcript: transcriptData,
+        start: refinedClip.startMs / 1000,
+        end: refinedClip.endMs / 1000,
+        faceTracking: resolvedRefineSettings.faceTracking,
+        transcript: refinedClip.transcript,
       });
+    }
+
+    if (clipsToExport.length === 0) {
+      throw new Error('Tidak ada klip valid untuk diekspor');
     }
 
     await job.updateProgress(30);
@@ -116,7 +179,10 @@ export async function processExportJob(job: Job<DirectorExportJobData>) {
       await mkdir(outputDir, { recursive: true });
     }
 
-    const finalFile = await directorProcessor.exportVideo(clipsToExport, outputDir, options);
+    const finalFile = await directorProcessor.exportVideo(clipsToExport, outputDir, {
+      ...options,
+      subtitleStyle,
+    });
 
     await job.updateProgress(100);
 

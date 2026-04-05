@@ -557,6 +557,47 @@ model DirectorClipTranscript {
   @@map("director_clip_transcripts")
 }
 
+model TrendingItem {
+  id              String   @id @default(dbgenerated("(gen_random_uuid())::text")) @db.VarChar
+  platform        String   @db.VarChar
+  type            String   @db.VarChar
+  externalId      String   @map("external_id")
+  externalUrlHash String   @map("external_url_hash") @db.VarChar(64)
+  title           String
+  description     String?
+  thumbnailUrl    String?  @map("thumbnail_url")
+  externalUrl     String?  @map("external_url")
+  rank            Int?
+  metrics         Json?    @default("{}")
+  category        String?
+  region          String   @db.VarChar(2)
+  fetchedAt       DateTime @map("fetched_at") @db.Timestamp(6)
+  expiresAt       DateTime @map("expires_at") @db.Timestamp(6)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  @@unique([platform, type, region, externalUrlHash], map: "trending_items_unique")
+  @@index([region, fetchedAt], map: "idx_trending_items_region_fetched_at")
+  @@index([expiresAt], map: "idx_trending_items_expires_at")
+  @@map("trending_items")
+}
+
+model TrendingPlatformStatus {
+  id            String   @id @default(dbgenerated("(gen_random_uuid())::text")) @db.VarChar
+  platform      String   @db.VarChar
+  region        String   @db.VarChar(2)
+  status        String   @db.VarChar
+  lastSuccessAt DateTime? @map("last_success_at") @db.Timestamp(6)
+  lastFailureAt DateTime? @map("last_failure_at") @db.Timestamp(6)
+  errorMessage  String?   @map("error_message")
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  @@unique([platform, region], map: "trending_platform_status_unique")
+  @@index([region, status], map: "idx_trending_platform_status_region_status")
+  @@map("trending_platform_status")
+}
+
 /// Immutable audit log for security events
 model AuditLog {
   id            String   @id @default(dbgenerated("(gen_random_uuid())::text")) @db.VarChar

@@ -68,8 +68,8 @@ export async function audit(params: AuditParams): Promise<void> {
   try {
     // Get previous entry for hash chaining
     const prevEntry = await prisma.auditLog.findFirst({
-      orderBy: { createdAt: 'desc' },
-      select: { id: true, createdAt: true, action: true },
+      orderBy: { created_at: 'desc' },
+      select: { id: true, created_at: true, action: true },
     });
 
     // Calculate hash of previous entry
@@ -82,18 +82,18 @@ export async function audit(params: AuditParams): Promise<void> {
     // Create audit log entry
     await prisma.auditLog.create({
       data: {
-        requestId: params.requestId,
-        jobId: params.jobId,
-        userId: params.userId,
-        tenantId: params.tenantId || params.userId, // Fallback for user-scoped app
-        sessionId: params.sessionId,
+        request_id: params.requestId,
+        job_id: params.jobId,
+        user_id: params.userId,
+        tenant_id: params.tenantId || params.userId, // Fallback for user-scoped app
+        session_id: params.sessionId,
         action: params.action,
-        resourceType: params.resourceType,
-        resourceId: params.resourceId,
+        resource_type: params.resourceType,
+        resource_id: params.resourceId,
         metadata: (params.metadata || {}) as Prisma.InputJsonValue,
-        ipAddress: params.ipAddress,
-        userAgent: params.userAgent,
-        prevHash,
+        ip_address: params.ipAddress,
+        user_agent: params.userAgent,
+        prev_hash: prevHash,
       },
     });
 
@@ -126,14 +126,14 @@ export async function audit(params: AuditParams): Promise<void> {
 export async function verifyAuditChain(): Promise<boolean> {
   try {
     const entries = await prisma.auditLog.findMany({
-      orderBy: { createdAt: 'asc' },
-      select: { id: true, createdAt: true, action: true, prevHash: true },
+      orderBy: { created_at: 'asc' },
+      select: { id: true, created_at: true, action: true, prev_hash: true },
     });
 
     if (entries.length === 0) return true;
 
     // First entry should have no previous hash
-    if (entries[0]?.prevHash !== null) {
+    if (entries[0]?.prev_hash !== null) {
       logger.warn('First audit log entry has prevHash - chain compromised');
       return false;
     }
@@ -154,18 +154,18 @@ export async function verifyAuditChain(): Promise<boolean> {
         .update(
           JSON.stringify({
             id: prev.id,
-            createdAt: prev.createdAt,
+            createdAt: prev.created_at,
             action: prev.action,
           }),
         )
         .digest('hex');
 
-      if (current.prevHash !== expectedHash) {
+      if (current.prev_hash !== expectedHash) {
         logger.error(
           {
             index: i,
             expected: expectedHash,
-            actual: current.prevHash,
+            actual: current.prev_hash,
           },
           'Audit log chain broken - tampering detected',
         );

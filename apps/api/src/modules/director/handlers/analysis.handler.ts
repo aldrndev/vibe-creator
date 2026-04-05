@@ -15,12 +15,16 @@
 import { existsSync } from 'node:fs';
 import { mkdir, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
+import type { Prisma } from '@prisma/client';
 import type { Job } from 'bullmq';
 import { env } from '@/config/env';
 import { logger } from '@/lib/logger';
 import { prisma } from '@/lib/prisma';
+import { buildHeuristicScoreBreakdown } from '../analysis-score-breakdown';
 import { directorProcessor } from '../director.processor';
 import type { DirectorAnalysisJobData } from '../director.queue';
+import { directorAnalysisAiRerankService } from '../services/analysis-ai-rerank.service';
+import { directorAnalysisReuseService } from '../services/analysis-reuse.service';
 
 const TEMP_DIR = join(env.MEDIA_INPUT_DIR, 'temp');
 
@@ -96,8 +100,24 @@ export async function processAnalysisJob(job: Job<DirectorAnalysisJobData>) {
       {},
       filePath,
     );
+    const rerankedCandidates = await directorAnalysisAiRerankService.rerankCandidates(
+      candidates.map((candidate, index) => ({
+        startMs: Math.round(candidate.start * 1000),
+        endMs: Math.round(candidate.end * 1000),
+        score: candidate.score,
+        rank: index + 1,
+        tags: candidate.tags && candidate.tags.length > 0 ? candidate.tags : ['highlight'],
+        scoreBreakdown: buildHeuristicScoreBreakdown({
+          durationSeconds: Math.round(candidate.duration),
+          energyScore: candidate.analysis?.energyScore ?? 50,
+          dialogDensityScore: candidate.analysis?.dialogDensityScore ?? 50,
+          visualPenalty: candidate.analysis?.visualPenalty ?? 0,
+          tags: candidate.tags && candidate.tags.length > 0 ? candidate.tags : ['highlight'],
+        }),
+      })),
+    );
 
-    logger.info({ ...logCtx, candidatesCount: candidates.length }, 'Analysis complete');
+    logger.info({ ...logCtx, candidatesCount: rerankedCandidates.length }, 'Analysis complete');
 
     await prisma.$transaction(
       async (tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0]) => {
@@ -111,10 +131,10 @@ export async function processAnalysisJob(job: Job<DirectorAnalysisJobData>) {
           });
         }
 
-        if (candidates.length > 0 && dbJob) {
+        if (rerankedCandidates.length > 0 && dbJob) {
           const candidatesWithPreviews = await Promise.all(
-            candidates.map(async (c, i) => {
-              const midPointMs = ((c.start + c.end) / 2) * 1000;
+            rerankedCandidates.map(async (candidate, index) => {
+              const midPointMs = Math.round((candidate.startMs + candidate.endMs) / 2);
               let previewKey: string | null = null;
 
               try {
@@ -128,17 +148,18 @@ export async function processAnalysisJob(job: Job<DirectorAnalysisJobData>) {
                   previewKey = `director/previews/${previewFile}`;
                 }
               } catch (err) {
-                logger.warn({ err, candidateIndex: i }, 'Failed to generate thumbnail preview');
+                logger.warn({ err, candidateIndex: index }, 'Failed to generate thumbnail preview');
               }
 
               return {
                 analysisJobId: dbJob?.id,
-                startMs: Math.round(c.start * 1000),
-                endMs: Math.round(c.end * 1000),
-                score: c.score,
-                rank: i + 1,
-                tags: c.tags && c.tags.length > 0 ? c.tags : ['highlight'],
+                startMs: candidate.startMs,
+                endMs: candidate.endMs,
+                score: candidate.score,
+                rank: candidate.rank,
+                tags: candidate.tags,
                 previewStorageKey: previewKey,
+                metadata: candidate.metadata as Prisma.InputJsonValue,
               };
             }),
           );
@@ -154,6 +175,30 @@ export async function processAnalysisJob(job: Job<DirectorAnalysisJobData>) {
         });
       },
     );
+
+    if (session.analysisJob && rerankedCandidates.length > 0) {
+      const persistedCandidates = await prisma.directorClipCandidate.findMany({
+        where: {
+          analysisJobId: session.analysisJob.id,
+        },
+        orderBy: {
+          rank: 'asc',
+        },
+      });
+
+      const asset = await prisma.directorAsset.findUnique({
+        where: { id: assetId },
+        select: {
+          contentHash: true,
+          sourceUrlNormalized: true,
+          storageKey: true,
+        },
+      });
+
+      if (asset) {
+        await directorAnalysisReuseService.setReusableCandidates(asset, persistedCandidates);
+      }
+    }
   } catch (err) {
     logger.error({ ...logCtx, err }, 'Analysis job failed');
 

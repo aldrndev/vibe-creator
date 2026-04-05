@@ -1,17 +1,70 @@
 import { AlertCircle, FileVideo, Link as LinkIcon, Plus, Wand2 } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Badge, Button, Card, CardBody, Input } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { authFetch } from '@/services/api';
+import type { DirectorSession } from '@/stores/director-store';
 import { useDirectorStore } from '@/stores/director-store';
 import { SupportedSourcesModal } from './SupportedSourcesModal';
+
+const INITIAL_UPLOAD_PROGRESS = 0;
+type AssetIngestStatus = 'UPLOADING' | 'READY' | 'FAILED';
+
+interface AssetStatusResponseData {
+  readonly status: AssetIngestStatus;
+  readonly progress?: number;
+  readonly errorMessage?: string;
+}
+
+function getAssetProgress(
+  status: AssetIngestStatus,
+  progress: unknown,
+  previousProgress: number,
+): number {
+  const rawProgress = typeof progress === 'number' && Number.isFinite(progress) ? progress : 0;
+
+  if (status !== 'UPLOADING') {
+    return rawProgress;
+  }
+
+  return Math.max(previousProgress, rawProgress, INITIAL_UPLOAD_PROGRESS);
+}
+
+function syncSessionAssetStatus(
+  currentSession: DirectorSession | null,
+  activeSessionId: string,
+  status: AssetIngestStatus,
+  setSession: (session: DirectorSession) => void,
+): void {
+  if (
+    currentSession?.id !== activeSessionId ||
+    !currentSession.asset ||
+    currentSession.asset.ingestStatus === status
+  ) {
+    return;
+  }
+
+  setSession({
+    ...currentSession,
+    asset: {
+      ...currentSession.asset,
+      ingestStatus: status,
+    },
+  });
+}
+
+function clearPollingInterval(intervalId: ReturnType<typeof setInterval> | undefined): void {
+  if (intervalId) {
+    clearInterval(intervalId);
+  }
+}
 
 export const ImportStep = () => {
   const {
     activeSession,
     importUrl,
     setImportUrl,
-    isLoading,
+    step,
     error,
     isWaitingForAsset,
     downloadProgress,
@@ -20,15 +73,31 @@ export const ImportStep = () => {
     setLoading,
     setError,
     setWaitingForAsset,
+    setDownloadProgress,
+    reset,
   } = useDirectorStore();
 
   const [isSourcesModalOpen, setIsSourcesModalOpen] = useState(false);
+  const [isSubmittingImport, setIsSubmittingImport] = useState(false);
+  const [isPreparingAnalysis, setIsPreparingAnalysis] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const sessionRef = useRef(activeSession);
+  const resumeAnalysisKeyRef = useRef<string | null>(null);
+  const progressRef = useRef(downloadProgress);
+  const activeSessionId = activeSession?.id ?? null;
+  const assetId = activeSession?.asset?.id ?? null;
+  const assetStatus = activeSession?.asset?.ingestStatus ?? null;
+
+  useEffect(() => {
+    sessionRef.current = activeSession;
+  }, [activeSession]);
+
+  useEffect(() => {
+    progressRef.current = downloadProgress;
+  }, [downloadProgress]);
 
   const handleCreateSession = async () => {
     try {
-      setLoading(true);
-      setError(null);
       const res = await authFetch('/api/v1/director/sessions', {
         method: 'POST',
       });
@@ -38,38 +107,67 @@ export const ImportStep = () => {
         setSession(data.data);
         return data.data;
       }
+      throw new Error(data.error?.message || 'Failed to create session');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
-    } finally {
-      setLoading(false);
     }
     return null;
   };
 
-  const startAnalysis = async (sessionId: string) => {
-    try {
-      const res = await authFetch(`/api/v1/director/sessions/${sessionId}/analyze`, {
-        method: 'POST',
-      });
-      const data = await res.json();
-      if (data.success) {
-        setStep('ANALYZING');
-      } else {
-        throw new Error(data.error?.message || 'Analysis start failed');
+  const rollbackSession = useCallback(
+    async (sessionId: string, preserveError?: string) => {
+      try {
+        await authFetch(`/api/v1/director/sessions/${sessionId}`, { method: 'DELETE' });
+      } catch (e) {
+        console.error('Failed to rollback session', e);
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Analysis failed');
-      setLoading(false);
-    }
-  };
+      reset();
+      if (preserveError) {
+        setError(preserveError);
+      }
+    },
+    [reset, setError],
+  );
+
+  const startAnalysis = useCallback(
+    async (sessionId: string) => {
+      try {
+        setIsPreparingAnalysis(true);
+        const res = await authFetch(`/api/v1/director/sessions/${sessionId}/analyze`, {
+          method: 'POST',
+        });
+        const data = await res.json();
+        if (data.success) {
+          setStep('ANALYZING');
+          setWaitingForAsset(false);
+          setLoading(false);
+        } else {
+          throw new Error(data.error?.message || 'Analysis start failed');
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Analysis failed';
+        setWaitingForAsset(false);
+        setLoading(false);
+        void rollbackSession(sessionId, msg);
+      } finally {
+        setIsPreparingAnalysis(false);
+      }
+    },
+    [setLoading, setStep, setWaitingForAsset, rollbackSession],
+  );
 
   const handleUrlImport = async () => {
+    setIsSubmittingImport(true);
+    setError(null);
     let session = activeSession;
     session ??= await handleCreateSession();
-    if (!session || !importUrl) return;
+    if (!session || !importUrl) {
+      setIsSubmittingImport(false);
+      return;
+    }
 
     try {
-      setLoading(true);
+      setDownloadProgress(0);
       const res = await authFetch(`/api/v1/director/sessions/${session.id}/import`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -79,19 +177,26 @@ export const ImportStep = () => {
       if (!data.success) throw new Error(data.error?.message || 'Import failed');
 
       const newAsset = { ...data.data, ingestStatus: 'UPLOADING' };
+      setWaitingForAsset(true);
       setSession({
         ...session,
         asset: newAsset,
       });
 
       if (data.data.ingestStatus === 'READY') {
+        setDownloadProgress(100);
         await startAnalysis(session.id);
-      } else {
-        setWaitingForAsset(true);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Import failed');
-      setLoading(false);
+      const msg = err instanceof Error ? err.message : 'Import failed';
+      setWaitingForAsset(false);
+      if (session) {
+        void rollbackSession(session.id, msg);
+      } else {
+        setError(msg);
+      }
+    } finally {
+      setIsSubmittingImport(false);
     }
   };
 
@@ -99,12 +204,18 @@ export const ImportStep = () => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setLoading(true);
+    setError(null);
     let session = activeSession;
     session ??= await handleCreateSession();
-    if (!session) return;
+    if (!session) {
+      setLoading(false);
+      return;
+    }
 
     try {
-      setLoading(true);
+      setWaitingForAsset(false);
+      setDownloadProgress(0);
 
       const formData = new FormData();
       formData.append('file', file);
@@ -133,16 +244,145 @@ export const ImportStep = () => {
         ...session,
         asset: { ...importData.data, ingestStatus: 'READY' },
       });
+      setDownloadProgress(100);
       await startAnalysis(session.id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Upload failed');
+      const msg = err instanceof Error ? err.message : 'Upload failed';
       setLoading(false);
+      if (session) {
+        void rollbackSession(session.id, msg);
+      } else {
+        setError(msg);
+      }
     }
   };
+
+  useEffect(() => {
+    if (!isWaitingForAsset || !activeSessionId || !assetId) {
+      return;
+    }
+
+    let cancelled = false;
+    let intervalId: ReturnType<typeof setInterval> | undefined;
+
+    const pollAssetStatus = async () => {
+      try {
+        const response = await authFetch(`/api/v1/director/assets/${assetId}/status`);
+        const data = await response.json();
+
+        if (!data.success || cancelled) {
+          return;
+        }
+
+        const assetStatus = data.data as AssetStatusResponseData;
+        const currentSession = sessionRef.current;
+        const progress = getAssetProgress(
+          assetStatus.status,
+          assetStatus.progress,
+          progressRef.current,
+        );
+
+        setDownloadProgress(progress);
+        syncSessionAssetStatus(currentSession, activeSessionId, assetStatus.status, setSession);
+
+        if (assetStatus.status === 'READY') {
+          setWaitingForAsset(false);
+          setDownloadProgress(100);
+          clearPollingInterval(intervalId);
+          await startAnalysis(activeSessionId);
+          return;
+        }
+
+        if (assetStatus.status === 'FAILED') {
+          const msg = assetStatus.errorMessage || 'Import gagal diproses';
+          setWaitingForAsset(false);
+          setLoading(false);
+          setDownloadProgress(0);
+          clearPollingInterval(intervalId);
+          if (activeSessionId) {
+            void rollbackSession(activeSessionId, msg);
+          } else {
+            setError(msg);
+          }
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Gagal mengecek status import');
+        }
+      }
+    };
+
+    void pollAssetStatus();
+    intervalId = setInterval(() => {
+      void pollAssetStatus();
+    }, 2000);
+
+    return () => {
+      cancelled = true;
+      clearPollingInterval(intervalId);
+    };
+  }, [
+    activeSessionId,
+    assetId,
+    isWaitingForAsset,
+    setDownloadProgress,
+    setError,
+    setLoading,
+    setSession,
+    setWaitingForAsset,
+    startAnalysis,
+    rollbackSession,
+  ]);
+
+  useEffect(() => {
+    if (
+      step !== 'IMPORT' ||
+      !activeSessionId ||
+      !assetId ||
+      assetStatus !== 'READY' ||
+      isWaitingForAsset
+    ) {
+      resumeAnalysisKeyRef.current = null;
+      return;
+    }
+
+    const resumeKey = `${activeSessionId}:${assetId}`;
+    if (resumeAnalysisKeyRef.current === resumeKey) {
+      return;
+    }
+
+    resumeAnalysisKeyRef.current = resumeKey;
+    setDownloadProgress(100);
+    void startAnalysis(activeSessionId);
+  }, [
+    activeSessionId,
+    assetId,
+    assetStatus,
+    isWaitingForAsset,
+    setDownloadProgress,
+    startAnalysis,
+    step,
+  ]);
 
   return (
     <div className="max-w-5xl mx-auto w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
       <Card className="bg-card/70 border-border/50 backdrop-blur-xl relative overflow-hidden group mb-10">
+        {isPreparingAnalysis ? (
+          <div className="absolute inset-0 z-20 bg-background/90 backdrop-blur-md flex flex-col items-center justify-center p-8 gap-4">
+            <div className="w-14 h-14 rounded-2xl bg-linear-to-br from-primary via-orange-500 to-rose-600 flex items-center justify-center shadow-lg">
+              <Wand2 className="w-7 h-7 text-white animate-pulse" />
+            </div>
+            <div className="text-center space-y-2">
+              <p className="text-sm font-black uppercase tracking-[0.22em] text-primary">
+                Menyiapkan Analisis
+              </p>
+              <p className="text-sm text-muted-foreground font-medium">
+                Video sedang disiapkan sebelum masuk ke tahap AI Director.
+              </p>
+            </div>
+          </div>
+        ) : null}
+
         <CardBody className="p-6 sm:p-10 flex flex-col items-center text-center gap-3">
           <div className="w-12 h-12 rounded-xl bg-linear-to-br from-primary via-orange-500 to-rose-600 flex items-center justify-center mb-2">
             <Wand2 className="w-6 h-6 text-white drop-shadow-sm" />
@@ -238,13 +478,15 @@ export const ImportStep = () => {
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                     setImportUrl(e.target.value)
                   }
-                  disabled={isLoading || isWaitingForAsset}
+                  disabled={isSubmittingImport || isWaitingForAsset || isPreparingAnalysis}
                 />
                 <Button
                   className="w-full rounded-2xl font-bold"
                   variant="default"
-                  disabled={!importUrl || isLoading || isWaitingForAsset}
-                  isLoading={isLoading && !isWaitingForAsset}
+                  disabled={
+                    !importUrl || isSubmittingImport || isWaitingForAsset || isPreparingAnalysis
+                  }
+                  isLoading={isSubmittingImport}
                   onClick={handleUrlImport}
                 >
                   Mulai Impor

@@ -18,7 +18,7 @@ import {
   Wand2,
   X,
 } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   Avatar,
@@ -88,12 +88,6 @@ export function DashboardLayout() {
     await logout();
     navigate('/login');
   };
-
-  const mainRef = useRef<HTMLElement>(null);
-
-  useEffect(() => {
-    mainRef.current?.scrollTo({ top: 0, behavior: 'instant' });
-  }, []);
 
   return (
     <div className="flex h-screen bg-background text-foreground">
@@ -308,7 +302,7 @@ export function DashboardLayout() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
-                <div className="flex items-center gap-3 px-3 py-3 border-b border-border/50 mb-1">
+                <div className="flex items-center gap-3 px-3 py-3 mb-1">
                   <Avatar
                     name={user?.name ?? 'User'}
                     size="sm"
@@ -321,7 +315,6 @@ export function DashboardLayout() {
                     </p>
                   </div>
                 </div>
-                <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => navigate('/dashboard/settings')}>
                   Settings
                 </DropdownMenuItem>
@@ -340,7 +333,7 @@ export function DashboardLayout() {
 
         {/* Page content */}
         <main
-          ref={mainRef}
+          key={location.pathname}
           className={cn(
             'flex-1 flex flex-col min-w-0', // base styles
             // For Modern Editor (Full Screen Tool), remove padding/overflow to let tool handle it

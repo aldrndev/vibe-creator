@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import 'dotenv/config';
+import { optionalNonEmptyStringSchema, optionalUrlSchema } from './env.utils';
 
 const envSchema = z.object({
   // Database
@@ -39,7 +40,7 @@ const envSchema = z.object({
   XENDIT_WEBHOOK_TOKEN: z.string().optional(),
 
   // Cloudflare Turnstile
-  TURNSTILE_SECRET_KEY: z.string().min(1).optional(),
+  TURNSTILE_SECRET_KEY: optionalNonEmptyStringSchema,
 
   // App
   NODE_ENV: z.enum(['development', 'staging', 'production']),
@@ -55,13 +56,19 @@ const envSchema = z.object({
   MEDIA_INPUT_DIR: z.string().default('./uploads'),
 
   // Video Download (Cobalt API)
-  COBALT_API_URL: z.url().optional(), // Self-hosted Cobalt API URL
+  COBALT_API_URL: optionalUrlSchema, // Self-hosted Cobalt API URL
 
   // SaveSora API for downloading Sora videos
   SAVESORA_API_KEY: z.string().optional(),
 
   // AI Keys
-  OPENAI_API_KEY: z.string().min(1).optional(),
+  AI_COPY_PROVIDER: z.enum(['auto', 'openai', 'ollama']).default('openai'),
+  OPENAI_API_KEY: optionalNonEmptyStringSchema,
+  OLLAMA_BASE_URL: optionalUrlSchema,
+  OLLAMA_MODEL: z.string().min(1).default('qwen3:14b'),
+  WHISPER_MODEL_SIZE: z
+    .enum(['tiny', 'base', 'small', 'medium', 'large-v2', 'large-v3'])
+    .default('small'),
 
   // Testing - disable rate limiting for E2E tests
   RATE_LIMIT_TEST_MODE: z
@@ -78,6 +85,14 @@ const envSchema = z.object({
 
 const parsed = envSchema
   .superRefine((data, ctx) => {
+    if (data.AI_COPY_PROVIDER === 'ollama' && !data.OLLAMA_BASE_URL) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'OLLAMA_BASE_URL is required when AI_COPY_PROVIDER is set to ollama',
+        path: ['OLLAMA_BASE_URL'],
+      });
+    }
+
     if (data.NODE_ENV !== 'development' && !data.TURNSTILE_SECRET_KEY) {
       ctx.addIssue({
         code: 'custom',

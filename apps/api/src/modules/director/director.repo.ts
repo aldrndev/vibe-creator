@@ -21,6 +21,7 @@ export type DirectorSessionWithDetails = Prisma.DirectorSessionGetPayload<{
         transcript: true;
       };
     };
+    subtitleStyle: true;
     transcribeJob: true;
     exportJob: true;
   };
@@ -53,6 +54,7 @@ export const directorRepo = {
           },
           orderBy: { orderIndex: 'asc' },
         },
+        subtitleStyle: true,
         transcribeJob: true,
         exportJob: true,
       },
@@ -152,6 +154,51 @@ export const directorRepo = {
     return prisma.directorAsset.findUnique({ where: { sessionId } });
   },
 
+  async findLatestReusableUrlAsset(sourceUrlNormalized: string) {
+    return prisma.directorAsset.findFirst({
+      where: {
+        sourceUrlNormalized,
+        ingestStatus: 'READY',
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+  },
+
+  async findLatestReusableContentAsset(contentHash: string) {
+    return prisma.directorAsset.findFirst({
+      where: {
+        contentHash,
+        ingestStatus: 'READY',
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+  },
+
+  async findReusableContentAssetCandidates(sizeBytes: bigint, durationMs?: number) {
+    return prisma.directorAsset.findMany({
+      where: {
+        ingestStatus: 'READY',
+        sizeBytes,
+        ...(typeof durationMs === 'number'
+          ? {
+              durationMs: {
+                gte: durationMs - 2000,
+                lte: durationMs + 2000,
+              },
+            }
+          : {}),
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+      take: 10,
+    });
+  },
+
   async findAssetByIdForUser(assetId: string, userId: string) {
     return prisma.directorAsset.findFirst({
       where: {
@@ -181,6 +228,60 @@ export const directorRepo = {
 
   async createAnalysisJob(data: Prisma.DirectorAnalysisJobUncheckedCreateInput) {
     return prisma.directorAnalysisJob.create({ data });
+  },
+
+  async upsertAnalysisJobBySession(
+    sessionId: string,
+    create: Omit<Prisma.DirectorAnalysisJobUncheckedCreateInput, 'sessionId'>,
+    update: Prisma.DirectorAnalysisJobUpdateInput,
+  ) {
+    return prisma.directorAnalysisJob.upsert({
+      where: { sessionId },
+      create: {
+        sessionId,
+        ...create,
+      },
+      update,
+    });
+  },
+
+  async updateAnalysisJob(id: string, data: Prisma.DirectorAnalysisJobUpdateInput) {
+    return prisma.directorAnalysisJob.update({
+      where: { id },
+      data,
+    });
+  },
+
+  async findLatestReusableAnalysisByAsset(asset: {
+    contentHash?: string | null;
+    sourceUrlNormalized?: string | null;
+    storageKey: string;
+  }) {
+    const assetFilter = asset.contentHash
+      ? { contentHash: asset.contentHash }
+      : asset.sourceUrlNormalized
+        ? { sourceUrlNormalized: asset.sourceUrlNormalized }
+        : { storageKey: asset.storageKey };
+
+    return prisma.directorAnalysisJob.findFirst({
+      where: {
+        status: 'COMPLETED',
+        candidates: {
+          some: {},
+        },
+        session: {
+          asset: assetFilter,
+        },
+      },
+      include: {
+        candidates: {
+          orderBy: { rank: 'asc' },
+        },
+      },
+      orderBy: {
+        completedAt: 'desc',
+      },
+    });
   },
 
   // ===========================================================================
@@ -214,6 +315,18 @@ export const directorRepo = {
       where: { id: clipId },
       data,
       include: { candidate: true },
+    });
+  },
+
+  async deleteSelectedClip(clipId: string) {
+    return prisma.directorSelectedClip.delete({
+      where: { id: clipId },
+    });
+  },
+
+  async countSelectedClips(sessionId: string) {
+    return prisma.directorSelectedClip.count({
+      where: { sessionId },
     });
   },
 

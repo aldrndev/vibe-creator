@@ -4,8 +4,21 @@ import { Pool } from 'pg';
 import { env } from '@/config/env';
 import { logger } from '@/lib/logger';
 
+function createPrismaClient() {
+  return new PrismaClient({
+    adapter,
+    log: env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
+    transactionOptions: {
+      maxWait: 5000,
+      timeout: 30000,
+    },
+  });
+}
+
+type AppPrismaClient = ReturnType<typeof createPrismaClient>;
+
 const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined;
+  prisma: AppPrismaClient | undefined;
 };
 
 /**
@@ -27,16 +40,7 @@ const pool = new Pool({
 // Create adapter
 const adapter = new PrismaPg(pool);
 
-export const prisma =
-  globalForPrisma.prisma ??
-  new PrismaClient({
-    adapter,
-    log: env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
-    transactionOptions: {
-      maxWait: 5000,
-      timeout: 30000,
-    },
-  });
+export const prisma = globalForPrisma.prisma ?? createPrismaClient();
 
 // Log slow queries in development
 if (env.NODE_ENV === 'development') {

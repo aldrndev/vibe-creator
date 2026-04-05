@@ -14,10 +14,16 @@ import { logger } from '@/lib/logger';
 import { prisma } from '@/lib/prisma';
 import { transcribeService } from '../../transcribe/transcribe.service';
 import {
+  buildDirectorQueueJobId,
   type DirectorTranscribeClipJobData,
   type DirectorTranscribeSessionJobData,
   directorQueue,
 } from '../director.queue';
+import {
+  parseTranscribeProgressMeta,
+  toTranscribeProgressJson,
+  updateTranscribeProgressMeta,
+} from '../services/transcribe-progress';
 
 /**
  * Orchestrates transcription for all selected clips in a session.
@@ -41,7 +47,15 @@ export async function processTranscribeSessionJob(job: Job<DirectorTranscribeSes
 
   await prisma.directorTranscribeJob.update({
     where: { id: session.transcribeJob.id },
-    data: { status: 'PROCESSING' },
+    data: {
+      status: 'PROCESSING',
+      startedAt: session.transcribeJob.startedAt ?? new Date(),
+      segments: toTranscribeProgressJson(
+        updateTranscribeProgressMeta(parseTranscribeProgressMeta(session.transcribeJob.segments), {
+          phase: 'queueing-clips',
+        }),
+      ),
+    },
   });
 
   const clipJobs = session.selectedClips.map((clip: (typeof session.selectedClips)[number]) => {
@@ -50,6 +64,7 @@ export async function processTranscribeSessionJob(job: Job<DirectorTranscribeSes
       sessionId,
       selectedClipId: clip.id,
       userId: job.data.userId,
+      forceRefresh: job.data.forceRefresh === true,
     };
 
     return {
@@ -57,7 +72,7 @@ export async function processTranscribeSessionJob(job: Job<DirectorTranscribeSes
       data: jobData,
       opts: {
         removeOnComplete: true,
-        jobId: `director:transcribe:clip:${clip.id}`,
+        jobId: buildDirectorQueueJobId('director', 'transcribe', 'clip', clip.id),
       },
     };
   });
@@ -78,7 +93,9 @@ export async function processTranscribeClipJob(job: Job<DirectorTranscribeClipJo
   const { selectedClipId } = job.data;
   logger.info({ selectedClipId }, 'Processing transcribe clip job');
 
-  await transcribeService.transcribeSelectedClip(selectedClipId);
+  await transcribeService.transcribeSelectedClip(selectedClipId, {
+    bypassCache: job.data.forceRefresh === true,
+  });
 
   const clip = await prisma.directorSelectedClip.findUnique({
     where: { id: selectedClipId },
@@ -90,25 +107,94 @@ export async function processTranscribeClipJob(job: Job<DirectorTranscribeClipJo
     const totalClips = await prisma.directorSelectedClip.count({
       where: { sessionId },
     });
-    const completedTranscripts = await prisma.directorClipTranscript.count({
+    const settledTranscripts = await prisma.directorClipTranscript.count({
       where: {
         sessionId,
         status: { in: ['COMPLETED', 'FAILED'] },
       },
     });
+    const failedTranscripts = await prisma.directorClipTranscript.count({
+      where: {
+        sessionId,
+        status: 'FAILED',
+      },
+    });
 
-    if (completedTranscripts >= totalClips) {
+    if (settledTranscripts >= totalClips) {
       const session = await prisma.directorSession.findUnique({
         where: { id: sessionId },
         include: { transcribeJob: true },
       });
 
       if (session?.transcribeJob) {
+        const cacheHitCount = await prisma.directorClipTranscript.count({
+          where: {
+            sessionId,
+            engine: 'WHISPER_CACHE',
+            status: 'COMPLETED',
+          },
+        });
+        const progressMeta = updateTranscribeProgressMeta(
+          parseTranscribeProgressMeta(session.transcribeJob.segments),
+          {
+            phase: failedTranscripts > 0 ? 'failed' : 'completed',
+            completedClipCount: settledTranscripts - failedTranscripts,
+            failedClipCount: failedTranscripts,
+            cacheHitCount,
+            currentClipId: null,
+          },
+        );
+
         await prisma.directorTranscribeJob.update({
           where: { id: session.transcribeJob.id },
-          data: { status: 'COMPLETED' },
+          data:
+            failedTranscripts > 0
+              ? {
+                  status: 'FAILED',
+                  errorMessage: `${failedTranscripts} klip gagal ditranskripsi.`,
+                  segments: toTranscribeProgressJson(progressMeta),
+                }
+              : {
+                  status: 'COMPLETED',
+                  errorMessage: null,
+                  segments: toTranscribeProgressJson(progressMeta),
+                },
         });
-        logger.info({ sessionId }, 'All clips transcribed - marked job COMPLETED');
+        logger.info(
+          { sessionId, failedTranscripts, settledTranscripts, totalClips },
+          'All clip transcription jobs settled',
+        );
+      }
+    } else {
+      const session = await prisma.directorSession.findUnique({
+        where: { id: sessionId },
+        include: { transcribeJob: true },
+      });
+
+      if (session?.transcribeJob) {
+        const cacheHitCount = await prisma.directorClipTranscript.count({
+          where: {
+            sessionId,
+            engine: 'WHISPER_CACHE',
+            status: 'COMPLETED',
+          },
+        });
+        const progressMeta = updateTranscribeProgressMeta(
+          parseTranscribeProgressMeta(session.transcribeJob.segments),
+          {
+            phase: 'processing-clips',
+            completedClipCount: settledTranscripts - failedTranscripts,
+            failedClipCount: failedTranscripts,
+            cacheHitCount,
+            currentClipId: null,
+          },
+        );
+        await prisma.directorTranscribeJob.update({
+          where: { id: session.transcribeJob.id },
+          data: {
+            segments: toTranscribeProgressJson(progressMeta),
+          },
+        });
       }
     }
   }

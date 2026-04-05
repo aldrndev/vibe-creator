@@ -273,11 +273,16 @@ export const downloadService = {
       }
     }
 
-    const jobs = await prisma.downloadJob.findMany({
-      where: { userId, ...cursorWhere },
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-      take: limit + 1,
-    });
+    const [jobs, total] = await Promise.all([
+      prisma.downloadJob.findMany({
+        where: { userId, ...cursorWhere },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        take: limit + 1,
+      }),
+      prisma.downloadJob.count({
+        where: { userId },
+      }),
+    ]);
 
     const hasMore = jobs.length > limit;
     const items = hasMore ? jobs.slice(0, limit) : jobs;
@@ -304,6 +309,7 @@ export const downloadService = {
       })),
       nextCursor,
       hasMore,
+      total,
     };
   },
 };

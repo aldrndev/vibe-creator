@@ -188,4 +188,41 @@ export const analysisRoutes: FastifyPluginAsync = async (fastify) => {
       }
     },
   );
+
+  /**
+   * Delete a selected clip
+   */
+  fastify.delete<{ Params: { id: string; clipId: string } }>(
+    '/sessions/:id/clips/:clipId',
+    async (
+      request: FastifyRequest<{ Params: { id: string; clipId: string } }>,
+      reply: FastifyReply,
+    ) => {
+      const user = request.user;
+      if (!user) {
+        return reply.status(401).send({
+          success: false,
+          error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+        });
+      }
+
+      try {
+        const result = await directorService.deleteClip(
+          request.params.id,
+          user.id,
+          request.params.clipId,
+        );
+        return reply.send({
+          success: true,
+          data: result,
+        });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Delete failed';
+        return reply.status(400).send({
+          success: false,
+          error: { code: 'DELETE_FAILED', message },
+        });
+      }
+    },
+  );
 };

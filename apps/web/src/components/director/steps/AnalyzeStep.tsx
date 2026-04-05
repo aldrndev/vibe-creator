@@ -77,12 +77,12 @@ export const AnalyzeStep = () => {
     <div className="max-w-2xl mx-auto w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
       <Card className="bg-card/70 border-border/50 backdrop-blur-xl relative overflow-hidden group">
         <CardBody className="p-8 sm:p-12 flex flex-col items-center text-center gap-8">
-          <div className="w-24 h-24 rounded-3xl bg-gradient-to-br from-primary via-orange-500 to-rose-600 flex items-center justify-center mb-2 relative">
+          <div className="w-24 h-24 rounded-3xl bg-linear-to-br from-primary via-orange-500 to-rose-600 flex items-center justify-center mb-2 relative">
             <Sparkles className="w-12 h-12 text-white drop-shadow-sm" />
           </div>
 
           <div className="space-y-3">
-            <h2 className="text-3xl font-black tracking-tight bg-clip-text text-transparent bg-gradient-to-br from-primary via-orange-500 to-rose-600">
+            <h2 className="text-3xl font-black tracking-tight bg-clip-text text-transparent bg-linear-to-br from-primary via-orange-500 to-rose-600">
               Menganalisis Konten
             </h2>
             <p className="text-muted-foreground max-w-md mx-auto leading-relaxed font-medium">

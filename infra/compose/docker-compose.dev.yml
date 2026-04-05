@@ -75,8 +75,10 @@ services:
       TEMP_DIR: /app/uploads/temp
       OUTPUT_DIR: /app/uploads/exports
       COBALT_API_URL: http://cobalt:9000
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
-      - server_uploads:/app/uploads
+      - ../../apps/api/uploads:/app/uploads
       # Hot reload mappings
       - ../../apps/api/src:/app/apps/api/src
       - ../../apps/api/tsconfig.json:/app/apps/api/tsconfig.json
@@ -136,4 +138,3 @@ services:
 volumes:
   postgres_data:
   redis_data:
-  server_uploads:

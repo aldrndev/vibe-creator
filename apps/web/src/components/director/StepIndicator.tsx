@@ -1,4 +1,4 @@
-import { Captions, CheckCircle2, Download, Scissors, Upload, Wand2 } from 'lucide-react';
+import { Captions, CheckCircle2, Download, Scissors, Sparkles, Upload, Wand2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { type DirectorStep, useDirectorStore } from '@/stores/director-store';
 
@@ -18,26 +18,30 @@ export const StepIndicator = () => {
     { id: 'ANALYZING', label: 'Analisis', icon: Wand2 },
     { id: 'PICKING', label: 'Pilih', icon: Scissors },
     { id: 'EDITING', label: 'Edit', icon: Captions },
+    { id: 'PUBLISH_COPY', label: 'Copy', icon: Sparkles },
     { id: 'EXPORTING', label: 'Ekspor', icon: Download },
   ];
 
-  const currentIdx = steps.findIndex((s) => s.id === step);
+  const rawIdx = steps.findIndex((s) => s.id === step);
+  const currentIdx = step === 'COMPLETED' ? steps.length - 1 : rawIdx;
 
   return (
-    <div className="w-full mx-auto mb-12">
+    <div className="w-full mx-auto mb-10 px-2 py-2">
       <div className="relative flex justify-between items-center max-w-2xl mx-auto">
-        {/* Progress Line - Base */}
-        <div className="absolute left-0 top-5 sm:top-6 -translate-y-1/2 w-full h-[2px] bg-border z-0 rounded-full" />
+        <div className="absolute top-5 right-5 left-5 z-0 -translate-y-1/2 sm:top-6 sm:right-6 sm:left-6">
+          {/* Progress Line - Base */}
+          <div className="h-0.5 rounded-full bg-border" />
 
-        {/* Progress Line - Active Filling */}
-        <div
-          className="absolute left-0 top-5 sm:top-6 -translate-y-1/2 h-[2px] bg-linear-to-r from-primary via-orange-500 to-rose-600 z-0 rounded-full transition-all duration-700 ease-in-out"
-          style={{ width: `${(currentIdx / (steps.length - 1)) * 100}%` }}
-        />
+          {/* Progress Line - Active Filling */}
+          <div
+            className="absolute inset-y-0 left-0 h-0.5 rounded-full bg-linear-to-r from-primary via-orange-500 to-rose-600 transition-all duration-700 ease-in-out"
+            style={{ width: `${(currentIdx / (steps.length - 1)) * 100}%` }}
+          />
+        </div>
 
         {steps.map((s, idx) => {
-          const isCompleted = idx < currentIdx;
-          const isActive = idx === currentIdx;
+          const isCompleted = idx < currentIdx || step === 'COMPLETED';
+          const isActive = idx === currentIdx && step !== 'COMPLETED';
 
           let stateClasses = 'border-border/50 bg-background text-muted-foreground';
           if (isActive) stateClasses = 'border-primary bg-card text-primary scale-110 z-20';
@@ -55,7 +59,7 @@ export const StepIndicator = () => {
             <div key={s.id} className="flex flex-col items-center gap-3 relative z-10">
               <div
                 className={cn(
-                  'w-10 h-10 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center border-2 transition-all duration-500',
+                  'w-10 h-10 sm:w-12 sm:h-12 shrink-0 rounded-2xl flex items-center justify-center border-2 transition-all duration-500',
                   stateClasses,
                 )}
               >

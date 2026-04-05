@@ -4,8 +4,34 @@ import { env } from '@/config/env';
 import { logger } from '@/lib/logger';
 import { prisma } from '@/lib/prisma';
 import { directorProcessor } from '../director/director.processor';
+import { resolveSelectedClipRangeMs } from '../director/selected-clip-range';
+import {
+  parseTranscribeProgressMeta,
+  toTranscribeProgressJson,
+  updateTranscribeProgressMeta,
+} from '../director/services/transcribe-progress';
+import { transcribeCacheService } from './transcribe-cache.service';
 import { transcribeNormalizer } from './transcribe-normalizer';
 import { whisperRunner } from './whisper-runner';
+
+async function updateProgressMeta(
+  transcribeJobId: string | undefined,
+  currentSegments: unknown,
+  patch: Parameters<typeof updateTranscribeProgressMeta>[1],
+) {
+  if (!transcribeJobId) {
+    return;
+  }
+
+  await prisma.directorTranscribeJob.update({
+    where: { id: transcribeJobId },
+    data: {
+      segments: toTranscribeProgressJson(
+        updateTranscribeProgressMeta(parseTranscribeProgressMeta(currentSegments), patch),
+      ),
+    },
+  });
+}
 
 export const transcribeService = {
   /**
@@ -15,51 +41,35 @@ export const transcribeService = {
    * 3. Normalize segments
    * 4. Update DB
    */
-  async transcribeSelectedClip(selectedClipId: string): Promise<void> {
+  async transcribeSelectedClip(
+    selectedClipId: string,
+    options: { bypassCache?: boolean } = {},
+  ): Promise<void> {
     const selectedClip = await prisma.directorSelectedClip.findUnique({
       where: { id: selectedClipId },
       include: {
-        session: { include: { asset: true } },
+        session: { include: { asset: true, transcribeJob: true } },
         candidate: true,
       },
     });
 
-    if (!selectedClip?.session?.asset) {
+    if (!selectedClip?.session) {
       throw new Error('Selected clip or asset not found');
     }
 
     const { session, candidate, trimStartMs, trimEndMs } = selectedClip;
-    const assetData = session.asset as { storageKey: string };
-    const { storageKey } = assetData;
+    const asset = session.asset;
+    if (!asset) {
+      throw new Error('Selected clip or asset not found');
+    }
 
-    // Determine effective time range
-    // If user trimmed, use trim times relative to candidate
-    // Candidate start/end are absolute in the video
-    // Trim is usually absolute too? or offset?
-    // Looking at schema: trimStartMs, trimEndMs default 0.
-    // Usually trim is relative to the clip start? Or replacing clip start?
-    // Let's assume standard behavior: Clip is defined by candidate.startMs and endMs.
-    // But refined steps allow Trimming?
-    // If DirectorSelectedClip has trimStartMs/trimEndMs > 0, does it mean "absolute time in video"
-    // or "offset from candidate start"?
-    // In many edit systems:
-    //    candidate is the rough cut.
-    //    selectedClip is the refined cut.
-    //    If trimStartMs is 0, it means use candidate start?
-    //    Or is trimStartMs the ACTUAL start time?
-    // User plan said "Extract audio proxy(videoPath, clipStartMs, clipEndMs)".
-    // Let's assume we use the actual range to be used in final video.
-    // If trimStartMs != 0, use it. Else use candidate.startMs.
-    // Actually, usually trimStartMs/EndMs in DB override candidate if set?
-    // Or maybe trimStartMs IS the start time.
-
-    // Let's look at `director.service.ts` or `director.processor.ts` usage normally.
-    // But for now, safe bet:
-    // start = trimStartMs > 0 ? trimStartMs : candidate.startMs
-    // end = trimEndMs > 0 ? trimEndMs : candidate.endMs
-
-    const startMs = trimStartMs > 0 ? trimStartMs : candidate.startMs;
-    const endMs = trimEndMs > 0 ? trimEndMs : candidate.endMs;
+    const { storageKey, contentHash, sourceUrlNormalized } = asset;
+    const { startMs, endMs } = resolveSelectedClipRangeMs({
+      candidateStartMs: candidate.startMs,
+      candidateEndMs: candidate.endMs,
+      trimStartMs,
+      trimEndMs,
+    });
 
     // Fix: Resolve input path correctly using MEDIA_INPUT_DIR
     // storageKey might be 'uploads/director/xyz.mp4' or 'director/xyz.mp4'
@@ -82,12 +92,58 @@ export const transcribeService = {
       'Transcribe: Resolving paths',
     );
 
+    const assetFingerprint = contentHash ?? sourceUrlNormalized ?? storageKey;
+    const cacheKey = transcribeCacheService.buildFingerprint({
+      assetFingerprint,
+      startMs,
+      endMs,
+      trimStartMs,
+      trimEndMs,
+    });
+
     // Ensure proxy dir exists
     await fs.mkdir(audioProxyDir, { recursive: true });
 
     let audioProxyPath = '';
 
     try {
+      if (!options.bypassCache) {
+        const cachedTranscript = await transcribeCacheService.getCachedTranscript(cacheKey);
+        if (cachedTranscript) {
+          await updateProgressMeta(session.transcribeJob?.id, session.transcribeJob?.segments, {
+            phase: 'cache-hit',
+            currentClipId: selectedClipId,
+          });
+
+          await prisma.directorClipTranscript.upsert({
+            where: { selectedClipId },
+            create: {
+              sessionId: session.id,
+              selectedClipId,
+              status: 'COMPLETED',
+              engine: 'WHISPER_CACHE',
+              language: cachedTranscript.language,
+              segments: cachedTranscript.segments,
+              completedAt: new Date(),
+            },
+            update: {
+              status: 'COMPLETED',
+              engine: 'WHISPER_CACHE',
+              segments: cachedTranscript.segments,
+              language: cachedTranscript.language,
+              errorMessage: null,
+              completedAt: new Date(),
+            },
+          });
+          return;
+        }
+      }
+
+      await updateProgressMeta(session.transcribeJob?.id, session.transcribeJob?.segments, {
+        phase: 'extracting-audio',
+        currentClipId: selectedClipId,
+      });
+
       // 1. Extract Audio
       audioProxyPath = await directorProcessor.extractClipAudioProxy(
         inputPath,
@@ -95,6 +151,11 @@ export const transcribeService = {
         startMs,
         endMs,
       );
+
+      await updateProgressMeta(session.transcribeJob?.id, session.transcribeJob?.segments, {
+        phase: 'running-whisper',
+        currentClipId: selectedClipId,
+      });
 
       // 2. Run Whisper
       const result = await whisperRunner.runWhisperOnAudio(audioProxyPath);
@@ -105,6 +166,11 @@ export const transcribeService = {
 
       // 3. Normalize
       const normalizedSegments = transcribeNormalizer.normalizeSegments(result.segments);
+
+      await updateProgressMeta(session.transcribeJob?.id, session.transcribeJob?.segments, {
+        phase: 'saving-transcript',
+        currentClipId: selectedClipId,
+      });
 
       // 4. Persist to DB
       await prisma.directorClipTranscript.upsert({
@@ -125,6 +191,11 @@ export const transcribeService = {
           errorMessage: null,
           completedAt: new Date(),
         },
+      });
+
+      await transcribeCacheService.setCachedTranscript(cacheKey, {
+        language: result.language,
+        segments: normalizedSegments as object[],
       });
 
       logger.info(

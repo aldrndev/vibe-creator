@@ -5,12 +5,26 @@ import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { env } from '@/config/env';
 import { requireAuth } from '@/plugins/auth';
+import { contentModeValues } from '../content-mode';
 import { directorService } from '../director.service';
 
 const startExportSchema = z.object({
   aspectRatio: z.enum(['9:16', '16:9', '1:1']).optional(),
   quality: z.enum(['720p', '1080p']).optional(),
   includeSubtitles: z.boolean().optional(),
+  normalizeAudio: z.boolean().optional(),
+  refineSettings: z
+    .record(
+      z.string(),
+      z.object({
+        faceTracking: z.boolean().optional(),
+        removeSilence: z.boolean().optional(),
+        optimizeHook: z.boolean().optional(),
+        stabilize: z.boolean().optional(),
+        contentMode: z.enum(contentModeValues).optional(),
+      }),
+    )
+    .optional(),
 });
 
 export const exportRoutes: FastifyPluginAsync = async (fastify) => {

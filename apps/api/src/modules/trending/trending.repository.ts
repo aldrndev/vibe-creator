@@ -61,7 +61,7 @@ export const trendingRepository = {
 
       await prisma.trendingItem.upsert({
         where: {
-          trending_items_unique: {
+          platform_type_region_externalUrlHash: {
             platform,
             type: item.type,
             region,
@@ -158,7 +158,7 @@ export const trendingRepository = {
   async getStatus(platform: string, region: string) {
     return prisma.trendingPlatformStatus.findUnique({
       where: {
-        trending_platform_status_unique: { platform, region },
+        platform_region: { platform, region },
       },
     });
   },
@@ -175,7 +175,7 @@ export const trendingRepository = {
     const now = new Date();
     return prisma.trendingPlatformStatus.upsert({
       where: {
-        trending_platform_status_unique: { platform, region },
+        platform_region: { platform, region },
       },
       update: {
         status,

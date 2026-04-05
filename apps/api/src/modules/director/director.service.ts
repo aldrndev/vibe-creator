@@ -8,6 +8,7 @@
 import { directorAnalysisService } from './services/analysis.service';
 import { directorAssetService } from './services/asset.service';
 import { directorExportService } from './services/export.service';
+import { directorPublishCopyService } from './services/publish-copy.service';
 import { directorSessionService } from './services/session.service';
 import { directorTranscribeService } from './services/transcribe.service';
 
@@ -17,4 +18,5 @@ export const directorService = {
   ...directorAnalysisService,
   ...directorTranscribeService,
   ...directorExportService,
+  ...directorPublishCopyService,
 };

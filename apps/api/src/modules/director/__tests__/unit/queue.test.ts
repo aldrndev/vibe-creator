@@ -8,12 +8,20 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { DIRECTOR_QUEUE_NAME } from '@/modules/director/director.queue';
+import { buildDirectorQueueJobId, DIRECTOR_QUEUE_NAME } from '@/modules/director/director.queue';
 
 describe('director queue', () => {
   describe('queue name', () => {
     it('should be director-analysis', () => {
       expect(DIRECTOR_QUEUE_NAME).toBe('director-analysis');
+    });
+  });
+
+  describe('job id builder', () => {
+    it('builds BullMQ-safe ids without colons', () => {
+      expect(buildDirectorQueueJobId('director', 'transcribe', 'clip', 'clip:1')).toBe(
+        'director-transcribe-clip-clip-1',
+      );
     });
   });
 

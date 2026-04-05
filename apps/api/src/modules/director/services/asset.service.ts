@@ -3,8 +3,8 @@
  * Handles asset import, validation, and file management
  */
 
-import { randomUUID } from 'node:crypto';
-import { existsSync } from 'node:fs';
+import { createHash, randomUUID } from 'node:crypto';
+import { createReadStream, existsSync } from 'node:fs';
 import { copyFile, mkdir, stat, unlink } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import { DirectorAssetOrigin, DirectorIngestStatus } from '@prisma/client';
@@ -14,6 +14,9 @@ import { resolveTempUploadReference } from '@/utils/temp-upload';
 import { downloadService } from '../../download/download.service';
 import { directorRepo } from '../director.repo';
 import { validateImportUrl } from '../director.utils';
+import { videoMetadataService } from '../processing/video-metadata.service';
+
+const REUSE_DURATION_TOLERANCE_MS = 2000;
 
 export const directorAssetService = {
   /**
@@ -76,6 +79,38 @@ export const directorAssetService = {
         );
       }
 
+      const reusableAsset = await directorRepo.findLatestReusableUrlAsset(normalized);
+      if (
+        reusableAsset &&
+        this.canReuseAssetFromMetadata(reusableAsset, meta.duration, meta.size)
+      ) {
+        const reusedAsset = await directorRepo.createAsset({
+          id: randomUUID(),
+          sessionId,
+          storageKey: reusableAsset.storageKey,
+          contentHash: reusableAsset.contentHash,
+          origin: DirectorAssetOrigin.URL_IMPORT,
+          sourceUrlNormalized: normalized,
+          ingestStatus: DirectorIngestStatus.READY,
+          mimeType: reusableAsset.mimeType,
+          sizeBytes: reusableAsset.sizeBytes,
+          durationMs: reusableAsset.durationMs,
+          thumbnailStorageKey: reusableAsset.thumbnailStorageKey,
+          metadata: reusableAsset.metadata ?? undefined,
+        });
+
+        logger.info(
+          {
+            sessionId,
+            assetId: reusedAsset.id,
+            reusedFromAssetId: reusableAsset.id,
+            url: normalized,
+          },
+          'Director asset import (URL) reused existing storage asset',
+        );
+        return reusedAsset;
+      }
+
       // Create asset record (will be filled by download job)
       const assetId = randomUUID();
       const storageKey = `uploads/director/${assetId}.mp4`; // Consistent with file import
@@ -89,6 +124,10 @@ export const directorAssetService = {
         ingestStatus: DirectorIngestStatus.UPLOADING,
         mimeType: 'video/mp4',
         sizeBytes: BigInt(0),
+        durationMs: this.toDurationMs(meta.duration),
+        metadata: {
+          title: meta.title,
+        },
       });
 
       // Trigger background download
@@ -107,6 +146,49 @@ export const directorAssetService = {
       // Verify temp file exists
       if (!existsSync(tempUploadPath)) {
         throw new Error('Uploaded file not found');
+      }
+
+      const fileStats = await stat(tempUploadPath);
+      const contentHash = await this.computeFileHash(tempUploadPath);
+      const fileMetadata = await videoMetadataService.getVideoMetadata(tempUploadPath);
+
+      const reusableAsset =
+        (await directorRepo.findLatestReusableContentAsset(contentHash)) ??
+        (await this.findReusableAssetByFileSignature(
+          contentHash,
+          fileStats.size,
+          fileMetadata.duration,
+        ));
+      if (
+        reusableAsset &&
+        this.canReuseAssetFromMetadata(reusableAsset, fileMetadata.duration, fileStats.size)
+      ) {
+        await unlink(tempUploadPath);
+
+        const reusedAsset = await directorRepo.createAsset({
+          id: randomUUID(),
+          sessionId,
+          storageKey: reusableAsset.storageKey,
+          contentHash,
+          origin: DirectorAssetOrigin.UPLOAD,
+          ingestStatus: DirectorIngestStatus.READY,
+          mimeType: reusableAsset.mimeType,
+          sizeBytes: reusableAsset.sizeBytes,
+          durationMs: reusableAsset.durationMs,
+          thumbnailStorageKey: reusableAsset.thumbnailStorageKey,
+          metadata: reusableAsset.metadata ?? undefined,
+        });
+
+        logger.info(
+          {
+            sessionId,
+            assetId: reusedAsset.id,
+            reusedFromAssetId: reusableAsset.id,
+            contentHash,
+          },
+          'Director asset import (File) reused existing storage asset',
+        );
+        return reusedAsset;
       }
 
       // Prepare destination
@@ -131,10 +213,12 @@ export const directorAssetService = {
         id: assetId,
         sessionId,
         storageKey, // In a real app this would be s3 key. Here it maps to uploads/director/{uuid}.mp4
+        contentHash,
         origin: DirectorAssetOrigin.UPLOAD,
         ingestStatus: DirectorIngestStatus.READY,
         mimeType: 'video/mp4',
-        sizeBytes: BigInt(0), // We should get size from fs.stat but skipping for brevity
+        sizeBytes: BigInt(fileStats.size),
+        durationMs: this.toDurationMs(fileMetadata.duration),
       });
 
       logger.info({ sessionId, filePath: destPath }, 'Director asset import (File) completed');
@@ -176,14 +260,14 @@ export const directorAssetService = {
       // Progress Key: director:asset:{assetId}:progress
       const progressKey = `director:asset:${assetId}:progress`;
 
-      // Set initial progress immediately so frontend sees movement
+      // Seed progress immediately so frontend starts at 0 instead of jumping to an arbitrary value.
       const { redis } = await import('@/lib/redis');
-      await redis.set(progressKey, 5, 'EX', 300);
-      logger.info({ assetId, progressKey }, 'Set initial progress to 5%');
+      await redis.set(progressKey, 0, 'EX', 300);
+      logger.info({ assetId, progressKey }, 'Set initial progress to 0%');
 
       // Throttle progress updates (max once per 500ms to avoid Redis overload)
       let lastProgressTime = Date.now();
-      let lastProgress = 5;
+      let lastProgress = 0;
 
       await downloadService.downloadVideo(url, outputPath, async (percent) => {
         const now = Date.now();
@@ -210,10 +294,14 @@ export const directorAssetService = {
 
       // Get file size
       const fileStats = await stat(outputPath);
+      const fileMetadata = await videoMetadataService.getVideoMetadata(outputPath);
+      const contentHash = await this.computeFileHash(outputPath);
 
       await directorRepo.updateAsset(assetId, {
+        contentHash,
         ingestStatus: DirectorIngestStatus.READY,
         sizeBytes: fileStats.size,
+        durationMs: this.toDurationMs(fileMetadata.duration),
       });
 
       // Clear progress key or set to 100
@@ -230,5 +318,98 @@ export const directorAssetService = {
       const { redis: redisClient } = await import('@/lib/redis');
       await redisClient.set(`director:asset:${assetId}:error`, (err as Error).message, 'EX', 60);
     }
+  },
+
+  toDurationMs(durationSeconds: number): number | undefined {
+    if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) {
+      return undefined;
+    }
+
+    return Math.round(durationSeconds * 1000);
+  },
+
+  canReuseAssetFromMetadata(
+    asset: {
+      storageKey: string;
+      sizeBytes: bigint;
+      durationMs: number | null;
+    },
+    durationSeconds: number,
+    sizeBytes?: number,
+  ): boolean {
+    if (!this.assetFileExists(asset.storageKey)) {
+      return false;
+    }
+
+    const expectedDurationMs = this.toDurationMs(durationSeconds);
+    if (
+      expectedDurationMs !== undefined &&
+      asset.durationMs !== null &&
+      Math.abs(asset.durationMs - expectedDurationMs) > REUSE_DURATION_TOLERANCE_MS
+    ) {
+      return false;
+    }
+
+    if (typeof sizeBytes === 'number' && sizeBytes > 0 && asset.sizeBytes !== BigInt(sizeBytes)) {
+      return false;
+    }
+
+    return true;
+  },
+
+  assetFileExists(storageKey: string): boolean {
+    return existsSync(this.resolveAssetPath(storageKey));
+  },
+
+  resolveAssetPath(storageKey: string): string {
+    const cleanStorageKey = storageKey.replace(/^uploads\//, '');
+    return join(env.MEDIA_INPUT_DIR, cleanStorageKey);
+  },
+
+  async computeFileHash(filePath: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const hash = createHash('sha256');
+      const stream = createReadStream(filePath);
+
+      stream.on('data', (chunk) => {
+        hash.update(chunk);
+      });
+      stream.on('error', reject);
+      stream.on('end', () => {
+        resolve(hash.digest('hex'));
+      });
+    });
+  },
+
+  async findReusableAssetByFileSignature(
+    contentHash: string,
+    sizeBytes: number,
+    durationSeconds: number,
+  ) {
+    const durationMs = this.toDurationMs(durationSeconds);
+    const candidates = await directorRepo.findReusableContentAssetCandidates(
+      BigInt(sizeBytes),
+      durationMs,
+    );
+
+    for (const candidate of candidates) {
+      const candidatePath = this.resolveAssetPath(candidate.storageKey);
+      if (!existsSync(candidatePath)) {
+        continue;
+      }
+
+      const candidateHash = candidate.contentHash ?? (await this.computeFileHash(candidatePath));
+      if (candidate.contentHash !== candidateHash) {
+        await directorRepo.updateAsset(candidate.id, {
+          contentHash: candidateHash,
+        });
+      }
+
+      if (candidateHash === contentHash) {
+        return candidate;
+      }
+    }
+
+    return null;
   },
 };

@@ -76,6 +76,7 @@ async function main(): Promise<void> {
 
   await fastify.register(cors, {
     origin: env.CORS_ORIGIN.split(','),
+    methods: ['GET', 'HEAD', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
     credentials: true,
   });
 

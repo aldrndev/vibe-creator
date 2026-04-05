@@ -3,7 +3,12 @@ import { join } from 'node:path';
 import { env } from '@/config/env';
 import { logger } from '@/lib/logger';
 
-const CLEANUP_DIRS = ['uploads/temp', 'uploads/director/previews', 'uploads/downloads'];
+const CLEANUP_DIRS = [
+  'uploads/temp',
+  'uploads/director/previews',
+  'uploads/director/clip-previews',
+  'uploads/downloads',
+];
 
 const MAX_AGE_MS = 24 * 60 * 60 * 1000; // 24 hours
 

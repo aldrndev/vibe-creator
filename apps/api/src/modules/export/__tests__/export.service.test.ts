@@ -203,6 +203,7 @@ describe('exportService', () => {
       // Arrange
       const jobs = [createMockExportJob({ id: 'job-1' }), createMockExportJob({ id: 'job-2' })];
       mockPrisma.exportHistory.findMany.mockResolvedValue(jobs);
+      mockPrisma.exportHistory.count.mockResolvedValue(12);
 
       // Act
       const result = await exportService.getHistory('user-123', 10);
@@ -211,6 +212,7 @@ describe('exportService', () => {
       expect(result.items).toHaveLength(2);
       expect(result.hasMore).toBe(false);
       expect(result.nextCursor).toBe(null);
+      expect(result.total).toBe(12);
       expect(mockPrisma.exportHistory.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({ userId: 'user-123' }),
@@ -218,11 +220,15 @@ describe('exportService', () => {
           orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         }),
       );
+      expect(mockPrisma.exportHistory.count).toHaveBeenCalledWith({
+        where: { userId: 'user-123' },
+      });
     });
 
     it('should use default limit of 10', async () => {
       // Arrange
       mockPrisma.exportHistory.findMany.mockResolvedValue([]);
+      mockPrisma.exportHistory.count.mockResolvedValue(0);
 
       // Act
       await exportService.getHistory('user-123');

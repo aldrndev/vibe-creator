@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import type { ApiResponse } from '@vibe-creator/shared';
 import { api } from '@/services/api';
 
 interface DashboardStats {
@@ -6,6 +7,29 @@ interface DashboardStats {
   prompts: number;
   exports: number;
   downloads: number;
+}
+
+interface CursorListResult<T> {
+  items: T[];
+  nextCursor: string | null;
+  hasMore: boolean;
+  total?: number;
+}
+
+function getPaginatedCount<T>(response: ApiResponse<T[]>): number {
+  if (!response.success) {
+    return 0;
+  }
+
+  return response.meta?.total ?? response.data.length;
+}
+
+function getCursorCount<T>(response: ApiResponse<CursorListResult<T>>): number {
+  if (!response.success) {
+    return 0;
+  }
+
+  return response.data.total ?? response.data.items.length;
 }
 
 export function useDashboardStats() {
@@ -16,21 +40,15 @@ export function useDashboardStats() {
       const [projectsRes, promptsRes, exportsRes, downloadsRes] = await Promise.all([
         api.get<unknown[]>('/projects?limit=1'),
         api.get<unknown[]>('/prompts?limit=1'),
-        api.get<unknown[]>('/export/history'),
-        api.get<unknown[]>('/download/history'),
+        api.get<CursorListResult<unknown>>('/export/history'),
+        api.get<CursorListResult<unknown>>('/download/history'),
       ]);
 
       return {
-        projects:
-          (projectsRes as { meta?: { total?: number }; data?: unknown[] }).meta?.total ??
-          (projectsRes as { data?: unknown[] }).data?.length ??
-          0,
-        prompts:
-          (promptsRes as { meta?: { total?: number }; data?: unknown[] }).meta?.total ??
-          (promptsRes as { data?: unknown[] }).data?.length ??
-          0,
-        exports: (exportsRes as { data?: unknown[] }).data?.length ?? 0,
-        downloads: (downloadsRes as { data?: unknown[] }).data?.length ?? 0,
+        projects: getPaginatedCount(projectsRes),
+        prompts: getPaginatedCount(promptsRes),
+        exports: getCursorCount(exportsRes),
+        downloads: getCursorCount(downloadsRes),
       };
     },
     staleTime: 5 * 60 * 1000, // 5 minutes for dashboard stats

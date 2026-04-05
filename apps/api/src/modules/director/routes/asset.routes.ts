@@ -9,6 +9,8 @@ import { requireAuth } from '@/plugins/auth';
 import { directorRepo } from '../director.repo';
 import { directorService } from '../director.service';
 
+const INITIAL_UPLOAD_PROGRESS = 0;
+
 const importAssetSchema = z
   .object({
     type: z.enum(['url', 'file']),
@@ -26,85 +28,95 @@ export const assetRoutes: FastifyPluginAsync = async (fastify) => {
   /**
    * Get asset status (polling for progress)
    */
-  fastify.get<{ Params: { id: string } }>('/assets/:id/status', async (request, reply) => {
-    const { id } = request.params;
-    const user = request.user;
-    if (!user) {
-      return reply.status(401).send({
-        success: false,
-        error: { code: 'UNAUTHORIZED', message: 'Auth required' },
-      });
-    }
-
-    try {
-      // Check local Redis for progress
-      const { redis } = await import('@/lib/redis');
-
-      // Check DB for status first, scoped to the requesting user.
-      const asset = await directorRepo.findAssetByIdForUser(id, user.id);
-      if (!asset) {
-        return reply.status(404).send({
+  fastify.get<{ Params: { id: string } }>(
+    '/assets/:id/status',
+    {
+      config: {
+        rateLimit: false,
+      },
+    },
+    async (request, reply) => {
+      const { id } = request.params;
+      const user = request.user;
+      if (!user) {
+        return reply.status(401).send({
           success: false,
-          error: { code: 'NOT_FOUND', message: 'Asset not found' },
+          error: { code: 'UNAUTHORIZED', message: 'Auth required' },
         });
       }
 
-      let progress = 0;
-      let errorMessage = null;
+      try {
+        // Check local Redis for progress
+        const { redis } = await import('@/lib/redis');
 
-      if (asset.ingestStatus === 'UPLOADING') {
-        // Check Redis for active progress
-        const progressKey = `director:asset:${id}:progress`;
-        const rawProgress = await redis.get(progressKey);
+        // Check DB for status first, scoped to the requesting user.
+        const asset = await directorRepo.findAssetByIdForUser(id, user.id);
+        if (!asset) {
+          return reply.status(404).send({
+            success: false,
+            error: { code: 'NOT_FOUND', message: 'Asset not found' },
+          });
+        }
 
-        if (rawProgress) {
-          progress = parseInt(rawProgress, 10);
-        } else {
-          // No progress key found. Check if asset is stale (zombie job)
-          const now = new Date();
-          const staleThreshold = 2 * 60 * 1000; // 2 minutes
-          if (now.getTime() - asset.createdAt.getTime() > staleThreshold) {
-            // Auto-fail the asset
-            await directorRepo.updateAsset(asset.id, {
-              ingestStatus: 'FAILED',
-            });
-            return reply.send({
-              success: true,
-              data: {
-                id: asset.id,
-                status: 'FAILED',
-                progress: 0,
-                errorMessage: 'Upload timed out or server restarted',
-              },
-            });
+        let progress = 0;
+        let errorMessage = null;
+
+        if (asset.ingestStatus === 'UPLOADING') {
+          // Check Redis for active progress
+          const progressKey = `director:asset:${id}:progress`;
+          const rawProgress = await redis.get(progressKey);
+
+          if (rawProgress) {
+            progress = parseInt(rawProgress, 10);
+          } else {
+            // No progress key found. Check if asset is stale (zombie job)
+            const now = new Date();
+            const staleThreshold = 2 * 60 * 1000; // 2 minutes
+            if (now.getTime() - asset.createdAt.getTime() > staleThreshold) {
+              // Auto-fail the asset
+              await directorRepo.updateAsset(asset.id, {
+                ingestStatus: 'FAILED',
+              });
+              return reply.send({
+                success: true,
+                data: {
+                  id: asset.id,
+                  status: 'FAILED',
+                  progress: 0,
+                  errorMessage: 'Upload timed out or server restarted',
+                },
+              });
+            }
+
+            progress = INITIAL_UPLOAD_PROGRESS;
           }
+
+          const errorKey = `director:asset:${id}:error`;
+          const redisError = await redis.get(errorKey);
+          if (redisError) {
+            errorMessage = redisError;
+          }
+        } else if (asset.ingestStatus === 'READY') {
+          progress = 100;
         }
 
-        const errorKey = `director:asset:${id}:error`;
-        const redisError = await redis.get(errorKey);
-        if (redisError) {
-          errorMessage = redisError;
-        }
-      } else if (asset.ingestStatus === 'READY') {
-        progress = 100;
+        return reply.send({
+          success: true,
+          data: {
+            id: asset.id,
+            status: asset.ingestStatus,
+            progress,
+            errorMessage,
+          },
+        });
+      } catch {
+        return reply.status(500).send({
+          success: false,
+          error: { code: 'INTERNAL_ERROR', message: 'Failed to get status' },
+        });
       }
-
-      return reply.send({
-        success: true,
-        data: {
-          id: asset.id,
-          status: asset.ingestStatus,
-          progress,
-          errorMessage,
-        },
-      });
-    } catch {
-      return reply.status(500).send({
-        success: false,
-        error: { code: 'INTERNAL_ERROR', message: 'Failed to get status' },
-      });
-    }
-  });
+    },
+  );
 
   /**
    * Import from URL
@@ -242,80 +254,6 @@ export const assetRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(404).send({
           success: false,
           error: { code: 'NOT_FOUND', message: 'Session or asset not found' },
-        });
-      }
-    },
-  );
-
-  /**
-   * Serve preview images
-   */
-  fastify.get<{ Params: { id: string; filename: string } }>(
-    '/sessions/:id/previews/:filename',
-    {
-      preHandler: [requireAuth],
-    },
-    async (request, reply) => {
-      const user = request.user;
-      if (!user) {
-        return reply.status(401).send({
-          success: false,
-          error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
-        });
-      }
-
-      try {
-        const { filename, id: sessionId } = request.params;
-
-        // Security: Only allow specific file extensions
-        if (!/^preview_[a-f0-9-]+\.(jpg|png)$/.test(filename)) {
-          return reply.status(400).send({
-            success: false,
-            error: {
-              code: 'INVALID_FILENAME',
-              message: 'Invalid preview filename',
-            },
-          });
-        }
-
-        const session = await directorRepo.findSession(sessionId, user.id);
-        const belongsToSession =
-          session?.analysisJob?.candidates.some(
-            (candidate) => basename(candidate.previewStorageKey ?? '') === filename,
-          ) ||
-          session?.selectedClips.some(
-            (clip) => basename(clip.candidate.previewStorageKey ?? '') === filename,
-          );
-
-        if (!belongsToSession) {
-          return reply.status(404).send({
-            success: false,
-            error: { code: 'NOT_FOUND', message: 'Preview not found' },
-          });
-        }
-
-        const filePath = join(env.MEDIA_INPUT_DIR, 'director', 'previews', filename);
-
-        try {
-          await access(filePath);
-        } catch {
-          return reply.status(404).send({
-            success: false,
-            error: { code: 'NOT_FOUND', message: 'Preview not found' },
-          });
-        }
-
-        const fileStats = await stat(filePath);
-        return reply
-          .type(filename.endsWith('.png') ? 'image/png' : 'image/jpeg')
-          .header('Content-Length', fileStats.size)
-          .header('X-Content-Type-Options', 'nosniff')
-          .send(createReadStream(filePath));
-      } catch (err) {
-        logger.error({ err }, 'Failed to serve preview');
-        return reply.status(500).send({
-          success: false,
-          error: { code: 'SERVER_ERROR', message: 'Failed to serve preview' },
         });
       }
     },

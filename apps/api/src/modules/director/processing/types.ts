@@ -1,3 +1,15 @@
+export interface SegmentAnalysisMetrics {
+  meanVolume: number;
+  maxVolume: number;
+  speechDensity: number;
+  energyScore: number;
+  dialogDensityScore: number;
+  durationFitScore: number;
+  visualPenalty: number;
+  hasBlackScreen: boolean;
+  isStatic: boolean;
+}
+
 export interface Segment {
   start: number; // seconds
   end: number; // seconds
@@ -5,6 +17,7 @@ export interface Segment {
   score: number; // 0-1
   tags?: string[];
   activeDuration?: number; // Total non-silent time inside this segment
+  analysis?: SegmentAnalysisMetrics;
 }
 
 export interface AnalysisOptions {

@@ -36,7 +36,7 @@ export function LoopCreatorPage() {
 
   return (
     <PageTransition className="min-h-screen bg-background p-6">
-      <div className="max-w-[1600px] mx-auto">
+      <div className="max-w-400 mx-auto">
         <LoopHeader />
 
         <div className="grid grid-cols-1 lg:grid-cols-[6fr_4fr] gap-6">

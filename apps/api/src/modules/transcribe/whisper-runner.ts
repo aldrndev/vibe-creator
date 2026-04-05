@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { logger } from '@/lib/logger';
@@ -11,6 +12,14 @@ export interface RawWhisperSegment {
   end: number; // Seconds
   text: string;
   confidence: number;
+  words?: RawWhisperWord[];
+}
+
+export interface RawWhisperWord {
+  start: number; // Seconds
+  end: number; // Seconds
+  text: string;
+  confidence?: number;
 }
 
 export interface WhisperResult {
@@ -22,14 +31,25 @@ export interface WhisperResult {
 
 export class WhisperRunner {
   private readonly scriptPath: string;
+  private readonly projectPythonPath: string;
 
   constructor() {
     this.scriptPath = path.join(__dirname, 'run_whisper.py');
+    this.projectPythonPath = path.resolve(__dirname, '../../../venv/bin/python');
+  }
+
+  private getPythonCommand(): string {
+    if (existsSync(this.projectPythonPath)) {
+      return this.projectPythonPath;
+    }
+
+    return 'python3';
   }
 
   async runWhisperOnAudio(audioPath: string): Promise<WhisperResult> {
     return new Promise((resolve, reject) => {
-      const pythonProcess = spawn('python3', [this.scriptPath, audioPath]);
+      const pythonCommand = this.getPythonCommand();
+      const pythonProcess = spawn(pythonCommand, [this.scriptPath, audioPath]);
 
       let stdoutData = '';
       let stderrData = '';
@@ -64,7 +84,7 @@ export class WhisperRunner {
       });
 
       pythonProcess.on('error', (err) => {
-        logger.error({ err }, 'Failed to spawn python process');
+        logger.error({ err, pythonCommand }, 'Failed to spawn python process');
         reject(err);
       });
     });

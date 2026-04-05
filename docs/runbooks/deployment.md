@@ -6,6 +6,17 @@
 - Node.js 20+ & pnpm 10+ installed
 - SSH access to VPS
 
+## Runtime Dependencies in Docker
+
+Container API production dan development sudah membawa dependency media processing utama di image:
+
+- `python3`
+- `ffmpeg`
+- `yt-dlp`
+- `faster-whisper`
+
+Artinya deployment Docker tidak membutuhkan install dependency tersebut di host VPS untuk runtime aplikasi.
+
 ## Quick Deploy (VPS Single-Node)
 
 ### 1. Clone & Setup
@@ -49,11 +60,11 @@ nano infra/compose/apps/api/.env.docker
 | `CORS_ORIGIN` | Domain production |
 | `NODE_ENV` | `production` |
 
-### 3. Start Infrastructure
+### 3. Build & Start Containers
 
 ```bash
-# Start PostgreSQL + Redis
-pnpm docker:prod:up
+# Build dan start production stack
+pnpm docker:prod:up:build
 
 # Cek status
 pnpm docker:prod:ps
@@ -62,55 +73,42 @@ pnpm docker:prod:ps
 ### 4. Setup Database
 
 ```bash
-# Generate Prisma client
-pnpm db:generate
-
-# Push schema ke database
-cd apps/api && npx prisma db push
-cd ..
+# Migration akan dijalankan oleh aplikasi/container yang terbaru.
+# Jika perlu cek manual dari host:
+pnpm --filter @vibe-creator/api exec prisma generate
 ```
 
-### 5. Build & Start
-
-```bash
-# Build
-pnpm build
-
-# Start dengan PM2 (recommended)
-cd apps/api && pm2 start dist/index.js --name vibe-api
-```
-
-### 6. Verify
+### 5. Verify
 
 ```bash
 curl http://localhost:3000/health
+pnpm docker:prod:logs
 ```
 
 ## Script Reference
 
-| Command                    | Fungsi                |
-| -------------------------- | --------------------- |
-| `pnpm docker:prod:up`      | Start prod containers |
-| `pnpm docker:prod:down`    | Stop prod containers  |
-| `pnpm docker:prod:logs`    | Lihat logs            |
-| `pnpm docker:prod:restart` | Restart               |
+| Command                    | Fungsi                          |
+| -------------------------- | ------------------------------- |
+| `pnpm docker:prod:up`      | Start prod containers           |
+| `pnpm docker:prod:up:build`| Build lalu start prod containers |
+| `pnpm docker:prod:down`    | Stop prod containers            |
+| `pnpm docker:prod:logs`    | Lihat logs                      |
+| `pnpm docker:prod:restart` | Restart                         |
 
 ## Update Application
 
 ```bash
 git pull origin main
 pnpm install
-pnpm build
-cd apps/api && npx prisma db push && cd ..
-pm2 restart vibe-api
+pnpm docker:prod:up:build
 ```
 
 ## Rollback
 
 ```bash
 git checkout <previous-tag>
-pnpm install && pnpm build
-pm2 restart vibe-api
+pnpm install
+pnpm docker:prod:up:build
 ```
 
 ## Health Checks
@@ -127,3 +125,4 @@ pm2 restart vibe-api
 - [ ] Firewall: only 80, 443, SSH open
 - [ ] Strong passwords (32+ chars)
 - [ ] HTTPS via nginx/caddy
+- [ ] Image production terbaru sudah dibuild ulang setelah perubahan API/media pipeline

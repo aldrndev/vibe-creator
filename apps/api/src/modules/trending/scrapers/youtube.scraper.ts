@@ -1,7 +1,7 @@
 /**
  * YouTube/Google Trends Scraper
  * ============================================================================
- * Fetches trending data from Google Trends API (free, no puppeteer)
+ * Fetches trending data from YouTube API and Google Trends sources
  */
 
 import googleTrends from 'google-trends-api';
@@ -57,6 +57,11 @@ interface RelatedTopicsResult {
   };
 }
 
+interface GoogleTrendsRssCandidate {
+  readonly url: string;
+  readonly locale?: string;
+}
+
 // ============================================================================
 // SCRAPER
 // ============================================================================
@@ -97,13 +102,137 @@ const CATEGORY_MAP: Record<string, string> = {
   '44': 'Trailers',
 };
 
+const GOOGLE_TRENDS_RSS_SOURCES: Record<string, readonly GoogleTrendsRssCandidate[]> = {
+  ID: [
+    { url: 'https://trends.google.com/trends/trendingsearches/daily/rss?geo=ID&hl=id' },
+    { url: 'https://trends.google.com/trends/trendingsearches/daily/rss?geo=ID' },
+    { url: 'https://trends.google.co.id/trends/trendingsearches/daily/rss?geo=ID' },
+  ],
+  US: [{ url: 'https://trends.google.com/trends/trendingsearches/daily/rss?geo=US&hl=en-US' }],
+};
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function decodeXmlEntities(value: string): string {
+  return value
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .trim();
+}
+
+function getXmlTagValue(block: string, tagName: string): string | undefined {
+  const tagPattern = new RegExp(
+    `<${escapeRegExp(tagName)}[^>]*>([\\s\\S]*?)</${escapeRegExp(tagName)}>`,
+    'i',
+  );
+  const match = block.match(tagPattern);
+  const value = match?.[1];
+
+  if (!value) {
+    return undefined;
+  }
+
+  return decodeXmlEntities(value);
+}
+
+function normalizeExternalId(prefix: string, value: string): string {
+  return `${prefix}-${value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')}`;
+}
+
+function buildGoogleTrendsExploreUrl(query: string, region: string): string {
+  return `https://trends.google.com/trends/explore?geo=${region}&q=${encodeURIComponent(query)}`;
+}
+
+function parseGoogleTrendsRss(xml: string, region: string): ScrapedItem[] {
+  const itemBlocks = xml.match(/<item>[\s\S]*?<\/item>/gi) ?? [];
+
+  return itemBlocks.reduce<ScrapedItem[]>((items, block, index) => {
+    const title = getXmlTagValue(block, 'title');
+
+    if (!title) {
+      return items;
+    }
+
+    const traffic = getXmlTagValue(block, 'ht:approx_traffic');
+    const thumbnailUrl = getXmlTagValue(block, 'ht:picture');
+    const newsItemTitle = getXmlTagValue(block, 'ht:news_item_title');
+    const newsItemSnippet = getXmlTagValue(block, 'ht:news_item_snippet');
+    const newsItemUrl = getXmlTagValue(block, 'ht:news_item_url');
+
+    items.push({
+      externalId: normalizeExternalId('google-rss', title),
+      externalUrl: newsItemUrl ?? buildGoogleTrendsExploreUrl(title, region),
+      title,
+      description: newsItemSnippet ?? newsItemTitle,
+      thumbnailUrl,
+      rank: index + 1,
+      metrics: {
+        traffic: traffic ?? 'Naik',
+      },
+      type: TRENDING_TYPES.SEARCH,
+    });
+
+    return items;
+  }, []);
+}
+
+async function fetchGoogleTrendsRss(region: string): Promise<ScrapedItem[]> {
+  const candidates = GOOGLE_TRENDS_RSS_SOURCES[region] ?? GOOGLE_TRENDS_RSS_SOURCES.ID ?? [];
+
+  for (const candidate of candidates) {
+    try {
+      const response = await fetch(candidate.url, {
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+          Accept: 'application/rss+xml, application/xml, text/xml;q=0.9, */*;q=0.8',
+          'Accept-Language': candidate.locale ?? 'id-ID,id;q=0.9,en;q=0.8',
+        },
+      });
+
+      if (!response.ok) {
+        continue;
+      }
+
+      const xml = await response.text();
+      const items = parseGoogleTrendsRss(xml, region);
+
+      if (items.length > 0) {
+        return items;
+      }
+    } catch {}
+  }
+
+  return [];
+}
+
+function dedupeItems(items: ScrapedItem[]): ScrapedItem[] {
+  const itemMap = new Map<string, ScrapedItem>();
+
+  for (const item of items) {
+    itemMap.set(`${item.type}:${item.externalId}`, item);
+  }
+
+  return Array.from(itemMap.values());
+}
+
 export const youtubeScraper = {
   /**
-   * Scrape trending data from Google Trends
+   * Scrape trending data from YouTube and Google Trends
    */
   async scrape(region: string): Promise<ScraperResult> {
     try {
       const items: ScrapedItem[] = [];
+      let hasSuccessfulSource = false;
 
       // 1. Try Official YouTube API if Key is present (The "Real Solution")
       if (process.env.YOUTUBE_API_KEY) {
@@ -158,62 +287,88 @@ export const youtubeScraper = {
                 type: TRENDING_TYPES.VIDEO,
               });
             }
-
-            return {
-              status: PLATFORM_STATUS.OK,
-              items,
-            };
+            hasSuccessfulSource = data.items.length > 0;
           }
         } catch (apiErr: unknown) {
           const message = apiErr instanceof Error ? apiErr.message : 'Unknown error';
           console.error('Official YouTube API Failed:', message);
-          // Fallthrough to legacy scraper/fallback
+          // Continue to Google Trends sources for non-video signals
         }
       }
 
-      // 2. Legacy / External Scraper (Likely Blocked in Data Centers)
-      // fetch daily trends...
-      const dailyTrendsRaw = await googleTrends.dailyTrends({
-        geo: region,
-        trendDate: new Date(),
-      });
+      let hasSearchSignals = false;
 
-      let dailyTrends: GoogleTrendsResult;
       try {
-        dailyTrends = JSON.parse(dailyTrendsRaw) as GoogleTrendsResult;
-      } catch (_parseErr) {
-        console.error('Failed to parse dailyTrends:', dailyTrendsRaw.substring(0, 200));
-        throw new Error(
-          `Google Trends returned invalid JSON: ${dailyTrendsRaw.substring(0, 50)}...`,
-        );
+        // 2. Google Trends RSS searches (more stable than JSON endpoint)
+        const rssItems = await fetchGoogleTrendsRss(region);
+        if (rssItems.length > 0) {
+          items.push(...rssItems);
+          hasSuccessfulSource = true;
+          hasSearchSignals = true;
+        } else {
+          throw new Error('Google Trends RSS returned no items');
+        }
+      } catch (rssError: unknown) {
+        const message = rssError instanceof Error ? rssError.message : 'Unknown error';
+        console.error('Google Trends RSS failed:', message);
       }
 
-      // Process daily trending searches
-      let rank = 1;
-      for (const day of dailyTrends.default.trendingSearchesDays) {
-        for (const trend of day.trendingSearches) {
-          items.push({
-            externalId: `google-trend-${trend.title.query.toLowerCase().replace(/\s+/g, '-')}`,
-            externalUrl: `https://trends.google.com${trend.title.exploreLink}`,
-            title: trend.title.query,
-            description: trend.articles?.[0]?.snippet,
-            thumbnailUrl: trend.image?.imageUrl ?? trend.articles?.[0]?.image?.imageUrl,
-            rank: rank++,
-            metrics: {
-              traffic: trend.formattedTraffic,
-              relatedQueries: trend.relatedQueries.slice(0, 5).map((q) => q.query),
-            },
-            type: TRENDING_TYPES.SEARCH,
+      if (!hasSearchSignals) {
+        try {
+          // 3. Legacy JSON daily trends fallback
+          const dailyTrendsRaw = await googleTrends.dailyTrends({
+            geo: region,
+            trendDate: new Date(),
           });
 
-          // Limit to 50 items
-          if (rank > 50) break;
+          let dailyTrends: GoogleTrendsResult;
+          try {
+            dailyTrends = JSON.parse(dailyTrendsRaw) as GoogleTrendsResult;
+          } catch (_parseErr) {
+            console.error('Failed to parse dailyTrends:', dailyTrendsRaw.substring(0, 200));
+            throw new Error(
+              `Google Trends returned invalid JSON: ${dailyTrendsRaw.substring(0, 50)}...`,
+            );
+          }
+
+          let rank = items.length + 1;
+          for (const day of dailyTrends.default.trendingSearchesDays) {
+            for (const trend of day.trendingSearches) {
+              items.push({
+                externalId: `google-trend-${trend.title.query.toLowerCase().replace(/\s+/g, '-')}`,
+                externalUrl: `https://trends.google.com${trend.title.exploreLink}`,
+                title: trend.title.query,
+                description: trend.articles?.[0]?.snippet,
+                thumbnailUrl: trend.image?.imageUrl ?? trend.articles?.[0]?.image?.imageUrl,
+                rank: rank++,
+                metrics: {
+                  traffic: trend.formattedTraffic,
+                  relatedQueries: trend.relatedQueries.slice(0, 5).map((q) => q.query),
+                },
+                type: TRENDING_TYPES.SEARCH,
+              });
+
+              if (rank > 80) {
+                break;
+              }
+            }
+
+            if (rank > 80) {
+              break;
+            }
+          }
+
+          hasSuccessfulSource = true;
+          hasSearchSignals = true;
+        } catch (dailyTrendsError: unknown) {
+          const message =
+            dailyTrendsError instanceof Error ? dailyTrendsError.message : 'Unknown error';
+          console.error('Google Trends daily searches failed:', message);
         }
-        if (rank > 50) break;
       }
 
-      // Fetch YouTube-related topics if available
       try {
+        // 4. Related topics (best effort enrichment)
         const relatedRaw = await googleTrends.relatedTopics({
           keyword: 'YouTube',
           geo: region,
@@ -221,7 +376,7 @@ export const youtubeScraper = {
 
         const related = JSON.parse(relatedRaw) as RelatedTopicsResult;
 
-        let topicRank = 1;
+        let topicRank = items.length + 1;
         for (const list of related.default.rankedList) {
           for (const keyword of list.rankedKeyword.slice(0, 20)) {
             items.push({
@@ -238,14 +393,23 @@ export const youtubeScraper = {
             });
           }
         }
-      } catch {
-        // Related topics may fail silently - non-critical
+        hasSuccessfulSource = true;
+      } catch (relatedTopicsError: unknown) {
+        const message =
+          relatedTopicsError instanceof Error ? relatedTopicsError.message : 'Unknown error';
+        console.error('Google Trends related topics failed:', message);
       }
 
-      return {
-        status: items.length > 0 ? PLATFORM_STATUS.OK : PLATFORM_STATUS.DEGRADED,
-        items,
-      };
+      const uniqueItems = dedupeItems(items);
+
+      if (uniqueItems.length > 0) {
+        return {
+          status: hasSuccessfulSource ? PLATFORM_STATUS.OK : PLATFORM_STATUS.DEGRADED,
+          items: uniqueItems,
+        };
+      }
+
+      throw new Error('All trending sources failed');
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Scraping failed';
 

@@ -1,7 +1,7 @@
 
-import sys
-import json
 import os
+import json
+import sys
 from faster_whisper import WhisperModel
 
 def transcribe_audio(file_path):
@@ -17,8 +17,8 @@ def transcribe_audio(file_path):
 
         # Load model
         # Size options: tiny, base, small, medium, large-v2, large-v3
-        # Use 'base' for speed/accuracy balance in MVP, or 'small' for better Indonesian
-        model_size = "base" 
+        # Default to 'small' for stronger multilingual accuracy on CPU.
+        model_size = os.environ.get("WHISPER_MODEL_SIZE", "small")
         
         # Run on CPU with INT8 by default (fastest on standard server)
         # If GPU available, use device="cuda", compute_type="float16"
@@ -27,17 +27,31 @@ def transcribe_audio(file_path):
         segments, info = model.transcribe(
             file_path, 
             beam_size=5, 
-            word_timestamps=False, # We only need segment timestamps
-            vad_filter=True
+            word_timestamps=True,
+            vad_filter=False,
+            condition_on_previous_text=False
         )
 
         output_segments = []
         for segment in segments:
+            words = []
+            if segment.words:
+                for word in segment.words:
+                    if word.start is None or word.end is None:
+                        continue
+                    words.append({
+                        "start": word.start,
+                        "end": word.end,
+                        "text": word.word.strip(),
+                        "confidence": getattr(word, "probability", None)
+                    })
+
             output_segments.append({
                 "start": segment.start,
                 "end": segment.end,
                 "text": segment.text.strip(),
-                "confidence": segment.avg_logprob
+                "confidence": segment.avg_logprob,
+                "words": words
             })
 
         result = {

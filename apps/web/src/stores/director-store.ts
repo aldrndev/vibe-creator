@@ -6,6 +6,7 @@ export type DirectorStep =
   | 'ANALYZING'
   | 'PICKING'
   | 'EDITING'
+  | 'PUBLISH_COPY'
   | 'EXPORTING'
   | 'COMPLETED';
 
@@ -30,16 +31,72 @@ export interface Candidate {
   rank?: number;
   tags?: string[];
   previewStorageKey?: string;
+  metadata?: {
+    aiRerank?: {
+      provider: 'openai' | 'ollama' | 'heuristic';
+      label: string;
+      reason: string;
+      viralScore: number;
+      hookScore: number;
+      clarityScore: number;
+      heuristicScore: number;
+      compositeScore: number;
+      contentModeSuggestion: 'podcast' | 'talking-head' | 'cinematic' | 'general';
+    };
+    scoreBreakdown?: {
+      energy: number;
+      dialogDensity: number;
+      durationFit: number;
+      visualPenalty: number;
+      topSignals: string[];
+      badges: string[];
+      contentModeSuggestion: 'podcast' | 'talking-head' | 'cinematic' | 'general';
+    };
+  };
 }
 
 export interface SelectedClip {
   id: string;
   candidateId: string;
   orderIndex: number;
+  trimStartMs?: number | null;
+  trimEndMs?: number | null;
   candidate: Candidate;
   transcript?: {
-    segments: Array<{ startMs: number; endMs: number; text: string }>;
+    segments: Array<{
+      startMs: number;
+      endMs: number;
+      text: string;
+      words?: Array<{
+        startMs: number;
+        endMs: number;
+        text: string;
+      }>;
+    }>;
   };
+}
+
+export interface TranscribeJob {
+  status: string;
+  errorMessage?: string | null;
+  progressMeta?: {
+    phase?:
+      | 'queued'
+      | 'queueing-clips'
+      | 'extracting-audio'
+      | 'running-whisper'
+      | 'saving-transcript'
+      | 'cache-hit'
+      | 'processing-clips'
+      | 'completed'
+      | 'failed';
+    clipCount?: number;
+    clipDurationTotalMs?: number;
+    completedClipCount?: number;
+    failedClipCount?: number;
+    cacheHitCount?: number;
+    currentClipId?: string | null;
+  } | null;
 }
 
 export interface SubtitleStyle {
@@ -47,18 +104,23 @@ export interface SubtitleStyle {
   fontSize: number;
   textColorToken: string;
   bgColorToken: string;
+  position: 'top' | 'center' | 'bottom' | 'cinema-bottom' | 'safe-bottom' | 'lower-third';
+  animation: 'none' | 'fade' | 'typewriter' | 'phrase' | 'line';
 }
 
 export interface ExportSettings {
   aspectRatio: '9:16' | '16:9' | '1:1';
   quality: '720p' | '1080p';
   includeSubtitles: boolean;
+  normalizeAudio: boolean;
 }
 
 export interface RefineSettings {
-  faceTracking: boolean;
-  removeSilence: boolean;
-  stabilize: boolean;
+  faceTracking?: boolean;
+  removeSilence?: boolean;
+  optimizeHook?: boolean;
+  stabilize?: boolean;
+  contentMode: 'auto' | 'podcast' | 'talking-head' | 'cinematic' | 'general';
   caption?: string;
 }
 
@@ -69,6 +131,22 @@ export interface ExportJob {
   outputStorageKey?: string;
   [key: string]: unknown;
 }
+
+const defaultSubtitleStyle: SubtitleStyle = {
+  fontToken: 'F_INTER',
+  fontSize: 24,
+  textColorToken: 'C_WHITE',
+  bgColorToken: 'C_BLACK',
+  position: 'bottom',
+  animation: 'none',
+};
+
+const defaultExportSettings: ExportSettings = {
+  aspectRatio: '9:16',
+  quality: '1080p',
+  includeSubtitles: true,
+  normalizeAudio: true,
+};
 
 interface DirectorState {
   // Session
@@ -86,7 +164,7 @@ interface DirectorState {
 
   // Editing
   playingClipId: string | null;
-  transcribeJob: { status: string } | null;
+  transcribeJob: TranscribeJob | null;
   subtitleStyle: SubtitleStyle;
 
   // Settings
@@ -108,12 +186,13 @@ interface DirectorState {
   toggleCandidateSelection: (id: string) => void;
   setSelectedClips: (clips: SelectedClip[]) => void;
   setPlayingClipId: (id: string | null) => void;
-  setTranscribeJob: (job: { status: string } | null) => void;
+  setTranscribeJob: (job: TranscribeJob | null) => void;
   updateSubtitleStyle: (style: Partial<SubtitleStyle>) => void;
   setRefineSettings: (settings: Record<string, RefineSettings>) => void;
   updateRefineSetting: (clipId: string, key: keyof RefineSettings, value: boolean | string) => void;
   setExportSettings: (settings: Partial<ExportSettings>) => void;
   setExportJob: (job: ExportJob | null) => void;
+  setDownloadProgress: (progress: number) => void;
   setAnalysisLogs: (logs: string[]) => void;
   addAnalysisLog: (log: string) => void;
   setWaitingForAsset: (waiting: boolean) => void;
@@ -134,18 +213,9 @@ export const useDirectorStore = create<DirectorState>()(
     selectedClips: [],
     playingClipId: null,
     transcribeJob: null,
-    subtitleStyle: {
-      fontToken: 'F_INTER',
-      fontSize: 24,
-      textColorToken: 'C_WHITE',
-      bgColorToken: 'C_BLACK',
-    },
+    subtitleStyle: defaultSubtitleStyle,
     refineSettings: {},
-    exportSettings: {
-      aspectRatio: '9:16',
-      quality: '1080p',
-      includeSubtitles: true,
-    },
+    exportSettings: defaultExportSettings,
     exportJob: null,
     downloadProgress: 0,
     analysisLogs: [],
@@ -175,9 +245,7 @@ export const useDirectorStore = create<DirectorState>()(
           ...state.refineSettings,
           [id]: {
             ...(state.refineSettings[id] || {
-              faceTracking: true,
-              removeSilence: true,
-              stabilize: false,
+              contentMode: 'auto',
             }),
             [key]: value as RefineSettings[keyof RefineSettings],
           },
@@ -188,6 +256,7 @@ export const useDirectorStore = create<DirectorState>()(
         exportSettings: { ...state.exportSettings, ...settings },
       })),
     setExportJob: (job) => set({ exportJob: job }),
+    setDownloadProgress: (progress) => set({ downloadProgress: progress }),
     setAnalysisLogs: (logs) => set({ analysisLogs: logs }),
     addAnalysisLog: (log) =>
       set((state) => ({
@@ -201,10 +270,18 @@ export const useDirectorStore = create<DirectorState>()(
         step: 'IMPORT',
         isLoading: false,
         error: null,
+        isWaitingForAsset: false,
         importUrl: '',
         candidates: [],
         selectedCandidateIds: new Set(),
         selectedClips: [],
+        playingClipId: null,
+        transcribeJob: null,
+        subtitleStyle: defaultSubtitleStyle,
+        refineSettings: {},
+        exportSettings: defaultExportSettings,
+        exportJob: null,
+        downloadProgress: 0,
         analysisLogs: [],
       }),
   })),

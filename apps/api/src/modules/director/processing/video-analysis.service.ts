@@ -9,6 +9,24 @@ import { logger } from '@/lib/logger';
 import type { AnalysisOptions, Segment } from './types';
 
 const ffmpegPath = process.env.FFMPEG_PATH || 'ffmpeg';
+const IDEAL_SHORT_MIN_DURATION = 10;
+const IDEAL_SHORT_MAX_DURATION = 25;
+
+function clampScore(value: number): number {
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function getDurationFitScore(duration: number): number {
+  if (duration >= IDEAL_SHORT_MIN_DURATION && duration <= IDEAL_SHORT_MAX_DURATION) {
+    return 92;
+  }
+
+  if (duration < IDEAL_SHORT_MIN_DURATION) {
+    return clampScore(70 - (IDEAL_SHORT_MIN_DURATION - duration) * 6);
+  }
+
+  return clampScore(78 - (duration - IDEAL_SHORT_MAX_DURATION) * 3);
+}
 
 export const videoAnalysisService = {
   /**
@@ -299,10 +317,17 @@ export const videoAnalysisService = {
     // Run concurrently with concurrency limit for performance
     const analyzed = await Promise.all(
       candidates.map(async (c) => {
-        const { meanVolume } = await this.analyzeSegmentEnergy(audioPath, c.start, c.duration);
+        const { meanVolume, maxVolume } = await this.analyzeSegmentEnergy(
+          audioPath,
+          c.start,
+          c.duration,
+        );
 
         let score = c.score;
         const tags: string[] = [];
+        let hasBlackScreen = false;
+        let isStatic = false;
+        let visualPenalty = 0;
 
         // Heuristic: High energy = Excitement/Action
         // Typically speech is -20dB to -10dB. Loud is > -10dB.
@@ -334,22 +359,42 @@ export const videoAnalysisService = {
 
         // 5. Visual Validation
         if (videoPath) {
-          const { hasBlackScreen, isStatic } = await this.analyzeSegmentVisuals(
-            videoPath,
-            c.start,
-            c.duration,
-          );
+          const visuals = await this.analyzeSegmentVisuals(videoPath, c.start, c.duration);
+          hasBlackScreen = visuals.hasBlackScreen;
+          isStatic = visuals.isStatic;
+
           if (hasBlackScreen) {
             score -= 0.3; // Penalty for black screen
             tags.push('BLACK SCREEN');
+            visualPenalty += 55;
           }
           if (isStatic) {
             score -= 0.2; // Penalty for static image
             tags.push('STATIC');
+            visualPenalty += 35;
           }
         }
 
-        return { ...c, score: Math.min(score, 0.99), tags };
+        const energyScore = clampScore((meanVolume + 45) * 4);
+        const dialogDensityScore = clampScore(density * 100);
+        const durationFitScore = getDurationFitScore(c.duration);
+
+        return {
+          ...c,
+          score: Math.min(score, 0.99),
+          tags,
+          analysis: {
+            meanVolume,
+            maxVolume,
+            speechDensity: density,
+            energyScore,
+            dialogDensityScore,
+            durationFitScore,
+            visualPenalty: clampScore(visualPenalty),
+            hasBlackScreen,
+            isStatic,
+          },
+        };
       }),
     );
 

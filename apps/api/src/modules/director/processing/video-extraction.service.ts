@@ -8,6 +8,7 @@ import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { logger } from '@/lib/logger';
+import { getClipPlaybackWindow } from '../clip-playback-window';
 
 const ffmpegPath = process.env.FFMPEG_PATH || 'ffmpeg';
 
@@ -122,13 +123,18 @@ export const videoExtractionService = {
    * Generate a visual preview (thumbnail) for a clip.
    * Extracts the middle frame of the segment.
    */
-  async generateClipPreview(inputPath: string, outputDir: string, timeMs: number): Promise<string> {
+  async generateClipPreview(
+    inputPath: string,
+    outputDir: string,
+    timeMs: number,
+    outputFileName?: string,
+  ): Promise<string> {
     if (!existsSync(inputPath)) {
       throw new Error(`Input file not found: ${inputPath}`);
     }
 
     const timeSec = timeMs / 1000;
-    const fileName = `preview_${randomUUID()}.jpg`;
+    const fileName = outputFileName ?? `preview_${randomUUID()}.jpg`;
     const outputPath = join(outputDir, fileName);
 
     // Fast seek to time, extract 1 frame, scale to 480px height
@@ -170,26 +176,22 @@ export const videoExtractionService = {
   },
 
   /**
-   * Generate a short video preview clip (2-3 seconds) for playback.
+   * Generate a video clip preview for playback.
    */
   async generateClipVideoPreview(
     inputPath: string,
     outputDir: string,
     startMs: number,
     endMs: number,
+    outputFileName?: string,
   ): Promise<string> {
     if (!existsSync(inputPath)) {
       throw new Error(`Input file not found: ${inputPath}`);
     }
 
-    const midpointMs = (startMs + endMs) / 2;
-    const previewDurationMs = Math.min(3000, endMs - startMs);
-    const previewStartMs = Math.max(0, midpointMs - previewDurationMs / 2);
+    const { startSec, durationSec } = getClipPlaybackWindow({ startMs, endMs });
 
-    const startSec = previewStartMs / 1000;
-    const durationSec = previewDurationMs / 1000;
-
-    const fileName = `clip_${randomUUID()}.mp4`;
+    const fileName = outputFileName ?? `clip_${randomUUID()}.mp4`;
     const outputPath = join(outputDir, fileName);
 
     const args = [
@@ -200,40 +202,56 @@ export const videoExtractionService = {
       inputPath,
       '-t',
       durationSec.toFixed(3),
+      '-map',
+      '0:v:0',
+      '-map',
+      '0:a:0?',
       '-vf',
-      'scale=-2:480',
+      'scale=-2:720',
       '-c:v',
       'libx264',
       '-preset',
       'veryfast',
       '-crf',
-      '28',
+      '23',
+      '-pix_fmt',
+      'yuv420p',
       '-c:a',
       'aac',
       '-b:a',
-      '96k',
+      '128k',
       '-movflags',
       '+faststart',
+      '-f',
+      'mp4',
       outputPath,
     ];
 
     logger.debug({ inputPath, startSec, durationSec }, 'Generating video clip preview');
 
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       const proc = spawn(ffmpegPath, args);
+
+      let stderrOutput = '';
+      proc.stderr.on('data', (data) => {
+        stderrOutput += data.toString();
+      });
 
       proc.on('close', (code) => {
         if (code === 0 && existsSync(outputPath)) {
           resolve(fileName);
         } else {
-          logger.warn({ code }, 'Video clip generation failed');
-          resolve('');
+          logger.warn(
+            { code, stderrOutput: stderrOutput.slice(-500) },
+            'Video clip generation failed',
+          );
+          reject(new Error(`FFmpeg clip generation failed with code ${code}`));
         }
       });
 
       proc.on('error', (err) => {
         logger.error({ err }, 'Video clip generation error');
-        resolve('');
+        reject(new Error(`FFmpeg process error: ${err.message}`));
       });
     });
   },

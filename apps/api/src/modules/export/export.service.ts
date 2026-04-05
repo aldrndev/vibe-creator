@@ -179,11 +179,16 @@ export const exportService = {
       }
     }
 
-    const jobs = await prisma.exportHistory.findMany({
-      where: { userId, ...cursorWhere },
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-      take: limit + 1,
-    });
+    const [jobs, total] = await Promise.all([
+      prisma.exportHistory.findMany({
+        where: { userId, ...cursorWhere },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        take: limit + 1,
+      }),
+      prisma.exportHistory.count({
+        where: { userId },
+      }),
+    ]);
 
     const hasMore = jobs.length > limit;
     const items = hasMore ? jobs.slice(0, limit) : jobs;
@@ -215,6 +220,7 @@ export const exportService = {
       })),
       nextCursor,
       hasMore,
+      total,
     };
   },
 };
