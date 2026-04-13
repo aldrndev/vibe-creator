@@ -18,10 +18,9 @@ import type { Job } from 'bullmq';
 import { env } from '@/config/env';
 import { logger } from '@/lib/logger';
 import { prisma } from '@/lib/prisma';
-import { applyClipRefineSettings, resolveClipRefineSettings } from '../clip-refine';
 import { directorProcessor } from '../director.processor';
 import type { DirectorExportJobData } from '../director.queue';
-import { resolveSelectedClipRangeMs } from '../selected-clip-range';
+import { type BuiltExportClip, buildExportClipFromSelectedClip } from '../export-clip-builder';
 
 /**
  * Processes a video export job for the AI Director.
@@ -36,7 +35,7 @@ export async function processExportJob(job: Job<DirectorExportJobData>) {
   const logCtx = { jobId: job.id, sessionId, type: 'EXPORT' };
   logger.info(logCtx, 'Processing export job');
 
-  await job.updateProgress(10);
+  await job.updateProgress(5);
 
   const session = await prisma.directorSession.findUnique({
     where: { id: sessionId },
@@ -57,6 +56,10 @@ export async function processExportJob(job: Job<DirectorExportJobData>) {
     throw new Error('Session or export job not found');
   }
 
+  if (session.selectedClips.length !== 1) {
+    throw new Error('Ekspor hanya mendukung 1 klip untuk 1 short');
+  }
+
   const exportJobId = session.exportJob.id;
 
   try {
@@ -64,6 +67,7 @@ export async function processExportJob(job: Job<DirectorExportJobData>) {
       where: { id: exportJobId },
       data: { status: 'PROCESSING' },
     });
+    await job.updateProgress(12);
 
     const asset = await prisma.directorAsset.findUnique({
       where: { sessionId },
@@ -80,25 +84,7 @@ export async function processExportJob(job: Job<DirectorExportJobData>) {
       throw new Error(`Asset file missing: ${sourcePath}`);
     }
 
-    const clipsToExport: Array<{
-      sourcePath: string;
-      start: number;
-      end: number;
-      faceTracking?: boolean;
-      transcript?: {
-        segments?: Array<{
-          startMs: number;
-          endMs: number;
-          text: string;
-          words?: Array<{
-            startMs: number;
-            endMs: number;
-            text: string;
-            confidence?: number;
-          }>;
-        }>;
-      };
-    }> = [];
+    const clipsToExport: BuiltExportClip[] = [];
     const subtitleStyle = session.subtitleStyle
       ? {
           fontToken: session.subtitleStyle.fontToken,
@@ -109,80 +95,62 @@ export async function processExportJob(job: Job<DirectorExportJobData>) {
           animation: session.subtitleStyle.animation,
         }
       : undefined;
-    const startExportClips = session.selectedClips;
+    const startExportClips = session.selectedClips.slice(0, 1);
+    await job.updateProgress(20);
 
     for (const clip of startExportClips) {
-      const clipRange = resolveSelectedClipRangeMs({
-        candidateStartMs: clip.candidate.startMs,
-        candidateEndMs: clip.candidate.endMs,
-        trimStartMs: clip.trimStartMs,
-        trimEndMs: clip.trimEndMs,
-      });
-
-      const transcriptData = clip.transcript?.segments
-        ? {
-            segments: clip.transcript.segments as Array<{
-              startMs: number;
-              endMs: number;
-              text: string;
-              words?: Array<{
-                startMs: number;
-                endMs: number;
-                text: string;
-                confidence?: number;
-              }>;
-            }>,
-          }
-        : undefined;
-
-      const candidateMetadata =
-        typeof clip.candidate.metadata === 'object' &&
-        clip.candidate.metadata !== null &&
-        !Array.isArray(clip.candidate.metadata)
-          ? (clip.candidate.metadata as {
-              scoreBreakdown?: {
-                contentModeSuggestion?: 'podcast' | 'talking-head' | 'cinematic' | 'general';
-              };
-            })
-          : {};
-      const resolvedRefineSettings = resolveClipRefineSettings(options.refineSettings?.[clip.id], {
-        contentModeSuggestion: candidateMetadata.scoreBreakdown?.contentModeSuggestion,
-      });
-
-      const refinedClip = applyClipRefineSettings(
-        {
-          startMs: clipRange.startMs,
-          endMs: clipRange.endMs,
-          contentModeSuggestion: candidateMetadata.scoreBreakdown?.contentModeSuggestion,
-          transcript: transcriptData,
-        },
-        resolvedRefineSettings,
+      clipsToExport.push(
+        buildExportClipFromSelectedClip({
+          clip: {
+            id: clip.id,
+            trimStartMs: clip.trimStartMs,
+            trimEndMs: clip.trimEndMs,
+            candidate: {
+              startMs: clip.candidate.startMs,
+              endMs: clip.candidate.endMs,
+              metadata: clip.candidate.metadata,
+            },
+            transcript: clip.transcript?.segments
+              ? {
+                  segments: clip.transcript.segments as Array<{
+                    startMs: number;
+                    endMs: number;
+                    text: string;
+                    speaker?: string;
+                    words?: Array<{
+                      startMs: number;
+                      endMs: number;
+                      text: string;
+                      confidence?: number;
+                      speaker?: string;
+                    }>;
+                  }>,
+                }
+              : undefined,
+          },
+          sourcePath,
+          settings: options.refineSettings?.[clip.id],
+        }),
       );
-
-      clipsToExport.push({
-        sourcePath,
-        start: refinedClip.startMs / 1000,
-        end: refinedClip.endMs / 1000,
-        faceTracking: resolvedRefineSettings.faceTracking,
-        transcript: refinedClip.transcript,
-      });
     }
 
     if (clipsToExport.length === 0) {
       throw new Error('Tidak ada klip valid untuk diekspor');
     }
 
-    await job.updateProgress(30);
+    await job.updateProgress(35);
 
     const outputDir = join(env.MEDIA_INPUT_DIR, 'director', 'exports');
     if (!existsSync(outputDir)) {
       await mkdir(outputDir, { recursive: true });
     }
+    await job.updateProgress(45);
 
     const finalFile = await directorProcessor.exportVideo(clipsToExport, outputDir, {
       ...options,
       subtitleStyle,
     });
+    await job.updateProgress(92);
 
     await job.updateProgress(100);
 

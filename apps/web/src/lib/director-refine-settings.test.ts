@@ -66,4 +66,21 @@ describe('director refine settings', () => {
       optimizeHook: true,
     });
   });
+
+  it('enables tracking stabilization for product-review mode', () => {
+    expect(applyContentModePreset(createCandidate(), 'product-review')).toMatchObject({
+      contentMode: 'product-review',
+      faceTracking: true,
+      stabilize: true,
+    });
+  });
+
+  it('keeps interview mode safe by default with face tracking off', () => {
+    expect(applyContentModePreset(createCandidate(), 'interview')).toMatchObject({
+      contentMode: 'interview',
+      faceTracking: false,
+      removeSilence: true,
+      optimizeHook: true,
+    });
+  });
 });

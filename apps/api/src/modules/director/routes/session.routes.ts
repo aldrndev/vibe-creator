@@ -3,13 +3,24 @@ import { z } from 'zod';
 import { AuditAction, audit } from '@/lib/audit';
 import { directorService } from '../director.service';
 
-const updateSubtitleStyleSchema = z.object({
+const subtitlePositionValues = [
+  'top',
+  'center',
+  'bottom',
+  'cinema-bottom',
+  'safe-bottom',
+  'lower-third',
+] as const;
+
+const subtitleAnimationValues = ['none', 'fade', 'typewriter', 'phrase', 'line'] as const;
+
+export const updateSubtitleStyleSchema = z.object({
   fontToken: z.string().optional(),
   textColorToken: z.string().optional(),
   bgColorToken: z.string().optional(),
   fontSize: z.number().min(8).max(72).optional(),
-  position: z.enum(['top', 'center', 'bottom']).optional(),
-  animation: z.enum(['none', 'fade', 'typewriter']).optional(),
+  position: z.enum(subtitlePositionValues).optional(),
+  animation: z.enum(subtitleAnimationValues).optional(),
 });
 
 export const sessionRoutes: FastifyPluginAsync = async (fastify) => {

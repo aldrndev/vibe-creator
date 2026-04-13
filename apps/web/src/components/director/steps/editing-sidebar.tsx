@@ -1,7 +1,13 @@
-import { Captions, Download, MapPin } from 'lucide-react';
+import { Captions, ScanFace, Scissors, Sparkles, Type, Waves } from 'lucide-react';
+import type { ReactNode } from 'react';
 import { EditingLivePreview } from '@/components/director/steps/editing-live-preview';
-import { platformPresets, subtitlePresets } from '@/components/director/steps/editing-presets';
-import { Button, Card, CardBody, Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui';
+import { subtitlePresets } from '@/components/director/steps/editing-presets';
+import { Card, CardBody, Switch, Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui';
+import {
+  getCandidateSuggestedContentMode,
+  getContentModeLabel,
+  getEffectiveRefineSettings,
+} from '@/lib/director-refine-settings';
 import { cn } from '@/lib/utils';
 import type {
   DirectorSession,
@@ -17,9 +23,12 @@ interface EditingSidebarProps {
   readonly subtitleStyle: SubtitleStyle;
   readonly selectedClips: SelectedClip[];
   readonly refineSettings: Record<string, RefineSettings>;
-  readonly onUpdateExportSettings: (settings: Partial<ExportSettings>) => void;
   readonly onUpdateSubtitleStyle: (style: Partial<SubtitleStyle>) => void;
-  readonly onProceedToPublishCopy: () => void;
+  readonly onUpdateRefineSetting: (
+    key: 'faceTracking' | 'removeSilence' | 'optimizeHook' | 'stabilize',
+    value: boolean,
+  ) => void;
+  readonly onApplyContentMode: (mode: RefineSettings['contentMode']) => void;
 }
 
 export function EditingSidebar({
@@ -28,43 +37,50 @@ export function EditingSidebar({
   subtitleStyle,
   selectedClips,
   refineSettings,
-  onUpdateExportSettings,
   onUpdateSubtitleStyle,
-  onProceedToPublishCopy,
+  onUpdateRefineSetting,
+  onApplyContentMode,
 }: Readonly<EditingSidebarProps>) {
+  const primaryClip = selectedClips[0];
+  const activeRefineSettings = primaryClip
+    ? getEffectiveRefineSettings(primaryClip, refineSettings[primaryClip.id])
+    : null;
+  const suggestedMode = primaryClip
+    ? getCandidateSuggestedContentMode(primaryClip.candidate)
+    : null;
+
   return (
-    <div className="w-full lg:w-[24rem] xl:w-104 shrink-0 self-start pb-6 lg:sticky lg:top-24 lg:pb-8">
+    <div className="w-full lg:w-[24rem] xl:w-104 shrink-0 self-start pb-6 lg:pb-8">
       <Card className="bg-card/70 border-border/50 backdrop-blur-xl rounded-4xl overflow-hidden">
         <CardBody className="p-4 sm:p-5">
-          <Tabs defaultValue="preview" className="w-full">
+          <Tabs defaultValue="refine" className="w-full">
             <TabsList className="h-11 w-full rounded-2xl bg-muted/30 border border-border/40 p-1">
+              <TabsTrigger
+                value="refine"
+                className="flex-1 rounded-xl text-[11px] font-black uppercase tracking-widest data-[state=active]:bg-card data-[state=active]:text-primary"
+              >
+                Refine
+              </TabsTrigger>
+              <TabsTrigger
+                value="subtitle"
+                className="flex-1 rounded-xl text-[11px] font-black uppercase tracking-widest data-[state=active]:bg-card data-[state=active]:text-primary"
+              >
+                Subtitle
+              </TabsTrigger>
               <TabsTrigger
                 value="preview"
                 className="flex-1 rounded-xl text-[11px] font-black uppercase tracking-widest data-[state=active]:bg-card data-[state=active]:text-primary"
               >
                 Preview
               </TabsTrigger>
-              <TabsTrigger
-                value="subtitle"
-                className="flex-1 rounded-xl text-[11px] font-black uppercase tracking-widest data-[state=active]:bg-card data-[state=active]:text-orange-500"
-              >
-                Subtitle
-              </TabsTrigger>
-              <TabsTrigger
-                value="export"
-                className="flex-1 rounded-xl text-[11px] font-black uppercase tracking-widest data-[state=active]:bg-card data-[state=active]:text-primary"
-              >
-                Ekspor
-              </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="preview" className="mt-4">
-              <EditingLivePreview
-                activeSession={activeSession}
-                exportSettings={exportSettings}
-                subtitleStyle={subtitleStyle}
-                selectedClips={selectedClips}
-                refineSettings={refineSettings}
+            <TabsContent value="refine" className="mt-4">
+              <RefineCard
+                activeRefineSettings={activeRefineSettings}
+                suggestedMode={suggestedMode}
+                onUpdateRefineSetting={onUpdateRefineSetting}
+                onApplyContentMode={onApplyContentMode}
               />
             </TabsContent>
 
@@ -75,13 +91,13 @@ export function EditingSidebar({
               />
             </TabsContent>
 
-            <TabsContent value="export" className="mt-4">
-              <ExportSettingsCard
+            <TabsContent value="preview" className="mt-4">
+              <EditingLivePreview
+                activeSession={activeSession}
                 exportSettings={exportSettings}
                 subtitleStyle={subtitleStyle}
-                onUpdateExportSettings={onUpdateExportSettings}
-                onUpdateSubtitleStyle={onUpdateSubtitleStyle}
-                onProceedToPublishCopy={onProceedToPublishCopy}
+                selectedClips={selectedClips}
+                refineSettings={refineSettings}
               />
             </TabsContent>
           </Tabs>
@@ -95,158 +111,149 @@ export function EditingSidebar({
 // Sub-components to reduce cognitive complexity
 // ==========================================
 
-function ExportSettingsCard({
-  exportSettings,
-  subtitleStyle,
-  onUpdateExportSettings,
-  onUpdateSubtitleStyle,
-  onProceedToPublishCopy,
+function RefineCard({
+  activeRefineSettings,
+  suggestedMode,
+  onUpdateRefineSetting,
+  onApplyContentMode,
 }: Readonly<{
-  exportSettings: ExportSettings;
-  subtitleStyle: SubtitleStyle;
-  onUpdateExportSettings: (settings: Partial<ExportSettings>) => void;
-  onUpdateSubtitleStyle: (style: Partial<SubtitleStyle>) => void;
-  onProceedToPublishCopy: () => void;
+  activeRefineSettings: RefineSettings | null;
+  suggestedMode:
+    | 'podcast'
+    | 'interview'
+    | 'talking-head'
+    | 'product-review'
+    | 'cinematic'
+    | 'general'
+    | null;
+  onUpdateRefineSetting: (
+    key: 'faceTracking' | 'removeSilence' | 'optimizeHook' | 'stabilize',
+    value: boolean,
+  ) => void;
+  onApplyContentMode: (mode: RefineSettings['contentMode']) => void;
 }>) {
+  if (!activeRefineSettings) {
+    return (
+      <Card className="bg-transparent border-none shadow-none">
+        <CardBody className="p-0">
+          <div className="rounded-3xl border border-border/40 bg-muted/20 p-4 text-sm text-muted-foreground">
+            Pilih short dulu untuk membuka pengaturan refine.
+          </div>
+        </CardBody>
+      </Card>
+    );
+  }
+
   return (
     <Card className="bg-transparent border-none shadow-none">
       <CardBody className="p-0 space-y-6">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center border border-primary/20">
-            <Download size={20} className="text-primary" />
+            <ScanFace size={19} className="text-primary" />
           </div>
-          <h4 className="font-black tracking-tight text-lg">Ekspor</h4>
-        </div>
-
-        <div className="space-y-3">
-          <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 block ml-1">
-            Preset Platform
-          </div>
-          <div className="space-y-2">
-            {platformPresets.map((preset) => {
-              const isActive =
-                exportSettings.aspectRatio === preset.exportSettings.aspectRatio &&
-                subtitleStyle.position === preset.subtitleStyle.position &&
-                subtitleStyle.fontSize === preset.subtitleStyle.fontSize;
-
-              return (
-                <button
-                  type="button"
-                  key={preset.id}
-                  onClick={() => {
-                    onUpdateExportSettings(preset.exportSettings);
-                    onUpdateSubtitleStyle(preset.subtitleStyle);
-                  }}
-                  className={cn(
-                    'w-full rounded-2xl border px-4 py-3 text-left transition-all',
-                    isActive
-                      ? 'border-primary/30 bg-primary/10'
-                      : 'border-border/40 bg-muted/20 hover:border-primary/20',
-                  )}
-                >
-                  <div className="text-sm font-black text-foreground">{preset.label}</div>
-                  <div className="mt-1 text-xs leading-5 text-muted-foreground">
-                    {preset.description}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="space-y-3">
-          <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 block ml-1">
-            Kualitas
-          </div>
-          <div className="flex bg-muted/30 rounded-2xl p-1.5 border border-border/40">
-            {['720p', '1080p'].map((quality) => (
-              <button
-                type="button"
-                key={quality}
-                onClick={() =>
-                  onUpdateExportSettings({
-                    quality: quality as '720p' | '1080p',
-                  })
-                }
-                className={cn(
-                  'flex-1 px-4 py-2 rounded-xl text-xs font-black transition-all',
-                  exportSettings.quality === quality
-                    ? 'bg-card text-primary border border-border/50'
-                    : 'text-muted-foreground hover:text-foreground',
-                )}
-              >
-                {quality}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="space-y-3">
-          <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 block ml-1">
-            Rasio Aspek
-          </div>
-          <div className="flex bg-muted/30 rounded-2xl p-1.5 border border-border/40">
-            {['9:16', '16:9', '1:1'].map((ratio) => (
-              <button
-                type="button"
-                key={ratio}
-                onClick={() =>
-                  onUpdateExportSettings({
-                    aspectRatio: ratio as '9:16' | '16:9' | '1:1',
-                  })
-                }
-                className={cn(
-                  'flex-1 px-4 py-2 rounded-xl text-xs font-black transition-all',
-                  exportSettings.aspectRatio === ratio
-                    ? 'bg-card text-primary border border-border/50'
-                    : 'text-muted-foreground hover:text-foreground',
-                )}
-              >
-                {ratio}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-border/40 bg-muted/20 p-4">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
-                Audio Lebih Rata
-              </div>
-              <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                Normalisasi volume otomatis supaya hasil Shorts terasa lebih stabil.
+          <div>
+            <h4 className="font-black tracking-tight text-lg">Refine Short</h4>
+            {suggestedMode ? (
+              <p className="text-xs text-muted-foreground">
+                Saran AI (rekomendasi otomatis, bisa diubah manual):{' '}
+                <span className="font-semibold">{getContentModeLabel(suggestedMode)}</span>
               </p>
-            </div>
-            <button
-              type="button"
-              aria-pressed={exportSettings.normalizeAudio}
-              onClick={() =>
-                onUpdateExportSettings({
-                  normalizeAudio: !exportSettings.normalizeAudio,
-                })
-              }
-              className={cn(
-                'min-w-24 rounded-full px-4 py-2 text-xs font-black uppercase tracking-widest transition-all',
-                exportSettings.normalizeAudio
-                  ? 'bg-primary/15 text-primary border border-primary/30'
-                  : 'bg-card text-muted-foreground border border-border/50',
-              )}
-            >
-              {exportSettings.normalizeAudio ? 'Aktif' : 'Nonaktif'}
-            </button>
+            ) : null}
           </div>
         </div>
 
-        <Button
-          className="w-full rounded-2xl h-14 font-black uppercase tracking-widest text-[11px] relative overflow-hidden group/btn"
-          onClick={onProceedToPublishCopy}
-        >
-          <span className="relative z-10">Lanjut ke Copy Publish</span>
-          <div className="absolute inset-0 bg-linear-to-r from-primary via-orange-500 to-rose-600 opacity-0 group-hover/btn:opacity-100 transition-opacity duration-300" />
-        </Button>
+        <div className="space-y-3">
+          <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 ml-1">
+            Mode Konten
+          </div>
+          <div className="grid grid-cols-3 gap-1.5 bg-muted/30 rounded-2xl p-1.5 border border-border/40">
+            {[
+              { value: 'auto', label: 'Auto' },
+              { value: 'podcast', label: 'Podcast' },
+              { value: 'interview', label: 'Interview' },
+              { value: 'talking-head', label: 'Talking' },
+              { value: 'product-review', label: 'Product' },
+              { value: 'cinematic', label: 'Cinema' },
+              { value: 'general', label: 'General' },
+            ].map((mode) => (
+              <button
+                type="button"
+                key={mode.value}
+                onClick={() => onApplyContentMode(mode.value as RefineSettings['contentMode'])}
+                className={cn(
+                  'px-2 py-1.5 rounded-xl text-[10px] font-black transition-all',
+                  activeRefineSettings.contentMode === mode.value
+                    ? 'bg-card text-orange-500 border border-orange-500/30'
+                    : 'text-muted-foreground hover:text-foreground',
+                )}
+              >
+                {mode.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <RefineToggleRow
+            icon={<ScanFace size={14} className="text-primary" />}
+            title="Face Tracking"
+            description="Kamera otomatis langsung fokus ke subjek utama. Cocok untuk 1 pembicara atau 1 objek utama."
+            checked={Boolean(activeRefineSettings.faceTracking)}
+            onChange={(checked) => onUpdateRefineSetting('faceTracking', checked)}
+          />
+          <RefineToggleRow
+            icon={<Waves size={14} className="text-primary" />}
+            title="Remove Silence"
+            description="Trim jeda kosong agar pacing lebih rapat."
+            checked={Boolean(activeRefineSettings.removeSilence)}
+            onChange={(checked) => onUpdateRefineSetting('removeSilence', checked)}
+          />
+          <RefineToggleRow
+            icon={<Sparkles size={14} className="text-primary" />}
+            title="Optimize Hook"
+            description="Kurangi filler awal untuk opening lebih cepat."
+            checked={Boolean(activeRefineSettings.optimizeHook)}
+            onChange={(checked) => onUpdateRefineSetting('optimizeHook', checked)}
+          />
+          <RefineToggleRow
+            icon={<Scissors size={14} className="text-primary" />}
+            title="Stabilize Crop"
+            description="Menjaga framing tetap tenang agar tidak terasa goyang."
+            checked={Boolean(activeRefineSettings.stabilize)}
+            onChange={(checked) => onUpdateRefineSetting('stabilize', checked)}
+          />
+        </div>
       </CardBody>
     </Card>
+  );
+}
+
+function RefineToggleRow({
+  icon,
+  title,
+  description,
+  checked,
+  onChange,
+}: Readonly<{
+  icon: ReactNode;
+  title: string;
+  description: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}>) {
+  return (
+    <div className="rounded-2xl border border-border/40 bg-muted/20 px-3 py-3">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-start gap-2.5">
+          <div className="mt-0.5">{icon}</div>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-foreground">{title}</p>
+            <p className="text-xs leading-5 text-muted-foreground">{description}</p>
+          </div>
+        </div>
+        <Switch checked={checked} onCheckedChange={onChange} aria-label={title} />
+      </div>
+    </div>
   );
 }
 
@@ -264,7 +271,7 @@ function SubtitleStyleCard({
           <div className="w-10 h-10 rounded-xl bg-orange-500/10 flex items-center justify-center border border-orange-500/20">
             <Captions size={20} className="text-orange-500" />
           </div>
-          <h4 className="font-black tracking-tight text-lg">Gaya Teks</h4>
+          <h4 className="font-black tracking-tight text-lg">Gaya Subtitle</h4>
         </div>
 
         <div className="space-y-3">
@@ -326,10 +333,41 @@ function SubtitleStyleCard({
 
         <div className="space-y-3">
           <div className="flex items-center gap-2 ml-1">
-            <MapPin size={12} className="text-muted-foreground/60" />
+            <Type size={12} className="text-muted-foreground/60" />
             <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
-              Posisi Subtitle
+              Font
             </div>
+          </div>
+          <div className="grid grid-cols-3 gap-1.5 bg-muted/30 rounded-2xl p-1.5 border border-border/40">
+            {[
+              { value: 'F_INTER', label: 'Inter' },
+              { value: 'F_SERIF', label: 'Serif' },
+              { value: 'F_MONO', label: 'Mono' },
+            ].map((font) => (
+              <button
+                type="button"
+                key={font.value}
+                onClick={() =>
+                  onUpdateSubtitleStyle({
+                    fontToken: font.value,
+                  })
+                }
+                className={cn(
+                  'px-2 py-1.5 rounded-xl text-[10px] font-black transition-all',
+                  subtitleStyle.fontToken === font.value
+                    ? 'bg-card text-orange-500 border border-orange-500/30'
+                    : 'text-muted-foreground hover:text-foreground',
+                )}
+              >
+                {font.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 ml-1">
+            Posisi Subtitle
           </div>
           <div className="grid grid-cols-3 gap-1.5 bg-muted/30 rounded-2xl p-1.5 border border-border/40">
             {[
@@ -356,6 +394,119 @@ function SubtitleStyleCard({
                 )}
               >
                 {pos.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 ml-1">
+            <Sparkles size={12} className="text-muted-foreground/60" />
+            <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
+              Animasi Subtitle
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-1.5 bg-muted/30 rounded-2xl p-1.5 border border-border/40">
+            {[
+              { value: 'none', label: 'Static' },
+              { value: 'fade', label: 'Fade' },
+              { value: 'typewriter', label: 'Karaoke' },
+              { value: 'phrase', label: 'Cinema' },
+              { value: 'line', label: 'Line' },
+            ].map((animation) => (
+              <button
+                type="button"
+                key={animation.value}
+                onClick={() =>
+                  onUpdateSubtitleStyle({
+                    animation: animation.value as typeof subtitleStyle.animation,
+                  })
+                }
+                className={cn(
+                  'px-2 py-1.5 rounded-xl text-[10px] font-black transition-all',
+                  subtitleStyle.animation === animation.value
+                    ? 'bg-card text-orange-500 border border-orange-500/30'
+                    : 'text-muted-foreground hover:text-foreground',
+                )}
+              >
+                {animation.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 block ml-1">
+            Warna Teks
+          </div>
+          <div className="grid grid-cols-4 gap-2">
+            {[
+              { value: 'C_WHITE', label: 'Putih', swatchClass: 'bg-white border-border/70' },
+              {
+                value: 'C_YELLOW',
+                label: 'Kuning',
+                swatchClass: 'bg-yellow-300 border-yellow-200',
+              },
+              {
+                value: 'C_ORANGE',
+                label: 'Oranye',
+                swatchClass: 'bg-orange-400 border-orange-300',
+              },
+              { value: 'C_BLACK', label: 'Hitam', swatchClass: 'bg-zinc-900 border-zinc-700' },
+            ].map((color) => (
+              <button
+                key={color.value}
+                type="button"
+                onClick={() =>
+                  onUpdateSubtitleStyle({
+                    textColorToken: color.value,
+                  })
+                }
+                className={cn(
+                  'rounded-2xl border px-2 py-2 text-[10px] font-bold transition-all',
+                  subtitleStyle.textColorToken === color.value
+                    ? 'border-orange-500/40 bg-orange-500/10 text-orange-500'
+                    : 'border-border/40 bg-muted/20 text-muted-foreground hover:text-foreground',
+                )}
+              >
+                <span
+                  className={cn(
+                    'mx-auto mb-1 block h-4 w-4 rounded-full border',
+                    color.swatchClass,
+                  )}
+                />
+                {color.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 block ml-1">
+            Background Subtitle
+          </div>
+          <div className="grid grid-cols-3 gap-1.5 bg-muted/30 rounded-2xl p-1.5 border border-border/40">
+            {[
+              { value: 'C_BLACK', label: 'Dark' },
+              { value: 'C_WHITE', label: 'Soft Light' },
+              { value: 'BG_TRANSPARENT', label: 'Transparent' },
+            ].map((background) => (
+              <button
+                type="button"
+                key={background.value}
+                onClick={() =>
+                  onUpdateSubtitleStyle({
+                    bgColorToken: background.value,
+                  })
+                }
+                className={cn(
+                  'px-2 py-1.5 rounded-xl text-[10px] font-black transition-all',
+                  subtitleStyle.bgColorToken === background.value
+                    ? 'bg-card text-orange-500 border border-orange-500/30'
+                    : 'text-muted-foreground hover:text-foreground',
+                )}
+              >
+                {background.label}
               </button>
             ))}
           </div>

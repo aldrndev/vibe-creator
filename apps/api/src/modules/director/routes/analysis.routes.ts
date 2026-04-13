@@ -3,7 +3,10 @@ import { z } from 'zod';
 import { directorService } from '../director.service';
 
 const selectClipsSchema = z.object({
-  clipIds: z.array(z.string()),
+  clipIds: z
+    .array(z.string())
+    .min(1, 'Pilih tepat 1 klip untuk membuat short')
+    .max(1, 'Maksimal 1 klip per short'),
 });
 
 const updateClipSchema = z.object({

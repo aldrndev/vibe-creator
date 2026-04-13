@@ -27,6 +27,55 @@ import { directorAnalysisAiRerankService } from '../services/analysis-ai-rerank.
 import { directorAnalysisReuseService } from '../services/analysis-reuse.service';
 
 const TEMP_DIR = join(env.MEDIA_INPUT_DIR, 'temp');
+const DEFAULT_MIN_CLIP_DURATION_MS = 15000;
+const DEFAULT_MAX_CLIP_DURATION_MS = 60000;
+const HARD_MAX_CLIP_DURATION_SEC = 90;
+const DEFAULT_MAX_CANDIDATES = 20;
+
+function parsePositiveNumber(value: unknown, fallback: number): number {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
+    return fallback;
+  }
+
+  return value;
+}
+
+function resolveAnalysisRefineOptions(config: unknown): {
+  minDuration: number;
+  maxDuration: number;
+  maxCandidates: number;
+} {
+  if (typeof config !== 'object' || config === null || Array.isArray(config)) {
+    return {
+      minDuration: DEFAULT_MIN_CLIP_DURATION_MS / 1000,
+      maxDuration: DEFAULT_MAX_CLIP_DURATION_MS / 1000,
+      maxCandidates: DEFAULT_MAX_CANDIDATES,
+    };
+  }
+
+  const cfg = config as Record<string, unknown>;
+  const minClipDurationMs = parsePositiveNumber(cfg.minClipDuration, DEFAULT_MIN_CLIP_DURATION_MS);
+  const maxClipDurationMs = parsePositiveNumber(cfg.maxClipDuration, DEFAULT_MAX_CLIP_DURATION_MS);
+  const maxCandidates = Math.max(
+    1,
+    Math.round(parsePositiveNumber(cfg.maxCandidates, DEFAULT_MAX_CANDIDATES)),
+  );
+
+  const minDurationSec = Math.max(
+    5,
+    Math.min(HARD_MAX_CLIP_DURATION_SEC - 1, Math.round(minClipDurationMs / 1000)),
+  );
+  const maxDurationSec = Math.min(
+    HARD_MAX_CLIP_DURATION_SEC,
+    Math.max(minDurationSec + 1, Math.round(maxClipDurationMs / 1000)),
+  );
+
+  return {
+    minDuration: minDurationSec,
+    maxDuration: maxDurationSec,
+    maxCandidates,
+  };
+}
 
 /**
  * Processes a video analysis job for the AI Director.
@@ -97,11 +146,14 @@ export async function processAnalysisJob(job: Job<DirectorAnalysisJobData>) {
     const candidates = await directorProcessor.refineSegments(
       segments,
       audioProxyPath,
-      {},
+      resolveAnalysisRefineOptions(dbJob?.config),
       filePath,
     );
+    const boundedCandidates = candidates.filter(
+      (candidate) => candidate.duration <= HARD_MAX_CLIP_DURATION_SEC,
+    );
     const rerankedCandidates = await directorAnalysisAiRerankService.rerankCandidates(
-      candidates.map((candidate, index) => ({
+      boundedCandidates.map((candidate, index) => ({
         startMs: Math.round(candidate.start * 1000),
         endMs: Math.round(candidate.end * 1000),
         score: candidate.score,
@@ -132,6 +184,10 @@ export async function processAnalysisJob(job: Job<DirectorAnalysisJobData>) {
         }
 
         if (rerankedCandidates.length > 0 && dbJob) {
+          await tx.directorClipCandidate.deleteMany({
+            where: { analysisJobId: dbJob.id },
+          });
+
           const candidatesWithPreviews = await Promise.all(
             rerankedCandidates.map(async (candidate, index) => {
               const midPointMs = Math.round((candidate.startMs + candidate.endMs) / 2);

@@ -21,8 +21,8 @@ export interface Segment {
 }
 
 export interface AnalysisOptions {
-  minDuration?: number; // default 5s
-  maxDuration?: number; // default 35s
+  minDuration?: number; // default 15s
+  maxDuration?: number; // default 60s
   mergeGap?: number; // default 0.5s
   maxCandidates?: number; // default 20
 }

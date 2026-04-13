@@ -3,7 +3,9 @@ import type { Candidate, RefineSettings, SelectedClip } from '@/stores/director-
 export const contentModeValues = [
   'auto',
   'podcast',
+  'interview',
   'talking-head',
+  'product-review',
   'cinematic',
   'general',
 ] as const;
@@ -25,11 +27,23 @@ const contentModePresets: Record<ResolvedContentMode, RefinePreset> = {
     optimizeHook: true,
     stabilize: false,
   },
+  interview: {
+    faceTracking: false,
+    removeSilence: true,
+    optimizeHook: true,
+    stabilize: false,
+  },
   'talking-head': {
     faceTracking: true,
     removeSilence: true,
     optimizeHook: true,
     stabilize: false,
+  },
+  'product-review': {
+    faceTracking: true,
+    removeSilence: true,
+    optimizeHook: true,
+    stabilize: true,
   },
   cinematic: {
     faceTracking: false,
@@ -38,7 +52,7 @@ const contentModePresets: Record<ResolvedContentMode, RefinePreset> = {
     stabilize: false,
   },
   general: {
-    faceTracking: false,
+    faceTracking: true,
     removeSilence: true,
     optimizeHook: true,
     stabilize: false,
@@ -47,7 +61,12 @@ const contentModePresets: Record<ResolvedContentMode, RefinePreset> = {
 
 function isResolvedContentMode(mode: string | undefined): mode is ResolvedContentMode {
   return (
-    mode === 'podcast' || mode === 'talking-head' || mode === 'cinematic' || mode === 'general'
+    mode === 'podcast' ||
+    mode === 'interview' ||
+    mode === 'talking-head' ||
+    mode === 'product-review' ||
+    mode === 'cinematic' ||
+    mode === 'general'
   );
 }
 
@@ -105,8 +124,12 @@ export function getContentModeLabel(mode: ResolvedContentMode): string {
   switch (mode) {
     case 'podcast':
       return 'Podcast';
+    case 'interview':
+      return 'Interview';
     case 'talking-head':
       return 'Talking Head';
+    case 'product-review':
+      return 'Review Produk';
     case 'cinematic':
       return 'Sinematik';
     case 'general':

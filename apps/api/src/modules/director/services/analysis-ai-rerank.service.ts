@@ -38,6 +38,22 @@ interface AnalysisAiRerankedCandidate extends AnalysisAiCandidateInput {
   metadata: Prisma.JsonObject;
 }
 
+interface AnalysisAiScoreResult {
+  metadata: AnalysisAiRerankMetadata;
+  finalCompositeScore: number;
+}
+
+const IDEAL_SHORT_MIN_SECONDS = 40;
+const IDEAL_SHORT_MAX_SECONDS = 60;
+const EXTENDED_SHORT_MAX_SECONDS = 80;
+const FAST_CLIP_MAX_SECONDS = 20;
+const MAX_SHORT_SECONDS = 120;
+const STRONG_DIALOG_SCORE = 72;
+const MEDIUM_DIALOG_SCORE = 62;
+const DIALOG_COMPLETION_DURATION_FIT = 82;
+const HIGH_VISUAL_PENALTY = 25;
+const MEDIUM_VISUAL_PENALTY = 14;
+
 function clampScore(value: number): number {
   return Math.max(0, Math.min(100, Math.round(value)));
 }
@@ -50,52 +66,148 @@ function getHeuristicScore(candidate: AnalysisAiCandidateInput): number {
   return clampScore((candidate.score ?? 0) * 100);
 }
 
-function buildHeuristicMeta(candidate: AnalysisAiCandidateInput): AnalysisAiRerankMetadata {
-  const durationSeconds = getDurationSeconds(candidate);
-  const heuristicScore = getHeuristicScore(candidate);
-  const hasHighEnergy = candidate.tags.includes('HIGH ENERGY');
+function hasBadge(candidate: AnalysisAiCandidateInput, badge: string): boolean {
+  return candidate.scoreBreakdown.badges.includes(badge);
+}
 
-  if (hasHighEnergy && durationSeconds <= 18) {
+function isDialogCompleteProxy(candidate: AnalysisAiCandidateInput): boolean {
+  return (
+    candidate.scoreBreakdown.dialogDensity >= STRONG_DIALOG_SCORE &&
+    candidate.scoreBreakdown.durationFit >= DIALOG_COMPLETION_DURATION_FIT
+  );
+}
+
+function getShortReadinessAdjustment(candidate: AnalysisAiCandidateInput): number {
+  const durationSeconds = getDurationSeconds(candidate);
+  const dialogDensity = candidate.scoreBreakdown.dialogDensity;
+  const durationFit = candidate.scoreBreakdown.durationFit;
+  const visualPenalty = candidate.scoreBreakdown.visualPenalty;
+  const hasStrongDialogBadge = hasBadge(candidate, 'Dialog Padat');
+  const hasNeedReviewBadge = hasBadge(candidate, 'Butuh Review');
+  let adjustment = 0;
+
+  if (durationSeconds >= IDEAL_SHORT_MIN_SECONDS && durationSeconds <= IDEAL_SHORT_MAX_SECONDS) {
+    adjustment += 12;
+  } else if (
+    durationSeconds > IDEAL_SHORT_MAX_SECONDS &&
+    durationSeconds <= EXTENDED_SHORT_MAX_SECONDS
+  ) {
+    adjustment += isDialogCompleteProxy(candidate) ? 5 : -4;
+  } else if (durationSeconds > EXTENDED_SHORT_MAX_SECONDS && durationSeconds <= MAX_SHORT_SECONDS) {
+    adjustment -= isDialogCompleteProxy(candidate) ? 10 : 16;
+  } else if (durationSeconds < IDEAL_SHORT_MIN_SECONDS) {
+    adjustment -= durationSeconds < 30 ? 9 : 4;
+  } else {
+    adjustment -= 20;
+  }
+
+  if (dialogDensity >= STRONG_DIALOG_SCORE) {
+    adjustment += 7;
+  } else if (dialogDensity >= MEDIUM_DIALOG_SCORE) {
+    adjustment += 3;
+  } else {
+    adjustment -= 4;
+  }
+
+  if (durationFit >= 88) {
+    adjustment += 5;
+  } else if (durationFit >= 78) {
+    adjustment += 2;
+  }
+
+  if (candidate.tags.includes('HIGH ENERGY') || hasBadge(candidate, 'Hook Kuat')) {
+    adjustment += 4;
+  }
+
+  if (hasStrongDialogBadge) {
+    adjustment += 3;
+  }
+
+  if (hasNeedReviewBadge || visualPenalty >= HIGH_VISUAL_PENALTY) {
+    adjustment -= 18;
+  } else if (visualPenalty >= MEDIUM_VISUAL_PENALTY) {
+    adjustment -= 6;
+  }
+
+  if (candidate.rank <= 3) {
+    adjustment += 2;
+  }
+
+  return adjustment;
+}
+
+function getShortReadinessScore(candidate: AnalysisAiCandidateInput): number {
+  const heuristicScore = getHeuristicScore(candidate);
+  return clampScore(heuristicScore + getShortReadinessAdjustment(candidate));
+}
+
+function buildHeuristicLabelMeta(candidate: AnalysisAiCandidateInput): {
+  label: string;
+  reason: string;
+} {
+  const durationSeconds = getDurationSeconds(candidate);
+  const hasHighEnergy = candidate.tags.includes('HIGH ENERGY');
+  const hasNeedReviewBadge = hasBadge(candidate, 'Butuh Review');
+  const hasStrongDialog = isDialogCompleteProxy(candidate);
+
+  if (hasNeedReviewBadge) {
     return {
-      provider: 'heuristic',
-      label: 'Hook Cepat',
-      reason: 'Tempo tinggi dan durasi singkat, cocok untuk pembuka yang langsung menarik.',
-      viralScore: clampScore(heuristicScore + 8),
-      hookScore: clampScore(heuristicScore + 12),
-      clarityScore: clampScore(heuristicScore - 4),
-      heuristicScore,
-      compositeScore: clampScore(heuristicScore + 6),
-      contentModeSuggestion: candidate.scoreBreakdown.contentModeSuggestion,
-      scoreBreakdown: candidate.scoreBreakdown,
+      label: 'Perlu Cek Ulang',
+      reason: 'Sinyal visual mengindikasikan bagian ini berisiko kurang rapi untuk short final.',
     };
   }
 
-  if (durationSeconds >= 18 && durationSeconds <= 35) {
+  if (hasHighEnergy && durationSeconds <= FAST_CLIP_MAX_SECONDS) {
     return {
-      provider: 'heuristic',
-      label: 'Paling Seimbang',
-      reason: 'Durasi dan ritme paling aman untuk Shorts tanpa terasa kepanjangan.',
-      viralScore: clampScore(heuristicScore + 4),
-      hookScore: clampScore(heuristicScore),
-      clarityScore: clampScore(heuristicScore + 6),
-      heuristicScore,
-      compositeScore: clampScore(heuristicScore + 4),
-      contentModeSuggestion: candidate.scoreBreakdown.contentModeSuggestion,
-      scoreBreakdown: candidate.scoreBreakdown,
+      label: 'Hook Cepat',
+      reason: 'Tempo tinggi dan singkat, cocok untuk pembuka short yang langsung menghentak.',
+    };
+  }
+
+  if (durationSeconds >= IDEAL_SHORT_MIN_SECONDS && durationSeconds <= IDEAL_SHORT_MAX_SECONDS) {
+    return {
+      label: 'Short Utuh',
+      reason: 'Durasi 40-60 detik paling aman untuk menjaga narasi tetap lengkap dan rapi.',
+    };
+  }
+
+  if (
+    durationSeconds > IDEAL_SHORT_MAX_SECONDS &&
+    durationSeconds <= EXTENDED_SHORT_MAX_SECONDS &&
+    hasStrongDialog
+  ) {
+    return {
+      label: 'Dialog Aman',
+      reason:
+        'Durasi lebih panjang dipertahankan karena dialog dan penutupan scene terdeteksi aman.',
     };
   }
 
   return {
-    provider: 'heuristic',
     label: 'Cadangan Bagus',
-    reason: 'Masih layak dipakai sebagai alternatif saat butuh angle atau pacing berbeda.',
-    viralScore: clampScore(heuristicScore),
-    hookScore: clampScore(heuristicScore - 4),
-    clarityScore: clampScore(heuristicScore + 2),
-    heuristicScore,
-    compositeScore: heuristicScore,
-    contentModeSuggestion: candidate.scoreBreakdown.contentModeSuggestion,
-    scoreBreakdown: candidate.scoreBreakdown,
+    reason: 'Masih layak dipakai sebagai alternatif, tapi bukan prioritas utama short final.',
+  };
+}
+
+function buildHeuristicMeta(candidate: AnalysisAiCandidateInput): AnalysisAiScoreResult {
+  const heuristicScore = getHeuristicScore(candidate);
+  const shortReadinessScore = getShortReadinessScore(candidate);
+  const labelMeta = buildHeuristicLabelMeta(candidate);
+
+  return {
+    metadata: {
+      provider: 'heuristic',
+      label: labelMeta.label,
+      reason: labelMeta.reason,
+      viralScore: clampScore(shortReadinessScore + 2),
+      hookScore: clampScore(shortReadinessScore + 2),
+      clarityScore: clampScore(shortReadinessScore + 4),
+      heuristicScore,
+      compositeScore: shortReadinessScore,
+      contentModeSuggestion: candidate.scoreBreakdown.contentModeSuggestion,
+      scoreBreakdown: candidate.scoreBreakdown,
+    },
+    finalCompositeScore: shortReadinessScore,
   };
 }
 
@@ -127,46 +239,48 @@ function buildMetadata(meta: AnalysisAiRerankMetadata): Prisma.JsonObject {
 function buildCompositeScore(
   candidate: AnalysisAiCandidateInput,
   rating: AnalysisAiRating | null,
-): AnalysisAiRerankMetadata {
+): AnalysisAiScoreResult {
   const heuristicScore = getHeuristicScore(candidate);
+  const shortReadinessScore = getShortReadinessScore(candidate);
 
   if (!rating) {
     return buildHeuristicMeta(candidate);
   }
 
-  const compositeScore = clampScore(
-    heuristicScore * 0.55 +
-      rating.viralScore * 0.2 +
-      rating.hookScore * 0.15 +
-      rating.clarityScore * 0.1,
+  const aiCompositeScore = clampScore(
+    rating.viralScore * 0.45 + rating.hookScore * 0.35 + rating.clarityScore * 0.2,
   );
+  const finalCompositeScore = clampScore(aiCompositeScore * 0.7 + shortReadinessScore * 0.3);
 
   return {
-    provider: 'heuristic',
-    label: rating.label.trim(),
-    reason: rating.reason.trim(),
-    viralScore: clampScore(rating.viralScore),
-    hookScore: clampScore(rating.hookScore),
-    clarityScore: clampScore(rating.clarityScore),
-    heuristicScore,
-    compositeScore,
-    contentModeSuggestion: candidate.scoreBreakdown.contentModeSuggestion,
-    scoreBreakdown: {
-      ...candidate.scoreBreakdown,
-      badges: Array.from(
-        new Set([
-          ...candidate.scoreBreakdown.badges,
-          ...(rating.hookScore >= 85 ? ['Hook Kuat'] : []),
-        ]),
-      ),
-      topSignals: Array.from(
-        new Set([
-          ...candidate.scoreBreakdown.topSignals,
-          `Hook ${clampScore(rating.hookScore)}`,
-          `Clarity ${clampScore(rating.clarityScore)}`,
-        ]),
-      ).slice(0, 4),
+    metadata: {
+      provider: 'heuristic',
+      label: rating.label.trim(),
+      reason: rating.reason.trim(),
+      viralScore: clampScore(rating.viralScore),
+      hookScore: clampScore(rating.hookScore),
+      clarityScore: clampScore(rating.clarityScore),
+      heuristicScore,
+      compositeScore: aiCompositeScore,
+      contentModeSuggestion: candidate.scoreBreakdown.contentModeSuggestion,
+      scoreBreakdown: {
+        ...candidate.scoreBreakdown,
+        badges: Array.from(
+          new Set([
+            ...candidate.scoreBreakdown.badges,
+            ...(rating.hookScore >= 85 ? ['Hook Kuat'] : []),
+          ]),
+        ),
+        topSignals: Array.from(
+          new Set([
+            ...candidate.scoreBreakdown.topSignals,
+            `Hook ${clampScore(rating.hookScore)}`,
+            `Clarity ${clampScore(rating.clarityScore)}`,
+          ]),
+        ).slice(0, 4),
+      },
     },
+    finalCompositeScore,
   };
 }
 
@@ -213,14 +327,15 @@ export const directorAnalysisAiRerankService = {
     const ratedCandidates = candidates
       .map((candidate, index) => {
         const rating = ratings?.find((item) => item.index === index) ?? null;
-        const metadata = applyProviderToMetadata(buildCompositeScore(candidate, rating), provider);
+        const scoreResult = buildCompositeScore(candidate, rating);
+        const metadata = applyProviderToMetadata(scoreResult.metadata, provider);
 
         return {
           ...candidate,
-          score: metadata.compositeScore / 100,
+          score: scoreResult.finalCompositeScore / 100,
           rank: candidate.rank,
           metadata: buildMetadata(metadata),
-          _compositeScore: metadata.compositeScore,
+          _compositeScore: scoreResult.finalCompositeScore,
         };
       })
       .sort((left, right) => right._compositeScore - left._compositeScore)

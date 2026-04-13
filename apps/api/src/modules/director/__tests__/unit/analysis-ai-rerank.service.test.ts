@@ -135,4 +135,106 @@ describe('directorAnalysisAiRerankService', () => {
     });
     expect(result[0]?.score).toBeGreaterThan(0.9);
   });
+
+  it('keeps short-readiness guard when AI score is high on risky long clip', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        message: {
+          content: JSON.stringify({
+            candidates: [
+              {
+                index: 0,
+                label: 'Paling Aman',
+                reason: 'Durasi pas dan alurnya lengkap.',
+                viralScore: 90,
+                hookScore: 88,
+                clarityScore: 90,
+              },
+              {
+                index: 1,
+                label: 'Paling Viral',
+                reason: 'Hook awal sangat kuat.',
+                viralScore: 98,
+                hookScore: 96,
+                clarityScore: 84,
+              },
+            ],
+          }),
+        },
+      }),
+    });
+
+    const { directorAnalysisAiRerankService } = await import(
+      '@/modules/director/services/analysis-ai-rerank.service'
+    );
+
+    const result = await directorAnalysisAiRerankService.rerankCandidates([
+      {
+        startMs: 0,
+        endMs: 54000,
+        score: 0.78,
+        rank: 1,
+        tags: ['HIGH ENERGY'],
+        scoreBreakdown: {
+          ...scoreBreakdown,
+          dialogDensity: 79,
+          durationFit: 92,
+          visualPenalty: 6,
+          badges: ['Highlight', 'Durasi Pas', 'Dialog Padat'],
+        },
+      },
+      {
+        startMs: 60000,
+        endMs: 156000,
+        score: 0.79,
+        rank: 2,
+        tags: ['HIGH ENERGY'],
+        scoreBreakdown: {
+          ...scoreBreakdown,
+          dialogDensity: 58,
+          durationFit: 60,
+          visualPenalty: 30,
+          badges: ['Highlight', 'Butuh Review'],
+        },
+      },
+    ]);
+
+    expect(result[0]?.metadata.aiRerank).toMatchObject({
+      provider: 'ollama',
+      label: 'Paling Aman',
+    });
+    expect(result[0]?.startMs).toBe(0);
+    expect(result[1]?.startMs).toBe(60000);
+  });
+
+  it('marks risky visual candidate as "Perlu Cek Ulang" on heuristic fallback', async () => {
+    fetchMock.mockRejectedValue(new Error('timeout'));
+
+    const { directorAnalysisAiRerankService } = await import(
+      '@/modules/director/services/analysis-ai-rerank.service'
+    );
+
+    const result = await directorAnalysisAiRerankService.rerankCandidates([
+      {
+        startMs: 0,
+        endMs: 68000,
+        score: 0.72,
+        rank: 1,
+        tags: ['highlight'],
+        scoreBreakdown: {
+          ...scoreBreakdown,
+          dialogDensity: 64,
+          durationFit: 84,
+          visualPenalty: 34,
+          badges: ['Highlight', 'Butuh Review'],
+        },
+      },
+    ]);
+
+    expect(result[0]?.metadata.aiRerank).toMatchObject({
+      provider: 'heuristic',
+      label: 'Perlu Cek Ulang',
+    });
+  });
 });

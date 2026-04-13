@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { env } from '@/config/env';
 import { redis } from '@/lib/redis';
+import type { TranscribeLanguage } from './transcribe-language';
 
 const TRANSCRIBE_CACHE_TTL_SECONDS = 7 * 24 * 60 * 60;
 
@@ -15,6 +16,7 @@ interface ClipFingerprintInput {
   endMs: number;
   trimStartMs: number;
   trimEndMs: number;
+  language: TranscribeLanguage;
 }
 
 function buildCacheKey(input: ClipFingerprintInput): string {
@@ -26,7 +28,10 @@ function buildCacheKey(input: ClipFingerprintInput): string {
         endMs: input.endMs,
         trimStartMs: input.trimStartMs,
         trimEndMs: input.trimEndMs,
+        language: input.language,
         whisperModelSize: env.WHISPER_MODEL_SIZE,
+        transcribeProvider: env.TRANSCRIBE_PROVIDER,
+        transcribeServiceUrl: env.TRANSCRIBE_SERVICE_URL ?? null,
       }),
     )
     .digest('hex');

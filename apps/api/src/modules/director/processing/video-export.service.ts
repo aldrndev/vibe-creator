@@ -23,22 +23,38 @@ import {
 } from './video-export-subtitles';
 
 const ffmpegPath = process.env.FFMPEG_PATH || 'ffmpeg';
+const STABILIZE_FILTER = 'deshake=rx=16:ry=16:edge=mirror';
+
+function isMissingDeshakeFilterError(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  return (
+    error.message.includes("No such filter: 'deshake'") ||
+    error.message.includes('Filter not found')
+  );
+}
 
 export interface ExportClip {
   sourcePath: string;
   start: number;
   end: number;
   faceTracking?: boolean;
+  focusProfile?: 'auto' | 'subject-center' | 'object-center';
+  stabilize?: boolean;
   transcript?: {
     segments?: Array<{
       startMs: number;
       endMs: number;
       text: string;
+      speaker?: string;
       words?: Array<{
         startMs: number;
         endMs: number;
         text: string;
         confidence?: number;
+        speaker?: string;
       }>;
     }>;
   };
@@ -128,7 +144,7 @@ export const videoExportService = {
       const tempPaths: string[] = [];
       const quality = options.quality ?? '1080p';
       const profile = getRenderProfile(quality);
-      const vfFilters: string[] = [];
+      const baseVideoFilters: string[] = [];
       let trackVideoPath = '';
       let trackAudioPath = '';
 
@@ -153,6 +169,7 @@ export const videoExportService = {
             outputPath: trackVideoPath,
             targetWidth: profile.width,
             targetHeight: profile.heightPortrait,
+            focusProfile: clip.focusProfile ?? 'auto',
           });
 
           if (!trackingResult.success) {
@@ -163,14 +180,20 @@ export const videoExportService = {
             {
               clipIndex: i,
               detections: trackingResult.detections,
+              objectDetections: trackingResult.objectDetections,
               frames: trackingResult.frames,
               multiFaceFrames: trackingResult.multiFaceFrames,
               maxFacesInFrame: trackingResult.maxFacesInFrame,
+              targetSwitches: trackingResult.targetSwitches,
+              snapRepositions: trackingResult.snapRepositions,
+              sceneCuts: trackingResult.sceneCuts,
+              focusProfile: trackingResult.focusProfile,
+              trackingPreset: trackingResult.trackingPreset,
               detectorsUsed: trackingResult.detectorsUsed,
             },
             'Face tracking applied to export clip',
           );
-          vfFilters.push('setsar=1');
+          baseVideoFilters.push('setsar=1');
         } catch (error) {
           logger.warn(
             {
@@ -181,50 +204,37 @@ export const videoExportService = {
           );
           trackVideoPath = '';
           trackAudioPath = '';
-          vfFilters.push(aspectRatioFilter);
+          baseVideoFilters.push(aspectRatioFilter);
         }
       } else {
-        vfFilters.push(aspectRatioFilter);
+        baseVideoFilters.push(aspectRatioFilter);
       }
 
+      let subtitleFilter: string | null = null;
       if (canBurnSubtitles && transcriptSegments?.length) {
         const subtitleAsset = createSubtitleAsset(transcriptSegments, options.subtitleStyle);
         const subtitlePath = join(outputDir, `temp_sub_${i}_${clipId}.${subtitleAsset.extension}`);
         tempPaths.push(subtitlePath);
         await fs.writeFile(subtitlePath, subtitleAsset.content);
-        vfFilters.push(
-          buildSubtitlesFilter(subtitlePath, options.subtitleStyle, subtitleAsset.useForceStyle),
+        subtitleFilter = buildSubtitlesFilter(
+          subtitlePath,
+          options.subtitleStyle,
+          subtitleAsset.useForceStyle,
         );
       }
 
       try {
-        const args =
-          trackVideoPath && trackAudioPath
-            ? buildTrackedClipProcessingArgs(
-                trackVideoPath,
-                trackAudioPath,
-                clipOutPath,
-                vfFilters,
-                quality,
-                options.normalizeAudio ?? true,
-              )
-            : buildClipProcessingArgs(
-                clip,
-                clipOutPath,
-                vfFilters,
-                quality,
-                options.normalizeAudio ?? true,
-              );
+        let shouldIncludeSubtitles = Boolean(subtitleFilter);
+        let shouldUseStabilize = Boolean(clip.stabilize);
 
-        logger.info({ clipIndex: i, args: args.join(' ') }, 'Processing export clip');
-        await this.runFfmpeg(args, `Clip ${i + 1} gagal diproses`);
-      } catch (error) {
-        if (hasTranscript && canBurnSubtitles && isMissingSubtitlesFilterError(error)) {
-          logger.warn(
-            { clipIndex: i, clipOutPath },
-            'FFmpeg subtitles filter unavailable, retrying export clip without burned subtitles',
-          );
-          canBurnSubtitles = false;
+        while (true) {
+          const vfFilters = [...baseVideoFilters];
+          if (shouldUseStabilize) {
+            vfFilters.push(STABILIZE_FILTER);
+          }
+          if (shouldIncludeSubtitles && subtitleFilter) {
+            vfFilters.push(subtitleFilter);
+          }
 
           const args =
             trackVideoPath && trackAudioPath
@@ -232,21 +242,50 @@ export const videoExportService = {
                   trackVideoPath,
                   trackAudioPath,
                   clipOutPath,
-                  useFaceTracking ? ['setsar=1'] : [aspectRatioFilter],
+                  vfFilters,
                   quality,
                   options.normalizeAudio ?? true,
                 )
               : buildClipProcessingArgs(
                   clip,
                   clipOutPath,
-                  [aspectRatioFilter],
+                  vfFilters,
                   quality,
                   options.normalizeAudio ?? true,
                 );
 
-          await this.runFfmpeg(args, `Clip ${i + 1} gagal diproses`);
-        } else {
-          throw error;
+          logger.info({ clipIndex: i, args: args.join(' ') }, 'Processing export clip');
+
+          try {
+            await this.runFfmpeg(args, `Clip ${i + 1} gagal diproses`);
+            break;
+          } catch (error) {
+            if (
+              hasTranscript &&
+              shouldIncludeSubtitles &&
+              canBurnSubtitles &&
+              isMissingSubtitlesFilterError(error)
+            ) {
+              logger.warn(
+                { clipIndex: i, clipOutPath },
+                'FFmpeg subtitles filter unavailable, retrying export clip without burned subtitles',
+              );
+              shouldIncludeSubtitles = false;
+              canBurnSubtitles = false;
+              continue;
+            }
+
+            if (shouldUseStabilize && isMissingDeshakeFilterError(error)) {
+              logger.warn(
+                { clipIndex: i, clipOutPath },
+                'FFmpeg deshake filter unavailable, retrying export clip without stabilization',
+              );
+              shouldUseStabilize = false;
+              continue;
+            }
+
+            throw error;
+          }
         }
       } finally {
         for (const tempPath of tempPaths) {
@@ -286,6 +325,8 @@ export const videoExportService = {
     clip: Pick<ExportClip, 'faceTracking'>,
     aspectRatio?: '9:16' | '16:9' | '1:1',
   ) => shouldUseFaceTracking(clip.faceTracking, aspectRatio),
+  isMissingDeshakeFilterError,
+  getStabilizeFilter: () => STABILIZE_FILTER,
   getAspectRatioFilter,
   getRenderProfile,
 };

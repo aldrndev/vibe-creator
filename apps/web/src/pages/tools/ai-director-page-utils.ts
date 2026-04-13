@@ -15,16 +15,15 @@ export interface DirectorHydrationStepInput {
 }
 
 export function resolveHydratedStep(session: DirectorHydrationStepInput): DirectorStep {
-  if (session.exportJob?.status === 'COMPLETED') {
-    return 'COMPLETED';
-  }
-
-  if (session.exportJob) {
-    return 'EXPORTING';
+  if (
+    (session.step === 'EXPORTING' || session.step === 'COMPLETED') &&
+    (session.selectedClips?.length ?? 0) > 0
+  ) {
+    return 'EDITING';
   }
 
   if (session.step === 'PUBLISH_COPY' && (session.selectedClips?.length ?? 0) > 0) {
-    return 'PUBLISH_COPY';
+    return 'EDITING';
   }
 
   if ((session.selectedClips?.length ?? 0) > 0) {

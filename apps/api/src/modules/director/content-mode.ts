@@ -1,7 +1,9 @@
 export const contentModeValues = [
   'auto',
   'podcast',
+  'interview',
   'talking-head',
+  'product-review',
   'cinematic',
   'general',
 ] as const;
@@ -31,11 +33,23 @@ const contentModePresets: Record<ResolvedContentMode, ContentModePreset> = {
     optimizeHook: true,
     stabilize: false,
   },
+  interview: {
+    faceTracking: false,
+    removeSilence: true,
+    optimizeHook: true,
+    stabilize: false,
+  },
   'talking-head': {
     faceTracking: true,
     removeSilence: true,
     optimizeHook: true,
     stabilize: false,
+  },
+  'product-review': {
+    faceTracking: true,
+    removeSilence: true,
+    optimizeHook: true,
+    stabilize: true,
   },
   cinematic: {
     faceTracking: false,
@@ -44,7 +58,7 @@ const contentModePresets: Record<ResolvedContentMode, ContentModePreset> = {
     stabilize: false,
   },
   general: {
-    faceTracking: false,
+    faceTracking: true,
     removeSilence: true,
     optimizeHook: true,
     stabilize: false,
@@ -63,8 +77,27 @@ export function guessContentMode(signal: ContentModeSignal): ResolvedContentMode
     return 'podcast';
   }
 
+  if (
+    signal.dialogDensityScore >= 76 &&
+    signal.energyScore >= 68 &&
+    signal.visualPenalty <= 38 &&
+    signal.durationSeconds >= 22
+  ) {
+    return 'interview';
+  }
+
   if (hasDenseSpeechTag || (signal.dialogDensityScore >= 72 && hasHighEnergyTag)) {
     return 'talking-head';
+  }
+
+  if (
+    signal.dialogDensityScore <= 62 &&
+    signal.energyScore >= 68 &&
+    signal.durationSeconds >= 16 &&
+    signal.durationSeconds <= 90 &&
+    signal.visualPenalty <= 30
+  ) {
+    return 'product-review';
   }
 
   if (

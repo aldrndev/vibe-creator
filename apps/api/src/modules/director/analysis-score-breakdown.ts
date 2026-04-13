@@ -40,19 +40,27 @@ function buildTopSignals(input: CandidateScoreBreakdownInput): string[] {
 }
 
 function getDurationFitScore(durationSeconds: number): number {
-  if (durationSeconds >= 18 && durationSeconds <= 35) {
+  if (durationSeconds >= 40 && durationSeconds <= 60) {
     return 92;
   }
 
-  if (durationSeconds >= 12 && durationSeconds < 18) {
-    return 80;
+  if (durationSeconds > 60 && durationSeconds <= 80) {
+    return 84;
   }
 
-  if (durationSeconds > 35 && durationSeconds <= 45) {
-    return 62;
+  if (durationSeconds >= 30 && durationSeconds < 40) {
+    return 76;
   }
 
-  return 46;
+  if (durationSeconds > 80 && durationSeconds <= 95) {
+    return 60;
+  }
+
+  if (durationSeconds >= 20 && durationSeconds < 30) {
+    return 54;
+  }
+
+  return 38;
 }
 
 function buildBadges(
@@ -61,7 +69,7 @@ function buildBadges(
 ): string[] {
   const badges = new Set<string>(['Highlight']);
 
-  if (input.durationSeconds <= 18) {
+  if (input.durationSeconds <= 20) {
     badges.add('Fast');
   }
 
@@ -79,6 +87,14 @@ function buildBadges(
 
   if (contentModeSuggestion === 'cinematic') {
     badges.add('Sinematik');
+  }
+
+  if (contentModeSuggestion === 'product-review') {
+    badges.add('Product Focus');
+  }
+
+  if (contentModeSuggestion === 'interview') {
+    badges.add('Interview');
   }
 
   if (

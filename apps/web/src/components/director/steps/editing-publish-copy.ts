@@ -29,8 +29,8 @@ export function derivePublishPack(clips: SelectedClip[]): PublishPack {
   if (clips.length === 0) {
     return {
       bestClipId: null,
-      title: 'Shorts siap dipoles',
-      caption: 'Pilih klip terbaik dulu untuk mendapatkan copy publish otomatis.',
+      title: 'Short final siap dipoles',
+      caption: 'Pilih 1 short final dulu untuk mendapatkan copy publish otomatis.',
       cta: 'Simpan ide ini untuk publish berikutnya.',
       hashtags: ['#shorts', '#viralideas'],
     };
@@ -42,8 +42,8 @@ export function derivePublishPack(clips: SelectedClip[]): PublishPack {
   if (!bestClip) {
     return {
       bestClipId: null,
-      title: 'Shorts siap dipoles',
-      caption: 'Pilih klip terbaik dulu untuk mendapatkan copy publish otomatis.',
+      title: 'Short final siap dipoles',
+      caption: 'Pilih 1 short final dulu untuk mendapatkan copy publish otomatis.',
       cta: 'Simpan ide ini untuk publish berikutnya.',
       hashtags: ['#shorts', '#viralideas'],
     };

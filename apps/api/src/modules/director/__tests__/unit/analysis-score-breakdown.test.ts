@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { buildHeuristicScoreBreakdown } from '@/modules/director/analysis-score-breakdown';
 
 describe('buildHeuristicScoreBreakdown', () => {
-  it('builds explicit scoring metadata and cinematic badge when pacing is gentle', () => {
+  it('builds explicit scoring metadata and cinematic badge for balanced short candidates', () => {
     const breakdown = buildHeuristicScoreBreakdown({
-      durationSeconds: 28,
+      durationSeconds: 52,
       energyScore: 48,
       dialogDensityScore: 40,
       visualPenalty: 8,
@@ -20,5 +20,19 @@ describe('buildHeuristicScoreBreakdown', () => {
     });
     expect(breakdown.badges).toContain('Sinematik');
     expect(breakdown.topSignals).toHaveLength(3);
+  });
+
+  it('marks very short candidates as fast but not duration-fit', () => {
+    const breakdown = buildHeuristicScoreBreakdown({
+      durationSeconds: 18,
+      energyScore: 88,
+      dialogDensityScore: 80,
+      visualPenalty: 0,
+      tags: ['HIGH ENERGY'],
+    });
+
+    expect(breakdown.durationFit).toBe(38);
+    expect(breakdown.badges).toContain('Fast');
+    expect(breakdown.badges).not.toContain('Durasi Pas');
   });
 });

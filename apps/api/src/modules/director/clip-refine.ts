@@ -13,12 +13,14 @@ export interface ClipTranscriptWord {
   endMs: number;
   text: string;
   confidence?: number;
+  speaker?: string;
 }
 
 export interface ClipTranscriptSegment {
   startMs: number;
   endMs: number;
   text: string;
+  speaker?: string;
   words?: ClipTranscriptWord[];
 }
 

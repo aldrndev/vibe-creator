@@ -4,6 +4,7 @@ import {
   FileVideo,
   Flame,
   Gauge,
+  Languages,
   Pause,
   Play,
   RefreshCw,
@@ -18,6 +19,11 @@ import {
   Modal,
   ModalBody,
   ModalContent,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   Tooltip,
   TooltipContent,
   TooltipProvider,
@@ -28,6 +34,12 @@ import { cn } from '@/lib/utils';
 import { authFetch } from '@/services/api';
 import type { Candidate, DirectorSession } from '@/stores/director-store';
 import { useDirectorStore } from '@/stores/director-store';
+
+const TRANSCRIBE_LANGUAGE_OPTIONS = [
+  { value: 'mixed', label: 'Campuran (Auto)' },
+  { value: 'id', label: 'Indonesia' },
+  { value: 'en', label: 'English' },
+] as const;
 
 interface CandidateCardProps {
   readonly activeSession: DirectorSession;
@@ -441,10 +453,15 @@ export const PickingStep = () => {
     setLoading,
     setError,
     setSelectedClips,
+    transcribeLanguage,
+    setTranscribeLanguage,
   } = useDirectorStore();
   const recommendations = useMemo(() => getRecommendedCandidates(candidates), [candidates]);
-  const recommendedIds = new Set(recommendations.map((item) => item.candidateId));
   const topRecommendation = recommendations[0];
+  const selectedCandidateId = selectedCandidateIds.values().next().value;
+  const selectedCandidate = selectedCandidateId
+    ? (candidates.find((candidate) => candidate.id === selectedCandidateId) ?? null)
+    : null;
 
   const handleClipSelection = async () => {
     if (!activeSession || selectedCandidateIds.size === 0) return;
@@ -471,34 +488,16 @@ export const PickingStep = () => {
     }
   };
 
-  const handleSelectRecommended = () => {
-    for (const candidate of candidates) {
-      if (recommendedIds.has(candidate.id) && !selectedCandidateIds.has(candidate.id)) {
-        toggleCandidateSelection(candidate.id);
-      }
-    }
-  };
-
   return (
     <div className="max-w-6xl mx-auto w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+      <div className="flex flex-col justify-between items-start gap-4 mb-8">
         <div>
           <h2 className="text-3xl font-black tracking-tight bg-clip-text text-transparent bg-linear-to-br from-primary via-orange-500 to-rose-600">
-            Pilih Klip Kamu
+            Pilih 1 Short Utama
           </h2>
           <p className="text-muted-foreground font-medium">
-            Pilih momen terbaik untuk dijadikan Reels atau Shorts.
+            Satu klip terbaik akan diproses jadi satu video short utuh.
           </p>
-        </div>
-        <div className="flex gap-2">
-          <Button
-            size="sm"
-            variant="secondary"
-            className="rounded-full font-bold px-6"
-            onClick={handleSelectRecommended}
-          >
-            Pilih Rekomendasi
-          </Button>
         </div>
       </div>
 
@@ -510,10 +509,10 @@ export const PickingStep = () => {
             </div>
             <div className="space-y-1">
               <div className="text-[10px] font-black uppercase tracking-widest text-primary/70">
-                Rekomendasi AI Director
+                Rekomendasi Utama AI Director
               </div>
               <p className="text-sm font-semibold text-foreground">
-                Kombinasi klip ini paling aman untuk Shorts yang cepat dan tetap padat.
+                Prioritas utama untuk hasil short utuh tanpa potong dialog di tengah.
               </p>
               <p className="text-sm leading-6 text-muted-foreground">{topRecommendation.reason}</p>
             </div>
@@ -562,29 +561,58 @@ export const PickingStep = () => {
         </ModalContent>
       </Modal>
 
-      <div className="fixed bottom-24 sm:bottom-8 inset-x-0 mx-auto w-[calc(100%-2rem)] max-w-lg z-50 animate-in fade-in slide-in-from-bottom-8 duration-500">
-        <div className="bg-card/80 backdrop-blur-xl rounded-3xl border border-border/50 p-4 sm:p-5 flex items-center justify-between">
-          <div className="flex flex-col">
-            <span className="text-sm font-black tracking-tight text-foreground">
-              {selectedCandidateIds.size} Klip Terpilih
-            </span>
-            <span className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">
-              Durasi:{' '}
-              {Array.from(selectedCandidateIds).reduce((acc, id) => {
-                const candidate = candidates.find((item) => item.id === id);
-                return acc + (candidate ? (candidate.endMs - candidate.startMs) / 1000 : 0);
-              }, 0)}
-              detik
-            </span>
+      <div className="sticky bottom-6 z-50 mt-6 animate-in fade-in slide-in-from-bottom-8 duration-500">
+        <div className="mx-auto w-full max-w-2xl bg-card/80 backdrop-blur-xl rounded-3xl border border-border/50 p-4 sm:p-5 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 shadow-lg shadow-black/10">
+          <div className="flex flex-1 flex-col gap-2">
+            <div className="flex flex-col">
+              <span className="text-sm font-black tracking-tight text-foreground">
+                {selectedCandidate ? '1 Klip Siap Diproses' : 'Belum Ada Klip Dipilih'}
+              </span>
+              <span className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">
+                {selectedCandidate
+                  ? `Durasi ${Math.round((selectedCandidate.endMs - selectedCandidate.startMs) / 1000)} detik`
+                  : 'Pilih 1 klip untuk lanjut'}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-primary/20 bg-primary/10">
+                <Languages size={14} className="text-primary" />
+              </div>
+              <div className="w-full sm:max-w-52">
+                <Select
+                  value={transcribeLanguage}
+                  onValueChange={(value) => {
+                    if (value === 'id' || value === 'en' || value === 'mixed') {
+                      setTranscribeLanguage(value);
+                    }
+                  }}
+                >
+                  <SelectTrigger className="h-10 rounded-2xl border-primary/20 bg-background/70 text-xs font-bold uppercase tracking-wider">
+                    <SelectValue placeholder="Bahasa Transkrip" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TRANSCRIBE_LANGUAGE_OPTIONS.map((option) => (
+                      <SelectItem
+                        key={option.value}
+                        value={option.value}
+                        className="text-xs font-semibold"
+                      >
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
           </div>
           <Button
-            className="rounded-2xl px-8 font-black uppercase tracking-widest text-[11px]"
+            className="rounded-2xl px-8 font-black uppercase tracking-widest text-[11px] sm:self-end"
             variant="default"
             disabled={selectedCandidateIds.size === 0 || isLoading}
             isLoading={isLoading}
             onClick={handleClipSelection}
           >
-            Lanjutkan ke Edit
+            Lanjutkan ke Editor
           </Button>
         </div>
       </div>

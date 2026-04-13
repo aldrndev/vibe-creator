@@ -12,14 +12,21 @@ export interface FaceTrackRequest {
   outputPath: string;
   targetWidth: number;
   targetHeight: number;
+  focusProfile?: 'auto' | 'subject-center' | 'object-center';
 }
 
 export interface FaceTrackResult {
   success: boolean;
   frames?: number;
   detections?: number;
+  objectDetections?: number;
   multiFaceFrames?: number;
   maxFacesInFrame?: number;
+  targetSwitches?: number;
+  snapRepositions?: number;
+  sceneCuts?: number;
+  focusProfile?: 'auto' | 'subject-center' | 'object-center';
+  trackingPreset?: 'auto' | 'subject-center' | 'object-center';
   detectorsUsed?: string[];
   error?: string;
 }
@@ -50,6 +57,7 @@ export class FaceTrackRunner {
         request.outputPath,
         String(request.targetWidth),
         String(request.targetHeight),
+        request.focusProfile ?? 'auto',
       ]);
 
       let stdoutData = '';

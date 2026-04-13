@@ -1,5 +1,6 @@
 import { Queue } from 'bullmq';
 import { redisOptions } from '@/lib/redis';
+import type { TranscribeLanguage } from '../transcribe/transcribe-language';
 
 export const DIRECTOR_QUEUE_NAME = 'director-analysis';
 
@@ -16,6 +17,7 @@ export interface DirectorTranscribeSessionJobData {
   sessionId: string;
   userId: string;
   forceRefresh?: boolean;
+  language: TranscribeLanguage;
 }
 
 export interface DirectorTranscribeClipJobData {
@@ -24,6 +26,7 @@ export interface DirectorTranscribeClipJobData {
   selectedClipId: string;
   userId: string;
   forceRefresh?: boolean;
+  language: TranscribeLanguage;
 }
 
 export type DirectorJobData =
@@ -48,6 +51,14 @@ export interface DirectorExportJobData {
         removeSilence?: boolean;
         optimizeHook?: boolean;
         stabilize?: boolean;
+        contentMode?:
+          | 'auto'
+          | 'podcast'
+          | 'interview'
+          | 'talking-head'
+          | 'product-review'
+          | 'cinematic'
+          | 'general';
       }
     >;
   };

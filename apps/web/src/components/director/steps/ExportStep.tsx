@@ -9,17 +9,23 @@ import { useDirectorStore } from '@/stores/director-store';
 interface ExportStatusPanelProps {
   readonly isCompleted: boolean;
   readonly isFailed: boolean;
+  readonly progressPercent: number;
   readonly errorMessage?: string | null;
 }
 
-function ExportStatusPanel({ isCompleted, isFailed, errorMessage }: ExportStatusPanelProps) {
-  let title = 'Merender Video...';
-  if (isCompleted) title = 'Ekspor Selesai!';
-  else if (isFailed) title = 'Ekspor Gagal';
+function ExportStatusPanel({
+  isCompleted,
+  isFailed,
+  progressPercent,
+  errorMessage,
+}: ExportStatusPanelProps) {
+  let title = 'Merender Short Final...';
+  if (isCompleted) title = 'Short Siap Diunduh';
+  else if (isFailed) title = 'Render Gagal';
 
   let description =
-    'Mohon tunggu sementara kami menggabungkan klip, menstabilkan, dan menerapkan gaya pada video kamu.';
-  if (isCompleted) description = 'Video AI kamu sudah siap untuk diunduh. 🎉';
+    'Mohon tunggu, kami sedang merender short final beserta subtitle sesuai pengaturan kamu.';
+  if (isCompleted) description = 'Short final sudah selesai dirender dan siap dipreview.';
   else if (isFailed) description = errorMessage || 'Terjadi kesalahan sistem.';
 
   return (
@@ -49,6 +55,16 @@ function ExportStatusPanel({ isCompleted, isFailed, errorMessage }: ExportStatus
         <p className="text-muted-foreground max-w-sm mx-auto leading-relaxed font-medium">
           {description}
         </p>
+        {!isCompleted && !isFailed ? (
+          <div className="mx-auto w-full max-w-xs space-y-2">
+            <p className="text-xs font-semibold text-foreground">Progress: {progressPercent}%</p>
+            <progress
+              className="h-2 w-full overflow-hidden rounded-full [&::-webkit-progress-bar]:bg-muted/70 [&::-webkit-progress-value]:bg-linear-to-r [&::-webkit-progress-value]:from-primary [&::-webkit-progress-value]:via-orange-500 [&::-webkit-progress-value]:to-rose-500 [&::-moz-progress-bar]:bg-primary"
+              max={100}
+              value={progressPercent}
+            />
+          </div>
+        ) : null}
       </div>
     </>
   );
@@ -151,6 +167,18 @@ export const ExportStep = () => {
 
   const isCompleted = exportJob.status === 'COMPLETED';
   const isFailed = exportJob.status === 'FAILED';
+  const progressPercent = (() => {
+    if (isCompleted) {
+      return 100;
+    }
+
+    if (isFailed) {
+      return 0;
+    }
+
+    const rawProgress = typeof exportJob.progress === 'number' ? exportJob.progress : 0;
+    return Math.max(0, Math.min(99, Math.round(rawProgress)));
+  })();
 
   return (
     <div className="max-w-2xl mx-auto w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -159,6 +187,7 @@ export const ExportStep = () => {
           <ExportStatusPanel
             isCompleted={isCompleted}
             isFailed={isFailed}
+            progressPercent={progressPercent}
             errorMessage={exportJob.errorMessage}
           />
 
@@ -187,7 +216,7 @@ export const ExportStep = () => {
                   <div>
                     <p className="text-sm font-bold text-foreground">Menyiapkan preview video</p>
                     <p className="text-xs text-muted-foreground">
-                      Hasil ekspor sudah siap dan sedang dimuat untuk dipreview.
+                      Hasil render short sudah siap dan sedang dimuat untuk dipreview.
                     </p>
                   </div>
                 </div>
@@ -204,7 +233,7 @@ export const ExportStep = () => {
                 }}
               >
                 <Download size={16} className="mr-2" />
-                Unduh Video
+                Unduh Short
                 <div className="absolute inset-0 bg-linear-to-r from-primary via-orange-500 to-rose-600 opacity-0 group-hover/btn:opacity-100 transition-opacity duration-300" />
               </Button>
             )}
@@ -216,7 +245,7 @@ export const ExportStep = () => {
                 onClick={reset}
               >
                 <RotateCcw size={16} className="mr-2" />
-                Buat Lagi
+                Buat Short Baru
               </Button>
             )}
           </div>

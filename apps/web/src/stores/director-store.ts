@@ -10,6 +10,8 @@ export type DirectorStep =
   | 'EXPORTING'
   | 'COMPLETED';
 
+export type TranscribeLanguage = 'id' | 'en' | 'mixed';
+
 export interface DirectorSession {
   id: string;
   step: DirectorStep;
@@ -41,7 +43,13 @@ export interface Candidate {
       clarityScore: number;
       heuristicScore: number;
       compositeScore: number;
-      contentModeSuggestion: 'podcast' | 'talking-head' | 'cinematic' | 'general';
+      contentModeSuggestion:
+        | 'podcast'
+        | 'interview'
+        | 'talking-head'
+        | 'product-review'
+        | 'cinematic'
+        | 'general';
     };
     scoreBreakdown?: {
       energy: number;
@@ -50,7 +58,13 @@ export interface Candidate {
       visualPenalty: number;
       topSignals: string[];
       badges: string[];
-      contentModeSuggestion: 'podcast' | 'talking-head' | 'cinematic' | 'general';
+      contentModeSuggestion:
+        | 'podcast'
+        | 'interview'
+        | 'talking-head'
+        | 'product-review'
+        | 'cinematic'
+        | 'general';
     };
   };
 }
@@ -67,10 +81,12 @@ export interface SelectedClip {
       startMs: number;
       endMs: number;
       text: string;
+      speaker?: string;
       words?: Array<{
         startMs: number;
         endMs: number;
         text: string;
+        speaker?: string;
       }>;
     }>;
   };
@@ -78,6 +94,7 @@ export interface SelectedClip {
 
 export interface TranscribeJob {
   status: string;
+  language?: TranscribeLanguage;
   errorMessage?: string | null;
   progressMeta?: {
     phase?:
@@ -120,12 +137,20 @@ export interface RefineSettings {
   removeSilence?: boolean;
   optimizeHook?: boolean;
   stabilize?: boolean;
-  contentMode: 'auto' | 'podcast' | 'talking-head' | 'cinematic' | 'general';
+  contentMode:
+    | 'auto'
+    | 'podcast'
+    | 'interview'
+    | 'talking-head'
+    | 'product-review'
+    | 'cinematic'
+    | 'general';
   caption?: string;
 }
 
 export interface ExportJob {
   status: string;
+  progress?: number;
   outputUrl?: string | null;
   errorMessage?: string;
   outputStorageKey?: string;
@@ -165,6 +190,7 @@ interface DirectorState {
   // Editing
   playingClipId: string | null;
   transcribeJob: TranscribeJob | null;
+  transcribeLanguage: TranscribeLanguage;
   subtitleStyle: SubtitleStyle;
 
   // Settings
@@ -187,6 +213,7 @@ interface DirectorState {
   setSelectedClips: (clips: SelectedClip[]) => void;
   setPlayingClipId: (id: string | null) => void;
   setTranscribeJob: (job: TranscribeJob | null) => void;
+  setTranscribeLanguage: (language: TranscribeLanguage) => void;
   updateSubtitleStyle: (style: Partial<SubtitleStyle>) => void;
   setRefineSettings: (settings: Record<string, RefineSettings>) => void;
   updateRefineSetting: (clipId: string, key: keyof RefineSettings, value: boolean | string) => void;
@@ -213,6 +240,7 @@ export const useDirectorStore = create<DirectorState>()(
     selectedClips: [],
     playingClipId: null,
     transcribeJob: null,
+    transcribeLanguage: 'mixed',
     subtitleStyle: defaultSubtitleStyle,
     refineSettings: {},
     exportSettings: defaultExportSettings,
@@ -228,14 +256,14 @@ export const useDirectorStore = create<DirectorState>()(
     setCandidates: (candidates) => set({ candidates }),
     toggleCandidateSelection: (id) =>
       set((state) => {
-        const newSet = new Set(state.selectedCandidateIds);
-        if (newSet.has(id)) newSet.delete(id);
-        else newSet.add(id);
+        const isAlreadySelected = state.selectedCandidateIds.has(id);
+        const newSet = isAlreadySelected ? new Set<string>() : new Set([id]);
         return { selectedCandidateIds: newSet };
       }),
     setSelectedClips: (clips) => set({ selectedClips: clips }),
     setPlayingClipId: (id) => set({ playingClipId: id }),
     setTranscribeJob: (job) => set({ transcribeJob: job }),
+    setTranscribeLanguage: (language) => set({ transcribeLanguage: language }),
     updateSubtitleStyle: (style) =>
       set((state) => ({ subtitleStyle: { ...state.subtitleStyle, ...style } })),
     setRefineSettings: (settings) => set({ refineSettings: settings }),
@@ -277,6 +305,7 @@ export const useDirectorStore = create<DirectorState>()(
         selectedClips: [],
         playingClipId: null,
         transcribeJob: null,
+        transcribeLanguage: 'mixed',
         subtitleStyle: defaultSubtitleStyle,
         refineSettings: {},
         exportSettings: defaultExportSettings,

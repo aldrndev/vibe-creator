@@ -168,6 +168,7 @@ describe('director handlers', () => {
           type: 'TRANSCRIBE_SESSION',
           sessionId: 'nonexistent',
           userId: 'user-1',
+          language: 'id',
         },
       } as unknown as Job;
 
@@ -202,6 +203,7 @@ describe('director handlers', () => {
           sessionId: 'session-1',
           selectedClipId: 'clip-1',
           userId: 'user-1',
+          language: 'id',
         },
       } as unknown as Job;
 
@@ -235,6 +237,31 @@ describe('director handlers', () => {
       } as unknown as Job;
 
       await expect(processExportJob(mockJob)).rejects.toThrow('Session or export job not found');
+    });
+
+    it('should reject export when multiple clips are still selected', async () => {
+      mockFindUnique.mockResolvedValue({
+        id: 'session-1',
+        exportJob: { id: 'export-1' },
+        selectedClips: [{ id: 'clip-1' }, { id: 'clip-2' }],
+      });
+
+      const { processExportJob } = await import('@/modules/director/handlers/export.handler');
+
+      const mockJob = {
+        id: 'job-2',
+        data: {
+          type: 'EXPORT',
+          sessionId: 'session-1',
+          userId: 'user-1',
+          options: {},
+        },
+        updateProgress: vi.fn(),
+      } as unknown as Job;
+
+      await expect(processExportJob(mockJob)).rejects.toThrow(
+        'Ekspor hanya mendukung 1 klip untuk 1 short',
+      );
     });
   });
 });

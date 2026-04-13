@@ -1,10 +1,27 @@
-
 import os
 import json
 import sys
 from faster_whisper import WhisperModel
 
-def transcribe_audio(file_path):
+ALLOWED_LANGUAGES = {"id", "en", "mixed"}
+
+
+def resolve_language(raw_language: str | None) -> str | None:
+    if raw_language in ALLOWED_LANGUAGES:
+        if raw_language == "mixed":
+            return None
+        return raw_language
+
+    default_language = os.environ.get("TRANSCRIBE_LANGUAGE", "mixed").strip().lower()
+    if default_language in ALLOWED_LANGUAGES:
+        if default_language == "mixed":
+            return None
+        return default_language
+
+    return None
+
+
+def transcribe_audio(file_path, language):
     try:
         # Check if file exists
         if not os.path.exists(file_path):
@@ -29,7 +46,8 @@ def transcribe_audio(file_path):
             beam_size=5, 
             word_timestamps=True,
             vad_filter=False,
-            condition_on_previous_text=False
+            condition_on_previous_text=False,
+            language=language,
         )
 
         output_segments = []
@@ -78,4 +96,6 @@ if __name__ == "__main__":
         sys.exit(1)
     
     file_path = sys.argv[1]
-    transcribe_audio(file_path)
+    language_arg = sys.argv[2] if len(sys.argv) >= 3 else None
+    target_language = resolve_language(language_arg)
+    transcribe_audio(file_path, target_language)

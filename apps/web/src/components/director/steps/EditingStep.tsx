@@ -12,7 +12,6 @@ import { applyContentModePreset, type ContentMode } from '@/lib/director-refine-
 import { logger } from '@/lib/logger';
 import { cn } from '@/lib/utils';
 import { authFetch } from '@/services/api';
-import type { SelectedClip } from '@/stores/director-store';
 import { useDirectorStore } from '@/stores/director-store';
 
 export const EditingStep = () => {
@@ -21,13 +20,15 @@ export const EditingStep = () => {
     selectedClips,
     setSelectedClips,
     refineSettings,
-    updateRefineSetting,
     subtitleStyle,
     updateSubtitleStyle,
+    updateRefineSetting,
+    setRefineSettings,
     exportSettings,
-    setExportSettings,
     transcribeJob,
     setTranscribeJob,
+    transcribeLanguage,
+    setTranscribeLanguage,
     setStep,
     error,
     setError,
@@ -36,6 +37,8 @@ export const EditingStep = () => {
   const subtitleSyncKeyRef = useRef<string | null>(null);
   const isTranscribing = shouldPollTranscribeStatus(transcribeJob?.status);
   const transcribeProgressMeta = getTranscribeProgressMeta(transcribeJob);
+  const primaryClip = selectedClips[0];
+  const hasMultipleSelectedClips = selectedClips.length > 1;
 
   const refreshSelectedClips = useCallback(async () => {
     if (!activeSession) {
@@ -69,6 +72,13 @@ export const EditingStep = () => {
 
       const newStatus = jobData.data.status;
       setTranscribeJob(jobData.data);
+      if (
+        jobData.data.language === 'id' ||
+        jobData.data.language === 'en' ||
+        jobData.data.language === 'mixed'
+      ) {
+        setTranscribeLanguage(jobData.data.language);
+      }
 
       if (newStatus === 'COMPLETED' || newStatus === 'FAILED') {
         await refreshSelectedClips();
@@ -85,7 +95,7 @@ export const EditingStep = () => {
       logger.error('Poll transcription error', error);
       return false;
     }
-  }, [activeSession, refreshSelectedClips, setError, setTranscribeJob]);
+  }, [activeSession, refreshSelectedClips, setError, setTranscribeJob, setTranscribeLanguage]);
 
   const handleStartTranscribe = useCallback(
     async (options?: { forceRefresh?: boolean }): Promise<boolean> => {
@@ -106,16 +116,24 @@ export const EditingStep = () => {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             forceRefresh: shouldForceRefresh,
+            language: transcribeLanguage,
           }),
         });
         const data = (await res.json()) as {
           success: boolean;
-          data?: { status: string };
+          data?: { status: string; language?: 'id' | 'en' | 'mixed' };
           error?: { message?: string };
         };
 
         if (res.ok && data.success && data.data) {
           setTranscribeJob(data.data);
+          if (
+            data.data.language === 'id' ||
+            data.data.language === 'en' ||
+            data.data.language === 'mixed'
+          ) {
+            setTranscribeLanguage(data.data.language);
+          }
           setError(null);
           return true;
         }
@@ -129,7 +147,7 @@ export const EditingStep = () => {
         return false;
       }
     },
-    [activeSession, setError, setTranscribeJob],
+    [activeSession, setError, setTranscribeJob, transcribeLanguage, setTranscribeLanguage],
   );
 
   useEffect(() => {
@@ -257,20 +275,30 @@ export const EditingStep = () => {
     }
   };
 
-  const handleApplyContentMode = useCallback(
-    (clip: SelectedClip, mode: ContentMode) => {
-      const nextSettings = applyContentModePreset(clip.candidate, mode);
-
-      for (const [key, value] of Object.entries(nextSettings)) {
-        updateRefineSetting(clip.id, key as keyof typeof nextSettings, value);
+  const handleUpdateRefineToggle = useCallback(
+    (key: 'faceTracking' | 'removeSilence' | 'optimizeHook' | 'stabilize', value: boolean) => {
+      if (!primaryClip) {
+        return;
       }
+
+      updateRefineSetting(primaryClip.id, key, value);
     },
-    [updateRefineSetting],
+    [primaryClip, updateRefineSetting],
   );
 
-  const handleProceedToPublishCopy = useCallback(() => {
-    setStep('PUBLISH_COPY');
-  }, [setStep]);
+  const handleApplyContentMode = useCallback(
+    (mode: ContentMode) => {
+      if (!primaryClip) {
+        return;
+      }
+
+      setRefineSettings({
+        ...refineSettings,
+        [primaryClip.id]: applyContentModePreset(primaryClip.candidate, mode),
+      });
+    },
+    [primaryClip, refineSettings, setRefineSettings],
+  );
 
   useEffect(() => {
     if (!activeSession || !shouldPollTranscribeStatus(transcribeJob?.status)) {
@@ -341,17 +369,25 @@ export const EditingStep = () => {
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 relative z-10">
           <div>
             <h3 className="text-3xl font-black tracking-tight bg-clip-text text-transparent bg-linear-to-br from-primary via-orange-500 to-rose-600">
-              Edit & Teks Otomatis
+              Video Studio
             </h3>
             <p className="mt-2 max-w-2xl text-muted-foreground text-sm leading-6 font-medium">
-              Review klip, cek preview draft hasil edit, lalu edit subtitle dan preset sebelum
-              ekspor final.
+              Short sudah siap pakai. Tinggal rapikan transkrip dan atur gaya video sampai siap
+              publish.
             </p>
             {transcribeProgressMeta ? (
               <p className="mt-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground/70">
                 {getTranscribePhaseLabel(transcribeProgressMeta.phase)}
               </p>
             ) : null}
+            <p className="mt-2 text-[11px] font-bold uppercase tracking-widest text-primary/80">
+              Bahasa Transkrip:{' '}
+              {transcribeLanguage === 'en'
+                ? 'English'
+                : transcribeLanguage === 'mixed'
+                  ? 'Campuran (Auto)'
+                  : 'Indonesia'}
+            </p>
           </div>
           <Button
             size="sm"
@@ -377,25 +413,27 @@ export const EditingStep = () => {
           </div>
         )}
 
+        {hasMultipleSelectedClips ? (
+          <div className="flex items-start gap-2 text-amber-500 bg-amber-500/10 px-4 py-3 rounded-2xl text-sm border border-amber-500/20">
+            <AlertCircle size={18} className="mt-0.5 shrink-0" />
+            <span className="font-medium text-left">
+              Sistem edit sekarang fokus 1 short per sesi. Clip pertama dipakai sebagai short aktif.
+            </span>
+          </div>
+        ) : null}
+
         <div className="space-y-5">
-          {activeSession &&
-            selectedClips.map((clip, index) => (
-              <SelectedClipCard
-                key={clip.id}
-                activeSession={activeSession}
-                clip={clip}
-                index={index}
-                settings={
-                  refineSettings[clip.id] ?? {
-                    contentMode: 'auto',
-                  }
-                }
-                onRemoveClip={handleRemoveClip}
-                onApplyContentMode={handleApplyContentMode}
-                onUpdateRefineSetting={updateRefineSetting}
-                onUpdateTranscript={handleUpdateTranscript}
-              />
-            ))}
+          {activeSession && primaryClip ? (
+            <SelectedClipCard
+              key={primaryClip.id}
+              activeSession={activeSession}
+              clip={primaryClip}
+              index={0}
+              onRemoveClip={handleRemoveClip}
+              onUpdateTranscript={handleUpdateTranscript}
+              subtitleStyle={subtitleStyle}
+            />
+          ) : null}
         </div>
       </div>
 
@@ -405,9 +443,9 @@ export const EditingStep = () => {
         subtitleStyle={subtitleStyle}
         selectedClips={selectedClips}
         refineSettings={refineSettings}
-        onUpdateExportSettings={setExportSettings}
         onUpdateSubtitleStyle={updateSubtitleStyle}
-        onProceedToPublishCopy={handleProceedToPublishCopy}
+        onUpdateRefineSetting={handleUpdateRefineToggle}
+        onApplyContentMode={handleApplyContentMode}
       />
     </div>
   );

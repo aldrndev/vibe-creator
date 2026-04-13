@@ -29,7 +29,7 @@ export function useDirectorPublishCopy(
     provider: 'heuristic',
     notice: {
       mode: 'fallback',
-      message: 'Copy publish instan siap dipakai sambil menunggu AI.',
+      message: 'Copy publish instan untuk short final siap dipakai sambil menunggu AI.',
     },
   });
   const [isGenerating, setIsGenerating] = useState(false);
@@ -53,7 +53,7 @@ export function useDirectorPublishCopy(
       provider: 'heuristic',
       notice: {
         mode: 'fallback',
-        message: 'Copy publish instan siap dipakai sambil menunggu AI.',
+        message: 'Copy publish instan untuk short final siap dipakai sambil menunggu AI.',
       },
     });
   }, [fallbackPack]);
@@ -72,7 +72,7 @@ export function useDirectorPublishCopy(
         ...current,
         notice: {
           mode: current.source === 'ai' ? 'ai' : 'fallback',
-          message: 'Mencoba mengambil ulang copy publish dari AI...',
+          message: 'Mencoba mengambil ulang copy publish short dari AI...',
           attemptedProviders: current.notice.attemptedProviders,
           lastError: current.notice.lastError,
         },

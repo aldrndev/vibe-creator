@@ -47,6 +47,7 @@ export function PublishCopyStep() {
       setExportJob({
         ...payload.data,
         status: 'PENDING',
+        progress: 0,
         createdAt: new Date().toISOString(),
       });
       setStep('EXPORTING');
@@ -66,15 +67,15 @@ export function PublishCopyStep() {
               <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-4 py-1.5">
                 <Sparkles size={14} className="text-primary" />
                 <span className="text-[10px] font-black uppercase tracking-widest text-primary">
-                  Step Copy Publish
+                  Step Publish
                 </span>
               </div>
               <h3 className="text-3xl font-black tracking-tight bg-clip-text text-transparent bg-linear-to-br from-primary via-orange-500 to-rose-600">
-                Review Copy Sebelum Ekspor
+                Finalisasi Copy Untuk Short Final
               </h3>
               <p className="max-w-2xl text-sm leading-6 font-medium text-muted-foreground">
-                Draft copy dipisah dari menu edit supaya fokus editing tetap bersih. Kamu bisa retry
-                AI kapan saja, lalu lanjut ekspor saat copy sudah cukup pas.
+                Video short sudah final di langkah edit. Sekarang tinggal rapikan judul, caption,
+                hashtag, dan CTA sebelum render.
               </p>
             </div>
 
@@ -86,7 +87,8 @@ export function PublishCopyStep() {
           <CardBody className="p-6 sm:p-8 space-y-5">
             <h4 className="font-black tracking-tight text-lg">Lanjutkan Flow</h4>
             <p className="text-sm leading-6 text-muted-foreground">
-              Kembali ke Edit untuk ubah video, atau mulai ekspor jika draft copy sudah siap.
+              Kembali ke Video Studio jika transkrip belum pas, atau render jika copy publish sudah
+              siap.
             </p>
 
             <Button
@@ -98,7 +100,7 @@ export function PublishCopyStep() {
               }}
             >
               <ArrowLeft size={14} className="mr-2" />
-              Kembali ke Edit
+              Kembali ke Video
             </Button>
 
             <Button
@@ -110,7 +112,7 @@ export function PublishCopyStep() {
               isLoading={isLoading}
               disabled={isLoading || selectedClips.length === 0}
             >
-              Mulai Ekspor
+              Render Short
             </Button>
           </CardBody>
         </Card>

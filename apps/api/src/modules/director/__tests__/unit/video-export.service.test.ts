@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { videoExportService } from '@/modules/director/processing/video-export.service';
 import {
+  applySubtitleHold,
+  buildSpeakerTurnSubtitleSegments,
   buildSubtitleForceStyle,
   buildSubtitlesFilter,
   createSubtitleAsset,
   isMissingSubtitlesFilterError,
+  resolveSubtitleDisplaySegments,
   segmentSubtitlesForSrt,
   wrapSubtitleText,
 } from '@/modules/director/processing/video-export-subtitles';
@@ -24,6 +27,20 @@ describe('videoExportService helpers', () => {
     expect(forceStyle).toContain('PrimaryColour=&H000066FF');
     expect(forceStyle).toContain('BackColour=&H80000000');
     expect(forceStyle).toContain('Alignment=8');
+  });
+
+  it('maps extended subtitle positions to force-style margins', () => {
+    const cinemaBottomStyle = buildSubtitleForceStyle({
+      position: 'cinema-bottom',
+    });
+    const lowerThirdStyle = buildSubtitleForceStyle({
+      position: 'lower-third',
+    });
+
+    expect(cinemaBottomStyle).toContain('Alignment=2');
+    expect(cinemaBottomStyle).toContain('MarginV=180');
+    expect(lowerThirdStyle).toContain('Alignment=2');
+    expect(lowerThirdStyle).toContain('MarginV=300');
   });
 
   it('maps aspect ratio to the expected ffmpeg filter', () => {
@@ -80,6 +97,79 @@ describe('videoExportService helpers', () => {
     expect(asset.content).toContain('{\\k40}Hello');
   });
 
+  it('creates ASS karaoke subtitles with synthetic timings when word timestamps are missing', () => {
+    const asset = createSubtitleAsset(
+      [
+        {
+          startMs: 0,
+          endMs: 1_600,
+          text: 'Ini hook cepat',
+        },
+      ],
+      {
+        animation: 'typewriter',
+        textColorToken: 'C_WHITE',
+      },
+    );
+
+    expect(asset.extension).toBe('ass');
+    expect(asset.content).toContain('{\\k');
+    expect(asset.content).toContain('Ini');
+  });
+
+  it('merges close subtitle segments into one speaker turn for cinematic mode', () => {
+    const merged = buildSpeakerTurnSubtitleSegments([
+      { startMs: 0, endMs: 1_000, text: 'Ini hook pembuka.' },
+      { startMs: 1_220, endMs: 2_300, text: 'Lalu lanjut value konten.' },
+    ]);
+
+    expect(merged).toHaveLength(1);
+    expect(merged[0]?.text).toBe('Ini hook pembuka. Lalu lanjut value konten.');
+    expect(merged[0]?.startMs).toBe(0);
+    expect(merged[0]?.endMs).toBe(2_300);
+  });
+
+  it('keeps separated turns when gap is long even in cinematic mode', () => {
+    const resolved = resolveSubtitleDisplaySegments(
+      [
+        { startMs: 0, endMs: 1_000, text: 'Turn satu.' },
+        { startMs: 2_000, endMs: 3_000, text: 'Turn dua.' },
+      ],
+      { animation: 'phrase' },
+    );
+
+    expect(resolved).toHaveLength(2);
+  });
+
+  it('does not merge subtitle turns when speaker label changes', () => {
+    const resolved = resolveSubtitleDisplaySegments(
+      [
+        { startMs: 0, endMs: 1_000, text: 'Turn speaker satu.', speaker: 'SPEAKER_00' },
+        { startMs: 1_220, endMs: 2_200, text: 'Turn speaker dua.', speaker: 'SPEAKER_01' },
+      ],
+      { animation: 'phrase' },
+    );
+
+    expect(resolved).toHaveLength(2);
+    expect(resolved[0]?.speaker).toBe('SPEAKER_00');
+    expect(resolved[1]?.speaker).toBe('SPEAKER_01');
+  });
+
+  it('creates SRT with merged turn content for phrase animation', () => {
+    const asset = createSubtitleAsset(
+      [
+        { startMs: 0, endMs: 1_000, text: 'Ini hook pembuka.' },
+        { startMs: 1_220, endMs: 2_300, text: 'Lalu lanjut value konten.' },
+      ],
+      { animation: 'phrase' },
+    );
+
+    expect(asset.extension).toBe('srt');
+    expect((asset.content.match(/-->/g) ?? []).length).toBe(1);
+    expect(asset.content).toContain('Ini hook pembuka. Lalu lanjut');
+    expect(asset.content).toContain('value konten.');
+  });
+
   it('detects ffmpeg builds that do not support the subtitles filter', () => {
     expect(
       isMissingSubtitlesFilterError(
@@ -90,6 +180,18 @@ describe('videoExportService helpers', () => {
     expect(
       isMissingSubtitlesFilterError(new Error('Clip 1 gagal diproses: permission denied')),
     ).toBe(false);
+  });
+
+  it('detects ffmpeg builds that do not support the deshake filter', () => {
+    expect(
+      videoExportService.isMissingDeshakeFilterError(
+        new Error("Clip 1 gagal diproses: No such filter: 'deshake'"),
+      ),
+    ).toBe(true);
+
+    expect(videoExportService.isMissingDeshakeFilterError(new Error('permission denied'))).toBe(
+      false,
+    );
   });
 
   it('adds loudnorm filter when audio normalization is enabled', () => {
@@ -149,6 +251,10 @@ describe('videoExportService helpers', () => {
     expect(videoExportService.shouldUseFaceTracking({ faceTracking: false }, '9:16')).toBe(false);
   });
 
+  it('uses ffmpeg deshake filter for stabilize mode', () => {
+    expect(videoExportService.getStabilizeFilter()).toContain('deshake=');
+  });
+
   it('splits long subtitle cues into shorter timed chunks', () => {
     const chunks = segmentSubtitlesForSrt([
       {
@@ -159,7 +265,7 @@ describe('videoExportService helpers', () => {
     ]);
 
     expect(chunks.length).toBeGreaterThan(1);
-    expect(chunks[0]?.text.length).toBeLessThanOrEqual(42);
+    expect(chunks[0]?.text.length).toBeLessThanOrEqual(72);
     expect(chunks.at(-1)?.endMs).toBe(4_000);
   });
 
@@ -168,5 +274,15 @@ describe('videoExportService helpers', () => {
 
     expect(wrapped).toContain('\n');
     expect(wrapped.split('\n')).toHaveLength(2);
+  });
+
+  it('extends subtitle visibility slightly to avoid flicker between close cues', () => {
+    const held = applySubtitleHold([
+      { startMs: 0, endMs: 1_000, text: 'Cue 1' },
+      { startMs: 1_260, endMs: 2_000, text: 'Cue 2' },
+    ]);
+
+    expect(held[0]?.endMs).toBe(1_200);
+    expect(held[1]?.endMs).toBe(2_000);
   });
 });

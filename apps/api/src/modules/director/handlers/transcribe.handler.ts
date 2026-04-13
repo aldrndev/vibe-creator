@@ -65,6 +65,7 @@ export async function processTranscribeSessionJob(job: Job<DirectorTranscribeSes
       selectedClipId: clip.id,
       userId: job.data.userId,
       forceRefresh: job.data.forceRefresh === true,
+      language: job.data.language,
     };
 
     return {
@@ -95,6 +96,7 @@ export async function processTranscribeClipJob(job: Job<DirectorTranscribeClipJo
 
   await transcribeService.transcribeSelectedClip(selectedClipId, {
     bypassCache: job.data.forceRefresh === true,
+    language: job.data.language,
   });
 
   const clip = await prisma.directorSelectedClip.findUnique({

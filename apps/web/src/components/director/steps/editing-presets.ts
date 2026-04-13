@@ -9,7 +9,7 @@ export interface PlatformPreset {
 }
 
 export interface SubtitlePreset {
-  readonly id: 'viral' | 'clean' | 'podcast' | 'social-hook' | 'cinema' | 'story';
+  readonly id: 'karaoke' | 'cinema' | 'viral' | 'clean' | 'podcast' | 'social-hook' | 'story';
   readonly label: string;
   readonly description: string;
   readonly subtitleStyle: Partial<SubtitleStyle>;
@@ -77,6 +77,32 @@ export const platformPresets: PlatformPreset[] = [
 
 export const subtitlePresets: SubtitlePreset[] = [
   {
+    id: 'karaoke',
+    label: 'Karaoke',
+    description: 'Highlight kata berjalan supaya subtitle terasa hidup dan ritmis.',
+    subtitleStyle: {
+      fontToken: 'F_INTER',
+      fontSize: 30,
+      textColorToken: 'C_YELLOW',
+      bgColorToken: 'BG_TRANSPARENT',
+      position: 'center',
+      animation: 'typewriter',
+    },
+  },
+  {
+    id: 'cinema',
+    label: 'Cinema',
+    description: 'Per frasa, posisi cinematic bawah. Cocok untuk movie, short film, dan montage.',
+    subtitleStyle: {
+      fontToken: 'F_SERIF',
+      fontSize: 22,
+      textColorToken: 'C_WHITE',
+      bgColorToken: 'BG_TRANSPARENT',
+      position: 'cinema-bottom',
+      animation: 'phrase',
+    },
+  },
+  {
     id: 'viral',
     label: 'Viral',
     description: 'Tebal, kontras tinggi, dan paling mencolok untuk hook.',
@@ -103,19 +129,6 @@ export const subtitlePresets: SubtitlePreset[] = [
     },
   },
   {
-    id: 'podcast',
-    label: 'Podcast',
-    description: 'Cocok untuk talking head dan percakapan yang lebih panjang.',
-    subtitleStyle: {
-      fontToken: 'F_SERIF',
-      fontSize: 26,
-      textColorToken: 'C_WHITE',
-      bgColorToken: 'C_BLACK',
-      position: 'bottom',
-      animation: 'typewriter',
-    },
-  },
-  {
     id: 'social-hook',
     label: 'Social Hook',
     description: 'Word-by-word besar di tengah layar, optimal untuk hook cepat di sosial media.',
@@ -129,16 +142,16 @@ export const subtitlePresets: SubtitlePreset[] = [
     },
   },
   {
-    id: 'cinema',
-    label: 'Cinema',
-    description: 'Per frasa, posisi cinematic bawah. Cocok untuk movie, short film, dan montage.',
+    id: 'podcast',
+    label: 'Podcast',
+    description: 'Cocok untuk talking head dan percakapan yang lebih panjang.',
     subtitleStyle: {
       fontToken: 'F_SERIF',
-      fontSize: 22,
+      fontSize: 26,
       textColorToken: 'C_WHITE',
       bgColorToken: 'C_BLACK',
-      position: 'cinema-bottom',
-      animation: 'phrase',
+      position: 'bottom',
+      animation: 'typewriter',
     },
   },
   {

@@ -81,4 +81,19 @@ describe('applyClipRefineSettings', () => {
       stabilize: false,
     });
   });
+
+  it('applies product-review preset defaults when selected explicitly', () => {
+    const settings = resolveClipRefineSettings(
+      { contentMode: 'product-review' },
+      { contentModeSuggestion: 'general' },
+    );
+
+    expect(settings).toMatchObject({
+      contentMode: 'product-review',
+      faceTracking: true,
+      removeSilence: true,
+      optimizeHook: true,
+      stabilize: true,
+    });
+  });
 });

@@ -53,6 +53,43 @@ services:
       retries: 5
 
   # ---------------------------------------------------------------------------
+  # Transcribe Service (Dedicated Faster-Whisper)
+  # ---------------------------------------------------------------------------
+  transcribe:
+    build:
+      context: ../../apps/transcribe-service
+      dockerfile: Dockerfile
+      args:
+        INSTALL_DIARIZATION: ${TRANSCRIBE_INSTALL_DIARIZATION:-false}
+    container_name: vibe-creator-transcribe
+    ports:
+      - "8765:8000"
+    env_file:
+      - apps/api/.env.docker
+    environment:
+      TRANSCRIBE_ALLOWED_ROOTS: /app/uploads
+      HF_HOME: /app/uploads/cache/huggingface
+      TRANSCRIBE_LANGUAGE: ${TRANSCRIBE_LANGUAGE:-mixed}
+      TRANSCRIBE_DIARIZATION_ENABLED: ${TRANSCRIBE_DIARIZATION_ENABLED:-false}
+      TRANSCRIBE_DIARIZATION_MODEL: ${TRANSCRIBE_DIARIZATION_MODEL:-pyannote/speaker-diarization-3.1}
+      TRANSCRIBE_DIARIZATION_DEVICE: ${TRANSCRIBE_DIARIZATION_DEVICE:-cpu}
+    volumes:
+      - ../../apps/api/uploads:/app/uploads
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://localhost:8000/health >/dev/null"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: "4.0"
+          memory: 4G
+        reservations:
+          cpus: "1.0"
+          memory: 512M
+
+  # ---------------------------------------------------------------------------
   # Application Server
   # ---------------------------------------------------------------------------
   server:
@@ -75,6 +112,9 @@ services:
       TEMP_DIR: /app/uploads/temp
       OUTPUT_DIR: /app/uploads/exports
       COBALT_API_URL: http://cobalt:9000
+      TRANSCRIBE_PROVIDER: http
+      TRANSCRIBE_SERVICE_URL: http://transcribe:8000
+      TRANSCRIBE_LANGUAGE: ${TRANSCRIBE_LANGUAGE:-mixed}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
@@ -94,6 +134,8 @@ services:
         condition: service_healthy
       cobalt:
         condition: service_started
+      transcribe:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/health"]
       interval: 30s

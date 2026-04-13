@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import 'dotenv/config';
+import { TRANSCRIBE_LANGUAGE_VALUES } from '@/modules/transcribe/transcribe-language';
 import { optionalNonEmptyStringSchema, optionalUrlSchema } from './env.utils';
 
 const envSchema = z.object({
@@ -69,6 +70,15 @@ const envSchema = z.object({
   WHISPER_MODEL_SIZE: z
     .enum(['tiny', 'base', 'small', 'medium', 'large-v2', 'large-v3'])
     .default('small'),
+  TRANSCRIBE_PROVIDER: z.enum(['auto', 'local', 'http']).default('auto'),
+  TRANSCRIBE_SERVICE_URL: optionalUrlSchema,
+  TRANSCRIBE_SERVICE_TOKEN: optionalNonEmptyStringSchema,
+  TRANSCRIBE_HTTP_TIMEOUT_MS: z.coerce.number().int().positive().default(120000),
+  TRANSCRIBE_ALLOW_LOCAL_FALLBACK: z
+    .enum(['true', 'false', '1', '0'])
+    .optional()
+    .transform((val) => (val === undefined ? true : val === 'true' || val === '1')),
+  TRANSCRIBE_LANGUAGE: z.enum(TRANSCRIBE_LANGUAGE_VALUES).default('mixed'),
 
   // Testing - disable rate limiting for E2E tests
   RATE_LIMIT_TEST_MODE: z
@@ -90,6 +100,14 @@ const parsed = envSchema
         code: 'custom',
         message: 'OLLAMA_BASE_URL is required when AI_COPY_PROVIDER is set to ollama',
         path: ['OLLAMA_BASE_URL'],
+      });
+    }
+
+    if (data.TRANSCRIBE_PROVIDER === 'http' && !data.TRANSCRIBE_SERVICE_URL) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'TRANSCRIBE_SERVICE_URL is required when TRANSCRIBE_PROVIDER is set to http',
+        path: ['TRANSCRIBE_SERVICE_URL'],
       });
     }
 

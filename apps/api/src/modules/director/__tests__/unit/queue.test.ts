@@ -47,6 +47,7 @@ describe('director queue', () => {
         type: 'TRANSCRIBE_SESSION' as const,
         sessionId: 'session-1',
         userId: 'user-1',
+        language: 'id' as const,
       };
 
       expect(transcribeJob.type).toBe('TRANSCRIBE_SESSION');
@@ -60,6 +61,7 @@ describe('director queue', () => {
         sessionId: 'session-1',
         selectedClipId: 'clip-1',
         userId: 'user-1',
+        language: 'id' as const,
       };
 
       expect(clipJob.type).toBe('TRANSCRIBE_CLIP');

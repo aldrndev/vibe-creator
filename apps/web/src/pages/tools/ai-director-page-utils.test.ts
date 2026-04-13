@@ -13,25 +13,30 @@ function createSession(step: DirectorStep) {
 }
 
 describe('resolveHydratedStep', () => {
-  it('prioritizes completed export as COMPLETED', () => {
+  it('ignores legacy export job and keeps editing flow when clips exist', () => {
     const session = createSession('EDITING');
     session.exportJob = { status: 'COMPLETED' };
+    session.selectedClips = [{ id: 'clip-1' }];
 
-    expect(resolveHydratedStep(session)).toBe('COMPLETED');
+    expect(resolveHydratedStep(session)).toBe('EDITING');
   });
 
-  it('keeps export progress as EXPORTING while job exists', () => {
-    const session = createSession('EDITING');
-    session.exportJob = { status: 'PROCESSING' };
+  it('maps legacy exporting/completed session step back to EDITING', () => {
+    const exportingSession = createSession('EXPORTING');
+    exportingSession.selectedClips = [{ id: 'clip-1' }];
 
-    expect(resolveHydratedStep(session)).toBe('EXPORTING');
+    const completedSession = createSession('COMPLETED');
+    completedSession.selectedClips = [{ id: 'clip-1' }];
+
+    expect(resolveHydratedStep(exportingSession)).toBe('EDITING');
+    expect(resolveHydratedStep(completedSession)).toBe('EDITING');
   });
 
-  it('restores publish copy step when selected clips exist', () => {
+  it('maps legacy publish step to EDITING when selected clips exist', () => {
     const session = createSession('PUBLISH_COPY');
     session.selectedClips = [{ id: 'clip-1' }];
 
-    expect(resolveHydratedStep(session)).toBe('PUBLISH_COPY');
+    expect(resolveHydratedStep(session)).toBe('EDITING');
   });
 
   it('falls back to EDITING when clips already selected', () => {

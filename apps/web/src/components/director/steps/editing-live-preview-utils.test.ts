@@ -80,11 +80,25 @@ describe('deriveLivePreviewScene', () => {
 
     expect(scene.aspectClass).toBe('aspect-9/16');
     expect(scene.mediaClass).toContain('object-cover');
-    expect(scene.presetLabel).toBe('Fokus Subjek Aktif');
+    expect(scene.presetLabel).toBe('Short Vertical');
     expect(scene.subtitleContainerClass).toContain('items-center');
     expect(scene.subtitleTextClass).toContain('tracking');
-    expect(scene.appliedFeatureLabels).toContain('Subtitle Sinkron');
-    expect(scene.appliedFeatureLabels).toContain('Fokus Subjek');
+    expect(scene.appliedFeatureLabels).toContain('Subtitle Karaoke');
+    expect(scene.appliedFeatureLabels).toContain('Mode Umum');
+    expect(scene.appliedFeatureLabels).toContain('Audio Rata');
+  });
+
+  it('shows stabilize metadata on scene when stabilize is enabled', () => {
+    const scene = deriveLivePreviewScene(exportSettings, subtitleStyle, clip, {
+      ...refineSettings,
+      stabilize: true,
+      contentMode: 'general',
+    });
+
+    expect(scene.mediaClass).toContain('will-change-transform');
+    expect(scene.frameClass).toContain('shadow');
+    expect(scene.appliedFeatureLabels).toContain('Stabilize');
+    expect(scene.appliedFeatureLabels).toContain('Mode Umum');
   });
 
   it('falls back to safe sample text when transcript is unavailable', () => {
@@ -107,6 +121,27 @@ describe('deriveLivePreviewScene', () => {
     expect(getLivePreviewSubtitleText(draft, 200, 'typewriter')).toBe('Ini');
     expect(getLivePreviewSubtitleText(draft, 800, 'typewriter')).toBe('Ini contoh');
     expect(getLivePreviewSubtitleText(draft, 1_600, 'typewriter')).toBe('Ini contoh hook');
+  });
+
+  it('keeps typewriter behavior even when words timestamps are missing', () => {
+    const clipWithoutWords: SelectedClip = {
+      ...clip,
+      transcript: {
+        segments: [
+          {
+            startMs: 0,
+            endMs: 2_000,
+            text: 'Ini contoh hook cepat',
+          },
+        ],
+      },
+    };
+    const draft = deriveLivePreviewDraft(clipWithoutWords, refineSettings);
+
+    expect(getLivePreviewSubtitleText(draft, 250, 'typewriter')).toBe('Ini');
+    expect(getLivePreviewSubtitleText(draft, 1_100, 'typewriter')).not.toBe(
+      'Ini contoh hook cepat',
+    );
   });
 
   it('falls back to full segment text when animation is not typewriter', () => {
@@ -164,6 +199,24 @@ describe('getLivePreviewSubtitleText timing fix', () => {
 
     expect(getLivePreviewSubtitleText(draft, 1_500, 'none')).toBe('');
     expect(getLivePreviewSubtitleText(draft, 2_500, 'fade')).toBe('');
+  });
+
+  it('keeps previous subtitle briefly visible before next close segment starts', () => {
+    const closeGapClip: SelectedClip = {
+      ...clip,
+      transcript: {
+        segments: [
+          { startMs: 0, endMs: 1_000, text: 'Segment pertama.' },
+          { startMs: 1_260, endMs: 2_000, text: 'Segment kedua.' },
+        ],
+      },
+    };
+
+    const draft = deriveLivePreviewDraft(closeGapClip, undefined);
+
+    expect(getLivePreviewSubtitleText(draft, 1_150, 'none')).toBe('Segment pertama.');
+    expect(getLivePreviewSubtitleText(draft, 1_240, 'none')).toBe('');
+    expect(getLivePreviewSubtitleText(draft, 1_261, 'none')).toBe('Segment kedua.');
   });
 
   it('returns empty string before the first segment starts', () => {
@@ -229,36 +282,69 @@ describe('getLivePreviewSubtitleText phrase mode', () => {
     },
   };
 
-  it('shows first phrase group (4 words) at the start', () => {
+  it('shows full segment text in cinematic phrase mode', () => {
     const draft = deriveLivePreviewDraft(clipWithManyWords, undefined);
 
-    expect(getLivePreviewSubtitleText(draft, 1_200, 'phrase')).toBe('Ini contoh hook yang');
-  });
-
-  it('shows second phrase group when enough words are visible', () => {
-    const draft = deriveLivePreviewDraft(clipWithManyWords, undefined);
-
-    expect(getLivePreviewSubtitleText(draft, 2_000, 'phrase')).toBe(
-      'langsung bikin orang penasaran',
+    expect(getLivePreviewSubtitleText(draft, 1_200, 'phrase')).toBe(
+      'Ini contoh hook yang langsung bikin orang penasaran dan berhenti scroll.',
     );
   });
 
-  it('returns empty string before any word starts in phrase mode', () => {
-    const lateWordClip: SelectedClip = {
+  it('combines close subtitle segments into one speaker turn in phrase mode', () => {
+    const closeGapClip: SelectedClip = {
+      ...clip,
+      transcript: {
+        segments: [
+          { startMs: 0, endMs: 1_000, text: 'Kita bahas hook dulu.' },
+          { startMs: 1_200, endMs: 2_200, text: 'Lalu lanjut ke CTA yang jelas.' },
+        ],
+      },
+    };
+    const draft = deriveLivePreviewDraft(closeGapClip, undefined);
+
+    expect(getLivePreviewSubtitleText(draft, 500, 'phrase')).toBe(
+      'Kita bahas hook dulu. Lalu lanjut ke CTA yang jelas.',
+    );
+  });
+
+  it('keeps phrase turns separated when speaker changes', () => {
+    const closeGapClip: SelectedClip = {
+      ...clip,
+      transcript: {
+        segments: [
+          { startMs: 0, endMs: 1_000, text: 'Speaker satu dulu.', speaker: 'SPEAKER_00' },
+          { startMs: 1_200, endMs: 2_000, text: 'Speaker dua masuk.', speaker: 'SPEAKER_01' },
+        ],
+      },
+    };
+    const draft = deriveLivePreviewDraft(closeGapClip, undefined);
+
+    expect(getLivePreviewSubtitleText(draft, 500, 'phrase')).toBe('Speaker satu dulu.');
+    expect(getLivePreviewSubtitleText(draft, 1_300, 'phrase')).toBe('Speaker dua masuk.');
+  });
+
+  it('returns empty string before segment starts in phrase mode', () => {
+    const lateSegmentClip: SelectedClip = {
       ...clip,
       transcript: {
         segments: [
           {
-            startMs: 0,
+            startMs: 2_000,
             endMs: 5_000,
             text: 'Late start.',
-            words: [{ startMs: 2_000, endMs: 3_000, text: 'Late' }],
           },
         ],
       },
     };
 
-    const draft = deriveLivePreviewDraft(lateWordClip, undefined);
+    const noTrimSettings: RefineSettings = {
+      contentMode: 'general',
+      removeSilence: false,
+      optimizeHook: false,
+      faceTracking: false,
+      stabilize: false,
+    };
+    const draft = deriveLivePreviewDraft(lateSegmentClip, noTrimSettings);
 
     expect(getLivePreviewSubtitleText(draft, 500, 'phrase')).toBe('');
   });
@@ -271,6 +357,39 @@ describe('getLivePreviewSubtitleText line mode', () => {
     expect(getLivePreviewSubtitleText(draft, 500, 'line')).toBe(
       'Ini contoh hook yang langsung bikin orang penasaran.',
     );
+  });
+
+  it('shows merged speaker turn text when segments are close in line mode', () => {
+    const closeGapClip: SelectedClip = {
+      ...clip,
+      transcript: {
+        segments: [
+          { startMs: 0, endMs: 1_000, text: 'Opening hook dulu.' },
+          { startMs: 1_220, endMs: 2_000, text: 'Baru masuk value utama.' },
+        ],
+      },
+    };
+    const draft = deriveLivePreviewDraft(closeGapClip, undefined);
+
+    expect(getLivePreviewSubtitleText(draft, 400, 'line')).toBe(
+      'Opening hook dulu. Baru masuk value utama.',
+    );
+  });
+
+  it('keeps line subtitle separated when speaker changes', () => {
+    const closeGapClip: SelectedClip = {
+      ...clip,
+      transcript: {
+        segments: [
+          { startMs: 0, endMs: 1_000, text: 'Host membuka.', speaker: 'SPEAKER_00' },
+          { startMs: 1_220, endMs: 2_000, text: 'Guest menjawab.', speaker: 'SPEAKER_01' },
+        ],
+      },
+    };
+    const draft = deriveLivePreviewDraft(closeGapClip, undefined);
+
+    expect(getLivePreviewSubtitleText(draft, 400, 'line')).toBe('Host membuka.');
+    expect(getLivePreviewSubtitleText(draft, 1_400, 'line')).toBe('Guest menjawab.');
   });
 
   it('returns empty string when not in any segment in line mode', () => {
@@ -344,5 +463,23 @@ describe('deriveLivePreviewScene positions', () => {
     );
 
     expect(scene.subtitleTextClass).toContain('opacity-90');
+  });
+
+  it('maps subtitle color, background, and font tokens into preview style', () => {
+    const scene = deriveLivePreviewScene(
+      exportSettings,
+      {
+        ...subtitleStyle,
+        fontToken: 'F_SERIF',
+        textColorToken: 'C_ORANGE',
+        bgColorToken: 'BG_TRANSPARENT',
+      },
+      clip,
+      undefined,
+    );
+
+    expect(scene.subtitleTextStyle.fontFamily).toContain('Georgia');
+    expect(scene.subtitleTextStyle.color).toBe('#FF8C1A');
+    expect(scene.subtitleTextStyle.backgroundColor).toBe('rgba(0, 0, 0, 0)');
   });
 });

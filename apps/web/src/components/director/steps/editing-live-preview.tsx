@@ -1,14 +1,21 @@
-import { MonitorPlay, Pause, Play, ScanFace } from 'lucide-react';
-import { useState } from 'react';
+import { Download, Loader2, MonitorPlay, RefreshCcw, ScanFace } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  deriveLivePreviewDraft,
-  deriveLivePreviewScene,
-  getLivePreviewSubtitleText,
-} from '@/components/director/steps/editing-live-preview-utils';
-import { Badge, Card, CardBody } from '@/components/ui';
+  estimatePreviewProgressPercent,
+  type PreviewStatus,
+  resolvePreviewStatus,
+} from '@/components/director/steps/editing-live-preview-state';
+import { deriveLivePreviewScene } from '@/components/director/steps/editing-live-preview-utils';
+import { Badge, Button } from '@/components/ui';
 import { useAuthenticatedObjectUrl } from '@/hooks/use-authenticated-object-url';
-import { getEffectiveRefineSettings } from '@/lib/director-refine-settings';
+import {
+  getContentModeLabel,
+  getEffectiveRefineSettings,
+  getResolvedContentMode,
+} from '@/lib/director-refine-settings';
+import { logger } from '@/lib/logger';
 import { cn } from '@/lib/utils';
+import { authFetch, downloadAuthenticatedFile } from '@/services/api';
 import type {
   DirectorSession,
   ExportSettings,
@@ -32,8 +39,18 @@ export function EditingLivePreview({
   selectedClips,
   refineSettings,
 }: Readonly<EditingLivePreviewProps>) {
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTimeMs, setCurrentTimeMs] = useState(0);
+  const [renderPreviewPath, setRenderPreviewPath] = useState<string | null>(null);
+  const [previewDownloadPath, setPreviewDownloadPath] = useState<string | null>(null);
+  const [previewFileName, setPreviewFileName] = useState<string | null>(null);
+  const [previewStatus, setPreviewStatus] = useState<PreviewStatus>('idle');
+  const [previewProgressPercent, setPreviewProgressPercent] = useState(0);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [lastGeneratedPayloadKey, setLastGeneratedPayloadKey] = useState<string | null>(null);
+  const [lastAttemptPayloadKey, setLastAttemptPayloadKey] = useState<string | null>(null);
+  const requestVersionRef = useRef(0);
+  const latestPayloadRef = useRef<string | null>(null);
+
   const primaryClip = selectedClips[0];
   const activeRefineSettings = primaryClip
     ? getEffectiveRefineSettings(primaryClip, refineSettings[primaryClip.id])
@@ -44,63 +61,255 @@ export function EditingLivePreview({
     primaryClip,
     activeRefineSettings,
   );
-  const previewDraft = deriveLivePreviewDraft(primaryClip, activeRefineSettings);
+  const previewPayload = useMemo(() => {
+    if (!primaryClip || !activeRefineSettings) {
+      return null;
+    }
+
+    return {
+      aspectRatio: exportSettings.aspectRatio,
+      quality: exportSettings.quality,
+      includeSubtitles: exportSettings.includeSubtitles,
+      normalizeAudio: exportSettings.normalizeAudio,
+      subtitleStyle: {
+        fontToken: subtitleStyle.fontToken,
+        textColorToken: subtitleStyle.textColorToken,
+        bgColorToken: subtitleStyle.bgColorToken,
+        fontSize: subtitleStyle.fontSize,
+        position: subtitleStyle.position,
+        animation: subtitleStyle.animation,
+      },
+      refineSettings: {
+        [primaryClip.id]: {
+          faceTracking: Boolean(activeRefineSettings.faceTracking),
+          removeSilence: Boolean(activeRefineSettings.removeSilence),
+          optimizeHook: Boolean(activeRefineSettings.optimizeHook),
+          stabilize: Boolean(activeRefineSettings.stabilize),
+          contentMode: activeRefineSettings.contentMode,
+        },
+      },
+    };
+  }, [activeRefineSettings, exportSettings, primaryClip, subtitleStyle]);
+  const previewPayloadJson = previewPayload ? JSON.stringify(previewPayload) : null;
+
+  const activeSessionId = activeSession?.id;
+
+  useEffect(() => {
+    latestPayloadRef.current = previewPayloadJson;
+  }, [previewPayloadJson]);
+
+  useEffect(() => {
+    requestVersionRef.current += 1;
+    if (!activeSessionId) {
+      setRenderPreviewPath(null);
+      setPreviewDownloadPath(null);
+      setPreviewFileName(null);
+      setPreviewStatus('idle');
+      setLastGeneratedPayloadKey(null);
+      setLastAttemptPayloadKey(null);
+      setPreviewProgressPercent(0);
+      setPreviewError(null);
+      setDownloadError(null);
+    }
+  }, [activeSessionId]);
+
+  useEffect(() => {
+    if (!previewPayloadJson) {
+      setPreviewStatus('idle');
+      setLastGeneratedPayloadKey(null);
+      setLastAttemptPayloadKey(null);
+      setPreviewProgressPercent(0);
+      setPreviewError(null);
+      setDownloadError(null);
+      setRenderPreviewPath(null);
+      setPreviewDownloadPath(null);
+      setPreviewFileName(null);
+      return;
+    }
+
+    if (previewStatus === 'generating') {
+      return;
+    }
+
+    setPreviewStatus(
+      resolvePreviewStatus({
+        previewPayloadJson,
+        previewStatus,
+        renderPreviewPath,
+        previewDownloadPath,
+        lastGeneratedPayloadKey,
+        lastAttemptPayloadKey,
+      }),
+    );
+  }, [
+    lastAttemptPayloadKey,
+    lastGeneratedPayloadKey,
+    previewDownloadPath,
+    previewPayloadJson,
+    previewStatus,
+    renderPreviewPath,
+  ]);
+
+  const handleGeneratePreview = useCallback(async () => {
+    if (!activeSessionId || !previewPayloadJson) {
+      return;
+    }
+
+    const requestVersion = requestVersionRef.current + 1;
+    requestVersionRef.current = requestVersion;
+    const startTimestamp = Date.now();
+    const requestedPayload = previewPayloadJson;
+
+    setPreviewStatus('generating');
+    setLastAttemptPayloadKey(requestedPayload);
+    setPreviewProgressPercent(2);
+    setPreviewError(null);
+    setDownloadError(null);
+
+    const bumpPreviewProgress = () => {
+      const elapsedMs = Date.now() - startTimestamp;
+      const estimatedProgress = estimatePreviewProgressPercent(elapsedMs);
+
+      setPreviewProgressPercent((previous) => Math.max(previous, estimatedProgress));
+    };
+
+    const progressIntervalId = globalThis.setInterval(() => {
+      bumpPreviewProgress();
+    }, 220);
+
+    try {
+      const response = await authFetch(
+        `/api/v1/director/sessions/${activeSessionId}/export/preview`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: requestedPayload,
+        },
+      );
+      const payload = (await response.json()) as {
+        success: boolean;
+        data?: {
+          previewFileName?: string;
+          previewUrl?: string;
+          downloadUrl?: string;
+        };
+        error?: { message?: string };
+      };
+
+      if (
+        !response.ok ||
+        !payload.success ||
+        !payload.data?.previewUrl ||
+        !payload.data?.downloadUrl ||
+        !payload.data?.previewFileName
+      ) {
+        throw new Error(payload.error?.message || 'Preview final gagal digenerate');
+      }
+
+      if (requestVersionRef.current !== requestVersion) {
+        return;
+      }
+
+      setPreviewProgressPercent(100);
+      setRenderPreviewPath(payload.data.previewUrl);
+      setPreviewDownloadPath(payload.data.downloadUrl);
+      setPreviewFileName(payload.data.previewFileName);
+      setPreviewError(null);
+
+      if (requestedPayload === latestPayloadRef.current) {
+        setLastGeneratedPayloadKey(requestedPayload);
+        setPreviewStatus('ready');
+      } else {
+        setPreviewStatus('dirty');
+      }
+    } catch (error) {
+      if (requestVersionRef.current !== requestVersion) {
+        return;
+      }
+
+      logger.error('Generate preview failed', error);
+      setPreviewProgressPercent(0);
+      setPreviewStatus('failed');
+      setPreviewError(error instanceof Error ? error.message : 'Preview final gagal dimuat');
+    } finally {
+      globalThis.clearInterval(progressIntervalId);
+    }
+  }, [activeSessionId, previewPayloadJson]);
+
+  const handleDownloadPreview = useCallback(async () => {
+    if (!previewDownloadPath || previewStatus !== 'ready') {
+      return;
+    }
+
+    try {
+      setDownloadError(null);
+      await downloadAuthenticatedFile(
+        previewDownloadPath,
+        previewFileName ?? `short-preview-${activeSession?.id ?? Date.now()}.mp4`,
+      );
+    } catch (error) {
+      logger.error('Preview download failed', error);
+      setDownloadError('Unduhan gagal. Coba generate ulang lalu unduh lagi.');
+    }
+  }, [activeSession?.id, previewDownloadPath, previewFileName, previewStatus]);
+
   const previewUrl = useAuthenticatedObjectUrl(
     activeSession && primaryClip
       ? `/api/v1/director/sessions/${activeSession.id}/clips/${primaryClip.candidate.id}/poster`
       : null,
   );
   const previewVideoUrl = useAuthenticatedObjectUrl(
-    activeSession && primaryClip && isPlaying
-      ? `/api/v1/director/sessions/${activeSession.id}/clips/${primaryClip.candidate.id}/preview`
-      : null,
+    activeSession && primaryClip && renderPreviewPath ? renderPreviewPath : null,
   );
-  const previewPlaybackLabel = isPlaying ? 'Hentikan draft preview' : 'Putar draft preview';
-  const previewSubtitleText = getLivePreviewSubtitleText(
-    previewDraft,
-    currentTimeMs,
-    subtitleStyle.animation,
-  );
+  const resolvedContentMode =
+    primaryClip && activeRefineSettings
+      ? getResolvedContentMode(primaryClip.candidate, activeRefineSettings)
+      : null;
+  const showGeneratingState = previewStatus === 'generating';
+  const shouldDisableGenerate = !previewPayloadJson || previewStatus === 'generating';
+  const shouldEnableDownload = previewStatus === 'ready' && Boolean(previewDownloadPath);
 
   let mediaContent = null;
-  if (isPlaying && previewVideoUrl) {
+  if (previewVideoUrl) {
     mediaContent = (
-      <video
-        key={`${primaryClip?.id ?? 'preview'}-live`}
-        src={previewVideoUrl}
-        autoPlay
-        playsInline
-        controls
-        className={cn('w-full h-full transition-all duration-300 bg-black', scene.mediaClass)}
-        onLoadedMetadata={(event) => {
-          const target = event.currentTarget;
-          const startAtSeconds = (previewDraft?.startOffsetMs ?? 0) / 1000;
-          if (startAtSeconds > 0) {
-            target.currentTime = startAtSeconds;
-          }
-        }}
-        onTimeUpdate={(event) => {
-          const target = event.currentTarget;
-          const rawTimeMs = Math.round(target.currentTime * 1000);
-          const draftStartOffsetMs = previewDraft?.startOffsetMs ?? 0;
-          const nextTimeMs = Math.max(0, rawTimeMs - draftStartOffsetMs);
-
-          if (previewDraft && nextTimeMs >= previewDraft.durationMs) {
-            target.pause();
-            setIsPlaying(false);
-            setCurrentTimeMs(previewDraft.durationMs);
-            return;
-          }
-
-          setCurrentTimeMs(nextTimeMs);
-        }}
-        onEnded={() => {
-          setIsPlaying(false);
-          setCurrentTimeMs(0);
-        }}
-      >
-        <track kind="captions" srcLang="id" label="Preview hasil tanpa caption terpisah" />
-      </video>
+      <>
+        <video
+          key={renderPreviewPath ?? primaryClip?.id ?? 'preview'}
+          src={previewVideoUrl}
+          playsInline
+          controls
+          className="h-full w-full bg-black object-contain"
+        >
+          <track kind="captions" srcLang="id" label="Preview final identik export" />
+        </video>
+        {showGeneratingState ? (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/45">
+            <div className="rounded-2xl border border-primary/20 bg-card/90 px-4 py-3 text-center backdrop-blur-md">
+              <div className="mx-auto mb-2 inline-flex h-10 w-10 items-center justify-center rounded-full border border-primary/30 bg-primary/10">
+                <Loader2 size={16} className="animate-spin text-primary" />
+              </div>
+              <p className="text-sm font-semibold text-foreground">Generate Ulang Preview</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {previewProgressPercent}% • Preview lama tetap tampil sampai selesai.
+              </p>
+            </div>
+          </div>
+        ) : null}
+      </>
+    );
+  } else if (showGeneratingState) {
+    mediaContent = (
+      <div className="absolute inset-0 flex items-center justify-center bg-black/60">
+        <div className="rounded-2xl border border-primary/20 bg-card/85 px-4 py-3 text-center backdrop-blur-md">
+          <div className="mx-auto mb-2 inline-flex h-10 w-10 items-center justify-center rounded-full border border-primary/30 bg-primary/10">
+            <Loader2 size={16} className="animate-spin text-primary" />
+          </div>
+          <p className="text-sm font-semibold text-foreground">Preview Sedang Digenerate</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {previewProgressPercent}% • Mohon tunggu sebentar.
+          </p>
+        </div>
+      </div>
     );
   } else if (previewUrl) {
     mediaContent = (
@@ -110,6 +319,15 @@ export function EditingLivePreview({
         className={cn('w-full h-full transition-all duration-300', scene.mediaClass)}
       />
     );
+  } else if (previewError) {
+    mediaContent = (
+      <div className="absolute inset-0 flex items-center justify-center bg-black/60 px-6 text-center">
+        <div className="rounded-2xl border border-border/40 bg-card/90 px-4 py-3">
+          <p className="text-sm font-semibold text-foreground">Preview Final Belum Tersedia</p>
+          <p className="mt-1 text-xs text-muted-foreground">{previewError}</p>
+        </div>
+      </div>
+    );
   } else {
     mediaContent = (
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,99,33,0.18),transparent_42%),linear-gradient(180deg,rgba(255,255,255,0.06),rgba(0,0,0,0.25))]" />
@@ -117,99 +335,103 @@ export function EditingLivePreview({
   }
 
   return (
-    <Card className="bg-card/70 border-border/50 backdrop-blur-xl rounded-4xl overflow-hidden">
-      <CardBody className="p-6 sm:p-8 space-y-5">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 shrink-0 rounded-xl bg-primary/10 flex items-center justify-center border border-primary/20">
-            <MonitorPlay size={20} className="text-primary" />
+    <div className="space-y-4 rounded-3xl border border-border/40 bg-muted/20 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="h-9 w-9 shrink-0 rounded-xl border border-primary/20 bg-primary/10 flex items-center justify-center">
+            <MonitorPlay size={18} className="text-primary" />
           </div>
-          <div>
-            <h4 className="font-black tracking-tight text-lg">Draft Preview</h4>
-            <p className="text-xs text-muted-foreground">
-              Timing mungkin sedikit berbeda dari ekspor final.
+          <div className="min-w-0">
+            <h4 className="font-black tracking-tight text-base leading-none">Preview Final</h4>
+            <p className="mt-1 text-[11px] leading-4 text-muted-foreground">
+              Generate manual, lalu download hasil yang sama.
             </p>
           </div>
         </div>
+        <Badge className="shrink-0 rounded-full border-border/50 bg-muted/40 px-2.5 py-1 text-[10px] text-foreground">
+          {previewStatus === 'ready'
+            ? 'Siap Diunduh'
+            : previewStatus === 'dirty'
+              ? 'Perlu Generate Ulang'
+              : previewStatus === 'generating'
+                ? `Generating ${previewProgressPercent}%`
+                : previewStatus === 'failed'
+                  ? 'Generate Gagal'
+                  : 'Belum Digenerate'}
+        </Badge>
+      </div>
 
-        <div
-          className={cn(
-            'w-full rounded-4xl border border-border/50 overflow-hidden relative min-h-80',
-            scene.aspectClass,
-            scene.frameClass,
-          )}
-        >
-          {mediaContent}
-
-          <div className="absolute inset-0 pointer-events-none bg-linear-to-t from-black/70 via-transparent to-black/15" />
-
-          <div className="absolute top-4 left-4 flex items-center gap-2">
-            <Badge className="rounded-full bg-black/55 text-white border-white/10">
-              {scene.presetLabel}
-            </Badge>
-            {activeRefineSettings?.faceTracking && exportSettings.aspectRatio === '9:16' && (
-              <Badge className="rounded-full bg-primary/15 text-primary border-primary/30">
-                <ScanFace size={12} className="mr-1" />
-                Tracking
-              </Badge>
-            )}
-          </div>
-
-          {primaryClip && (
-            <button
-              type="button"
-              onClick={() => {
-                setIsPlaying((current) => {
-                  if (current) {
-                    setCurrentTimeMs(0);
-                  }
-
-                  return !current;
-                });
-              }}
-              className="absolute top-4 right-4 inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/15 bg-black/45 text-white backdrop-blur-md transition-all hover:bg-black/60"
-              aria-label={previewPlaybackLabel}
-            >
-              {isPlaying ? (
-                <Pause size={16} className="fill-white" />
-              ) : (
-                <Play size={16} className="fill-white" />
-              )}
-            </button>
-          )}
-
-          {exportSettings.includeSubtitles && previewSubtitleText && (
-            <div
-              className={cn(
-                'pointer-events-none absolute inset-0 flex px-5 sm:px-6',
-                scene.subtitleContainerClass,
-              )}
-            >
-              <div
-                className={cn(
-                  'max-w-[82%] rounded-2xl border border-white/10 bg-black/68 px-4 py-3 text-center text-white shadow-lg backdrop-blur-md',
-                  scene.subtitleTextClass,
-                )}
-                style={{ fontSize: `${Math.max(16, subtitleStyle.fontSize - 2)}px` }}
-              >
-                {previewSubtitleText}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {scene.appliedFeatureLabels.length > 0 && (
-          <div className="flex flex-wrap gap-2">
-            {scene.appliedFeatureLabels.map((label) => (
-              <Badge
-                key={label}
-                className="rounded-full border-border/50 bg-muted/30 text-foreground"
-              >
-                {label}
-              </Badge>
-            ))}
-          </div>
+      <div
+        className={cn(
+          'mx-auto w-full max-w-[17.5rem] rounded-4xl border border-border/50 overflow-hidden relative min-h-80',
+          scene.aspectClass,
+          scene.frameClass,
         )}
-      </CardBody>
-    </Card>
+      >
+        {mediaContent}
+      </div>
+
+      <div className="grid grid-cols-1 gap-2">
+        <Button
+          onClick={() => {
+            void handleGeneratePreview();
+          }}
+          disabled={shouldDisableGenerate}
+          className="h-11 rounded-2xl text-xs font-semibold tracking-normal"
+        >
+          {previewStatus === 'dirty' || previewStatus === 'failed' ? (
+            <RefreshCcw size={14} className="mr-2" />
+          ) : (
+            <MonitorPlay size={14} className="mr-2" />
+          )}
+          {previewStatus === 'generating'
+            ? 'Generating...'
+            : previewStatus === 'dirty' || previewStatus === 'failed'
+              ? 'Generate Ulang'
+              : 'Generate Preview'}
+        </Button>
+        <Button
+          variant="secondary"
+          onClick={() => {
+            void handleDownloadPreview();
+          }}
+          disabled={!shouldEnableDownload}
+          className="h-11 rounded-2xl text-xs font-semibold tracking-normal border-primary/20 hover:bg-primary/5"
+        >
+          <Download size={14} className="mr-2" />
+          Download Video
+        </Button>
+      </div>
+
+      {previewError ? (
+        <div className="rounded-2xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-xs text-rose-500">
+          {previewError}
+        </div>
+      ) : null}
+      {downloadError ? (
+        <div className="rounded-2xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-xs text-rose-500">
+          {downloadError}
+        </div>
+      ) : null}
+
+      <div className="flex flex-wrap gap-1.5">
+        {resolvedContentMode ? (
+          <Badge className="rounded-full border-border/50 bg-muted/30 px-2 py-1 text-[10px] text-foreground">
+            Mode {getContentModeLabel(resolvedContentMode)}
+          </Badge>
+        ) : null}
+        {exportSettings.includeSubtitles ? (
+          <Badge className="rounded-full border-border/50 bg-muted/30 px-2 py-1 text-[10px] text-foreground">
+            Subtitle Aktif
+          </Badge>
+        ) : null}
+        {activeRefineSettings?.faceTracking && exportSettings.aspectRatio === '9:16' ? (
+          <Badge className="rounded-full border-border/50 bg-muted/30 px-2 py-1 text-[10px] text-foreground">
+            <ScanFace size={12} className="mr-1" />
+            Smart Crop Aktif
+          </Badge>
+        ) : null}
+      </div>
+    </div>
   );
 }

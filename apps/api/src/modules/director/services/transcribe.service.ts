@@ -4,8 +4,13 @@
  */
 
 import { DirectorJobStatus } from '@prisma/client';
+import { env } from '@/config/env';
 import { logger } from '@/lib/logger';
 import { redis } from '@/lib/redis';
+import {
+  isTranscribeLanguage,
+  type TranscribeLanguage,
+} from '@/modules/transcribe/transcribe-language';
 import { buildDirectorQueueJobId, directorQueue } from '../director.queue';
 import { directorRepo } from '../director.repo';
 import {
@@ -17,6 +22,7 @@ import {
 type TranscribeJob = NonNullable<Awaited<ReturnType<typeof directorRepo.createTranscribeJob>>>;
 export interface StartTranscribeOptions {
   forceRefresh?: boolean;
+  language?: TranscribeLanguage;
 }
 
 export const directorTranscribeService = {
@@ -26,6 +32,12 @@ export const directorTranscribeService = {
   async startTranscribe(sessionId: string, userId: string, options: StartTranscribeOptions = {}) {
     const session = await directorRepo.findSession(sessionId, userId);
     const forceRefresh = options.forceRefresh === true;
+    const requestedLanguage =
+      options.language ??
+      (isTranscribeLanguage(session?.transcribeJob?.language)
+        ? session.transcribeJob.language
+        : null) ??
+      env.TRANSCRIBE_LANGUAGE;
 
     if (!session) {
       throw new Error('Session not found');
@@ -58,7 +70,19 @@ export const directorTranscribeService = {
 
       // If active or completed, return existing
       if (isActiveStatus || (!forceRefresh && status === DirectorJobStatus.COMPLETED)) {
-        return session.transcribeJob;
+        if (
+          isTranscribeLanguage(session.transcribeJob.language) &&
+          session.transcribeJob.language !== requestedLanguage
+        ) {
+          throw new Error(
+            'Bahasa transkripsi berbeda dari job aktif. Jalankan transkripsi ulang setelah job saat ini selesai.',
+          );
+        }
+
+        return {
+          ...session.transcribeJob,
+          language: requestedLanguage,
+        };
       }
 
       // Force refresh or retry failed job by resetting state.
@@ -72,11 +96,15 @@ export const directorTranscribeService = {
           errorMessage: null,
           startedAt: null,
           completedAt: null,
+          language: requestedLanguage,
           segments: toTranscribeProgressJson(progressMeta),
         });
       } else {
         // Should not happen, but safe fallback
-        job = session.transcribeJob;
+        job = {
+          ...session.transcribeJob,
+          language: requestedLanguage,
+        };
       }
     } else {
       // Create new job if none exists
@@ -86,6 +114,7 @@ export const directorTranscribeService = {
         idempotencyKey,
         status: DirectorJobStatus.PENDING,
         engine: 'WHISPER_LOCAL',
+        language: requestedLanguage,
         segments: toTranscribeProgressJson(progressMeta),
       });
     }
@@ -100,6 +129,7 @@ export const directorTranscribeService = {
         sessionId,
         userId,
         forceRefresh,
+        language: requestedLanguage,
       },
       {
         jobId: queueJobId,
@@ -108,7 +138,7 @@ export const directorTranscribeService = {
     );
 
     logger.info(
-      { sessionId, jobId: job.id, queueJobId },
+      { sessionId, jobId: job.id, queueJobId, language: requestedLanguage },
       'Director transcribe job created and queued',
     );
 

@@ -9,8 +9,23 @@ import { logger } from '@/lib/logger';
 import type { AnalysisOptions, Segment } from './types';
 
 const ffmpegPath = process.env.FFMPEG_PATH || 'ffmpeg';
-const IDEAL_SHORT_MIN_DURATION = 10;
-const IDEAL_SHORT_MAX_DURATION = 25;
+const IDEAL_SHORT_MIN_DURATION = 40;
+const IDEAL_SHORT_MAX_DURATION = 60;
+const EXTENDED_SHORT_MAX_DURATION = 80;
+const UNIFORM_WINDOW_DURATIONS_SEC = [36, 48, 60] as const;
+const UNIFORM_WINDOW_STRIDE_SEC = 12;
+const MIN_SCENE_GAP_SEC = 0.2;
+const DIALOG_SAFE_ANCHOR_GRACE_SEC = 8;
+const UNIFORM_FALLBACK_TAG = 'UNIFORM_FALLBACK';
+
+interface DetectionResult {
+  segments: Segment[];
+  totalDuration: number;
+}
+
+interface MergeableSegment extends Segment {
+  pauseAnchors: number[];
+}
 
 function clampScore(value: number): number {
   return Math.max(0, Math.min(100, Math.round(value)));
@@ -21,11 +36,175 @@ function getDurationFitScore(duration: number): number {
     return 92;
   }
 
-  if (duration < IDEAL_SHORT_MIN_DURATION) {
-    return clampScore(70 - (IDEAL_SHORT_MIN_DURATION - duration) * 6);
+  if (duration > IDEAL_SHORT_MAX_DURATION && duration <= EXTENDED_SHORT_MAX_DURATION) {
+    return clampScore(86 - (duration - IDEAL_SHORT_MAX_DURATION) * 0.6);
   }
 
-  return clampScore(78 - (duration - IDEAL_SHORT_MAX_DURATION) * 3);
+  if (duration >= 30 && duration < IDEAL_SHORT_MIN_DURATION) {
+    return clampScore(80 - (IDEAL_SHORT_MIN_DURATION - duration) * 1.4);
+  }
+
+  if (duration < 30) {
+    return clampScore(50 - (30 - duration) * 2.2);
+  }
+
+  return clampScore(64 - (duration - EXTENDED_SHORT_MAX_DURATION) * 2.2);
+}
+
+export function buildUniformWindows(totalDuration: number): Segment[] {
+  if (!Number.isFinite(totalDuration) || totalDuration <= 0) {
+    return [];
+  }
+
+  const windows: Segment[] = [];
+  for (const preferredDuration of UNIFORM_WINDOW_DURATIONS_SEC) {
+    let start = 0;
+    while (start + 18 <= totalDuration) {
+      const duration = Math.min(preferredDuration, totalDuration - start);
+      if (duration < 18) {
+        break;
+      }
+
+      windows.push({
+        start,
+        end: start + duration,
+        duration,
+        score: 0.72 + getDurationFitScore(duration) / 500,
+        activeDuration: duration * 0.82,
+        tags: [UNIFORM_FALLBACK_TAG],
+      });
+
+      start += UNIFORM_WINDOW_STRIDE_SEC;
+    }
+  }
+
+  const dedupedWindows = new Map<string, Segment>();
+  for (const window of windows) {
+    dedupedWindows.set(`${window.start.toFixed(2)}-${window.end.toFixed(2)}`, window);
+  }
+
+  if (dedupedWindows.size === 0) {
+    dedupedWindows.set('0-full', {
+      start: 0,
+      end: totalDuration,
+      duration: totalDuration,
+      score: 0.74,
+      activeDuration: totalDuration * 0.82,
+      tags: [UNIFORM_FALLBACK_TAG],
+    });
+  }
+
+  return [...dedupedWindows.values()].sort((left, right) => left.start - right.start);
+}
+
+function pickNearestAnchor(anchors: number[], target: number): number | null {
+  if (anchors.length === 0) {
+    return null;
+  }
+
+  let best = anchors[0] ?? null;
+  let bestDistance = Number.POSITIVE_INFINITY;
+
+  for (const anchor of anchors) {
+    const distance = Math.abs(anchor - target);
+    if (distance < bestDistance) {
+      best = anchor;
+      bestDistance = distance;
+    }
+  }
+
+  return best;
+}
+
+export function splitSegmentAtSmartPauses(params: {
+  segment: MergeableSegment;
+  minDuration: number;
+  preferredMaxDuration: number;
+  hardMaxDuration: number;
+}): Segment[] {
+  const { segment, minDuration, preferredMaxDuration, hardMaxDuration } = params;
+  if (segment.duration <= hardMaxDuration) {
+    return [segment];
+  }
+
+  const chunks: Segment[] = [];
+  const sortedAnchors = [...segment.pauseAnchors].sort((left, right) => left - right);
+  let chunkStart = segment.start;
+
+  while (chunkStart + minDuration <= segment.end) {
+    const preferredEnd = Math.min(chunkStart + preferredMaxDuration, segment.end);
+    const hardEnd = Math.min(chunkStart + hardMaxDuration, segment.end);
+    const minEnd = chunkStart + minDuration;
+    const maxDialogSafeEnd = Math.min(segment.end, hardEnd + DIALOG_SAFE_ANCHOR_GRACE_SEC);
+    const usableAnchors = sortedAnchors.filter(
+      (anchor) => anchor >= minEnd && anchor <= maxDialogSafeEnd,
+    );
+    const nearestPauseAnchor = pickNearestAnchor(usableAnchors, preferredEnd);
+    const hasNoPauseAnchor = nearestPauseAnchor === null;
+    const canKeepRemainingDialog =
+      hasNoPauseAnchor &&
+      segment.end - chunkStart <= hardMaxDuration + DIALOG_SAFE_ANCHOR_GRACE_SEC;
+
+    const nextEnd = canKeepRemainingDialog
+      ? segment.end
+      : (nearestPauseAnchor ?? Math.min(Math.max(preferredEnd, minEnd), hardEnd));
+
+    if (nextEnd <= chunkStart + 0.05) {
+      break;
+    }
+
+    const remaining = segment.end - nextEnd;
+    const finalEnd = remaining > 0 && remaining < minDuration ? segment.end : nextEnd;
+
+    chunks.push({
+      start: chunkStart,
+      end: finalEnd,
+      duration: finalEnd - chunkStart,
+      score: segment.score,
+      activeDuration: finalEnd - chunkStart,
+    });
+
+    if (finalEnd >= segment.end - 0.05) {
+      break;
+    }
+
+    chunkStart = finalEnd;
+  }
+
+  return chunks.length > 0 ? chunks : [segment];
+}
+
+export function hasMeaningfulOverlap(left: Segment, right: Segment): boolean {
+  if (left.end <= right.start) {
+    return right.start - left.end < MIN_SCENE_GAP_SEC;
+  }
+
+  if (right.end <= left.start) {
+    return left.start - right.end < MIN_SCENE_GAP_SEC;
+  }
+
+  return true;
+}
+
+export function pickNonOverlappingCandidates(
+  candidates: Array<Segment & { tags?: string[] }>,
+  maxCandidates: number,
+): Array<Segment & { tags?: string[] }> {
+  const selected: Array<Segment & { tags?: string[] }> = [];
+
+  for (const candidate of candidates) {
+    const isOverlapping = selected.some((existing) => hasMeaningfulOverlap(existing, candidate));
+    if (isOverlapping) {
+      continue;
+    }
+
+    selected.push(candidate);
+    if (selected.length >= maxCandidates) {
+      break;
+    }
+  }
+
+  return selected.sort((left, right) => left.start - right.start);
 }
 
 export const videoAnalysisService = {
@@ -40,7 +219,7 @@ export const videoAnalysisService = {
     }
 
     // Helper to run detection with specific threshold
-    const runDetection = (thresholdDb: number): Promise<Segment[]> => {
+    const runDetection = (thresholdDb: number): Promise<DetectionResult> => {
       const args = [
         '-i',
         audioPath,
@@ -91,7 +270,7 @@ export const videoAnalysisService = {
           } else {
             // Fallback if unable to parse duration
             logger.warn('Could not parse duration from ffmpeg output');
-            return resolve([]);
+            return resolve({ segments: [], totalDuration: 0 });
           }
 
           // Invert silence -> Active Segments
@@ -122,7 +301,7 @@ export const videoAnalysisService = {
             });
           }
 
-          resolve(segments);
+          resolve({ segments, totalDuration });
         });
       });
     };
@@ -130,23 +309,27 @@ export const videoAnalysisService = {
     logger.info('Running adaptive silence detection');
 
     // 1. Try strict threshold (-40dB)
-    let segments = await runDetection(-40);
+    const detection = await runDetection(-40);
+    let segments = detection.segments;
+    let totalDuration = detection.totalDuration;
 
     // 2. If few segments, try looser (-30dB)
     if (segments.length < 5) {
       logger.info('Few segments found at -40dB, retrying at -30dB');
-      const looseSegments = await runDetection(-30);
-      if (looseSegments.length > segments.length) {
-        segments = looseSegments;
+      const looseDetection = await runDetection(-30);
+      if (looseDetection.segments.length > segments.length) {
+        segments = looseDetection.segments;
+        totalDuration = looseDetection.totalDuration || totalDuration;
       }
     }
 
     // 3. Even looser (-20dB) if still struggling
     if (segments.length < 3) {
       logger.info('Very few segments, retrying at -20dB');
-      const veryLooseSegments = await runDetection(-20);
-      if (veryLooseSegments.length > segments.length) {
-        segments = veryLooseSegments;
+      const veryLooseDetection = await runDetection(-20);
+      if (veryLooseDetection.segments.length > segments.length) {
+        segments = veryLooseDetection.segments;
+        totalDuration = veryLooseDetection.totalDuration || totalDuration;
       }
     }
 
@@ -154,11 +337,14 @@ export const videoAnalysisService = {
     const firstSegment = segments[0];
     if (
       segments.length === 0 ||
-      (segments.length === 1 && firstSegment && firstSegment.duration > 60)
+      (segments.length === 1 && firstSegment && firstSegment.duration > 90)
     ) {
-      logger.info('Fallback: Uniform Grid Slicing');
-      if (segments.length === 0) {
-        return [];
+      logger.info(
+        { totalDuration, fallbackWindowDurations: UNIFORM_WINDOW_DURATIONS_SEC },
+        'Fallback: Uniform window segment generation',
+      );
+      if (totalDuration > 0) {
+        return buildUniformWindows(totalDuration);
       }
     }
 
@@ -261,55 +447,70 @@ export const videoAnalysisService = {
     options: AnalysisOptions = {},
     videoPath?: string,
   ): Promise<(Segment & { tags?: string[] })[]> {
-    const { minDuration = 5, maxDuration = 35, mergeGap = 0.5, maxCandidates = 20 } = options;
+    const { minDuration = 15, maxDuration = 60, mergeGap = 0.5, maxCandidates = 20 } = options;
+    const preferredMaxDuration = Math.max(minDuration + 1, maxDuration);
+    const hardMaxDuration = Math.min(90, preferredMaxDuration + 20);
+    const isUniformFallbackMode = segments.every((segment) =>
+      segment.tags?.includes(UNIFORM_FALLBACK_TAG),
+    );
 
     if (segments.length === 0) return [];
 
-    // 1. Merge close segments
-    const merged: Segment[] = [];
-    let current: Segment | undefined = segments[0];
+    let merged: MergeableSegment[] = [];
+    if (isUniformFallbackMode) {
+      merged = segments.map((segment) => ({
+        ...segment,
+        pauseAnchors: [segment.end],
+      }));
+    } else {
+      // 1. Merge close segments
+      const firstSegment = segments[0];
+      let current: MergeableSegment | undefined = firstSegment
+        ? {
+            ...firstSegment,
+            pauseAnchors: [firstSegment.end],
+          }
+        : undefined;
 
-    if (!current) return [];
+      if (!current) return [];
 
-    for (let i = 1; i < segments.length; i++) {
-      const next: Segment | undefined = segments[i];
-      if (!next) continue;
+      for (let i = 1; i < segments.length; i++) {
+        const next: Segment | undefined = segments[i];
+        if (!next) continue;
 
-      if (next.start - current.end <= mergeGap) {
-        // Merge
-        current.end = next.end;
-        current.duration = current.end - current.start;
-        current.activeDuration =
-          (current.activeDuration || 0) + (next.activeDuration || next.duration);
-      } else {
-        merged.push(current);
-        current = next;
+        if (next.start - current.end <= mergeGap) {
+          // Merge
+          current.end = next.end;
+          current.duration = current.end - current.start;
+          current.activeDuration =
+            (current.activeDuration || 0) + (next.activeDuration || next.duration);
+          current.pauseAnchors.push(next.end);
+        } else {
+          merged.push(current);
+          current = {
+            ...next,
+            pauseAnchors: [next.end],
+          };
+        }
       }
+      merged.push(current);
     }
-    merged.push(current);
 
-    // 2. Split Long Segments
+    // 2. Split Long Segments with pause-aware strategy
     const candidates: Segment[] = [];
     for (const s of merged) {
       if (s.duration < minDuration) continue;
 
-      if (s.duration <= maxDuration) {
+      if (s.duration <= hardMaxDuration) {
         candidates.push(s);
       } else {
-        // Simple slicing (v1) - Smart Pause splitting would go here
-        let start = s.start;
-        while (start < s.end) {
-          const chunkDuration = Math.min(maxDuration, s.end - start);
-          if (chunkDuration >= minDuration) {
-            candidates.push({
-              start: start,
-              end: start + chunkDuration,
-              duration: chunkDuration,
-              score: s.score,
-            });
-          }
-          start += chunkDuration;
-        }
+        const smartChunks = splitSegmentAtSmartPauses({
+          segment: s,
+          minDuration,
+          preferredMaxDuration,
+          hardMaxDuration,
+        });
+        candidates.push(...smartChunks);
       }
     }
 
@@ -324,7 +525,7 @@ export const videoAnalysisService = {
         );
 
         let score = c.score;
-        const tags: string[] = [];
+        const tags: string[] = (c.tags ?? []).filter((tag) => tag !== UNIFORM_FALLBACK_TAG);
         let hasBlackScreen = false;
         let isStatic = false;
         let visualPenalty = 0;
@@ -341,9 +542,17 @@ export const videoAnalysisService = {
           score -= 0.1; // Quiet/Mumble
         }
 
-        // Duration bonus (Golden Zone 10-25s)
-        if (c.duration >= 10 && c.duration <= 25) {
-          score += 0.1;
+        // Duration bonus (ideal 40-60s, allowed up to 80s for dialog completion)
+        if (c.duration >= 40 && c.duration <= 60) {
+          score += 0.16;
+        } else if (c.duration > 60 && c.duration <= 80) {
+          score += 0.08;
+        } else if (c.duration >= 32 && c.duration < 40) {
+          score += 0.04;
+        } else if (c.duration > 80) {
+          score -= 0.1;
+        } else if (c.duration < 28) {
+          score -= 0.12;
         }
 
         // 4. Talk Density Analysis
@@ -401,7 +610,7 @@ export const videoAnalysisService = {
     // 4. Sort by Smart Score
     analyzed.sort((a, b) => b.score - a.score);
 
-    // 5. Take top N and sort chronologically
-    return analyzed.slice(0, maxCandidates).sort((a, b) => a.start - b.start);
+    // 5. Keep only non-overlapping candidates so one scene isn't reused across recommendations.
+    return pickNonOverlappingCandidates(analyzed, maxCandidates);
   },
 };

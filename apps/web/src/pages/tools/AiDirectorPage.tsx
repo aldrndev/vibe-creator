@@ -4,10 +4,8 @@ import { useSearchParams } from 'react-router-dom';
 import { StepIndicator } from '@/components/director/StepIndicator';
 import { AnalyzeStep } from '@/components/director/steps/AnalyzeStep';
 import { EditingStep } from '@/components/director/steps/EditingStep';
-import { ExportStep } from '@/components/director/steps/ExportStep';
 import { ImportStep } from '@/components/director/steps/ImportStep';
 import { PickingStep } from '@/components/director/steps/PickingStep';
-import { PublishCopyStep } from '@/components/director/steps/PublishCopyStep';
 import { resolveHydratedStep } from '@/pages/tools/ai-director-page-utils';
 import { authFetch } from '@/services/api';
 import type {
@@ -17,6 +15,7 @@ import type {
   ExportJob,
   SelectedClip,
   SubtitleStyle,
+  TranscribeLanguage,
 } from '@/stores/director-store';
 import { useDirectorStore } from '@/stores/director-store';
 
@@ -30,6 +29,7 @@ interface DirectorSessionPayload extends DirectorSession {
   selectedClips?: SelectedClip[];
   transcribeJob?: {
     status: string;
+    language?: TranscribeLanguage;
     [key: string]: unknown;
   } | null;
   exportJob?: (ExportJob & { status: string }) | null;
@@ -41,11 +41,23 @@ interface HydrationActions {
   readonly setCandidates: (candidates: Candidate[]) => void;
   readonly setSelectedClips: (clips: SelectedClip[]) => void;
   readonly setTranscribeJob: (job: { status: string } | null) => void;
+  readonly setTranscribeLanguage: (language: TranscribeLanguage) => void;
   readonly updateSubtitleStyle: (style: Partial<SubtitleStyle>) => void;
   readonly setExportJob: (job: ExportJob | null) => void;
   readonly setWaitingForAsset: (waiting: boolean) => void;
   readonly setDownloadProgress: (progress: number) => void;
   readonly setStep: (step: DirectorStep) => void;
+}
+
+function resolveTranscribeLanguage(
+  language: unknown,
+  fallback: TranscribeLanguage = 'mixed',
+): TranscribeLanguage {
+  if (language === 'id' || language === 'en' || language === 'mixed') {
+    return language;
+  }
+
+  return fallback;
 }
 
 function getExportDownloadUrl(
@@ -80,6 +92,7 @@ function applyHydratedSession(
     setCandidates,
     setSelectedClips,
     setTranscribeJob,
+    setTranscribeLanguage,
     updateSubtitleStyle,
     setExportJob,
     setWaitingForAsset,
@@ -91,6 +104,7 @@ function applyHydratedSession(
   setCandidates(session.analysisJob?.candidates ?? []);
   setSelectedClips(session.selectedClips ?? []);
   setTranscribeJob(session.transcribeJob ?? null);
+  setTranscribeLanguage(resolveTranscribeLanguage(session.transcribeJob?.language));
 
   if (session.subtitleStyle) {
     updateSubtitleStyle(session.subtitleStyle);
@@ -120,6 +134,7 @@ export function AiDirectorPage() {
     setCandidates,
     setSelectedClips,
     setTranscribeJob,
+    setTranscribeLanguage,
     setExportJob,
     updateSubtitleStyle,
     setError,
@@ -159,6 +174,7 @@ export function AiDirectorPage() {
           setCandidates,
           setSelectedClips,
           setTranscribeJob,
+          setTranscribeLanguage,
           updateSubtitleStyle,
           setExportJob,
           setWaitingForAsset,
@@ -192,6 +208,7 @@ export function AiDirectorPage() {
     setSession,
     setStep,
     setTranscribeJob,
+    setTranscribeLanguage,
     updateSubtitleStyle,
     setWaitingForAsset,
   ]);
@@ -250,9 +267,9 @@ export function AiDirectorPage() {
           {step === 'ANALYZING' && <AnalyzeStep />}
           {step === 'PICKING' && <PickingStep />}
           {step === 'EDITING' && <EditingStep />}
-          {step === 'PUBLISH_COPY' && <PublishCopyStep />}
-          {step === 'EXPORTING' && <ExportStep />}
-          {step === 'COMPLETED' && <ExportStep />}
+          {step === 'PUBLISH_COPY' && <EditingStep />}
+          {step === 'EXPORTING' && <EditingStep />}
+          {step === 'COMPLETED' && <EditingStep />}
         </div>
       </div>
     </div>

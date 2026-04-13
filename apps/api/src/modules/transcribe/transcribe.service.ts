@@ -3,6 +3,7 @@ import path from 'node:path';
 import { env } from '@/config/env';
 import { logger } from '@/lib/logger';
 import { prisma } from '@/lib/prisma';
+import type { TranscribeLanguage } from '@/modules/transcribe/transcribe-language';
 import { directorProcessor } from '../director/director.processor';
 import { resolveSelectedClipRangeMs } from '../director/selected-clip-range';
 import {
@@ -43,7 +44,7 @@ export const transcribeService = {
    */
   async transcribeSelectedClip(
     selectedClipId: string,
-    options: { bypassCache?: boolean } = {},
+    options: { bypassCache?: boolean; language?: TranscribeLanguage } = {},
   ): Promise<void> {
     const selectedClip = await prisma.directorSelectedClip.findUnique({
       where: { id: selectedClipId },
@@ -64,6 +65,7 @@ export const transcribeService = {
     }
 
     const { storageKey, contentHash, sourceUrlNormalized } = asset;
+    const targetLanguage = options.language ?? env.TRANSCRIBE_LANGUAGE;
     const { startMs, endMs } = resolveSelectedClipRangeMs({
       candidateStartMs: candidate.startMs,
       candidateEndMs: candidate.endMs,
@@ -99,12 +101,14 @@ export const transcribeService = {
       endMs,
       trimStartMs,
       trimEndMs,
+      language: targetLanguage,
     });
 
     // Ensure proxy dir exists
     await fs.mkdir(audioProxyDir, { recursive: true });
 
     let audioProxyPath = '';
+    let transcriptEngine = 'WHISPER_LOCAL';
 
     try {
       if (!options.bypassCache) {
@@ -158,7 +162,8 @@ export const transcribeService = {
       });
 
       // 2. Run Whisper
-      const result = await whisperRunner.runWhisperOnAudio(audioProxyPath);
+      const result = await whisperRunner.runWhisperOnAudio(audioProxyPath, targetLanguage);
+      transcriptEngine = result.provider === 'http' ? 'WHISPER_HTTP' : 'WHISPER_LOCAL';
 
       if (!result.success || !result.segments) {
         throw new Error(result.error || 'Whisper returned no segments');
@@ -179,13 +184,14 @@ export const transcribeService = {
           sessionId: session.id,
           selectedClipId,
           status: 'COMPLETED',
-          engine: 'WHISPER_LOCAL',
+          engine: transcriptEngine,
           language: result.language,
           segments: normalizedSegments as object[],
           completedAt: new Date(),
         },
         update: {
           status: 'COMPLETED',
+          engine: transcriptEngine,
           segments: normalizedSegments as object[],
           language: result.language,
           errorMessage: null,
@@ -213,11 +219,12 @@ export const transcribeService = {
           sessionId: session.id,
           selectedClipId,
           status: 'FAILED',
-          engine: 'WHISPER_LOCAL',
+          engine: transcriptEngine,
           errorMessage: errorMsg,
         },
         update: {
           status: 'FAILED',
+          engine: transcriptEngine,
           errorMessage: errorMsg,
           completedAt: new Date(), // Mark as done (failed)
         },

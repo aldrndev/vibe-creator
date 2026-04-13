@@ -1,4 +1,4 @@
-import { Captions, CheckCircle2, Download, Scissors, Sparkles, Upload, Wand2 } from 'lucide-react';
+import { Captions, CheckCircle2, Scissors, Upload, Wand2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { type DirectorStep, useDirectorStore } from '@/stores/director-store';
 
@@ -17,18 +17,23 @@ export const StepIndicator = () => {
     { id: 'IMPORT', label: 'Impor', icon: Upload },
     { id: 'ANALYZING', label: 'Analisis', icon: Wand2 },
     { id: 'PICKING', label: 'Pilih', icon: Scissors },
-    { id: 'EDITING', label: 'Edit', icon: Captions },
-    { id: 'PUBLISH_COPY', label: 'Copy', icon: Sparkles },
-    { id: 'EXPORTING', label: 'Ekspor', icon: Download },
+    { id: 'EDITING', label: 'Edit & Export', icon: Captions },
   ];
 
   const rawIdx = steps.findIndex((s) => s.id === step);
-  const currentIdx = step === 'COMPLETED' ? steps.length - 1 : rawIdx;
+  const currentIdx = rawIdx >= 0 ? rawIdx : steps.findIndex((s) => s.id === 'EDITING');
+  const lineInsetPercent = 100 / (steps.length * 2);
 
   return (
     <div className="w-full mx-auto mb-10 px-2 py-2">
-      <div className="relative flex justify-between items-center max-w-2xl mx-auto">
-        <div className="absolute top-5 right-5 left-5 z-0 -translate-y-1/2 sm:top-6 sm:right-6 sm:left-6">
+      <div className="relative grid max-w-2xl grid-cols-4 items-start mx-auto">
+        <div
+          className="absolute top-5 z-0 -translate-y-1/2 sm:top-6"
+          style={{
+            left: `${lineInsetPercent}%`,
+            right: `${lineInsetPercent}%`,
+          }}
+        >
           {/* Progress Line - Base */}
           <div className="h-0.5 rounded-full bg-border" />
 
@@ -40,8 +45,8 @@ export const StepIndicator = () => {
         </div>
 
         {steps.map((s, idx) => {
-          const isCompleted = idx < currentIdx || step === 'COMPLETED';
-          const isActive = idx === currentIdx && step !== 'COMPLETED';
+          const isCompleted = idx < currentIdx;
+          const isActive = idx === currentIdx;
 
           let stateClasses = 'border-border/50 bg-background text-muted-foreground';
           if (isActive) stateClasses = 'border-primary bg-card text-primary scale-110 z-20';
@@ -71,7 +76,7 @@ export const StepIndicator = () => {
               </div>
               <span
                 className={cn(
-                  'hidden sm:block text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all duration-300',
+                  'hidden sm:block text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all duration-300 text-center leading-none',
                   labelClasses,
                 )}
               >

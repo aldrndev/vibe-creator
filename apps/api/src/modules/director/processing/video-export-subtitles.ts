@@ -1,4 +1,4 @@
-import type { SubtitleSegment } from '@/modules/transcribe/transcribe-normalizer';
+import type { SubtitleSegment, SubtitleWord } from '@/modules/transcribe/transcribe-normalizer';
 
 export interface SubtitleStyleOptions {
   fontToken?: string;
@@ -15,9 +15,18 @@ export interface SubtitleAsset {
   useForceStyle: boolean;
 }
 
-const MAX_SUBTITLE_CHARS_PER_CUE = 42;
-const TARGET_SUBTITLE_LINE_LENGTH = 22;
+const MAX_SUBTITLE_CHARS_PER_CUE = 72;
+const TARGET_SUBTITLE_LINE_LENGTH = 32;
 const MIN_SUBTITLE_CUE_DURATION_MS = 700;
+const SUBTITLE_HOLD_MS = 220;
+const SUBTITLE_HOLD_CLEARANCE_MS = 60;
+const TURN_GROUP_MAX_GAP_MS = 380;
+const TURN_GROUP_MIN_NEGATIVE_GAP_MS = -120;
+const TURN_GROUP_MAX_DURATION_MS = 7_200;
+const TURN_GROUP_MAX_CHARS = 120;
+const TURN_GROUP_MAX_WORDS = 24;
+const TURN_GROUP_PUNCTUATION_BREAK_GAP_MS = 280;
+const MIN_SYNTHETIC_WORD_DURATION_MS = 90;
 
 export function escapeSubtitleFilterValue(value: string): string {
   return value
@@ -59,17 +68,19 @@ export function createSubtitleAsset(
   segments: SubtitleSegment[],
   style?: SubtitleStyleOptions,
 ): SubtitleAsset {
-  if (shouldUseWordHighlight(style, segments)) {
+  const displaySegments = resolveSubtitleDisplaySegments(segments, style);
+
+  if (shouldUseWordHighlight(style, displaySegments)) {
     return {
       extension: 'ass',
-      content: generateASS(segments, style),
+      content: generateASS(displaySegments, style),
       useForceStyle: false,
     };
   }
 
   return {
     extension: 'srt',
-    content: generateSRT(segments),
+    content: generateSRT(displaySegments),
     useForceStyle: true,
   };
 }
@@ -78,11 +89,130 @@ export function shouldUseWordHighlight(
   style: SubtitleStyleOptions | undefined,
   segments: SubtitleSegment[],
 ): boolean {
-  return style?.animation === 'typewriter' && segments.some((segment) => segment.words?.length);
+  return (
+    style?.animation === 'typewriter' && segments.some((segment) => segment.text.trim().length > 0)
+  );
+}
+
+function normalizeCueText(text: string): string {
+  return text.replace(/\s+/g, ' ').trim();
+}
+
+function countWords(text: string): number {
+  return normalizeCueText(text).split(' ').filter(Boolean).length;
+}
+
+function endsStrongSentence(text: string): boolean {
+  return /[.!?…]$/.test(text.trim());
+}
+
+function startsLikelySentence(text: string): boolean {
+  return /^(?:["'“([]+)?[A-Z][a-z]/.test(text.trim());
+}
+
+function shouldUseSpeakerTurnGrouping(style?: SubtitleStyleOptions): boolean {
+  return style?.animation === 'phrase' || style?.animation === 'line';
+}
+
+function shouldMergeIntoSpeakerTurn(current: SubtitleSegment, next: SubtitleSegment): boolean {
+  if (current.speaker && next.speaker && current.speaker !== next.speaker) {
+    return false;
+  }
+
+  const gapMs = next.startMs - current.endMs;
+  if (gapMs > TURN_GROUP_MAX_GAP_MS || gapMs < TURN_GROUP_MIN_NEGATIVE_GAP_MS) {
+    return false;
+  }
+
+  const mergedDurationMs = Math.max(current.endMs, next.endMs) - current.startMs;
+  if (mergedDurationMs > TURN_GROUP_MAX_DURATION_MS) {
+    return false;
+  }
+
+  const mergedText = normalizeCueText(`${current.text} ${next.text}`);
+  if (mergedText.length > TURN_GROUP_MAX_CHARS || countWords(mergedText) > TURN_GROUP_MAX_WORDS) {
+    return false;
+  }
+
+  if (
+    endsStrongSentence(current.text) &&
+    startsLikelySentence(next.text) &&
+    gapMs >= TURN_GROUP_PUNCTUATION_BREAK_GAP_MS
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
+export function buildSpeakerTurnSubtitleSegments(segments: SubtitleSegment[]): SubtitleSegment[] {
+  if (segments.length <= 1) {
+    return segments;
+  }
+
+  const grouped: SubtitleSegment[] = [];
+  let current: SubtitleSegment | null = null;
+
+  for (const rawSegment of segments) {
+    if (rawSegment.endMs <= rawSegment.startMs) {
+      continue;
+    }
+
+    const segment: SubtitleSegment = {
+      ...rawSegment,
+      text: normalizeCueText(rawSegment.text),
+      words: rawSegment.words?.map((word) => ({ ...word })),
+    };
+
+    if (!current) {
+      current = segment;
+      continue;
+    }
+
+    if (!shouldMergeIntoSpeakerTurn(current, segment)) {
+      grouped.push(current);
+      current = segment;
+      continue;
+    }
+
+    current = {
+      ...current,
+      endMs: Math.max(current.endMs, segment.endMs),
+      text: normalizeCueText(`${current.text} ${segment.text}`),
+      words: [...(current.words ?? []), ...(segment.words ?? [])].sort(
+        (left, right) => left.startMs - right.startMs,
+      ),
+    };
+  }
+
+  if (current) {
+    grouped.push(current);
+  }
+
+  return grouped;
+}
+
+export function resolveSubtitleDisplaySegments(
+  segments: SubtitleSegment[],
+  style?: SubtitleStyleOptions,
+): SubtitleSegment[] {
+  const sanitized = segments
+    .filter((segment) => segment.endMs > segment.startMs)
+    .map((segment) => ({
+      ...segment,
+      text: normalizeCueText(segment.text),
+      words: segment.words?.map((word) => ({ ...word })),
+    }));
+
+  if (!shouldUseSpeakerTurnGrouping(style)) {
+    return sanitized;
+  }
+
+  return buildSpeakerTurnSubtitleSegments(sanitized);
 }
 
 export function generateSRT(segments: SubtitleSegment[]): string {
-  return segmentSubtitlesForSrt(segments)
+  return applySubtitleHold(segmentSubtitlesForSrt(segments))
     .map((segment, index) => {
       const start = formatSRTTime(segment.startMs);
       const end = formatSRTTime(segment.endMs);
@@ -92,7 +222,7 @@ export function generateSRT(segments: SubtitleSegment[]): string {
 }
 
 export function generateASS(segments: SubtitleSegment[], style?: SubtitleStyleOptions): string {
-  const assSegments = segmentSubtitlesForAss(segments);
+  const assSegments = applySubtitleHold(segmentSubtitlesForAss(segments));
   const styleLine = buildAssStyleLine(style);
 
   const events = assSegments
@@ -131,6 +261,26 @@ export function segmentSubtitlesForAss(segments: SubtitleSegment[]): SubtitleSeg
       text: wrapSubtitleText(segment.text),
     }))
     .filter((segment) => segment.text.trim().length > 0);
+}
+
+export function applySubtitleHold(segments: SubtitleSegment[]): SubtitleSegment[] {
+  return segments.map((segment, index) => {
+    const next = segments[index + 1];
+    if (!next) {
+      return segment;
+    }
+
+    const maxEndMs = Math.max(segment.endMs, next.startMs - SUBTITLE_HOLD_CLEARANCE_MS);
+    const heldEndMs = Math.min(segment.endMs + SUBTITLE_HOLD_MS, maxEndMs);
+    if (heldEndMs <= segment.endMs) {
+      return segment;
+    }
+
+    return {
+      ...segment,
+      endMs: heldEndMs,
+    };
+  });
 }
 
 export function splitSubtitleCue(segment: SubtitleSegment): SubtitleSegment[] {
@@ -245,6 +395,7 @@ export function buildSubtitleForceStyle(style?: SubtitleStyleOptions): string {
   const primaryColour = mapTextColorToken(style?.textColorToken, '&H00FFFFFF');
   const backColour = mapBackgroundColorToken(style?.bgColorToken, '&H80000000');
   const alignment = mapPositionToAlignment(style?.position);
+  const marginV = mapPositionToMarginV(style?.position);
 
   return [
     `Fontname=${fontName}`,
@@ -255,7 +406,7 @@ export function buildSubtitleForceStyle(style?: SubtitleStyleOptions): string {
     'Outline=1',
     'Shadow=0',
     `Alignment=${alignment}`,
-    'MarginV=60',
+    `MarginV=${marginV}`,
   ].join(',');
 }
 
@@ -267,6 +418,7 @@ function buildAssStyleLine(style?: SubtitleStyleOptions): string {
   const outlineColour = '&H00000000';
   const backColour = mapBackgroundColorToken(style?.bgColorToken, '&H80000000');
   const alignment = mapPositionToAlignment(style?.position);
+  const marginV = mapPositionToMarginV(style?.position);
 
   return [
     'Style: Default',
@@ -290,15 +442,15 @@ function buildAssStyleLine(style?: SubtitleStyleOptions): string {
     alignment,
     40,
     40,
-    60,
+    marginV,
     1,
   ].join(',');
 }
 
 function buildKaraokeText(segment: SubtitleSegment): string {
-  const words = segment.words?.filter((word) => word.endMs > word.startMs) ?? [];
+  const words = resolveKaraokeWords(segment);
   if (words.length === 0) {
-    return wrapSubtitleText(segment.text).replace(/\n/g, '\\N');
+    return '';
   }
 
   const textParts: string[] = [];
@@ -325,6 +477,49 @@ function buildKaraokeText(segment: SubtitleSegment): string {
   }
 
   return wrapAssKaraokeText(textParts.join(''));
+}
+
+function resolveKaraokeWords(segment: SubtitleSegment): SubtitleWord[] {
+  const timedWords = segment.words?.filter((word) => word.endMs > word.startMs) ?? [];
+  if (timedWords.length > 0) {
+    return timedWords;
+  }
+
+  const normalizedText = segment.text.replace(/\s+/g, ' ').trim();
+  if (!normalizedText) {
+    return [];
+  }
+
+  const tokens = normalizedText.split(' ').filter(Boolean);
+  if (tokens.length === 0) {
+    return [];
+  }
+
+  const segmentDurationMs = Math.max(1, segment.endMs - segment.startMs);
+  const durationPerWordMs = Math.max(
+    MIN_SYNTHETIC_WORD_DURATION_MS,
+    Math.floor(segmentDurationMs / tokens.length),
+  );
+  const syntheticWords: SubtitleWord[] = [];
+  let cursor = segment.startMs;
+
+  for (let index = 0; index < tokens.length; index++) {
+    const token = tokens[index];
+    if (!token) {
+      continue;
+    }
+    const isLast = index === tokens.length - 1;
+    const wordEndMs = isLast ? segment.endMs : Math.min(segment.endMs, cursor + durationPerWordMs);
+    syntheticWords.push({
+      startMs: cursor,
+      endMs: Math.max(cursor + 1, wordEndMs),
+      text: token,
+      speaker: segment.speaker,
+    });
+    cursor = Math.max(cursor + 1, wordEndMs);
+  }
+
+  return syntheticWords;
 }
 
 function wrapAssKaraokeText(text: string): string {
@@ -425,5 +620,22 @@ function mapPositionToAlignment(position?: string): number {
       return 5;
     default:
       return 2;
+  }
+}
+
+function mapPositionToMarginV(position?: string): number {
+  switch (position) {
+    case 'top':
+      return 72;
+    case 'center':
+      return 40;
+    case 'safe-bottom':
+      return 120;
+    case 'cinema-bottom':
+      return 180;
+    case 'lower-third':
+      return 300;
+    default:
+      return 60;
   }
 }

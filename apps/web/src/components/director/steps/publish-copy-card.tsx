@@ -20,11 +20,11 @@ export function PublishCopyCard({ activeSession, selectedClips }: Readonly<Publi
   let isAiSource = false;
 
   if (isGenerating) {
-    publishCopyStatus = 'AI sedang merapikan copy publish...';
+    publishCopyStatus = 'AI sedang merapikan copy publish short...';
   } else if (publishPack.source === 'ai') {
     isAiSource = true;
     const providerName = publishPack.provider === 'ollama' ? 'Ollama' : 'OpenAI';
-    publishCopyStatus = `Disarankan oleh AI Director via ${providerName}`;
+    publishCopyStatus = `Copy short direkomendasikan AI Director via ${providerName}`;
     badgeText = `AI ${providerName}`;
   }
 
@@ -41,7 +41,7 @@ export function PublishCopyCard({ activeSession, selectedClips }: Readonly<Publi
             <Sparkles size={20} className="text-primary" />
           </div>
           <div>
-            <h4 className="font-black tracking-tight text-lg">Copy Publish</h4>
+            <h4 className="font-black tracking-tight text-lg">Copy Publish Short</h4>
             <p className="text-xs text-muted-foreground">{publishCopyStatus}</p>
           </div>
         </div>
@@ -97,7 +97,7 @@ export function PublishCopyCard({ activeSession, selectedClips }: Readonly<Publi
           </Button>
           {isAiSource === false ? (
             <p className="text-xs leading-5 text-muted-foreground">
-              Fallback dipakai — retry saat Ollama siap.
+              Copy fallback aktif, retry lagi saat provider AI siap.
             </p>
           ) : null}
         </div>

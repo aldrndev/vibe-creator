@@ -38,9 +38,15 @@ describe('FaceTrackRunner', () => {
             success: true,
             frames: 120,
             detections: 118,
+            objectDetections: 64,
             multiFaceFrames: 24,
             maxFacesInFrame: 2,
-            detectorsUsed: ['frontal', 'profile'],
+            targetSwitches: 8,
+            snapRepositions: 14,
+            sceneCuts: 3,
+            focusProfile: 'object-center',
+            trackingPreset: 'object-center',
+            detectorsUsed: ['frontal', 'profile', 'object-edges'],
           }),
         );
         process.emit('close', 0);
@@ -59,6 +65,7 @@ describe('FaceTrackRunner', () => {
       outputPath: '/tmp/output.mp4',
       targetWidth: 1080,
       targetHeight: 1920,
+      focusProfile: 'subject-center',
     });
 
     expect(spawnMock).toHaveBeenCalledWith(
@@ -69,6 +76,7 @@ describe('FaceTrackRunner', () => {
         '/tmp/output.mp4',
         '1080',
         '1920',
+        'subject-center',
       ]),
     );
   });
@@ -92,6 +100,7 @@ describe('FaceTrackRunner', () => {
         '/tmp/output.mp4',
         '720',
         '1280',
+        'auto',
       ]),
     );
   });
@@ -110,6 +119,12 @@ describe('FaceTrackRunner', () => {
     expect(result.success).toBe(true);
     expect(result.multiFaceFrames).toBe(24);
     expect(result.maxFacesInFrame).toBe(2);
-    expect(result.detectorsUsed).toEqual(['frontal', 'profile']);
+    expect(result.objectDetections).toBe(64);
+    expect(result.targetSwitches).toBe(8);
+    expect(result.snapRepositions).toBe(14);
+    expect(result.sceneCuts).toBe(3);
+    expect(result.focusProfile).toBe('object-center');
+    expect(result.trackingPreset).toBe('object-center');
+    expect(result.detectorsUsed).toEqual(['frontal', 'profile', 'object-edges']);
   });
 });

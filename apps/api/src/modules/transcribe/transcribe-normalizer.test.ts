@@ -62,4 +62,56 @@ describe('transcribeNormalizer', () => {
       },
     ]);
   });
+
+  it('keeps same-speaker sentence as one fuller subtitle utterance', () => {
+    const normalized = transcribeNormalizer.normalizeSegments([
+      {
+        start: 0,
+        end: 4.6,
+        text: 'Kita bahas cara upload produk, optimasi hook, dan closing CTA.',
+        confidence: 0.91,
+        words: [
+          { start: 0.0, end: 0.25, text: 'Kita' },
+          { start: 0.3, end: 0.55, text: 'bahas' },
+          { start: 0.58, end: 0.85, text: 'cara' },
+          { start: 0.9, end: 1.2, text: 'upload' },
+          { start: 1.25, end: 1.55, text: 'produk,' },
+          { start: 1.65, end: 1.95, text: 'optimasi' },
+          { start: 2.0, end: 2.25, text: 'hook,' },
+          { start: 2.3, end: 2.55, text: 'dan' },
+          { start: 2.6, end: 2.9, text: 'closing' },
+          { start: 2.95, end: 3.35, text: 'CTA.' },
+        ],
+      },
+    ]);
+
+    expect(normalized).toHaveLength(1);
+    expect(normalized[0]?.text).toContain('optimasi hook');
+    expect(normalized[0]?.startMs).toBe(0);
+    expect(normalized[0]?.endMs).toBe(3350);
+  });
+
+  it('splits utterance when detected speaker changes', () => {
+    const normalized = transcribeNormalizer.normalizeSegments([
+      {
+        start: 0,
+        end: 2.2,
+        text: 'Speaker one and speaker two',
+        confidence: 0.9,
+        words: [
+          { start: 0.0, end: 0.4, text: 'Speaker', speaker: 'SPEAKER_00' },
+          { start: 0.45, end: 0.8, text: 'one', speaker: 'SPEAKER_00' },
+          { start: 0.9, end: 1.2, text: 'and', speaker: 'SPEAKER_01' },
+          { start: 1.25, end: 1.6, text: 'speaker', speaker: 'SPEAKER_01' },
+          { start: 1.65, end: 2.0, text: 'two', speaker: 'SPEAKER_01' },
+        ],
+      },
+    ]);
+
+    expect(normalized).toHaveLength(2);
+    expect(normalized[0]?.speaker).toBe('SPEAKER_00');
+    expect(normalized[1]?.speaker).toBe('SPEAKER_01');
+    expect(normalized[0]?.text).toBe('Speaker one');
+    expect(normalized[1]?.text).toBe('and speaker two');
+  });
 });

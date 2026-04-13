@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { directorRepoMock, directorQueueMock, redisMock } = vi.hoisted(() => ({
+const { directorRepoMock, directorQueueMock, redisMock, envMock } = vi.hoisted(() => ({
   directorRepoMock: {
     findSession: vi.fn(),
     createTranscribeJob: vi.fn(),
@@ -11,6 +11,9 @@ const { directorRepoMock, directorQueueMock, redisMock } = vi.hoisted(() => ({
   },
   redisMock: {
     status: 'ready',
+  },
+  envMock: {
+    TRANSCRIBE_LANGUAGE: 'mixed' as 'id' | 'en' | 'mixed',
   },
 }));
 
@@ -27,12 +30,17 @@ vi.mock('@/lib/redis', () => ({
   redis: redisMock,
 }));
 
+vi.mock('@/config/env', () => ({
+  env: envMock,
+}));
+
 import { directorTranscribeService } from '@/modules/director/services/transcribe.service';
 
 describe('directorTranscribeService.startTranscribe', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     redisMock.status = 'ready';
+    envMock.TRANSCRIBE_LANGUAGE = 'mixed';
     directorRepoMock.findSession.mockResolvedValue({
       id: 'session-1',
       userId: 'user-1',
@@ -82,6 +90,7 @@ describe('directorTranscribeService.startTranscribe', () => {
         type: 'TRANSCRIBE_SESSION',
         sessionId: 'session-1',
         userId: 'user-1',
+        language: 'mixed',
       }),
       expect.objectContaining({
         jobId: expect.not.stringContaining(':'),
@@ -113,6 +122,7 @@ describe('directorTranscribeService.startTranscribe', () => {
     expect(result).toEqual({
       id: 'job-completed',
       status: 'COMPLETED',
+      language: 'mixed',
     });
     expect(directorRepoMock.updateTranscribeJob).not.toHaveBeenCalled();
     expect(directorQueueMock.add).not.toHaveBeenCalled();
@@ -168,10 +178,60 @@ describe('directorTranscribeService.startTranscribe', () => {
         type: 'TRANSCRIBE_SESSION',
         sessionId: 'session-1',
         forceRefresh: true,
+        language: 'mixed',
       }),
       expect.objectContaining({
         jobId: expect.any(String),
       }),
+    );
+  });
+
+  it('blocks when active transcription is running with a different language', async () => {
+    directorRepoMock.findSession.mockResolvedValue({
+      id: 'session-1',
+      userId: 'user-1',
+      selectedClips: [
+        {
+          id: 'clip-1',
+          candidate: {
+            startMs: 0,
+            endMs: 35_000,
+          },
+        },
+      ],
+      transcribeJob: {
+        id: 'job-processing',
+        status: 'PROCESSING',
+        language: 'en',
+      },
+    });
+
+    await expect(
+      directorTranscribeService.startTranscribe('session-1', 'user-1', { language: 'id' }),
+    ).rejects.toThrow(
+      'Bahasa transkripsi berbeda dari job aktif. Jalankan transkripsi ulang setelah job saat ini selesai.',
+    );
+
+    expect(directorRepoMock.updateTranscribeJob).not.toHaveBeenCalled();
+    expect(directorQueueMock.add).not.toHaveBeenCalled();
+  });
+
+  it('uses requested language when provided', async () => {
+    await directorTranscribeService.startTranscribe('session-1', 'user-1', {
+      language: 'en',
+    });
+
+    expect(directorRepoMock.createTranscribeJob).toHaveBeenCalledWith(
+      expect.objectContaining({
+        language: 'en',
+      }),
+    );
+    expect(directorQueueMock.add).toHaveBeenCalledWith(
+      'transcribe_session',
+      expect.objectContaining({
+        language: 'en',
+      }),
+      expect.any(Object),
     );
   });
 });

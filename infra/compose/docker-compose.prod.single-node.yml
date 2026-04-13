@@ -41,6 +41,40 @@ services:
           cpus: "0.25"
           memory: 256M
 
+  transcribe:
+    build:
+      context: ../../apps/transcribe-service
+      dockerfile: Dockerfile
+      args:
+        INSTALL_DIARIZATION: ${TRANSCRIBE_INSTALL_DIARIZATION:-false}
+    image: vibe-creator-transcribe:${IMAGE_TAG:-latest}
+    container_name: vibe-creator-transcribe-prod
+    env_file:
+      - apps/api/.env.docker
+    environment:
+      TRANSCRIBE_ALLOWED_ROOTS: /app/uploads
+      HF_HOME: /app/uploads/cache/huggingface
+      TRANSCRIBE_LANGUAGE: ${TRANSCRIBE_LANGUAGE:-mixed}
+      TRANSCRIBE_DIARIZATION_ENABLED: ${TRANSCRIBE_DIARIZATION_ENABLED:-false}
+      TRANSCRIBE_DIARIZATION_MODEL: ${TRANSCRIBE_DIARIZATION_MODEL:-pyannote/speaker-diarization-3.1}
+      TRANSCRIBE_DIARIZATION_DEVICE: ${TRANSCRIBE_DIARIZATION_DEVICE:-cpu}
+    volumes:
+      - api_uploads_prod:/app/uploads
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://localhost:8000/health >/dev/null"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: "4.0"
+          memory: 4G
+        reservations:
+          cpus: "1.0"
+          memory: 512M
+
   api:
     build:
       context: ../..
@@ -60,12 +94,17 @@ services:
       MEDIA_INPUT_DIR: /app/uploads
       TEMP_DIR: /app/uploads/temp
       OUTPUT_DIR: /app/uploads/exports
+      TRANSCRIBE_PROVIDER: http
+      TRANSCRIBE_SERVICE_URL: http://transcribe:8000
+      TRANSCRIBE_LANGUAGE: ${TRANSCRIBE_LANGUAGE:-mixed}
     volumes:
       - api_uploads_prod:/app/uploads
     depends_on:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      transcribe:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/health"]

@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
+import { TRANSCRIBE_LANGUAGE_VALUES } from '@/modules/transcribe/transcribe-language';
 import { directorService } from '../director.service';
 
 const updateTranscriptSchema = z.object({
@@ -13,16 +14,23 @@ const updateTranscriptSchema = z.object({
 });
 const startTranscribeSchema = z.object({
   forceRefresh: z.boolean().optional(),
+  language: z.enum(TRANSCRIBE_LANGUAGE_VALUES).optional(),
 });
 
 export const transcribeRoutes: FastifyPluginAsync = async (fastify) => {
   /**
    * Start transcription
    */
-  fastify.post<{ Params: { id: string }; Body: { forceRefresh?: boolean } }>(
+  fastify.post<{
+    Params: { id: string };
+    Body: { forceRefresh?: boolean; language?: 'id' | 'en' | 'mixed' };
+  }>(
     '/sessions/:id/transcribe',
     async (
-      request: FastifyRequest<{ Params: { id: string }; Body: { forceRefresh?: boolean } }>,
+      request: FastifyRequest<{
+        Params: { id: string };
+        Body: { forceRefresh?: boolean; language?: 'id' | 'en' | 'mixed' };
+      }>,
       reply: FastifyReply,
     ) => {
       const user = request.user;
@@ -37,6 +45,7 @@ export const transcribeRoutes: FastifyPluginAsync = async (fastify) => {
         const body = startTranscribeSchema.parse(request.body ?? {});
         const job = await directorService.startTranscribe(request.params.id, user.id, {
           forceRefresh: body.forceRefresh ?? false,
+          language: body.language,
         });
         return reply.status(202).send({
           success: true,

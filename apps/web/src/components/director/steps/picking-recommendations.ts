@@ -1,8 +1,15 @@
 import type { Candidate } from '@/stores/director-store';
 
-const IDEAL_SHORT_MIN_SECONDS = 18;
-const IDEAL_SHORT_MAX_SECONDS = 35;
-const FAST_CLIP_MAX_SECONDS = 18;
+const IDEAL_SHORT_MIN_SECONDS = 40;
+const IDEAL_SHORT_MAX_SECONDS = 60;
+const EXTENDED_SHORT_MAX_SECONDS = 80;
+const FAST_CLIP_MAX_SECONDS = 20;
+const MAX_SHORT_SECONDS = 120;
+const STRONG_DIALOG_SCORE = 72;
+const MEDIUM_DIALOG_SCORE = 62;
+const DIALOG_COMPLETION_DURATION_FIT = 82;
+const HIGH_VISUAL_PENALTY = 25;
+const MEDIUM_VISUAL_PENALTY = 14;
 
 export interface PickingRecommendation {
   readonly candidateId: string;
@@ -30,32 +37,95 @@ function getDurationSeconds(candidate: Candidate): number {
   return Math.max(1, Math.round((candidate.endMs - candidate.startMs) / 1000));
 }
 
-function getRecommendationScore(candidate: Candidate): number {
-  const aiRerank = getAiRerankMeta(candidate);
-  if (aiRerank) {
-    return aiRerank.compositeScore;
+function hasBadge(candidate: Candidate, badge: string): boolean {
+  return candidate.metadata?.scoreBreakdown?.badges?.includes(badge) ?? false;
+}
+
+function isDialogCompleteProxy(candidate: Candidate): boolean {
+  const breakdown = candidate.metadata?.scoreBreakdown;
+  if (!breakdown) {
+    return false;
   }
 
+  return (
+    breakdown.dialogDensity >= STRONG_DIALOG_SCORE &&
+    breakdown.durationFit >= DIALOG_COMPLETION_DURATION_FIT
+  );
+}
+
+function getShortReadinessAdjustment(candidate: Candidate): number {
   const durationSeconds = getDurationSeconds(candidate);
-  let total = candidate.score * 100;
-
-  if (candidate.tags?.includes('HIGH ENERGY')) {
-    total += 10;
-  }
+  const breakdown = candidate.metadata?.scoreBreakdown;
+  const dialogDensity = breakdown?.dialogDensity;
+  const durationFit = breakdown?.durationFit;
+  const visualPenalty = breakdown?.visualPenalty ?? 0;
+  const hasStrongDialogBadge = hasBadge(candidate, 'Dialog Padat');
+  const hasNeedReviewBadge = hasBadge(candidate, 'Butuh Review');
+  let adjustment = 0;
 
   if (durationSeconds >= IDEAL_SHORT_MIN_SECONDS && durationSeconds <= IDEAL_SHORT_MAX_SECONDS) {
-    total += 12;
-  } else if (durationSeconds <= FAST_CLIP_MAX_SECONDS) {
-    total += 2;
+    adjustment += 12;
+  } else if (
+    durationSeconds > IDEAL_SHORT_MAX_SECONDS &&
+    durationSeconds <= EXTENDED_SHORT_MAX_SECONDS
+  ) {
+    adjustment += isDialogCompleteProxy(candidate) ? 5 : -4;
+  } else if (durationSeconds > EXTENDED_SHORT_MAX_SECONDS && durationSeconds <= MAX_SHORT_SECONDS) {
+    adjustment -= isDialogCompleteProxy(candidate) ? 10 : 16;
+  } else if (durationSeconds < IDEAL_SHORT_MIN_SECONDS) {
+    adjustment -= durationSeconds < 30 ? 9 : 4;
   } else {
-    total -= Math.min(10, durationSeconds - IDEAL_SHORT_MAX_SECONDS);
+    adjustment -= 20;
+  }
+
+  if (typeof dialogDensity === 'number') {
+    if (dialogDensity >= STRONG_DIALOG_SCORE) {
+      adjustment += 7;
+    } else if (dialogDensity >= MEDIUM_DIALOG_SCORE) {
+      adjustment += 3;
+    } else {
+      adjustment -= 4;
+    }
+  }
+
+  if (typeof durationFit === 'number') {
+    if (durationFit >= 88) {
+      adjustment += 5;
+    } else if (durationFit >= 78) {
+      adjustment += 2;
+    }
+  }
+
+  if (candidate.tags?.includes('HIGH ENERGY') || hasBadge(candidate, 'Hook Kuat')) {
+    adjustment += 4;
+  }
+
+  if (hasStrongDialogBadge) {
+    adjustment += 3;
+  }
+
+  if (hasNeedReviewBadge || visualPenalty >= HIGH_VISUAL_PENALTY) {
+    adjustment -= 18;
+  } else if (visualPenalty >= MEDIUM_VISUAL_PENALTY) {
+    adjustment -= 6;
   }
 
   if (candidate.rank && candidate.rank <= 3) {
-    total += 3;
+    adjustment += 2;
   }
 
-  return total;
+  return adjustment;
+}
+
+function getRecommendationScore(candidate: Candidate): number {
+  const baseHeuristicScore = candidate.score * 100;
+  const shortReadinessScore = baseHeuristicScore + getShortReadinessAdjustment(candidate);
+  const aiRerank = getAiRerankMeta(candidate);
+
+  if (aiRerank) {
+    return aiRerank.compositeScore * 0.7 + shortReadinessScore * 0.3;
+  }
+  return shortReadinessScore;
 }
 
 function buildRecommendationMeta(
@@ -71,24 +141,45 @@ function buildRecommendationMeta(
 
   const durationSeconds = getDurationSeconds(candidate);
   const hasHighEnergy = candidate.tags?.includes('HIGH ENERGY') ?? false;
+  const hasNeedReviewBadge = hasBadge(candidate, 'Butuh Review');
+  const hasStrongDialog = isDialogCompleteProxy(candidate);
+
+  if (hasNeedReviewBadge) {
+    return {
+      label: 'Perlu Cek Ulang',
+      reason: 'Sinyal visual mengindikasikan bagian ini berisiko kurang rapi untuk short final.',
+    };
+  }
 
   if (hasHighEnergy && durationSeconds <= FAST_CLIP_MAX_SECONDS) {
     return {
       label: 'Hook Cepat',
-      reason: 'Tempo tinggi dan durasi singkat, cocok untuk pembuka yang langsung menarik.',
+      reason: 'Tempo tinggi dan singkat, cocok jika kamu ingin short dengan pembuka super cepat.',
     };
   }
 
   if (durationSeconds >= IDEAL_SHORT_MIN_SECONDS && durationSeconds <= IDEAL_SHORT_MAX_SECONDS) {
     return {
-      label: 'Paling Seimbang',
-      reason: 'Durasi dan ritme paling aman untuk Shorts tanpa terasa kepanjangan.',
+      label: 'Short Utuh',
+      reason: 'Durasi 40-60 detik paling aman untuk menjaga narasi tetap lengkap dan rapi.',
+    };
+  }
+
+  if (
+    durationSeconds > IDEAL_SHORT_MAX_SECONDS &&
+    durationSeconds <= EXTENDED_SHORT_MAX_SECONDS &&
+    hasStrongDialog
+  ) {
+    return {
+      label: 'Dialog Aman',
+      reason:
+        'Durasi lebih panjang dipertahankan karena dialog dan penutupan scene terdeteksi aman.',
     };
   }
 
   return {
     label: 'Cadangan Bagus',
-    reason: 'Masih layak dipakai sebagai alternatif jika butuh angle berbeda.',
+    reason: 'Masih layak dipakai sebagai alternatif, tapi bukan prioritas utama untuk short final.',
   };
 }
 

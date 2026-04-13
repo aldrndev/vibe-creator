@@ -9,6 +9,8 @@ const { directorRepoMock, directorQueueMock, directorProcessorMock, reuseService
       upsertAnalysisJobBySession: vi.fn(),
       updateAnalysisJob: vi.fn(),
       updateStep: vi.fn(),
+      deleteSelectedClips: vi.fn(),
+      createSelectedClips: vi.fn(),
     },
     directorQueueMock: {
       add: vi.fn(),
@@ -114,5 +116,161 @@ describe('directorAnalysisService.startAnalysis', () => {
       id: 'analysis-job-1',
       status: DirectorJobStatus.COMPLETED,
     });
+  });
+
+  it('ignores stale reusable candidates above hard short cap and enqueues a fresh job', async () => {
+    reuseServiceMock.getReusableCandidates.mockResolvedValueOnce([
+      {
+        id: 'candidate-too-long',
+        startMs: 0,
+        endMs: 120000,
+        tags: ['highlight'],
+        score: 0.85,
+        rank: 1,
+        previewStorageKey: null,
+        videoPreviewStorageKey: null,
+      },
+    ]);
+    directorRepoMock.upsertAnalysisJobBySession.mockResolvedValueOnce({
+      id: 'analysis-job-pending',
+      status: DirectorJobStatus.PENDING,
+    });
+
+    const result = await directorAnalysisService.startAnalysis('session-1', 'user-1');
+
+    expect(directorQueueMock.add).toHaveBeenCalledTimes(1);
+    expect(directorRepoMock.upsertAnalysisJobBySession).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({
+      id: 'analysis-job-pending',
+      status: DirectorJobStatus.PENDING,
+    });
+  });
+
+  it('re-runs analysis when existing completed job has incompatible duration config', async () => {
+    directorRepoMock.findSession.mockResolvedValueOnce({
+      id: 'session-1',
+      userId: 'user-1',
+      asset: {
+        id: 'asset-1',
+        storageKey: 'uploads/director/file.mp4',
+        ingestStatus: 'READY',
+        contentHash: 'hash-1',
+        sourceUrlNormalized: null,
+      },
+      analysisJob: {
+        id: 'analysis-job-old',
+        status: DirectorJobStatus.COMPLETED,
+        config: {
+          minClipDuration: 12000,
+          maxClipDuration: 120000,
+        },
+      },
+    });
+    reuseServiceMock.getReusableCandidates.mockResolvedValueOnce(null);
+    directorRepoMock.upsertAnalysisJobBySession.mockResolvedValueOnce({
+      id: 'analysis-job-requeued',
+      status: DirectorJobStatus.PENDING,
+    });
+
+    const result = await directorAnalysisService.startAnalysis('session-1', 'user-1');
+
+    expect(directorQueueMock.add).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({
+      id: 'analysis-job-requeued',
+      status: DirectorJobStatus.PENDING,
+    });
+  });
+});
+
+describe('directorAnalysisService.selectClips', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    directorRepoMock.findSession.mockResolvedValue({
+      id: 'session-1',
+      userId: 'user-1',
+      analysisJob: {
+        id: 'analysis-job-1',
+        status: DirectorJobStatus.COMPLETED,
+        config: {
+          minClipDuration: 15000,
+          maxClipDuration: 60000,
+        },
+        candidates: [
+          {
+            id: 'candidate-1',
+            startMs: 0,
+            endMs: 42000,
+            score: 0.91,
+          },
+          {
+            id: 'candidate-2',
+            startMs: 45000,
+            endMs: 76000,
+            score: 0.82,
+          },
+        ],
+      },
+      asset: null,
+    });
+    directorRepoMock.deleteSelectedClips.mockResolvedValue({ count: 0 });
+    directorRepoMock.createSelectedClips.mockResolvedValue([
+      {
+        id: 'selected-1',
+        candidateId: 'candidate-1',
+        orderIndex: 0,
+      },
+    ]);
+  });
+
+  it('rejects multi-clip selection and only allows one clip per short', async () => {
+    await expect(
+      directorAnalysisService.selectClips('session-1', 'user-1', ['candidate-1', 'candidate-2']),
+    ).rejects.toThrow('Pilih tepat 1 klip untuk membuat 1 short');
+  });
+
+  it('accepts single clip selection', async () => {
+    const result = await directorAnalysisService.selectClips('session-1', 'user-1', [
+      'candidate-1',
+    ]);
+
+    expect(directorRepoMock.deleteSelectedClips).toHaveBeenCalledWith('session-1');
+    expect(directorRepoMock.createSelectedClips).toHaveBeenCalledTimes(1);
+    expect(result).toHaveLength(1);
+  });
+
+  it('rejects stale overlapping candidates even when requested directly', async () => {
+    directorRepoMock.findSession.mockResolvedValueOnce({
+      id: 'session-1',
+      userId: 'user-1',
+      analysisJob: {
+        id: 'analysis-job-1',
+        status: DirectorJobStatus.COMPLETED,
+        config: {
+          minClipDuration: 15000,
+          maxClipDuration: 60000,
+        },
+        candidates: [
+          {
+            id: 'candidate-1',
+            startMs: 0,
+            endMs: 42000,
+            score: 0.91,
+            rank: 1,
+          },
+          {
+            id: 'candidate-overlap',
+            startMs: 41950,
+            endMs: 72000,
+            score: 0.89,
+            rank: 2,
+          },
+        ],
+      },
+      asset: null,
+    });
+
+    await expect(
+      directorAnalysisService.selectClips('session-1', 'user-1', ['candidate-overlap']),
+    ).rejects.toThrow('Invalid candidate IDs: candidate-overlap');
   });
 });

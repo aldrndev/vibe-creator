@@ -5,6 +5,7 @@ export interface SubtitleWord {
   endMs: number;
   text: string;
   confidence?: number;
+  speaker?: string;
 }
 
 export interface SubtitleSegment {
@@ -12,7 +13,18 @@ export interface SubtitleSegment {
   endMs: number;
   text: string;
   words?: SubtitleWord[];
+  speaker?: string;
 }
+
+const WORD_BREAK_GAP_MS = 520;
+const SENTENCE_BREAK_MIN_DURATION_MS = 900;
+const SOFT_MAX_UTTERANCE_DURATION_MS = 4_200;
+const HARD_MAX_UTTERANCE_DURATION_MS = 6_200;
+const MAX_UTTERANCE_WORDS = 14;
+const NEW_SENTENCE_WORD_THRESHOLD = 6;
+const FALLBACK_MERGE_GAP_MS = 320;
+const FALLBACK_MAX_DURATION_MS = 4_500;
+const FALLBACK_MAX_WORDS = 16;
 
 export class TranscribeNormalizer {
   /**
@@ -54,7 +66,11 @@ export class TranscribeNormalizer {
     }
 
     const grouped: SubtitleSegment[] = [];
-    let current: SubtitleSegment = { ...firstWord, words: [{ ...firstWord }] };
+    let current: SubtitleSegment = {
+      ...firstWord,
+      words: [{ ...firstWord }],
+      speaker: firstWord.speaker,
+    };
     let wordCount = this.countWords(current.text);
 
     for (let i = 1; i < words.length; i++) {
@@ -65,25 +81,43 @@ export class TranscribeNormalizer {
 
       const gap = next.startMs - current.endMs;
       const duration = current.endMs - current.startMs;
+      const shouldBreakForGap = gap > WORD_BREAK_GAP_MS;
+      const shouldBreakForWords = wordCount >= MAX_UTTERANCE_WORDS;
+      const shouldBreakForHardDuration = duration >= HARD_MAX_UTTERANCE_DURATION_MS;
+      const shouldBreakForSentence =
+        this.endsSentence(current.text) && duration >= SENTENCE_BREAK_MIN_DURATION_MS;
+      const shouldBreakForNewSentence =
+        this.startsNewSentence(next.text) && wordCount >= NEW_SENTENCE_WORD_THRESHOLD;
+      const shouldBreakForSoftDuration = duration >= SOFT_MAX_UTTERANCE_DURATION_MS && gap > 140;
+      const shouldBreakForSpeakerChange =
+        Boolean(current.speaker) && Boolean(next.speaker) && current.speaker !== next.speaker;
       const shouldBreak =
-        gap > 350 ||
-        wordCount >= 5 ||
-        duration >= 1800 ||
-        this.endsSentence(current.text) ||
-        this.startsNewSentence(next.text);
+        shouldBreakForGap ||
+        shouldBreakForWords ||
+        shouldBreakForHardDuration ||
+        shouldBreakForSentence ||
+        shouldBreakForNewSentence ||
+        shouldBreakForSoftDuration ||
+        shouldBreakForSpeakerChange;
 
       if (shouldBreak) {
         grouped.push(current);
-        current = { ...next, words: [{ ...next }] };
+        current = {
+          ...next,
+          words: [{ ...next }],
+          speaker: next.speaker,
+        };
         wordCount = this.countWords(current.text);
         continue;
       }
 
+      const mergedWords = [...(current.words ?? []), { ...next }];
       current = {
         startMs: current.startMs,
         endMs: next.endMs,
         text: `${current.text} ${next.text}`.replace(/\s+/g, ' ').trim(),
-        words: [...(current.words ?? []), { ...next }],
+        words: mergedWords,
+        speaker: this.resolveDominantSpeaker(mergedWords) ?? current.speaker ?? next.speaker,
       };
       wordCount += this.countWords(next.text);
     }
@@ -98,6 +132,7 @@ export class TranscribeNormalizer {
         startMs: Math.round(s.start * 1000),
         endMs: Math.round(s.end * 1000),
         text: s.text.trim(),
+        speaker: typeof s.speaker === 'string' ? s.speaker.trim() || undefined : undefined,
       }))
       .filter((s) => s.text.length > 0)
       .sort((a, b) => a.startMs - b.startMs);
@@ -120,7 +155,30 @@ export class TranscribeNormalizer {
       endMs: Math.round(word.end * 1000),
       text,
       confidence: word.confidence,
+      speaker: typeof word.speaker === 'string' ? word.speaker.trim() || undefined : undefined,
     };
+  }
+
+  private resolveDominantSpeaker(words: SubtitleWord[]): string | undefined {
+    const speakerDurations = new Map<string, number>();
+    for (const word of words) {
+      if (!word.speaker) {
+        continue;
+      }
+      const duration = Math.max(0, word.endMs - word.startMs);
+      speakerDurations.set(word.speaker, (speakerDurations.get(word.speaker) ?? 0) + duration);
+    }
+
+    let dominantSpeaker: string | undefined;
+    let dominantDuration = 0;
+    for (const [speaker, duration] of speakerDurations) {
+      if (duration > dominantDuration) {
+        dominantSpeaker = speaker;
+        dominantDuration = duration;
+      }
+    }
+
+    return dominantSpeaker;
   }
 
   private countWords(text: string): number {
@@ -132,7 +190,17 @@ export class TranscribeNormalizer {
   }
 
   private startsNewSentence(text: string): boolean {
-    return /^[A-Z]/.test(text.trim());
+    const normalized = text.trim();
+    if (!normalized) {
+      return false;
+    }
+
+    // Treat acronym-like tokens (CTA, AI, etc.) as continuation of the same utterance.
+    if (/^[A-Z]{2,}[.!?,:;]?$/.test(normalized)) {
+      return false;
+    }
+
+    return /^(?:["'“([]+)?[A-Z][a-z]/.test(normalized);
   }
 
   private mergeSegments(segments: SubtitleSegment[]): SubtitleSegment[] {
@@ -148,10 +216,23 @@ export class TranscribeNormalizer {
 
       const gap = next.startMs - current.endMs;
 
-      // Merge if gap < 250ms and gap >= -500ms
-      if (gap < 250 && gap >= -500) {
+      const mergedDurationMs = next.endMs - current.startMs;
+      const mergedWordCount = this.countWords(`${current.text} ${next.text}`);
+
+      // Merge only if close in time and still readable as one subtitle sentence.
+      const isCrossSpeakerMerge =
+        Boolean(current.speaker) && Boolean(next.speaker) && current.speaker !== next.speaker;
+
+      if (
+        gap < FALLBACK_MERGE_GAP_MS &&
+        gap >= -500 &&
+        mergedDurationMs <= FALLBACK_MAX_DURATION_MS &&
+        mergedWordCount <= FALLBACK_MAX_WORDS &&
+        !isCrossSpeakerMerge
+      ) {
         current.endMs = next.endMs;
         current.text += ` ${next.text}`;
+        current.speaker = current.speaker ?? next.speaker;
       } else {
         merged.push(current);
         current = { ...next };

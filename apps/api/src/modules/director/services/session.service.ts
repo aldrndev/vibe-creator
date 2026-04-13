@@ -7,6 +7,65 @@ import { logger } from '@/lib/logger';
 import { directorRepo } from '../director.repo';
 import { directorAnalysisReuseService } from './analysis-reuse.service';
 
+const DEFAULT_MAX_CLIP_DURATION_MS = 60000;
+const DIALOG_COMPLETION_EXTENSION_MS = 30000;
+const ABSOLUTE_MAX_SHORT_DURATION_MS = 90000;
+
+function resolveMaxClipDurationMs(config: unknown): number {
+  if (typeof config !== 'object' || config === null || Array.isArray(config)) {
+    return DEFAULT_MAX_CLIP_DURATION_MS;
+  }
+
+  const maxClipDuration = (config as Record<string, unknown>).maxClipDuration;
+  if (
+    typeof maxClipDuration !== 'number' ||
+    !Number.isFinite(maxClipDuration) ||
+    maxClipDuration <= 0
+  ) {
+    return DEFAULT_MAX_CLIP_DURATION_MS;
+  }
+
+  return maxClipDuration;
+}
+
+function filterCandidatesByMaxDuration<T extends { startMs: number; endMs: number }>(
+  candidates: T[],
+  maxDurationMs: number,
+): T[] {
+  return candidates.filter((candidate) => candidate.endMs - candidate.startMs <= maxDurationMs);
+}
+
+function removeOverlappingCandidates<T extends { startMs: number; endMs: number; rank?: number }>(
+  candidates: T[],
+): T[] {
+  const selected: T[] = [];
+  const sortedByRank = [...candidates].sort(
+    (left, right) => (left.rank ?? 9999) - (right.rank ?? 9999),
+  );
+
+  for (const candidate of sortedByRank) {
+    const hasOverlap = selected.some((existing) => {
+      const overlapMs =
+        Math.min(existing.endMs, candidate.endMs) - Math.max(existing.startMs, candidate.startMs);
+      return overlapMs > 350;
+    });
+
+    if (!hasOverlap) {
+      selected.push(candidate);
+    }
+  }
+
+  return selected.sort((left, right) => (left.rank ?? 9999) - (right.rank ?? 9999));
+}
+
+function resolveHardMaxDurationMs(config: unknown): number {
+  const baseMaxDurationMs = resolveMaxClipDurationMs(config);
+  return Math.min(
+    ABSOLUTE_MAX_SHORT_DURATION_MS,
+    baseMaxDurationMs + DIALOG_COMPLETION_EXTENSION_MS,
+  );
+}
+
 export const directorSessionService = {
   /**
    * Create a new director session
@@ -33,6 +92,7 @@ export const directorSessionService = {
       session.analysisJob.candidates.length === 0 &&
       session.asset
     ) {
+      const hardMaxDurationMs = resolveHardMaxDurationMs(session.analysisJob.config);
       const reusableCandidates = await directorAnalysisReuseService.getReusableCandidates(
         session.asset,
       );
@@ -41,7 +101,22 @@ export const directorSessionService = {
         ...session,
         analysisJob: {
           ...session.analysisJob,
-          candidates: reusableCandidates ?? [],
+          candidates: removeOverlappingCandidates(
+            filterCandidatesByMaxDuration(reusableCandidates ?? [], hardMaxDurationMs),
+          ),
+        },
+      };
+    }
+
+    if (session.analysisJob?.candidates.length) {
+      const hardMaxDurationMs = resolveHardMaxDurationMs(session.analysisJob.config);
+      return {
+        ...session,
+        analysisJob: {
+          ...session.analysisJob,
+          candidates: removeOverlappingCandidates(
+            filterCandidatesByMaxDuration(session.analysisJob.candidates, hardMaxDurationMs),
+          ),
         },
       };
     }
