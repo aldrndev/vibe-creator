@@ -200,6 +200,26 @@ def score_object_box(
     return area_score * 8.0 + continuity_score * 3.2 + center_bias * 1.8
 
 
+def _is_valid_contour(
+    contour, min_area: float, max_area: float,
+) -> tuple[int, int, int, int] | None:
+    """Filter a single contour by area, aspect ratio, and solidity."""
+    x, y, w, h = cv2.boundingRect(contour)
+    area = w * h
+    if area < min_area or area > max_area:
+        return None
+    if h <= 0 or w <= 0:
+        return None
+    ratio = w / h
+    if ratio < 0.18 or ratio > 5.5:
+        return None
+    contour_area = cv2.contourArea(contour)
+    solidity = contour_area / max(1.0, float(area))
+    if solidity < 0.25:
+        return None
+    return (int(x), int(y), int(w), int(h))
+
+
 def detect_primary_object(
     gray_frame,
     previous_gray,
@@ -212,7 +232,7 @@ def detect_primary_object(
 
     if previous_gray is not None:
         motion = cv2.absdiff(gray_frame, previous_gray)
-        _, motion_mask = cv2.threshold(motion, 18, 255, cv2.THRESH_BINARY)
+        _, motion_mask = cv2.threshold(motion, 30, 255, cv2.THRESH_BINARY)
         edges = cv2.bitwise_or(edges, motion_mask)
         detector_used = "object-motion"
     else:
@@ -226,21 +246,13 @@ def detect_primary_object(
         return None, detector_used
 
     frame_area = max(1, source_width * source_height)
-    min_area = frame_area * 0.01
+    min_area = frame_area * 0.025
     max_area = frame_area * 0.72
-    candidates: list[tuple[int, int, int, int]] = []
 
-    for contour in contours:
-        x, y, w, h = cv2.boundingRect(contour)
-        area = w * h
-        if area < min_area or area > max_area:
-            continue
-        if h <= 0 or w <= 0:
-            continue
-        ratio = w / h
-        if ratio < 0.18 or ratio > 5.5:
-            continue
-        candidates.append((int(x), int(y), int(w), int(h)))
+    candidates = [
+        box for contour in contours
+        if (box := _is_valid_contour(contour, min_area, max_area)) is not None
+    ]
 
     if not candidates:
         return None, detector_used

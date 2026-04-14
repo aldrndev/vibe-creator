@@ -7,12 +7,14 @@ import { logger } from '@/lib/logger';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+export type FocusProfile = 'auto' | 'subject-center' | 'object-center';
+
 export interface FaceTrackRequest {
   inputPath: string;
   outputPath: string;
   targetWidth: number;
   targetHeight: number;
-  focusProfile?: 'auto' | 'subject-center' | 'object-center';
+  focusProfile?: FocusProfile;
 }
 
 export interface FaceTrackResult {
@@ -25,8 +27,8 @@ export interface FaceTrackResult {
   targetSwitches?: number;
   snapRepositions?: number;
   sceneCuts?: number;
-  focusProfile?: 'auto' | 'subject-center' | 'object-center';
-  trackingPreset?: 'auto' | 'subject-center' | 'object-center';
+  focusProfile?: FocusProfile;
+  trackingPreset?: FocusProfile;
   detectorsUsed?: string[];
   error?: string;
 }
@@ -82,6 +84,9 @@ export class FaceTrackRunner {
         }
 
         try {
+          if (stderrData) {
+            logger.info({ stderr: stderrData.slice(0, 2000) }, 'Face tracking diagnostics');
+          }
           const result = JSON.parse(stdoutData) as FaceTrackResult;
           resolve(result);
         } catch {

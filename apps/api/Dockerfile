@@ -10,10 +10,9 @@ ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 ARG DATABASE_URL=postgresql://postgres:postgres@localhost:5432/vibe_creator?schema=public
 ENV DATABASE_URL="${DATABASE_URL}"
-RUN corepack enable
-
-# Install system dependencies (ffmpeg, python, openssl)
-RUN apt-get update && apt-get install -y \
+# Install system dependencies, corepack, and Python packages
+RUN corepack enable \
+    && apt-get update && apt-get install -y \
     ffmpeg \
     python3 \
     python3-pip \
@@ -22,10 +21,8 @@ RUN apt-get update && apt-get install -y \
     openssl \
     ca-certificates \
     fonts-liberation \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install Python dependencies globally
-RUN pip3 install --no-cache-dir --break-system-packages yt-dlp faster-whisper opencv-python-headless
+    && rm -rf /var/lib/apt/lists/* \
+    && pip3 install --no-cache-dir --break-system-packages yt-dlp faster-whisper opencv-python-headless
 
 # 2. Development Stage (Hot Reload)
 FROM base AS development
@@ -103,14 +100,15 @@ COPY --from=builder /app/apps/api/prisma ./prisma
 COPY --from=builder /app/node_modules/.pnpm/@prisma+client*/node_modules/.prisma /app/node_modules/.prisma
 COPY --from=builder /app/node_modules/.pnpm/@prisma+client*/node_modules/@prisma /app/node_modules/@prisma
 
-# Copy Python Scripts for Transcription
+# Copy Python Scripts for Runtime
 COPY --from=builder /app/apps/api/src/modules/transcribe/run_whisper.py ./dist/modules/transcribe/
 COPY --from=builder /app/apps/api/src/modules/director/processing/run_face_tracking.py ./dist/modules/director/processing/
+COPY --from=builder /app/apps/api/src/modules/director/processing/face_tracking_core.py ./dist/modules/director/processing/
 
 
 # Create upload directories & permissions
-RUN mkdir -p uploads/temp uploads/exports uploads/downloads uploads/cache/huggingface
-RUN chown -R node:node /app
+RUN mkdir -p uploads/temp uploads/exports uploads/downloads uploads/cache/huggingface \
+    && chown -R node:node /app
 
 USER node
 
