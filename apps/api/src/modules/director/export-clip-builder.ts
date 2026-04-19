@@ -46,6 +46,7 @@ export interface BuiltExportClip {
   sourcePath: string;
   start: number;
   end: number;
+  resolvedContentMode: Exclude<ContentMode, 'auto'>;
   faceTracking?: boolean;
   focusProfile?: FocusProfile;
   stabilize?: boolean;
@@ -143,6 +144,7 @@ export function buildExportClipFromSelectedClip(params: {
     sourcePath,
     start: refinedClip.startMs / 1000,
     end: refinedClip.endMs / 1000,
+    resolvedContentMode: resolvedMode,
     faceTracking: resolvedRefineSettings.faceTracking,
     focusProfile: resolveFocusProfileFromMode(resolvedMode),
     stabilize: resolvedRefineSettings.stabilize,

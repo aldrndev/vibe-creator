@@ -1,7 +1,5 @@
 {
   "venvPath": ".",
   "venv": "venv",
-  "extraPaths": [
-    "src/modules/director/processing"
-  ]
+  "extraPaths": ["src/modules/director/processing"]
 }

@@ -4,7 +4,6 @@ import {
   FileVideo,
   Flame,
   Gauge,
-  Languages,
   Pause,
   Play,
   RefreshCw,
@@ -19,11 +18,6 @@ import {
   Modal,
   ModalBody,
   ModalContent,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
   Tooltip,
   TooltipContent,
   TooltipProvider,
@@ -34,12 +28,6 @@ import { cn } from '@/lib/utils';
 import { authFetch } from '@/services/api';
 import type { Candidate, DirectorSession } from '@/stores/director-store';
 import { useDirectorStore } from '@/stores/director-store';
-
-const TRANSCRIBE_LANGUAGE_OPTIONS = [
-  { value: 'mixed', label: 'Campuran (Auto)' },
-  { value: 'id', label: 'Indonesia' },
-  { value: 'en', label: 'English' },
-] as const;
 
 interface CandidateCardProps {
   readonly activeSession: DirectorSession;
@@ -388,17 +376,19 @@ const VideoPreviewPlayer = ({ sessionId, clipId, onStop }: VideoPreviewPlayerPro
   if (playerState === 'error') {
     return (
       <div className="flex flex-col items-center justify-center gap-4 text-muted-foreground">
-        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-rose-500/10 border border-rose-500/20">
-          <AlertCircle size={28} className="text-rose-400" />
+        <div className="flex h-16 w-16 items-center justify-center rounded-full border border-rose-500/30 bg-rose-500/10">
+          <AlertCircle size={28} className="text-rose-600 dark:text-rose-300" />
         </div>
-        <span className="text-sm font-semibold text-rose-300">Video gagal dimuat</span>
-        <p className="text-xs text-white/40 max-w-xs text-center">
+        <span className="text-sm font-semibold text-rose-700 dark:text-rose-300">
+          Video gagal dimuat
+        </span>
+        <p className="max-w-xs text-center text-xs text-muted-foreground">
           Server mungkin sedang sibuk memproses video ini. Coba lagi dalam beberapa saat.
         </p>
         <button
           type="button"
           onClick={handleManualRetry}
-          className="flex items-center gap-2 rounded-full bg-white/10 px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white backdrop-blur-md transition-all hover:bg-white/20"
+          className="flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-primary backdrop-blur-md transition-all hover:bg-primary/15"
         >
           <RefreshCw size={14} />
           Coba Lagi
@@ -417,7 +407,7 @@ const VideoPreviewPlayer = ({ sessionId, clipId, onStop }: VideoPreviewPlayerPro
         <div className="w-12 h-12 rounded-full border-4 border-primary/30 border-t-primary animate-spin" />
         <span className="text-sm font-medium animate-pulse">{statusText}</span>
         {attemptCount > 1 && (
-          <p className="text-xs text-white/40 max-w-xs text-center">
+          <p className="max-w-xs text-center text-xs text-muted-foreground">
             Server sedang menyiapkan preview klip ini untuk pertama kali...
           </p>
         )}
@@ -453,11 +443,8 @@ export const PickingStep = () => {
     setLoading,
     setError,
     setSelectedClips,
-    transcribeLanguage,
-    setTranscribeLanguage,
   } = useDirectorStore();
   const recommendations = useMemo(() => getRecommendedCandidates(candidates), [candidates]);
-  const topRecommendation = recommendations[0];
   const selectedCandidateId = selectedCandidateIds.values().next().value;
   const selectedCandidate = selectedCandidateId
     ? (candidates.find((candidate) => candidate.id === selectedCandidateId) ?? null)
@@ -493,32 +480,27 @@ export const PickingStep = () => {
       <div className="flex flex-col justify-between items-start gap-4 mb-8">
         <div>
           <h2 className="text-3xl font-black tracking-tight bg-clip-text text-transparent bg-linear-to-br from-primary via-orange-500 to-rose-600">
-            Pilih 1 Short Utama
+            Pilih 1 Video Short Utama
           </h2>
           <p className="text-muted-foreground font-medium">
-            Satu klip terbaik akan diproses jadi satu video short utuh.
+            Video pilihan anda akan diproses jadi video short lengkap dengan transkip atau subtitle
           </p>
         </div>
-      </div>
-
-      {topRecommendation ? (
-        <div className="mb-6 rounded-3xl border border-primary/20 bg-linear-to-r from-primary/10 via-orange-500/5 to-transparent p-5">
-          <div className="flex items-start gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10">
-              <Sparkles size={18} className="text-primary" />
-            </div>
+        <div className="w-full rounded-2xl border border-amber-500/35 bg-amber-500/10 px-4 py-3 dark:border-amber-400/25 dark:bg-amber-500/10">
+          <div className="flex items-start gap-2.5">
+            <AlertCircle size={16} className="mt-0.5 shrink-0 text-amber-700 dark:text-amber-300" />
             <div className="space-y-1">
-              <div className="text-[10px] font-black uppercase tracking-widest text-primary/70">
-                Rekomendasi Utama AI Director
-              </div>
-              <p className="text-sm font-semibold text-foreground">
-                Prioritas utama untuk hasil short utuh tanpa potong dialog di tengah.
+              <p className="text-[10px] font-black uppercase tracking-widest text-amber-800/90 dark:text-amber-200/90">
+                Catatan Preview
               </p>
-              <p className="text-sm leading-6 text-muted-foreground">{topRecommendation.reason}</p>
+              <p className="text-xs leading-5 text-amber-800/90 dark:text-amber-100/90">
+                Kualitas video pada preview di bawah akan diturunkan untuk mempercepat loading,
+                hasil export akhir akan mengikuti kualitas video asli.
+              </p>
             </div>
           </div>
         </div>
-      ) : null}
+      </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 pb-48">
         {activeSession &&
@@ -538,10 +520,10 @@ export const PickingStep = () => {
       </div>
 
       <Modal open={playingClipId !== null} onOpenChange={(open) => !open && setPlayingClipId(null)}>
-        <ModalContent className="max-w-4xl p-0 bg-black border-none overflow-hidden rounded-3xl sm:rounded-4xl shadow-2xl">
+        <ModalContent className="max-w-4xl overflow-hidden rounded-3xl border border-border/60 bg-card/95 p-0 shadow-2xl sm:rounded-4xl [&>button]:hidden">
           <ModalBody className="p-0">
             {playingClipId && activeSession && (
-              <div className="relative w-full h-[85vh] flex items-center justify-center bg-black">
+              <div className="relative flex h-[85vh] w-full items-center justify-center bg-black">
                 <VideoPreviewPlayer
                   key={playingClipId}
                   sessionId={activeSession.id}
@@ -551,7 +533,7 @@ export const PickingStep = () => {
                 <button
                   type="button"
                   onClick={() => setPlayingClipId(null)}
-                  className="absolute top-4 right-4 z-50 w-10 h-10 rounded-full bg-black/40 text-white backdrop-blur-md hover:bg-black/60 flex items-center justify-center transition-all"
+                  className="absolute right-4 top-4 z-50 flex h-10 w-10 items-center justify-center rounded-full border border-border/60 bg-background/80 text-foreground backdrop-blur-md transition-all hover:bg-background"
                 >
                   <X size={20} />
                 </button>
@@ -573,36 +555,6 @@ export const PickingStep = () => {
                   ? `Durasi ${Math.round((selectedCandidate.endMs - selectedCandidate.startMs) / 1000)} detik`
                   : 'Pilih 1 klip untuk lanjut'}
               </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-primary/20 bg-primary/10">
-                <Languages size={14} className="text-primary" />
-              </div>
-              <div className="w-full sm:max-w-52">
-                <Select
-                  value={transcribeLanguage}
-                  onValueChange={(value) => {
-                    if (value === 'id' || value === 'en' || value === 'mixed') {
-                      setTranscribeLanguage(value);
-                    }
-                  }}
-                >
-                  <SelectTrigger className="h-10 rounded-2xl border-primary/20 bg-background/70 text-xs font-bold uppercase tracking-wider">
-                    <SelectValue placeholder="Bahasa Transkrip" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {TRANSCRIBE_LANGUAGE_OPTIONS.map((option) => (
-                      <SelectItem
-                        key={option.value}
-                        value={option.value}
-                        className="text-xs font-semibold"
-                      >
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
             </div>
           </div>
           <Button

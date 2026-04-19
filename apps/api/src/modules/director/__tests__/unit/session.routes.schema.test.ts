@@ -13,4 +13,12 @@ describe('updateSubtitleStyleSchema', () => {
     expect(parsed.animation).toBe('phrase');
     expect(parsed.fontSize).toBe(30);
   });
+
+  it('accepts word-by-word subtitle animation', () => {
+    const parsed = updateSubtitleStyleSchema.parse({
+      animation: 'word',
+    });
+
+    expect(parsed.animation).toBe('word');
+  });
 });

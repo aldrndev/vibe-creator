@@ -13,6 +13,20 @@ interface CobaltResponse {
   picker?: Array<{ url: string; type: string }>;
 }
 
+interface CobaltRequestPayload {
+  url: string;
+  filenameStyle: 'basic';
+  downloadMode: 'auto';
+}
+
+export function buildCobaltRequestPayload(url: string): CobaltRequestPayload {
+  return {
+    url,
+    filenameStyle: 'basic',
+    downloadMode: 'auto',
+  };
+}
+
 // Circuit breaker for Cobalt API
 const cobaltBreaker = createCircuitBreaker(
   async (...args: unknown[]): Promise<Response> => {
@@ -51,13 +65,7 @@ export const downloadCobaltService = {
         Accept: 'application/json',
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        url,
-        videoQuality: '1080',
-        youtubeVideoCodec: 'h264',
-        filenameStyle: 'basic',
-        downloadMode: 'auto',
-      }),
+      body: JSON.stringify(buildCobaltRequestPayload(url)),
     });
 
     // Get response as text first to debug

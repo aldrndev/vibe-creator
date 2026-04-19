@@ -7,12 +7,34 @@ import {
 } from '@/components/director/steps/director-step-utils';
 import { EditingSidebar } from '@/components/director/steps/editing-sidebar';
 import { SelectedClipCard } from '@/components/director/steps/selected-clip-card';
-import { Button } from '@/components/ui';
+import {
+  Button,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui';
 import { applyContentModePreset, type ContentMode } from '@/lib/director-refine-settings';
 import { logger } from '@/lib/logger';
+import {
+  COMMON_SUBTITLE_TARGET_LANGUAGE_OPTIONS,
+  formatTranscribeLanguageLabel,
+  normalizeTranscribeLanguage,
+} from '@/lib/transcribe-language';
 import { cn } from '@/lib/utils';
 import { authFetch } from '@/services/api';
 import { useDirectorStore } from '@/stores/director-store';
+
+const DEFAULT_SUBTITLE_TARGET_LANGUAGE = 'en';
+
+function resolveSubtitleTargetLanguage(value: unknown): string {
+  const normalized = normalizeTranscribeLanguage(value, DEFAULT_SUBTITLE_TARGET_LANGUAGE);
+  const isSupported = COMMON_SUBTITLE_TARGET_LANGUAGE_OPTIONS.some(
+    (option) => option.value === normalized,
+  );
+  return isSupported ? normalized : DEFAULT_SUBTITLE_TARGET_LANGUAGE;
+}
 
 export const EditingStep = () => {
   const {
@@ -29,6 +51,10 @@ export const EditingStep = () => {
     setTranscribeJob,
     transcribeLanguage,
     setTranscribeLanguage,
+    subtitleMode,
+    subtitleTargetLanguage,
+    setSubtitleMode,
+    setSubtitleTargetLanguage,
     setStep,
     error,
     setError,
@@ -39,6 +65,7 @@ export const EditingStep = () => {
   const transcribeProgressMeta = getTranscribeProgressMeta(transcribeJob);
   const primaryClip = selectedClips[0];
   const hasMultipleSelectedClips = selectedClips.length > 1;
+  const subtitleTargetLanguageSelectValue = resolveSubtitleTargetLanguage(subtitleTargetLanguage);
 
   const refreshSelectedClips = useCallback(async () => {
     if (!activeSession) {
@@ -72,12 +99,21 @@ export const EditingStep = () => {
 
       const newStatus = jobData.data.status;
       setTranscribeJob(jobData.data);
+      if (typeof jobData.data.language === 'string' && jobData.data.language.trim().length > 0) {
+        setTranscribeLanguage(normalizeTranscribeLanguage(jobData.data.language));
+      }
+      const resolvedSubtitleMode =
+        jobData.data.subtitleMode ?? jobData.data.progressMeta?.subtitleMode;
+      if (resolvedSubtitleMode === 'original' || resolvedSubtitleMode === 'translate') {
+        setSubtitleMode(resolvedSubtitleMode);
+      }
+      const resolvedSubtitleTargetLanguage =
+        jobData.data.subtitleTargetLanguage ?? jobData.data.progressMeta?.subtitleTargetLanguage;
       if (
-        jobData.data.language === 'id' ||
-        jobData.data.language === 'en' ||
-        jobData.data.language === 'mixed'
+        typeof resolvedSubtitleTargetLanguage === 'string' &&
+        resolvedSubtitleTargetLanguage.trim().length > 0
       ) {
-        setTranscribeLanguage(jobData.data.language);
+        setSubtitleTargetLanguage(resolveSubtitleTargetLanguage(resolvedSubtitleTargetLanguage));
       }
 
       if (newStatus === 'COMPLETED' || newStatus === 'FAILED') {
@@ -95,7 +131,15 @@ export const EditingStep = () => {
       logger.error('Poll transcription error', error);
       return false;
     }
-  }, [activeSession, refreshSelectedClips, setError, setTranscribeJob, setTranscribeLanguage]);
+  }, [
+    activeSession,
+    refreshSelectedClips,
+    setError,
+    setSubtitleMode,
+    setSubtitleTargetLanguage,
+    setTranscribeJob,
+    setTranscribeLanguage,
+  ]);
 
   const handleStartTranscribe = useCallback(
     async (options?: { forceRefresh?: boolean }): Promise<boolean> => {
@@ -110,29 +154,56 @@ export const EditingStep = () => {
         setError(null);
       }
 
+      const normalizedLanguage = normalizeTranscribeLanguage(transcribeLanguage);
+      const normalizedSubtitleTargetLanguage =
+        resolveSubtitleTargetLanguage(subtitleTargetLanguage);
+
       try {
         const res = await authFetch(`/api/v1/director/sessions/${activeSession.id}/transcribe`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             forceRefresh: shouldForceRefresh,
-            language: transcribeLanguage,
+            language: normalizedLanguage,
+            subtitleMode,
+            subtitleTargetLanguage:
+              subtitleMode === 'translate' ? normalizedSubtitleTargetLanguage : undefined,
           }),
         });
         const data = (await res.json()) as {
           success: boolean;
-          data?: { status: string; language?: 'id' | 'en' | 'mixed' };
+          data?: {
+            status: string;
+            language?: string;
+            subtitleMode?: 'original' | 'translate';
+            subtitleTargetLanguage?: string | null;
+            progressMeta?: {
+              subtitleMode?: 'original' | 'translate';
+              subtitleTargetLanguage?: string | null;
+            } | null;
+          };
           error?: { message?: string };
         };
 
         if (res.ok && data.success && data.data) {
           setTranscribeJob(data.data);
+          if (typeof data.data.language === 'string' && data.data.language.trim().length > 0) {
+            setTranscribeLanguage(normalizeTranscribeLanguage(data.data.language));
+          }
+          const responseSubtitleMode =
+            data.data.subtitleMode ?? data.data.progressMeta?.subtitleMode;
+          if (responseSubtitleMode === 'original' || responseSubtitleMode === 'translate') {
+            setSubtitleMode(responseSubtitleMode);
+          }
+          const responseSubtitleTargetLanguage =
+            data.data.subtitleTargetLanguage ?? data.data.progressMeta?.subtitleTargetLanguage;
           if (
-            data.data.language === 'id' ||
-            data.data.language === 'en' ||
-            data.data.language === 'mixed'
+            typeof responseSubtitleTargetLanguage === 'string' &&
+            responseSubtitleTargetLanguage.trim().length > 0
           ) {
-            setTranscribeLanguage(data.data.language);
+            setSubtitleTargetLanguage(
+              resolveSubtitleTargetLanguage(responseSubtitleTargetLanguage),
+            );
           }
           setError(null);
           return true;
@@ -147,7 +218,17 @@ export const EditingStep = () => {
         return false;
       }
     },
-    [activeSession, setError, setTranscribeJob, transcribeLanguage, setTranscribeLanguage],
+    [
+      activeSession,
+      setError,
+      setSubtitleMode,
+      setSubtitleTargetLanguage,
+      setTranscribeJob,
+      subtitleMode,
+      subtitleTargetLanguage,
+      transcribeLanguage,
+      setTranscribeLanguage,
+    ],
   );
 
   useEffect(() => {
@@ -366,44 +447,108 @@ export const EditingStep = () => {
       ) : null}
 
       <div className="min-w-0 flex-1 bg-card/70 rounded-[2.5rem] border border-border/50 backdrop-blur-xl p-6 sm:p-10 xl:p-12 flex flex-col gap-8 relative overflow-hidden group pb-6 lg:pb-8">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 relative z-10">
-          <div>
-            <h3 className="text-3xl font-black tracking-tight bg-clip-text text-transparent bg-linear-to-br from-primary via-orange-500 to-rose-600">
+        <div className="relative z-10 grid gap-5 xl:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] items-stretch">
+          <div className="h-full rounded-2xl border border-border/40 bg-background/35 p-5 sm:p-6">
+            <h3 className="text-2xl sm:text-3xl font-black tracking-tight whitespace-nowrap bg-clip-text text-transparent bg-linear-to-br from-primary via-orange-500 to-rose-600">
               Video Studio
             </h3>
-            <p className="mt-2 max-w-2xl text-muted-foreground text-sm leading-6 font-medium">
-              Short sudah siap pakai. Tinggal rapikan transkrip dan atur gaya video sampai siap
-              publish.
+            <p className="mt-2 max-w-xl text-muted-foreground text-sm leading-6 font-medium">
+              Short sudah siap pakai.
             </p>
-            {transcribeProgressMeta ? (
-              <p className="mt-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground/70">
-                {getTranscribePhaseLabel(transcribeProgressMeta.phase)}
+            <div className="mt-5 space-y-2.5">
+              <div className="text-[10px] font-black uppercase tracking-[0.15em] text-muted-foreground/70">
+                Bahasa Transkrip
+              </div>
+              <p className="text-base font-semibold text-foreground">
+                {formatTranscribeLanguageLabel(transcribeLanguage)}
               </p>
-            ) : null}
-            <p className="mt-2 text-[11px] font-bold uppercase tracking-widest text-primary/80">
-              Bahasa Transkrip:{' '}
-              {transcribeLanguage === 'en'
-                ? 'English'
-                : transcribeLanguage === 'mixed'
-                  ? 'Campuran (Auto)'
-                  : 'Indonesia'}
-            </p>
+              {transcribeProgressMeta ? (
+                <p className="text-xs font-semibold text-muted-foreground">
+                  Status: {getTranscribePhaseLabel(transcribeProgressMeta.phase)}
+                </p>
+              ) : null}
+            </div>
           </div>
-          <Button
-            size="sm"
-            variant="secondary"
-            className="rounded-full font-bold px-6 border-primary/20 hover:bg-primary/5"
-            onClick={() => {
-              void handleStartTranscribe({ forceRefresh: true });
-            }}
-            disabled={isTranscribing}
-          >
-            <Zap
-              size={14}
-              className={cn('mr-0.5', isTranscribing ? 'animate-pulse' : 'text-primary')}
-            />
-            {isTranscribing ? 'Mentranskripsi...' : 'Transkripsi Ulang'}
-          </Button>
+
+          <div className="h-full rounded-2xl border border-border/40 bg-background/45 p-3.5 sm:p-4 space-y-3.5">
+            <div>
+              <div className="mb-2 text-[10px] font-black uppercase tracking-[0.15em] text-muted-foreground/70">
+                Mode Subtitle
+              </div>
+              <div className="grid grid-cols-2 gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setSubtitleMode('original')}
+                  className={cn(
+                    'rounded-xl border px-2 py-2 text-[11px] font-black uppercase tracking-[0.12em] transition-all',
+                    subtitleMode === 'original'
+                      ? 'border-primary/35 bg-primary/15 text-primary'
+                      : 'border-border/50 bg-muted/20 text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  Bahasa Asli
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSubtitleMode('translate')}
+                  className={cn(
+                    'rounded-xl border px-2 py-2 text-[11px] font-black uppercase tracking-[0.12em] transition-all',
+                    subtitleMode === 'translate'
+                      ? 'border-primary/35 bg-primary/15 text-primary'
+                      : 'border-border/50 bg-muted/20 text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  Terjemahkan
+                </button>
+              </div>
+              {subtitleMode === 'translate' ? (
+                <div className="mt-2.5 space-y-1.5">
+                  <label
+                    htmlFor="subtitle-target-language"
+                    className="text-[10px] font-black uppercase tracking-[0.15em] text-muted-foreground/70"
+                  >
+                    Bahasa Tujuan
+                  </label>
+                  <Select
+                    value={subtitleTargetLanguageSelectValue}
+                    onValueChange={(value) => {
+                      setSubtitleTargetLanguage(value);
+                    }}
+                  >
+                    <SelectTrigger
+                      id="subtitle-target-language"
+                      className="h-9 rounded-xl border-border/50 bg-muted/20 px-3 text-xs font-semibold tracking-wide"
+                    >
+                      <SelectValue placeholder="Pilih bahasa subtitle" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {COMMON_SUBTITLE_TARGET_LANGUAGE_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : null}
+            </div>
+
+            <Button
+              size="sm"
+              variant="secondary"
+              className="h-11 w-full rounded-xl border-primary/20 px-6 font-bold hover:bg-primary/5"
+              onClick={() => {
+                void handleStartTranscribe({ forceRefresh: true });
+              }}
+              disabled={isTranscribing}
+            >
+              <Zap
+                size={14}
+                className={cn('mr-0.5', isTranscribing ? 'animate-pulse' : 'text-primary')}
+              />
+              {isTranscribing ? 'Mentranskripsi...' : 'Transkripsi Ulang'}
+            </Button>
+          </div>
         </div>
 
         {error && (
@@ -426,7 +571,7 @@ export const EditingStep = () => {
           {activeSession && primaryClip ? (
             <SelectedClipCard
               key={primaryClip.id}
-              activeSession={activeSession}
+              sessionId={activeSession.id}
               clip={primaryClip}
               index={0}
               onRemoveClip={handleRemoveClip}

@@ -1,5 +1,8 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
+import { DEFAULT_TRANSCRIBE_LANGUAGE, type TranscribeLanguage } from '@/lib/transcribe-language';
+
+export type { TranscribeLanguage } from '@/lib/transcribe-language';
 
 export type DirectorStep =
   | 'IMPORT'
@@ -9,8 +12,6 @@ export type DirectorStep =
   | 'PUBLISH_COPY'
   | 'EXPORTING'
   | 'COMPLETED';
-
-export type TranscribeLanguage = 'id' | 'en' | 'mixed';
 
 export interface DirectorSession {
   id: string;
@@ -95,6 +96,8 @@ export interface SelectedClip {
 export interface TranscribeJob {
   status: string;
   language?: TranscribeLanguage;
+  subtitleMode?: 'original' | 'translate';
+  subtitleTargetLanguage?: string | null;
   errorMessage?: string | null;
   progressMeta?: {
     phase?:
@@ -102,6 +105,7 @@ export interface TranscribeJob {
       | 'queueing-clips'
       | 'extracting-audio'
       | 'running-whisper'
+      | 'translating-transcript'
       | 'saving-transcript'
       | 'cache-hit'
       | 'processing-clips'
@@ -113,6 +117,8 @@ export interface TranscribeJob {
     failedClipCount?: number;
     cacheHitCount?: number;
     currentClipId?: string | null;
+    subtitleMode?: 'original' | 'translate';
+    subtitleTargetLanguage?: string | null;
   } | null;
 }
 
@@ -122,7 +128,7 @@ export interface SubtitleStyle {
   textColorToken: string;
   bgColorToken: string;
   position: 'top' | 'center' | 'bottom' | 'cinema-bottom' | 'safe-bottom' | 'lower-third';
-  animation: 'none' | 'fade' | 'typewriter' | 'phrase' | 'line';
+  animation: 'none' | 'fade' | 'typewriter' | 'word' | 'phrase' | 'line';
 }
 
 export interface ExportSettings {
@@ -159,7 +165,7 @@ export interface ExportJob {
 
 const defaultSubtitleStyle: SubtitleStyle = {
   fontToken: 'F_INTER',
-  fontSize: 24,
+  fontSize: 32,
   textColorToken: 'C_WHITE',
   bgColorToken: 'C_BLACK',
   position: 'bottom',
@@ -191,6 +197,8 @@ interface DirectorState {
   playingClipId: string | null;
   transcribeJob: TranscribeJob | null;
   transcribeLanguage: TranscribeLanguage;
+  subtitleMode: 'original' | 'translate';
+  subtitleTargetLanguage: string;
   subtitleStyle: SubtitleStyle;
 
   // Settings
@@ -214,6 +222,8 @@ interface DirectorState {
   setPlayingClipId: (id: string | null) => void;
   setTranscribeJob: (job: TranscribeJob | null) => void;
   setTranscribeLanguage: (language: TranscribeLanguage) => void;
+  setSubtitleMode: (mode: 'original' | 'translate') => void;
+  setSubtitleTargetLanguage: (language: string) => void;
   updateSubtitleStyle: (style: Partial<SubtitleStyle>) => void;
   setRefineSettings: (settings: Record<string, RefineSettings>) => void;
   updateRefineSetting: (clipId: string, key: keyof RefineSettings, value: boolean | string) => void;
@@ -240,7 +250,9 @@ export const useDirectorStore = create<DirectorState>()(
     selectedClips: [],
     playingClipId: null,
     transcribeJob: null,
-    transcribeLanguage: 'mixed',
+    transcribeLanguage: DEFAULT_TRANSCRIBE_LANGUAGE,
+    subtitleMode: 'original',
+    subtitleTargetLanguage: 'en',
     subtitleStyle: defaultSubtitleStyle,
     refineSettings: {},
     exportSettings: defaultExportSettings,
@@ -264,6 +276,8 @@ export const useDirectorStore = create<DirectorState>()(
     setPlayingClipId: (id) => set({ playingClipId: id }),
     setTranscribeJob: (job) => set({ transcribeJob: job }),
     setTranscribeLanguage: (language) => set({ transcribeLanguage: language }),
+    setSubtitleMode: (mode) => set({ subtitleMode: mode }),
+    setSubtitleTargetLanguage: (language) => set({ subtitleTargetLanguage: language }),
     updateSubtitleStyle: (style) =>
       set((state) => ({ subtitleStyle: { ...state.subtitleStyle, ...style } })),
     setRefineSettings: (settings) => set({ refineSettings: settings }),
@@ -305,7 +319,9 @@ export const useDirectorStore = create<DirectorState>()(
         selectedClips: [],
         playingClipId: null,
         transcribeJob: null,
-        transcribeLanguage: 'mixed',
+        transcribeLanguage: DEFAULT_TRANSCRIBE_LANGUAGE,
+        subtitleMode: 'original',
+        subtitleTargetLanguage: 'en',
         subtitleStyle: defaultSubtitleStyle,
         refineSettings: {},
         exportSettings: defaultExportSettings,

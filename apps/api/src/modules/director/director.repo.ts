@@ -257,11 +257,14 @@ export const directorRepo = {
     sourceUrlNormalized?: string | null;
     storageKey: string;
   }) {
-    const assetFilter = asset.contentHash
-      ? { contentHash: asset.contentHash }
-      : asset.sourceUrlNormalized
-        ? { sourceUrlNormalized: asset.sourceUrlNormalized }
-        : { storageKey: asset.storageKey };
+    let assetFilter: Record<string, string>;
+    if (asset.contentHash) {
+      assetFilter = { contentHash: asset.contentHash };
+    } else if (asset.sourceUrlNormalized) {
+      assetFilter = { sourceUrlNormalized: asset.sourceUrlNormalized };
+    } else {
+      assetFilter = { storageKey: asset.storageKey };
+    }
 
     return prisma.directorAnalysisJob.findFirst({
       where: {
@@ -330,9 +333,12 @@ export const directorRepo = {
     });
   },
 
-  async updateClipTranscript(clipId: string, segments: object[]) {
+  async updateClipTranscript(clipId: string, sessionId: string, segments: object[]) {
     return prisma.directorClipTranscript.update({
-      where: { selectedClipId: clipId },
+      where: {
+        selectedClipId: clipId,
+        sessionId,
+      },
       data: {
         segments,
         updatedAt: new Date(),

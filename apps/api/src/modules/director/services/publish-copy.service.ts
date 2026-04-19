@@ -4,7 +4,9 @@ import { type DirectorSessionWithDetails, directorRepo } from '../director.repo'
 import { buildFallbackPublishCopy, sanitizePublishCopy } from './publish-copy.fallback';
 
 const OPENAI_COPY_MODEL = 'gpt-4.1-mini';
-const OLLAMA_REQUEST_TIMEOUT_MS = 60_000;
+const OLLAMA_REQUEST_TIMEOUT_MS = 120_000;
+/** Keep model loaded in Ollama for 5 minutes to avoid cold-start on sequential pipeline calls. */
+const OLLAMA_KEEP_ALIVE_SECONDS = 300;
 const OPENAI_REQUEST_TIMEOUT_MS = 20000;
 const DIRECTOR_PUBLISH_COPY_SCHEMA = {
   type: 'object',
@@ -247,7 +249,7 @@ async function requestOpenAIPublishCopy(
     throw new Error(`OpenAI publish copy request failed: ${response.status}`);
   }
 
-  const payload = (await response.json()) as unknown;
+  const payload = await response.json();
   const outputText = extractOutputText(payload);
   if (!outputText) {
     throw new Error('OpenAI publish copy response missing output_text');
@@ -256,35 +258,11 @@ async function requestOpenAIPublishCopy(
   return JSON.parse(outputText) as OpenAIPublishCopyResponse;
 }
 
-const OLLAMA_HEALTH_CHECK_TIMEOUT_MS = 5_000;
-
-async function isOllamaReachable(): Promise<boolean> {
-  if (!env.OLLAMA_BASE_URL) {
-    return false;
-  }
-
-  try {
-    const response = await fetch(`${env.OLLAMA_BASE_URL}/tags`, {
-      method: 'GET',
-      signal: AbortSignal.timeout(OLLAMA_HEALTH_CHECK_TIMEOUT_MS),
-    });
-
-    return response.ok;
-  } catch {
-    return false;
-  }
-}
-
 async function requestOllamaPublishCopy(
   context: PublishCopyPromptContext,
 ): Promise<OpenAIPublishCopyResponse | null> {
   if (!env.OLLAMA_BASE_URL) {
     return null;
-  }
-
-  const isHealthy = await isOllamaReachable();
-  if (!isHealthy) {
-    throw new Error('Ollama service tidak aktif atau tidak bisa dihubungi');
   }
 
   const response = await fetch(`${env.OLLAMA_BASE_URL}/chat`, {
@@ -295,7 +273,7 @@ async function requestOllamaPublishCopy(
     body: JSON.stringify({
       model: env.OLLAMA_MODEL,
       stream: false,
-      keep_alive: 0,
+      keep_alive: OLLAMA_KEEP_ALIVE_SECONDS,
       format: DIRECTOR_PUBLISH_COPY_SCHEMA,
       messages: [
         {

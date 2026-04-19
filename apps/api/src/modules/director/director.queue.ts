@@ -18,6 +18,8 @@ export interface DirectorTranscribeSessionJobData {
   userId: string;
   forceRefresh?: boolean;
   language: TranscribeLanguage;
+  subtitleMode?: 'original' | 'translate';
+  subtitleTargetLanguage?: TranscribeLanguage | null;
 }
 
 export interface DirectorTranscribeClipJobData {
@@ -27,6 +29,8 @@ export interface DirectorTranscribeClipJobData {
   userId: string;
   forceRefresh?: boolean;
   language: TranscribeLanguage;
+  subtitleMode?: 'original' | 'translate';
+  subtitleTargetLanguage?: TranscribeLanguage | null;
 }
 
 export type DirectorJobData =

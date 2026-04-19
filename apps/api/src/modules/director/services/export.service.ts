@@ -223,12 +223,21 @@ export const directorExportService = {
       settings: options.refineSettings?.[selectedClip.id],
     });
 
+    const subtitleStyle = options.subtitleStyle
+      ? {
+          ...options.subtitleStyle,
+          contentMode: builtClip.resolvedContentMode,
+          aspectRatio: (options.aspectRatio ?? '9:16') as '9:16' | '16:9' | '1:1',
+          quality: (options.quality ?? '1080p') as '720p' | '1080p',
+        }
+      : undefined;
+
     const normalizedOptions = {
       includeSubtitles: options.includeSubtitles ?? true,
       normalizeAudio: options.normalizeAudio ?? true,
       aspectRatio: (options.aspectRatio ?? '9:16') as '9:16' | '16:9' | '1:1',
       quality: (options.quality ?? '1080p') as '720p' | '1080p',
-      subtitleStyle: options.subtitleStyle,
+      subtitleStyle,
     };
 
     const outputDir = join(env.MEDIA_INPUT_DIR, 'director', 'live-previews');

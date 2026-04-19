@@ -13,7 +13,7 @@ const { existsSyncMock, spawnMock, breakerFireMock, createCircuitBreakerMock, en
       TRANSCRIBE_SERVICE_TOKEN: '',
       TRANSCRIBE_HTTP_TIMEOUT_MS: 120000,
       TRANSCRIBE_ALLOW_LOCAL_FALLBACK: true,
-      TRANSCRIBE_LANGUAGE: 'mixed' as 'id' | 'en' | 'mixed',
+      TRANSCRIBE_LANGUAGE: 'mixed',
     },
   }));
 
@@ -209,5 +209,27 @@ describe('WhisperRunner', () => {
     const requestInit = breakerFireMock.mock.calls[0]?.[1] as RequestInit | undefined;
     const payload = requestInit?.body ? JSON.parse(requestInit.body as string) : {};
     expect(payload.language).toBe('mixed');
+  });
+
+  it('normalizes locale language tags before sending to HTTP provider', async () => {
+    envMock.TRANSCRIBE_PROVIDER = 'http';
+    breakerFireMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          success: true,
+          language: 'pt',
+          segments: [],
+        }),
+        { status: 200 },
+      ),
+    );
+    const { WhisperRunner } = await import('@/modules/transcribe/whisper-runner');
+
+    const result = await new WhisperRunner().runWhisperOnAudio('/tmp/audio.wav', 'pt-BR');
+
+    expect(result.success).toBe(true);
+    const requestInit = breakerFireMock.mock.calls[0]?.[1] as RequestInit | undefined;
+    const payload = requestInit?.body ? JSON.parse(requestInit.body as string) : {};
+    expect(payload.language).toBe('pt-br');
   });
 });

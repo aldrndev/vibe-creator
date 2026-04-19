@@ -5,10 +5,17 @@ import { fileURLToPath } from 'node:url';
 import { env } from '@/config/env';
 import { createCircuitBreaker } from '@/lib/circuit-breaker';
 import { logger } from '@/lib/logger';
-import { isTranscribeLanguage, type TranscribeLanguage } from './transcribe-language';
+import {
+  isTranscribeLanguage,
+  normalizeTranscribeLanguage,
+  type TranscribeLanguage,
+} from './transcribe-language';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+/** Maximum time (ms) for local Whisper process before kill */
+const WHISPER_LOCAL_TIMEOUT_MS = 300_000;
 
 export interface RawWhisperSegment {
   start: number; // Seconds
@@ -118,7 +125,10 @@ export class WhisperRunner {
 
     const success = payload.success === true;
     const rawLanguage = typeof payload.language === 'string' ? payload.language : undefined;
-    const language = isTranscribeLanguage(rawLanguage) ? rawLanguage : undefined;
+    const language =
+      rawLanguage && isTranscribeLanguage(rawLanguage)
+        ? normalizeTranscribeLanguage(rawLanguage)
+        : undefined;
     const segments = Array.isArray(payload.segments)
       ? (payload.segments as RawWhisperSegment[])
       : undefined;
@@ -222,6 +232,20 @@ export class WhisperRunner {
       const pythonCommand = this.getPythonCommand();
       const pythonProcess = spawn(pythonCommand, [this.scriptPath, audioPath, language]);
 
+      let settled = false;
+      const timeout = setTimeout(() => {
+        if (!settled) {
+          settled = true;
+          pythonProcess.kill('SIGKILL');
+          logger.error({ audioPath, language }, 'Whisper local process timed out');
+          resolve({
+            success: false,
+            error: `Whisper local process timed out after ${WHISPER_LOCAL_TIMEOUT_MS}ms`,
+            provider: 'local',
+          });
+        }
+      }, WHISPER_LOCAL_TIMEOUT_MS);
+
       let stdoutData = '';
       let stderrData = '';
 
@@ -234,6 +258,12 @@ export class WhisperRunner {
       });
 
       pythonProcess.on('close', (code) => {
+        clearTimeout(timeout);
+        if (settled) {
+          return;
+        }
+        settled = true;
+
         if (code !== 0) {
           logger.error({ code, stderr: stderrData }, 'Whisper process exited with error');
           return resolve({
@@ -257,6 +287,11 @@ export class WhisperRunner {
       });
 
       pythonProcess.on('error', (err) => {
+        clearTimeout(timeout);
+        if (settled) {
+          return;
+        }
+        settled = true;
         logger.error({ err, pythonCommand }, 'Failed to spawn python process');
         reject(err);
       });
@@ -267,8 +302,10 @@ export class WhisperRunner {
     audioPath: string,
     language: TranscribeLanguage = env.TRANSCRIBE_LANGUAGE,
   ): Promise<WhisperResult> {
+    const normalizedLanguage = normalizeTranscribeLanguage(language, env.TRANSCRIBE_LANGUAGE);
+
     if (this.shouldUseHttpProvider()) {
-      const httpResult = await this.runWhisperViaHttp(audioPath, language);
+      const httpResult = await this.runWhisperViaHttp(audioPath, normalizedLanguage);
       if (httpResult.success) {
         return httpResult;
       }
@@ -286,7 +323,7 @@ export class WhisperRunner {
       );
     }
 
-    return this.runWhisperLocal(audioPath, language);
+    return this.runWhisperLocal(audioPath, normalizedLanguage);
   }
 }
 

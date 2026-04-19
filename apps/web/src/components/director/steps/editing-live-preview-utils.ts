@@ -173,15 +173,17 @@ function getAppliedFeatureLabels(
 
   if (exportSettings.includeSubtitles) {
     const subtitleAnimationLabel =
-      subtitleStyle.animation === 'typewriter'
-        ? 'Karaoke'
-        : subtitleStyle.animation === 'phrase'
-          ? 'Cinema'
-          : subtitleStyle.animation === 'line'
-            ? 'Line'
-            : subtitleStyle.animation === 'fade'
-              ? 'Fade'
-              : 'Static';
+      subtitleStyle.animation === 'word'
+        ? 'Word by Word'
+        : subtitleStyle.animation === 'typewriter'
+          ? 'Karaoke'
+          : subtitleStyle.animation === 'phrase'
+            ? 'Cinema'
+            : subtitleStyle.animation === 'line'
+              ? 'Line'
+              : subtitleStyle.animation === 'fade'
+                ? 'Fade'
+                : 'Static';
     labels.push(
       clip?.transcript?.segments?.length ? `Subtitle ${subtitleAnimationLabel}` : 'Subtitle Aktif',
     );
@@ -225,6 +227,10 @@ function getActiveSegment(
       continue;
     }
 
+    if (!segment.text.trim()) {
+      continue;
+    }
+
     const next = segments[index + 1];
     const maxEndMs = next
       ? Math.max(segment.endMs, next.startMs - SUBTITLE_HOLD_CLEARANCE_MS)
@@ -255,6 +261,17 @@ function getPhraseGroupWords(
   const groupEnd = Math.min(groupStart + PHRASE_GROUP_SIZE, words.length);
 
   return words.slice(groupStart, groupEnd);
+}
+
+function getCurrentWordText(
+  words: NonNullable<NonNullable<SelectedClip['transcript']>['segments'][number]['words']>,
+  currentTimeMs: number,
+): string {
+  const currentWord = words.find(
+    (word) => currentTimeMs >= word.startMs && currentTimeMs <= word.endMs,
+  );
+
+  return currentWord?.text.trim() ?? '';
 }
 
 function buildSyntheticWordsForTypewriter(
@@ -418,6 +435,13 @@ export function getLivePreviewSubtitleText(
     return '';
   }
 
+  if (animation === 'word') {
+    const sourceWords = activeSegment.words?.filter((word) => word.endMs > word.startMs) ?? [];
+    const wordTrack =
+      sourceWords.length > 0 ? sourceWords : buildSyntheticWordsForTypewriter(activeSegment);
+    return getCurrentWordText(wordTrack, currentTimeMs);
+  }
+
   if (animation === 'typewriter' && activeSegment.words?.length) {
     const sourceWords = activeSegment.words?.filter((word) => word.endMs > word.startMs) ?? [];
     const phraseWords = getPhraseGroupWords(
@@ -536,6 +560,8 @@ function getSubtitlePositionClass(position: SubtitleStyle['position']): string {
 
 function getSubtitleAnimationClass(animation: SubtitleStyle['animation']): string {
   switch (animation) {
+    case 'word':
+      return 'tracking-[0.05em]';
     case 'typewriter':
       return 'tracking-[0.06em]';
     case 'fade':

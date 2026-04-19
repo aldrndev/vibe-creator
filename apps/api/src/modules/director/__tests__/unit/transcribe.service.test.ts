@@ -13,7 +13,7 @@ const { directorRepoMock, directorQueueMock, redisMock, envMock } = vi.hoisted((
     status: 'ready',
   },
   envMock: {
-    TRANSCRIBE_LANGUAGE: 'mixed' as 'id' | 'en' | 'mixed',
+    TRANSCRIBE_LANGUAGE: 'mixed',
   },
 }));
 
@@ -119,11 +119,15 @@ describe('directorTranscribeService.startTranscribe', () => {
 
     const result = await directorTranscribeService.startTranscribe('session-1', 'user-1');
 
-    expect(result).toEqual({
-      id: 'job-completed',
-      status: 'COMPLETED',
-      language: 'mixed',
-    });
+    expect(result).toEqual(
+      expect.objectContaining({
+        id: 'job-completed',
+        status: 'COMPLETED',
+        language: 'mixed',
+        subtitleMode: 'original',
+        subtitleTargetLanguage: null,
+      }),
+    );
     expect(directorRepoMock.updateTranscribeJob).not.toHaveBeenCalled();
     expect(directorQueueMock.add).not.toHaveBeenCalled();
   });
@@ -155,10 +159,14 @@ describe('directorTranscribeService.startTranscribe', () => {
       forceRefresh: true,
     });
 
-    expect(result).toEqual({
-      id: 'job-completed',
-      status: 'PENDING',
-    });
+    expect(result).toEqual(
+      expect.objectContaining({
+        id: 'job-completed',
+        status: 'PENDING',
+        subtitleMode: 'original',
+        subtitleTargetLanguage: null,
+      }),
+    );
     expect(directorRepoMock.updateTranscribeJob).toHaveBeenCalledWith(
       'job-completed',
       expect.objectContaining({
@@ -233,5 +241,33 @@ describe('directorTranscribeService.startTranscribe', () => {
       }),
       expect.any(Object),
     );
+  });
+
+  it('accepts non-id/en language codes', async () => {
+    await directorTranscribeService.startTranscribe('session-1', 'user-1', {
+      language: 'pt-BR',
+    });
+
+    expect(directorRepoMock.createTranscribeJob).toHaveBeenCalledWith(
+      expect.objectContaining({
+        language: 'pt-br',
+      }),
+    );
+    expect(directorQueueMock.add).toHaveBeenCalledWith(
+      'transcribe_session',
+      expect.objectContaining({
+        language: 'pt-br',
+      }),
+      expect.any(Object),
+    );
+  });
+
+  it('requires a specific target language for subtitle translation mode', async () => {
+    await expect(
+      directorTranscribeService.startTranscribe('session-1', 'user-1', {
+        subtitleMode: 'translate',
+        subtitleTargetLanguage: 'mixed',
+      }),
+    ).rejects.toThrow('Bahasa target terjemahan harus spesifik');
   });
 });

@@ -8,7 +8,9 @@ import { env } from '@/config/env';
 import { logger } from '@/lib/logger';
 import { redis } from '@/lib/redis';
 import {
-  isTranscribeLanguage,
+  DEFAULT_TRANSCRIBE_LANGUAGE,
+  isAutoTranscribeLanguage,
+  normalizeTranscribeLanguage,
   type TranscribeLanguage,
 } from '@/modules/transcribe/transcribe-language';
 import { buildDirectorQueueJobId, directorQueue } from '../director.queue';
@@ -23,6 +25,24 @@ type TranscribeJob = NonNullable<Awaited<ReturnType<typeof directorRepo.createTr
 export interface StartTranscribeOptions {
   forceRefresh?: boolean;
   language?: TranscribeLanguage;
+  subtitleMode?: 'original' | 'translate';
+  subtitleTargetLanguage?: TranscribeLanguage;
+}
+
+/**
+ * Resolves the effective transcribe language from options and session state.
+ */
+function resolveRequestedLanguage(
+  session: Awaited<ReturnType<typeof directorRepo.findSession>>,
+  optionsLanguage: TranscribeLanguage | undefined,
+): TranscribeLanguage {
+  if (session) {
+    return normalizeTranscribeLanguage(
+      optionsLanguage ?? session.transcribeJob?.language ?? env.TRANSCRIBE_LANGUAGE,
+      env.TRANSCRIBE_LANGUAGE,
+    );
+  }
+  return normalizeTranscribeLanguage(optionsLanguage, DEFAULT_TRANSCRIBE_LANGUAGE);
 }
 
 export const directorTranscribeService = {
@@ -32,15 +52,27 @@ export const directorTranscribeService = {
   async startTranscribe(sessionId: string, userId: string, options: StartTranscribeOptions = {}) {
     const session = await directorRepo.findSession(sessionId, userId);
     const forceRefresh = options.forceRefresh === true;
-    const requestedLanguage =
-      options.language ??
-      (isTranscribeLanguage(session?.transcribeJob?.language)
-        ? session.transcribeJob.language
-        : null) ??
-      env.TRANSCRIBE_LANGUAGE;
+    const existingProgressMeta = parseTranscribeProgressMeta(session?.transcribeJob?.segments);
+    const requestedLanguage = resolveRequestedLanguage(session, options.language);
+    const requestedSubtitleMode =
+      options.subtitleMode ?? existingProgressMeta?.subtitleMode ?? 'original';
+    const requestedSubtitleTargetLanguage =
+      requestedSubtitleMode === 'translate'
+        ? normalizeTranscribeLanguage(
+            options.subtitleTargetLanguage ?? existingProgressMeta?.subtitleTargetLanguage ?? 'en',
+            'en',
+          )
+        : null;
 
     if (!session) {
       throw new Error('Session not found');
+    }
+
+    if (
+      requestedSubtitleMode === 'translate' &&
+      isAutoTranscribeLanguage(requestedSubtitleTargetLanguage)
+    ) {
+      throw new Error('Bahasa target terjemahan harus spesifik (contoh: "en", "es", "ja").');
     }
 
     if (session.selectedClips.length === 0) {
@@ -58,6 +90,8 @@ export const directorTranscribeService = {
     const progressMeta = buildInitialTranscribeProgressMeta({
       clipCount: session.selectedClips.length,
       clipDurationTotalMs,
+      subtitleMode: requestedSubtitleMode,
+      subtitleTargetLanguage: requestedSubtitleTargetLanguage,
     });
 
     let job: TranscribeJob;
@@ -70,10 +104,12 @@ export const directorTranscribeService = {
 
       // If active or completed, return existing
       if (isActiveStatus || (!forceRefresh && status === DirectorJobStatus.COMPLETED)) {
-        if (
-          isTranscribeLanguage(session.transcribeJob.language) &&
-          session.transcribeJob.language !== requestedLanguage
-        ) {
+        const activeJobLanguage = normalizeTranscribeLanguage(
+          session.transcribeJob.language,
+          requestedLanguage,
+        );
+
+        if (activeJobLanguage !== requestedLanguage) {
           throw new Error(
             'Bahasa transkripsi berbeda dari job aktif. Jalankan transkripsi ulang setelah job saat ini selesai.',
           );
@@ -82,6 +118,8 @@ export const directorTranscribeService = {
         return {
           ...session.transcribeJob,
           language: requestedLanguage,
+          subtitleMode: requestedSubtitleMode,
+          subtitleTargetLanguage: requestedSubtitleTargetLanguage,
         };
       }
 
@@ -130,6 +168,8 @@ export const directorTranscribeService = {
         userId,
         forceRefresh,
         language: requestedLanguage,
+        subtitleMode: requestedSubtitleMode,
+        subtitleTargetLanguage: requestedSubtitleTargetLanguage,
       },
       {
         jobId: queueJobId,
@@ -138,11 +178,23 @@ export const directorTranscribeService = {
     );
 
     logger.info(
-      { sessionId, jobId: job.id, queueJobId, language: requestedLanguage },
+      {
+        sessionId,
+        jobId: job.id,
+        queueJobId,
+        language: requestedLanguage,
+        subtitleMode: requestedSubtitleMode,
+        subtitleTargetLanguage: requestedSubtitleTargetLanguage,
+      },
       'Director transcribe job created and queued',
     );
 
-    return job;
+    return {
+      ...job,
+      language: requestedLanguage,
+      subtitleMode: requestedSubtitleMode,
+      subtitleTargetLanguage: requestedSubtitleTargetLanguage,
+    };
   },
 
   /**
@@ -180,12 +232,6 @@ export const directorTranscribeService = {
       throw new Error('Session not found');
     }
 
-    // Note: We should probably verify clip belongs to session here too for strict security
-    // But findSelectedClip checks ID+SessionID combined in update logic usually
-    // directorRepo.updateClipTranscript takes clipId. If clipId is unique globally it's ok.
-    // Ideally we pass sessionId to updateClipTranscript to verify parent.
-    // But for now, let's assume clipId is hard to guess (UUID) and we checked session access.
-
-    return directorRepo.updateClipTranscript(clipId, segments);
+    return directorRepo.updateClipTranscript(clipId, sessionId, segments);
   },
 };

@@ -81,6 +81,7 @@ describe('editing-transcript-cues', () => {
   });
 
   it('returns readable layout labels per subtitle animation', () => {
+    expect(getTranscriptLayoutLabel('word')).toContain('word by word');
     expect(getTranscriptLayoutLabel('typewriter')).toContain('karaoke');
     expect(getTranscriptLayoutLabel('phrase')).toContain('cinema');
     expect(getTranscriptLayoutLabel('none')).toContain('standar');

@@ -24,4 +24,15 @@ describe('director-store transcribe language', () => {
 
     expect(useDirectorStore.getState().transcribeLanguage).toBe('mixed');
   });
+
+  it('resets subtitle translation mode settings to defaults', () => {
+    const state = useDirectorStore.getState();
+
+    state.setSubtitleMode('translate');
+    state.setSubtitleTargetLanguage('es');
+    state.reset();
+
+    expect(useDirectorStore.getState().subtitleMode).toBe('original');
+    expect(useDirectorStore.getState().subtitleTargetLanguage).toBe('en');
+  });
 });

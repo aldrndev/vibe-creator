@@ -138,7 +138,6 @@ export function shouldUseFaceTracking(
 export function getAspectRatioFilter(
   aspectRatio: '9:16' | '16:9' | '1:1' = '9:16',
   quality: '720p' | '1080p' = '1080p',
-  faceTracking = false,
 ): string {
   const profile = getRenderProfile(quality);
 
@@ -148,9 +147,7 @@ export function getAspectRatioFilter(
     case '1:1':
       return `scale=${profile.square}:${profile.square}:force_original_aspect_ratio=decrease,pad=${profile.square}:${profile.square}:(ow-iw)/2:(oh-ih)/2:color=black`;
     default:
-      if (faceTracking) {
-        return `scale=${profile.width}:${profile.heightPortrait}:force_original_aspect_ratio=increase,crop=${profile.width}:${profile.heightPortrait}`;
-      }
-      return `scale=${profile.width}:${profile.heightPortrait}:force_original_aspect_ratio=decrease,pad=${profile.width}:${profile.heightPortrait}:(ow-iw)/2:(oh-ih)/2:color=black`;
+      // Always center-crop for 9:16 so it feels native to short-form platforms
+      return `scale=${profile.width}:${profile.heightPortrait}:force_original_aspect_ratio=increase,crop=${profile.width}:${profile.heightPortrait}`;
   }
 }

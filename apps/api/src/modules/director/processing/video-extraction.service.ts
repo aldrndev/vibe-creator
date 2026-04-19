@@ -12,6 +12,9 @@ import { getClipPlaybackWindow } from '../clip-playback-window';
 
 const ffmpegPath = process.env.FFMPEG_PATH || 'ffmpeg';
 
+/** Maximum time (ms) for FFmpeg clip audio proxy extraction before kill */
+const FFMPEG_CLIP_PROXY_TIMEOUT_MS = 120_000;
+
 export const videoExtractionService = {
   /**
    * Extract a lightweight audio proxy (16kHz mono WAV) for fast analysis.
@@ -103,12 +106,22 @@ export const videoExtractionService = {
     return new Promise((resolve, reject) => {
       const proc = spawn(ffmpegPath, args);
 
+      const timeout = setTimeout(() => {
+        proc.kill('SIGKILL');
+        reject(
+          new Error(
+            `FFmpeg clip proxy extraction timed out after ${FFMPEG_CLIP_PROXY_TIMEOUT_MS}ms`,
+          ),
+        );
+      }, FFMPEG_CLIP_PROXY_TIMEOUT_MS);
+
       let errorData = '';
       proc.stderr.on('data', (data) => {
         errorData += data.toString();
       });
 
       proc.on('close', (code) => {
+        clearTimeout(timeout);
         if (code === 0 && existsSync(outputPath)) {
           resolve(outputPath);
         } else {

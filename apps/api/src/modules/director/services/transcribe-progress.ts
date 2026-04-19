@@ -6,6 +6,7 @@ export interface DirectorTranscribeProgressMeta {
     | 'queueing-clips'
     | 'extracting-audio'
     | 'running-whisper'
+    | 'translating-transcript'
     | 'saving-transcript'
     | 'cache-hit'
     | 'processing-clips'
@@ -17,11 +18,15 @@ export interface DirectorTranscribeProgressMeta {
   failedClipCount: number;
   cacheHitCount: number;
   currentClipId: string | null;
+  subtitleMode?: 'original' | 'translate';
+  subtitleTargetLanguage?: string | null;
 }
 
 export function buildInitialTranscribeProgressMeta(input: {
   clipCount: number;
   clipDurationTotalMs: number;
+  subtitleMode?: 'original' | 'translate';
+  subtitleTargetLanguage?: string | null;
 }): DirectorTranscribeProgressMeta {
   return {
     phase: 'queued',
@@ -31,6 +36,8 @@ export function buildInitialTranscribeProgressMeta(input: {
     failedClipCount: 0,
     cacheHitCount: 0,
     currentClipId: null,
+    subtitleMode: input.subtitleMode ?? 'original',
+    subtitleTargetLanguage: input.subtitleTargetLanguage ?? null,
   };
 }
 
@@ -57,6 +64,9 @@ export function parseTranscribeProgressMeta(value: unknown): DirectorTranscribeP
     failedClipCount: typeof payload.failedClipCount === 'number' ? payload.failedClipCount : 0,
     cacheHitCount: typeof payload.cacheHitCount === 'number' ? payload.cacheHitCount : 0,
     currentClipId: typeof payload.currentClipId === 'string' ? payload.currentClipId : null,
+    subtitleMode: payload.subtitleMode === 'translate' ? 'translate' : 'original',
+    subtitleTargetLanguage:
+      typeof payload.subtitleTargetLanguage === 'string' ? payload.subtitleTargetLanguage : null,
   };
 }
 
@@ -73,6 +83,11 @@ export function updateTranscribeProgressMeta(
     cacheHitCount: patch.cacheHitCount ?? current?.cacheHitCount ?? 0,
     currentClipId:
       patch.currentClipId !== undefined ? patch.currentClipId : (current?.currentClipId ?? null),
+    subtitleMode: patch.subtitleMode ?? current?.subtitleMode ?? 'original',
+    subtitleTargetLanguage:
+      patch.subtitleTargetLanguage !== undefined
+        ? patch.subtitleTargetLanguage
+        : (current?.subtitleTargetLanguage ?? null),
   };
 }
 
@@ -87,5 +102,7 @@ export function toTranscribeProgressJson(
     failedClipCount: meta.failedClipCount,
     cacheHitCount: meta.cacheHitCount,
     currentClipId: meta.currentClipId,
+    subtitleMode: meta.subtitleMode ?? 'original',
+    subtitleTargetLanguage: meta.subtitleTargetLanguage ?? null,
   };
 }

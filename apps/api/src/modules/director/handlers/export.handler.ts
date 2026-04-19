@@ -85,16 +85,6 @@ export async function processExportJob(job: Job<DirectorExportJobData>) {
     }
 
     const clipsToExport: BuiltExportClip[] = [];
-    const subtitleStyle = session.subtitleStyle
-      ? {
-          fontToken: session.subtitleStyle.fontToken,
-          textColorToken: session.subtitleStyle.textColorToken,
-          bgColorToken: session.subtitleStyle.bgColorToken,
-          fontSize: session.subtitleStyle.fontSize,
-          position: session.subtitleStyle.position,
-          animation: session.subtitleStyle.animation,
-        }
-      : undefined;
     const startExportClips = session.selectedClips.slice(0, 1);
     await job.updateProgress(20);
 
@@ -134,6 +124,21 @@ export async function processExportJob(job: Job<DirectorExportJobData>) {
       );
     }
 
+    const primaryClip = clipsToExport[0];
+    const subtitleStyle = session.subtitleStyle
+      ? {
+          fontToken: session.subtitleStyle.fontToken,
+          textColorToken: session.subtitleStyle.textColorToken,
+          bgColorToken: session.subtitleStyle.bgColorToken,
+          fontSize: session.subtitleStyle.fontSize,
+          position: session.subtitleStyle.position,
+          animation: session.subtitleStyle.animation,
+          contentMode: primaryClip?.resolvedContentMode,
+          aspectRatio: options.aspectRatio ?? '9:16',
+          quality: options.quality ?? '1080p',
+        }
+      : undefined;
+
     if (clipsToExport.length === 0) {
       throw new Error('Tidak ada klip valid untuk diekspor');
     }
@@ -149,6 +154,11 @@ export async function processExportJob(job: Job<DirectorExportJobData>) {
     const finalFile = await directorProcessor.exportVideo(clipsToExport, outputDir, {
       ...options,
       subtitleStyle,
+      onProgress: (ffmpegPercent: number) => {
+        // Map FFmpeg progress (0-100) to job progress (45-92)
+        const mapped = Math.round(45 + (ffmpegPercent / 100) * 47);
+        void job.updateProgress(Math.min(92, mapped));
+      },
     });
     await job.updateProgress(92);
 

@@ -177,7 +177,7 @@ describe('director handlers', () => {
       );
     });
 
-    it('marks the parent transcribe job as failed when any clip transcript fails', async () => {
+    it('marks the parent transcribe job as failed with completedAt when any clip transcript fails', async () => {
       const mockDirectorSelectedClipCount = vi.mocked(
         (await import('@/lib/prisma')).prisma.directorSelectedClip.count,
       );
@@ -214,6 +214,7 @@ describe('director handlers', () => {
         data: expect.objectContaining({
           status: 'FAILED',
           errorMessage: '1 klip gagal ditranskripsi.',
+          completedAt: expect.any(Date),
         }),
       });
     });

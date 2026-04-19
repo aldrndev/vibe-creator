@@ -10,7 +10,7 @@ describe('transcribeNormalizer', () => {
         text: 'Hello there everyone.',
         confidence: 0.9,
         words: [
-          { start: 0.0, end: 0.3, text: 'Hello' },
+          { start: 0, end: 0.3, text: 'Hello' },
           { start: 0.35, end: 0.6, text: 'there' },
           { start: 0.65, end: 1.2, text: 'everyone.' },
           { start: 1.8, end: 2.2, text: 'Welcome' },
@@ -23,17 +23,34 @@ describe('transcribeNormalizer', () => {
         startMs: 0,
         endMs: 1200,
         text: 'Hello there everyone.',
+        speaker: undefined,
         words: [
-          { startMs: 0, endMs: 300, text: 'Hello', confidence: undefined },
-          { startMs: 350, endMs: 600, text: 'there', confidence: undefined },
-          { startMs: 650, endMs: 1200, text: 'everyone.', confidence: undefined },
+          { startMs: 0, endMs: 300, text: 'Hello', confidence: undefined, speaker: undefined },
+          { startMs: 350, endMs: 600, text: 'there', confidence: undefined, speaker: undefined },
+          {
+            startMs: 650,
+            endMs: 1200,
+            text: 'everyone.',
+            confidence: undefined,
+            speaker: undefined,
+          },
         ],
       },
       {
         startMs: 1800,
-        endMs: 2400,
+        endMs: 2300,
         text: 'Welcome',
-        words: [{ startMs: 1800, endMs: 2200, text: 'Welcome', confidence: undefined }],
+        speaker: undefined,
+        confidence: undefined,
+        words: [
+          {
+            startMs: 1800,
+            endMs: 2200,
+            text: 'Welcome',
+            confidence: undefined,
+            speaker: undefined,
+          },
+        ],
       },
     ]);
   });
@@ -48,7 +65,7 @@ describe('transcribeNormalizer', () => {
       },
       {
         start: 0.45,
-        end: 1.0,
+        end: 1,
         text: 'there',
         confidence: 0.8,
       },
@@ -71,13 +88,13 @@ describe('transcribeNormalizer', () => {
         text: 'Kita bahas cara upload produk, optimasi hook, dan closing CTA.',
         confidence: 0.91,
         words: [
-          { start: 0.0, end: 0.25, text: 'Kita' },
+          { start: 0, end: 0.25, text: 'Kita' },
           { start: 0.3, end: 0.55, text: 'bahas' },
           { start: 0.58, end: 0.85, text: 'cara' },
           { start: 0.9, end: 1.2, text: 'upload' },
           { start: 1.25, end: 1.55, text: 'produk,' },
           { start: 1.65, end: 1.95, text: 'optimasi' },
-          { start: 2.0, end: 2.25, text: 'hook,' },
+          { start: 2, end: 2.25, text: 'hook,' },
           { start: 2.3, end: 2.55, text: 'dan' },
           { start: 2.6, end: 2.9, text: 'closing' },
           { start: 2.95, end: 3.35, text: 'CTA.' },
@@ -99,11 +116,11 @@ describe('transcribeNormalizer', () => {
         text: 'Speaker one and speaker two',
         confidence: 0.9,
         words: [
-          { start: 0.0, end: 0.4, text: 'Speaker', speaker: 'SPEAKER_00' },
+          { start: 0, end: 0.4, text: 'Speaker', speaker: 'SPEAKER_00' },
           { start: 0.45, end: 0.8, text: 'one', speaker: 'SPEAKER_00' },
           { start: 0.9, end: 1.2, text: 'and', speaker: 'SPEAKER_01' },
           { start: 1.25, end: 1.6, text: 'speaker', speaker: 'SPEAKER_01' },
-          { start: 1.65, end: 2.0, text: 'two', speaker: 'SPEAKER_01' },
+          { start: 1.65, end: 2, text: 'two', speaker: 'SPEAKER_01' },
         ],
       },
     ]);

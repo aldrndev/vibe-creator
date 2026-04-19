@@ -25,6 +25,7 @@ const NEW_SENTENCE_WORD_THRESHOLD = 6;
 const FALLBACK_MERGE_GAP_MS = 320;
 const FALLBACK_MAX_DURATION_MS = 4_500;
 const FALLBACK_MAX_WORDS = 16;
+const MIN_SEGMENT_DURATION_MS = 500;
 
 export class TranscribeNormalizer {
   /**
@@ -115,7 +116,7 @@ export class TranscribeNormalizer {
       current = {
         startMs: current.startMs,
         endMs: next.endMs,
-        text: `${current.text} ${next.text}`.replace(/\s+/g, ' ').trim(),
+        text: this.rebuildTextFromWords(mergedWords),
         words: mergedWords,
         speaker: this.resolveDominantSpeaker(mergedWords) ?? current.speaker ?? next.speaker,
       };
@@ -249,10 +250,10 @@ export class TranscribeNormalizer {
       const seg = merged[i];
       if (!seg) continue;
 
-      // Min duration 600ms
+      // Min duration 500ms
       const duration = seg.endMs - seg.startMs;
-      if (duration < 600) {
-        seg.endMs = seg.startMs + 600;
+      if (duration < MIN_SEGMENT_DURATION_MS) {
+        seg.endMs = seg.startMs + MIN_SEGMENT_DURATION_MS;
       }
 
       // Ensure we don't overlap next segment start
@@ -271,12 +272,32 @@ export class TranscribeNormalizer {
             endMs: Math.min(seg.endMs, word.endMs),
           }))
           .filter((word) => word.endMs > word.startMs);
+
+        // Rebuild segment text from surviving words to prevent text/timing mismatch.
+        // If all words were filtered out, drop the segment entirely.
+        if (seg.words.length === 0) {
+          continue;
+        }
+
+        seg.text = this.rebuildTextFromWords(seg.words);
       }
 
       finalSegments.push(seg);
     }
 
     return finalSegments;
+  }
+
+  private rebuildTextFromWords(words: SubtitleWord[]): string {
+    if (words.length === 0) {
+      return '';
+    }
+
+    return words
+      .map((word) => word.text)
+      .join(' ')
+      .replace(/\s+/g, ' ')
+      .trim();
   }
 }
 

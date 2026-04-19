@@ -60,6 +60,268 @@ export interface ExportClip {
   };
 }
 
+export interface ExportVideoOptions {
+  includeSubtitles?: boolean;
+  normalizeAudio?: boolean;
+  aspectRatio?: '9:16' | '16:9' | '1:1';
+  quality?: '720p' | '1080p';
+  subtitleStyle?: SubtitleStyleOptions;
+}
+
+export interface ExportClipState {
+  canBurnSubtitles: boolean;
+}
+
+interface FaceTrackingContext {
+  clip: ExportClip;
+  clipIndex: number;
+  clipId: string;
+  outputDir: string;
+  profile: ReturnType<typeof getRenderProfile>;
+  aspectRatioFilter: string;
+}
+
+async function prepareFaceTracking(
+  context: FaceTrackingContext,
+  service: typeof videoExportService,
+  tempPaths: string[],
+  baseVideoFilters: string[],
+): Promise<{ trackVideoPath: string; trackAudioPath: string }> {
+  const { join } = await import('node:path');
+  const trackAudioPath = join(context.outputDir, `temp_track_source_${context.clipIndex}_${context.clipId}.mp4`);
+  const trackVideoPath = join(context.outputDir, `temp_track_video_${context.clipIndex}_${context.clipId}.mp4`);
+  tempPaths.push(trackAudioPath, trackVideoPath);
+
+  try {
+    await service.createFaceTrackingSourceClip(context.clip, trackAudioPath);
+    const trackingResult = await faceTrackRunner.trackPortraitClip({
+      inputPath: trackAudioPath,
+      outputPath: trackVideoPath,
+      targetWidth: context.profile.width,
+      targetHeight: context.profile.heightPortrait,
+      focusProfile: context.clip.focusProfile ?? 'auto',
+    });
+
+    if (!trackingResult.success) {
+      throw new Error(trackingResult.error || 'Face tracking gagal dijalankan');
+    }
+
+    logger.info(
+      {
+        clipIndex: context.clipIndex,
+        detections: trackingResult.detections,
+        objectDetections: trackingResult.objectDetections,
+        frames: trackingResult.frames,
+        multiFaceFrames: trackingResult.multiFaceFrames,
+        maxFacesInFrame: trackingResult.maxFacesInFrame,
+        targetSwitches: trackingResult.targetSwitches,
+        snapRepositions: trackingResult.snapRepositions,
+        sceneCuts: trackingResult.sceneCuts,
+        focusProfile: trackingResult.focusProfile,
+        trackingPreset: trackingResult.trackingPreset,
+        detectorsUsed: trackingResult.detectorsUsed,
+      },
+      'Face tracking applied to export clip',
+    );
+    baseVideoFilters.push('setsar=1');
+    return { trackVideoPath, trackAudioPath };
+  } catch (error) {
+    logger.warn(
+      {
+        clipIndex: context.clipIndex,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      'Face tracking failed, falling back to static portrait crop',
+    );
+    baseVideoFilters.push(context.aspectRatioFilter);
+    return { trackVideoPath: '', trackAudioPath: '' };
+  }
+}
+
+interface FfmpegRetryContext {
+  clip: ExportClip;
+  clipIndex: number;
+  clipOutPath: string;
+  quality: '720p' | '1080p';
+  options: ExportVideoOptions;
+  state: ExportClipState;
+  trackVideoPath: string;
+  trackAudioPath: string;
+  baseVideoFilters: string[];
+  subtitleFilter: string | null;
+  hasTranscript: boolean;
+}
+
+function buildFfmpegArgs(ctx: FfmpegRetryContext, shouldUseStabilize: boolean, shouldIncludeSubtitles: boolean): string[] {
+  const vfFilters = [...ctx.baseVideoFilters];
+  if (shouldUseStabilize) {
+    vfFilters.push(STABILIZE_FILTER);
+  }
+  if (shouldIncludeSubtitles && ctx.subtitleFilter) {
+    vfFilters.push(ctx.subtitleFilter);
+  }
+
+  if (ctx.trackVideoPath && ctx.trackAudioPath) {
+    return buildTrackedClipProcessingArgs(
+      ctx.trackVideoPath,
+      ctx.trackAudioPath,
+      ctx.clipOutPath,
+      vfFilters,
+      ctx.quality,
+      ctx.options.normalizeAudio ?? true,
+    );
+  }
+
+  return buildClipProcessingArgs(
+    ctx.clip,
+    ctx.clipOutPath,
+    vfFilters,
+    ctx.quality,
+    ctx.options.normalizeAudio ?? true,
+  );
+}
+
+function handleFfmpegError(
+  error: unknown,
+  ctx: FfmpegRetryContext,
+  shouldIncludeSubtitles: boolean,
+  shouldUseStabilize: boolean,
+): { retry: boolean; dropSubtitles: boolean; dropStabilize: boolean } {
+  const missingSub = ctx.hasTranscript && shouldIncludeSubtitles && ctx.state.canBurnSubtitles && isMissingSubtitlesFilterError(error);
+  if (missingSub) {
+    logger.warn(
+      { clipIndex: ctx.clipIndex, clipOutPath: ctx.clipOutPath },
+      'FFmpeg subtitles filter unavailable, retrying export clip without burned subtitles',
+    );
+    return { retry: true, dropSubtitles: true, dropStabilize: false };
+  }
+
+  const missingDeshake = shouldUseStabilize && isMissingDeshakeFilterError(error);
+  if (missingDeshake) {
+    logger.warn(
+      { clipIndex: ctx.clipIndex, clipOutPath: ctx.clipOutPath },
+      'FFmpeg deshake filter unavailable, retrying export clip without stabilization',
+    );
+    return { retry: true, dropSubtitles: false, dropStabilize: true };
+  }
+
+  return { retry: false, dropSubtitles: false, dropStabilize: false };
+}
+
+async function executeFfmpegClipWithRetries(
+  ctx: FfmpegRetryContext,
+  service: typeof videoExportService,
+): Promise<void> {
+  let shouldIncludeSubtitles = Boolean(ctx.subtitleFilter);
+  let shouldUseStabilize = Boolean(ctx.clip.stabilize);
+
+  while (true) {
+    const args = buildFfmpegArgs(ctx, shouldUseStabilize, shouldIncludeSubtitles);
+    logger.info({ clipIndex: ctx.clipIndex, args: args.join(' ') }, 'Processing export clip');
+
+    try {
+      await service.runFfmpeg(args, `Clip ${ctx.clipIndex + 1} gagal diproses`);
+      break;
+    } catch (error) {
+      const { retry, dropSubtitles, dropStabilize } = handleFfmpegError(error, ctx, shouldIncludeSubtitles, shouldUseStabilize);
+      
+      if (!retry) {
+        throw error;
+      }
+
+      if (dropSubtitles) {
+        shouldIncludeSubtitles = false;
+        ctx.state.canBurnSubtitles = false;
+      }
+
+      if (dropStabilize) {
+        shouldUseStabilize = false;
+      }
+    }
+  }
+}
+
+async function processSingleExportClip(
+  clip: ExportClip,
+  i: number,
+  outputDir: string,
+  options: ExportVideoOptions,
+  state: ExportClipState,
+  service: typeof videoExportService,
+): Promise<string> {
+  const fs = await import('node:fs/promises');
+  const { join } = await import('node:path');
+
+  const clipId = randomUUID();
+  const clipOutPath = join(outputDir, `temp_clip_${i}_${clipId}.mp4`);
+  const tempPaths: string[] = [];
+  const quality = options.quality ?? '1080p';
+  const profile = getRenderProfile(quality);
+  const baseVideoFilters: string[] = [];
+  let trackVideoPath = '';
+  let trackAudioPath = '';
+
+  const transcriptSegments = clip.transcript?.segments;
+  const hasTranscript = Boolean(transcriptSegments?.length);
+  const useFaceTracking = shouldUseFaceTracking(clip.faceTracking, options.aspectRatio);
+  const aspectRatioFilter = getAspectRatioFilter(
+    options.aspectRatio,
+    quality,
+  );
+
+  if (useFaceTracking) {
+    const trackingPaths = await prepareFaceTracking(
+      { clip, clipIndex: i, clipId, outputDir, profile, aspectRatioFilter },
+      service,
+      tempPaths,
+      baseVideoFilters,
+    );
+    trackVideoPath = trackingPaths.trackVideoPath;
+    trackAudioPath = trackingPaths.trackAudioPath;
+  } else {
+    baseVideoFilters.push(aspectRatioFilter);
+  }
+
+  let subtitleFilter: string | null = null;
+  if (state.canBurnSubtitles && transcriptSegments?.length) {
+    const subtitleAsset = createSubtitleAsset(transcriptSegments, options.subtitleStyle);
+    const subtitlePath = join(outputDir, `temp_sub_${i}_${clipId}.${subtitleAsset.extension}`);
+    tempPaths.push(subtitlePath);
+    await fs.writeFile(subtitlePath, subtitleAsset.content);
+    subtitleFilter = buildSubtitlesFilter(
+      subtitlePath,
+      options.subtitleStyle,
+      subtitleAsset.useForceStyle,
+    );
+  }
+
+  try {
+    await executeFfmpegClipWithRetries(
+      {
+        clip,
+        clipIndex: i,
+        clipOutPath,
+        quality,
+        options,
+        state,
+        trackVideoPath,
+        trackAudioPath,
+        baseVideoFilters,
+        subtitleFilter,
+        hasTranscript,
+      },
+      service,
+    );
+  } finally {
+    for (const tempPath of tempPaths) {
+      if (tempPath && existsSync(tempPath)) {
+        await fs.unlink(tempPath).catch(() => {});
+      }
+    }
+  }
+
+  return clipOutPath;
+}
 export const videoExportService = {
   async runFfmpeg(args: string[], errorPrefix: string): Promise<void> {
     await new Promise<void>((resolve, reject) => {
@@ -119,19 +381,13 @@ export const videoExportService = {
   async exportVideo(
     clips: ExportClip[],
     outputDir: string,
-    options: {
-      includeSubtitles?: boolean;
-      normalizeAudio?: boolean;
-      aspectRatio?: '9:16' | '16:9' | '1:1';
-      quality?: '720p' | '1080p';
-      subtitleStyle?: SubtitleStyleOptions;
-    } = {},
+    options: ExportVideoOptions = {},
   ): Promise<string> {
-    const fs = await import('node:fs/promises');
     const { join } = await import('node:path');
+    const fs = await import('node:fs/promises');
 
     const clipPaths: string[] = [];
-    let canBurnSubtitles = Boolean(options.includeSubtitles);
+    const state: ExportClipState = { canBurnSubtitles: Boolean(options.includeSubtitles) };
 
     for (let i = 0; i < clips.length; i++) {
       const clip = clips[i];
@@ -139,162 +395,7 @@ export const videoExportService = {
         continue;
       }
 
-      const clipId = randomUUID();
-      const clipOutPath = join(outputDir, `temp_clip_${i}_${clipId}.mp4`);
-      const tempPaths: string[] = [];
-      const quality = options.quality ?? '1080p';
-      const profile = getRenderProfile(quality);
-      const baseVideoFilters: string[] = [];
-      let trackVideoPath = '';
-      let trackAudioPath = '';
-
-      const transcriptSegments = clip.transcript?.segments;
-      const hasTranscript = Boolean(transcriptSegments?.length);
-      const useFaceTracking = shouldUseFaceTracking(clip.faceTracking, options.aspectRatio);
-      const aspectRatioFilter = getAspectRatioFilter(
-        options.aspectRatio,
-        quality,
-        clip.faceTracking ?? false,
-      );
-
-      if (useFaceTracking) {
-        trackAudioPath = join(outputDir, `temp_track_source_${i}_${clipId}.mp4`);
-        trackVideoPath = join(outputDir, `temp_track_video_${i}_${clipId}.mp4`);
-        tempPaths.push(trackAudioPath, trackVideoPath);
-
-        try {
-          await this.createFaceTrackingSourceClip(clip, trackAudioPath);
-          const trackingResult = await faceTrackRunner.trackPortraitClip({
-            inputPath: trackAudioPath,
-            outputPath: trackVideoPath,
-            targetWidth: profile.width,
-            targetHeight: profile.heightPortrait,
-            focusProfile: clip.focusProfile ?? 'auto',
-          });
-
-          if (!trackingResult.success) {
-            throw new Error(trackingResult.error || 'Face tracking gagal dijalankan');
-          }
-
-          logger.info(
-            {
-              clipIndex: i,
-              detections: trackingResult.detections,
-              objectDetections: trackingResult.objectDetections,
-              frames: trackingResult.frames,
-              multiFaceFrames: trackingResult.multiFaceFrames,
-              maxFacesInFrame: trackingResult.maxFacesInFrame,
-              targetSwitches: trackingResult.targetSwitches,
-              snapRepositions: trackingResult.snapRepositions,
-              sceneCuts: trackingResult.sceneCuts,
-              focusProfile: trackingResult.focusProfile,
-              trackingPreset: trackingResult.trackingPreset,
-              detectorsUsed: trackingResult.detectorsUsed,
-            },
-            'Face tracking applied to export clip',
-          );
-          baseVideoFilters.push('setsar=1');
-        } catch (error) {
-          logger.warn(
-            {
-              clipIndex: i,
-              error: error instanceof Error ? error.message : String(error),
-            },
-            'Face tracking failed, falling back to static portrait crop',
-          );
-          trackVideoPath = '';
-          trackAudioPath = '';
-          baseVideoFilters.push(aspectRatioFilter);
-        }
-      } else {
-        baseVideoFilters.push(aspectRatioFilter);
-      }
-
-      let subtitleFilter: string | null = null;
-      if (canBurnSubtitles && transcriptSegments?.length) {
-        const subtitleAsset = createSubtitleAsset(transcriptSegments, options.subtitleStyle);
-        const subtitlePath = join(outputDir, `temp_sub_${i}_${clipId}.${subtitleAsset.extension}`);
-        tempPaths.push(subtitlePath);
-        await fs.writeFile(subtitlePath, subtitleAsset.content);
-        subtitleFilter = buildSubtitlesFilter(
-          subtitlePath,
-          options.subtitleStyle,
-          subtitleAsset.useForceStyle,
-        );
-      }
-
-      try {
-        let shouldIncludeSubtitles = Boolean(subtitleFilter);
-        let shouldUseStabilize = Boolean(clip.stabilize);
-
-        while (true) {
-          const vfFilters = [...baseVideoFilters];
-          if (shouldUseStabilize) {
-            vfFilters.push(STABILIZE_FILTER);
-          }
-          if (shouldIncludeSubtitles && subtitleFilter) {
-            vfFilters.push(subtitleFilter);
-          }
-
-          const args =
-            trackVideoPath && trackAudioPath
-              ? buildTrackedClipProcessingArgs(
-                  trackVideoPath,
-                  trackAudioPath,
-                  clipOutPath,
-                  vfFilters,
-                  quality,
-                  options.normalizeAudio ?? true,
-                )
-              : buildClipProcessingArgs(
-                  clip,
-                  clipOutPath,
-                  vfFilters,
-                  quality,
-                  options.normalizeAudio ?? true,
-                );
-
-          logger.info({ clipIndex: i, args: args.join(' ') }, 'Processing export clip');
-
-          try {
-            await this.runFfmpeg(args, `Clip ${i + 1} gagal diproses`);
-            break;
-          } catch (error) {
-            if (
-              hasTranscript &&
-              shouldIncludeSubtitles &&
-              canBurnSubtitles &&
-              isMissingSubtitlesFilterError(error)
-            ) {
-              logger.warn(
-                { clipIndex: i, clipOutPath },
-                'FFmpeg subtitles filter unavailable, retrying export clip without burned subtitles',
-              );
-              shouldIncludeSubtitles = false;
-              canBurnSubtitles = false;
-              continue;
-            }
-
-            if (shouldUseStabilize && isMissingDeshakeFilterError(error)) {
-              logger.warn(
-                { clipIndex: i, clipOutPath },
-                'FFmpeg deshake filter unavailable, retrying export clip without stabilization',
-              );
-              shouldUseStabilize = false;
-              continue;
-            }
-
-            throw error;
-          }
-        }
-      } finally {
-        for (const tempPath of tempPaths) {
-          if (tempPath && existsSync(tempPath)) {
-            await fs.unlink(tempPath).catch(() => {});
-          }
-        }
-      }
-
+      const clipOutPath = await processSingleExportClip(clip, i, outputDir, options, state, this);
       clipPaths.push(clipOutPath);
     }
 

@@ -111,7 +111,7 @@ describe('directorPublishCopyService', () => {
   it('returns AI copy from Ollama when provider is set to ollama', async () => {
     envMock.AI_COPY_PROVIDER = 'ollama';
     findSessionMock.mockResolvedValue(createSession());
-    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({}) }).mockResolvedValueOnce({
+    fetchMock.mockResolvedValueOnce({
       ok: true,
       json: async () => ({
         message: {
@@ -134,11 +134,10 @@ describe('directorPublishCopyService', () => {
     expect(result.source).toBe('ai');
     expect(result.provider).toBe('ollama');
     expect(result.title).toContain('Formula hook');
-    expect(fetchMock.mock.calls[0]?.[0]).toBe('http://localhost:11434/api/tags');
-    expect(fetchMock.mock.calls[1]?.[0]).toBe('http://localhost:11434/api/chat');
-    const requestBody = JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body));
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('http://localhost:11434/api/chat');
+    const requestBody = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
 
-    expect(requestBody.keep_alive).toBe(0);
+    expect(requestBody.keep_alive).toBe(300);
     expect(requestBody.messages[1]?.content).toContain('Tugasmu bukan menyalin transkrip');
     expect(requestBody.messages[1]?.content).toContain('Durasi klip: 35 detik');
     expect(requestBody.messages[1]?.content).toContain('Tag kandidat: HIGH ENERGY, HOOK');
@@ -147,7 +146,7 @@ describe('directorPublishCopyService', () => {
     );
   });
 
-  it('falls back to heuristic when Ollama health check fails', async () => {
+  it('falls back to heuristic when Ollama request fails', async () => {
     envMock.AI_COPY_PROVIDER = 'ollama';
     findSessionMock.mockResolvedValue(createSession());
     fetchMock.mockResolvedValueOnce({ ok: false, status: 503 });
@@ -159,7 +158,7 @@ describe('directorPublishCopyService', () => {
     const result = await directorPublishCopyService.getPublishCopy('session-1', 'user-1');
 
     expect(result.source).toBe('heuristic');
-    expect(result.notice.lastError).toContain('tidak aktif');
+    expect(result.notice.lastError).toContain('failed: 503');
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

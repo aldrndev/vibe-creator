@@ -2,6 +2,10 @@ import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { AuditAction, audit } from '@/lib/audit';
 import { directorService } from '../director.service';
+import {
+  DIRECTOR_SUBTITLE_FONT_SIZE_MAX,
+  DIRECTOR_SUBTITLE_FONT_SIZE_MIN,
+} from '../processing/video-export-subtitles';
 
 const subtitlePositionValues = [
   'top',
@@ -12,13 +16,17 @@ const subtitlePositionValues = [
   'lower-third',
 ] as const;
 
-const subtitleAnimationValues = ['none', 'fade', 'typewriter', 'phrase', 'line'] as const;
+const subtitleAnimationValues = ['none', 'fade', 'typewriter', 'word', 'phrase', 'line'] as const;
 
 export const updateSubtitleStyleSchema = z.object({
   fontToken: z.string().optional(),
   textColorToken: z.string().optional(),
   bgColorToken: z.string().optional(),
-  fontSize: z.number().min(8).max(72).optional(),
+  fontSize: z
+    .number()
+    .min(DIRECTOR_SUBTITLE_FONT_SIZE_MIN)
+    .max(DIRECTOR_SUBTITLE_FONT_SIZE_MAX)
+    .optional(),
   position: z.enum(subtitlePositionValues).optional(),
   animation: z.enum(subtitleAnimationValues).optional(),
 });

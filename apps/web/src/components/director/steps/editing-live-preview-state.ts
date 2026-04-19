@@ -48,5 +48,7 @@ export function resolvePreviewStatus(input: ResolvePreviewStatusInput): PreviewS
 
 export function estimatePreviewProgressPercent(elapsedMs: number): number {
   const elapsedSec = Math.max(0, elapsedMs) / 1000;
-  return Math.min(94, Math.round(94 * (1 - Math.exp(-elapsedSec / 2.8))));
+  // Time constant = 14s → reaches ~50% at ~10s, ~75% at ~20s, ~85% at ~27s.
+  // Cap at 85% to leave visible room while backend finishes processing.
+  return Math.min(85, Math.round(85 * (1 - Math.exp(-elapsedSec / 14))));
 }

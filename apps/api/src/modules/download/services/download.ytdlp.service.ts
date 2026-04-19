@@ -3,6 +3,48 @@ import { logger } from '@/lib/logger';
 import { assertSafeUrl } from '@/utils/ssrf';
 import { findAndRenameDownload } from '../download.utils';
 
+export const YT_DLP_INFO_ARGS = [
+  '--print',
+  '%(title)s',
+  '--print',
+  '%(duration)s',
+  '--skip-download',
+  '--no-check-certificates',
+  '--extractor-args',
+  'youtube:player_client=android',
+] as const;
+
+export const YT_DLP_PRIMARY_FORMAT_SELECTOR =
+  'bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best[ext=mp4]/best';
+
+export const YT_DLP_FALLBACK_FORMAT_SELECTOR =
+  'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best';
+
+export function buildYtDlpInfoArgs(url: string): string[] {
+  return [...YT_DLP_INFO_ARGS, url];
+}
+
+export function buildYtDlpDownloadArgs(
+  url: string,
+  outputPath: string,
+  formatSelector: string,
+): string[] {
+  return [
+    '-f',
+    formatSelector,
+    '--merge-output-format',
+    'mp4',
+    '--no-check-certificates',
+    '--newline',
+    '--no-playlist',
+    '--extractor-args',
+    'youtube:player_client=android',
+    '-o',
+    outputPath,
+    url,
+  ];
+}
+
 export const downloadYtDlpService = {
   /**
    * Run yt-dlp command (fallback)
@@ -19,17 +61,7 @@ export const downloadYtDlpService = {
       let metadata: Record<string, unknown> = {};
 
       // First get video info with bypass options
-      const infoProcess = spawn('yt-dlp', [
-        '--print',
-        '%(title)s',
-        '--print',
-        '%(duration)s',
-        '--skip-download',
-        '--no-check-certificates',
-        '--extractor-args',
-        'youtube:player_client=android',
-        url,
-      ]);
+      const infoProcess = spawn('yt-dlp', buildYtDlpInfoArgs(url));
 
       let infoOutput = '';
       infoProcess.stdout.on('data', (data) => {
@@ -44,18 +76,10 @@ export const downloadYtDlpService = {
         }
 
         // Then download with bypass options and PROGRESS
-        const downloadProcess = spawn('yt-dlp', [
-          '-f',
-          'best[ext=mp4]/best',
-          '--no-check-certificates',
-          '--newline', // Crucial for parsing progress line by line
-          '--no-playlist',
-          '--extractor-args',
-          'youtube:player_client=android',
-          '-o',
-          outputPath,
-          url,
-        ]);
+        const downloadProcess = spawn(
+          'yt-dlp',
+          buildYtDlpDownloadArgs(url, outputPath, YT_DLP_PRIMARY_FORMAT_SELECTOR),
+        );
 
         let errorOutput = '';
         downloadProcess.stderr.on('data', (data) => {
@@ -107,16 +131,10 @@ export const downloadYtDlpService = {
 
       infoProcess.on('error', () => {
         // Fallback flow if getting info fails
-        const downloadProcess = spawn('yt-dlp', [
-          '-f',
-          'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
-          '--merge-output-format',
-          'mp4',
-          '--newline',
-          '-o',
-          outputPath,
-          url,
-        ]);
+        const downloadProcess = spawn(
+          'yt-dlp',
+          buildYtDlpDownloadArgs(url, outputPath, YT_DLP_FALLBACK_FORMAT_SELECTOR),
+        );
 
         downloadProcess.stdout.on('data', (data) => {
           const line = data.toString();

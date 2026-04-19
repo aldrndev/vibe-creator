@@ -1,6 +1,10 @@
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import { TRANSCRIBE_LANGUAGE_VALUES } from '@/modules/transcribe/transcribe-language';
+import {
+  isAutoTranscribeLanguage,
+  isTranscribeLanguage,
+  normalizeTranscribeLanguage,
+} from '@/modules/transcribe/transcribe-language';
 import { directorService } from '../director.service';
 
 const updateTranscriptSchema = z.object({
@@ -12,10 +16,45 @@ const updateTranscriptSchema = z.object({
     }),
   ),
 });
-const startTranscribeSchema = z.object({
-  forceRefresh: z.boolean().optional(),
-  language: z.enum(TRANSCRIBE_LANGUAGE_VALUES).optional(),
-});
+const transcribeLanguageSchema = z
+  .string()
+  .trim()
+  .min(2)
+  .max(32)
+  .refine((value) => isTranscribeLanguage(value), {
+    message:
+      'Language tidak valid. Gunakan "mixed"/"auto" atau kode bahasa (contoh: "id", "en", "es", "pt-BR").',
+  })
+  .transform((value) => normalizeTranscribeLanguage(value));
+const startTranscribeSchema = z
+  .object({
+    forceRefresh: z.boolean().optional(),
+    language: transcribeLanguageSchema.optional(),
+    subtitleMode: z.enum(['original', 'translate']).optional(),
+    subtitleTargetLanguage: transcribeLanguageSchema.optional(),
+  })
+  .superRefine((payload, ctx) => {
+    if (payload.subtitleMode !== 'translate') {
+      return;
+    }
+
+    if (!payload.subtitleTargetLanguage) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['subtitleTargetLanguage'],
+        message: 'Bahasa target wajib diisi saat mode subtitle terjemahan aktif.',
+      });
+      return;
+    }
+
+    if (isAutoTranscribeLanguage(payload.subtitleTargetLanguage)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['subtitleTargetLanguage'],
+        message: 'Bahasa target terjemahan harus spesifik (contoh: "en", "es", "ja").',
+      });
+    }
+  });
 
 export const transcribeRoutes: FastifyPluginAsync = async (fastify) => {
   /**
@@ -23,13 +62,23 @@ export const transcribeRoutes: FastifyPluginAsync = async (fastify) => {
    */
   fastify.post<{
     Params: { id: string };
-    Body: { forceRefresh?: boolean; language?: 'id' | 'en' | 'mixed' };
+    Body: {
+      forceRefresh?: boolean;
+      language?: string;
+      subtitleMode?: 'original' | 'translate';
+      subtitleTargetLanguage?: string;
+    };
   }>(
     '/sessions/:id/transcribe',
     async (
       request: FastifyRequest<{
         Params: { id: string };
-        Body: { forceRefresh?: boolean; language?: 'id' | 'en' | 'mixed' };
+        Body: {
+          forceRefresh?: boolean;
+          language?: string;
+          subtitleMode?: 'original' | 'translate';
+          subtitleTargetLanguage?: string;
+        };
       }>,
       reply: FastifyReply,
     ) => {
@@ -46,6 +95,8 @@ export const transcribeRoutes: FastifyPluginAsync = async (fastify) => {
         const job = await directorService.startTranscribe(request.params.id, user.id, {
           forceRefresh: body.forceRefresh ?? false,
           language: body.language,
+          subtitleMode: body.subtitleMode,
+          subtitleTargetLanguage: body.subtitleTargetLanguage,
         });
         return reply.status(202).send({
           success: true,

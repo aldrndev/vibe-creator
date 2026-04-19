@@ -1,4 +1,4 @@
-import { Download, Loader2, MonitorPlay, RefreshCcw, ScanFace } from 'lucide-react';
+import { Download, Loader2, MonitorPlay, Play, RefreshCcw, ScanFace, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   estimatePreviewProgressPercent,
@@ -6,12 +6,14 @@ import {
   resolvePreviewStatus,
 } from '@/components/director/steps/editing-live-preview-state';
 import { deriveLivePreviewScene } from '@/components/director/steps/editing-live-preview-utils';
-import { Badge, Button } from '@/components/ui';
+import { getTranscriptLayoutLabel } from '@/components/director/steps/editing-transcript-cues';
+import { Badge, Button, Modal, ModalBody, ModalContent } from '@/components/ui';
 import { useAuthenticatedObjectUrl } from '@/hooks/use-authenticated-object-url';
 import {
   getContentModeLabel,
   getEffectiveRefineSettings,
   getResolvedContentMode,
+  type ResolvedContentMode,
 } from '@/lib/director-refine-settings';
 import { logger } from '@/lib/logger';
 import { cn } from '@/lib/utils';
@@ -43,6 +45,7 @@ export function EditingLivePreview({
   const [previewDownloadPath, setPreviewDownloadPath] = useState<string | null>(null);
   const [previewFileName, setPreviewFileName] = useState<string | null>(null);
   const [previewStatus, setPreviewStatus] = useState<PreviewStatus>('idle');
+  const [isPlayingModalOpen, setIsPlayingModalOpen] = useState(false);
   const [previewProgressPercent, setPreviewProgressPercent] = useState(0);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
@@ -61,35 +64,10 @@ export function EditingLivePreview({
     primaryClip,
     activeRefineSettings,
   );
-  const previewPayload = useMemo(() => {
-    if (!primaryClip || !activeRefineSettings) {
-      return null;
-    }
-
-    return {
-      aspectRatio: exportSettings.aspectRatio,
-      quality: exportSettings.quality,
-      includeSubtitles: exportSettings.includeSubtitles,
-      normalizeAudio: exportSettings.normalizeAudio,
-      subtitleStyle: {
-        fontToken: subtitleStyle.fontToken,
-        textColorToken: subtitleStyle.textColorToken,
-        bgColorToken: subtitleStyle.bgColorToken,
-        fontSize: subtitleStyle.fontSize,
-        position: subtitleStyle.position,
-        animation: subtitleStyle.animation,
-      },
-      refineSettings: {
-        [primaryClip.id]: {
-          faceTracking: Boolean(activeRefineSettings.faceTracking),
-          removeSilence: Boolean(activeRefineSettings.removeSilence),
-          optimizeHook: Boolean(activeRefineSettings.optimizeHook),
-          stabilize: Boolean(activeRefineSettings.stabilize),
-          contentMode: activeRefineSettings.contentMode,
-        },
-      },
-    };
-  }, [activeRefineSettings, exportSettings, primaryClip, subtitleStyle]);
+  const previewPayload = useMemo(
+    () => buildPreviewPayload(primaryClip, activeRefineSettings, exportSettings, subtitleStyle),
+    [activeRefineSettings, exportSettings, primaryClip, subtitleStyle],
+  );
   const previewPayloadJson = previewPayload ? JSON.stringify(previewPayload) : null;
 
   const activeSessionId = activeSession?.id;
@@ -269,70 +247,15 @@ export function EditingLivePreview({
   const shouldDisableGenerate = !previewPayloadJson || previewStatus === 'generating';
   const shouldEnableDownload = previewStatus === 'ready' && Boolean(previewDownloadPath);
 
-  let mediaContent = null;
-  if (previewVideoUrl) {
-    mediaContent = (
-      <>
-        <video
-          key={renderPreviewPath ?? primaryClip?.id ?? 'preview'}
-          src={previewVideoUrl}
-          playsInline
-          controls
-          className="h-full w-full bg-black object-contain"
-        >
-          <track kind="captions" srcLang="id" label="Preview final identik export" />
-        </video>
-        {showGeneratingState ? (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/45">
-            <div className="rounded-2xl border border-primary/20 bg-card/90 px-4 py-3 text-center backdrop-blur-md">
-              <div className="mx-auto mb-2 inline-flex h-10 w-10 items-center justify-center rounded-full border border-primary/30 bg-primary/10">
-                <Loader2 size={16} className="animate-spin text-primary" />
-              </div>
-              <p className="text-sm font-semibold text-foreground">Generate Ulang Preview</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {previewProgressPercent}% • Preview lama tetap tampil sampai selesai.
-              </p>
-            </div>
-          </div>
-        ) : null}
-      </>
-    );
-  } else if (showGeneratingState) {
-    mediaContent = (
-      <div className="absolute inset-0 flex items-center justify-center bg-black/60">
-        <div className="rounded-2xl border border-primary/20 bg-card/85 px-4 py-3 text-center backdrop-blur-md">
-          <div className="mx-auto mb-2 inline-flex h-10 w-10 items-center justify-center rounded-full border border-primary/30 bg-primary/10">
-            <Loader2 size={16} className="animate-spin text-primary" />
-          </div>
-          <p className="text-sm font-semibold text-foreground">Preview Sedang Digenerate</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {previewProgressPercent}% • Mohon tunggu sebentar.
-          </p>
-        </div>
-      </div>
-    );
-  } else if (previewUrl) {
-    mediaContent = (
-      <img
-        src={previewUrl}
-        alt="Preview hasil edit"
-        className={cn('w-full h-full transition-all duration-300', scene.mediaClass)}
-      />
-    );
-  } else if (previewError) {
-    mediaContent = (
-      <div className="absolute inset-0 flex items-center justify-center bg-black/60 px-6 text-center">
-        <div className="rounded-2xl border border-border/40 bg-card/90 px-4 py-3">
-          <p className="text-sm font-semibold text-foreground">Preview Final Belum Tersedia</p>
-          <p className="mt-1 text-xs text-muted-foreground">{previewError}</p>
-        </div>
-      </div>
-    );
-  } else {
-    mediaContent = (
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,99,33,0.18),transparent_42%),linear-gradient(180deg,rgba(255,255,255,0.06),rgba(0,0,0,0.25))]" />
-    );
-  }
+  const mediaProps = {
+    previewVideoUrl,
+    previewUrl,
+    previewError,
+    showGeneratingState,
+    previewProgressPercent,
+    mediaClass: scene.mediaClass,
+    onPlay: () => setIsPlayingModalOpen(true),
+  };
 
   return (
     <div className="space-y-4 rounded-3xl border border-border/40 bg-muted/20 p-4">
@@ -348,28 +271,59 @@ export function EditingLivePreview({
             </p>
           </div>
         </div>
-        <Badge className="shrink-0 rounded-full border-border/50 bg-muted/40 px-2.5 py-1 text-[10px] text-foreground">
-          {previewStatus === 'ready'
-            ? 'Siap Diunduh'
-            : previewStatus === 'dirty'
-              ? 'Perlu Generate Ulang'
-              : previewStatus === 'generating'
-                ? `Generating ${previewProgressPercent}%`
-                : previewStatus === 'failed'
-                  ? 'Generate Gagal'
-                  : 'Belum Digenerate'}
-        </Badge>
       </div>
 
       <div
         className={cn(
-          'mx-auto w-full max-w-[17.5rem] rounded-4xl border border-border/50 overflow-hidden relative min-h-80',
+          'mx-auto w-full max-w-70 rounded-4xl border border-border/50 overflow-hidden relative min-h-80',
           scene.aspectClass,
           scene.frameClass,
         )}
       >
-        {mediaContent}
+        <LivePreviewMedia {...mediaProps} />
+        {/* Status badge overlaid on top-right of video */}
+        <div className="absolute top-2 right-2 z-10 pointer-events-none">
+          <Badge className="shrink-0 rounded-full border-border/50 bg-black/60 backdrop-blur-sm px-2.5 py-1 text-[10px] text-white pointer-events-auto">
+            {getPreviewBadgeText(previewStatus, previewProgressPercent)}
+          </Badge>
+        </div>
+        {/* Feature badges overlaid at bottom of video, above player controls */}
+        <div className="absolute top-2 left-2 z-10 pointer-events-none flex flex-wrap gap-1 max-w-[calc(100%-5rem)]">
+          <PreviewBadges
+            resolvedContentMode={resolvedContentMode}
+            exportSettings={exportSettings}
+            subtitleStyle={subtitleStyle}
+            activeRefineSettings={activeRefineSettings}
+          />
+        </div>
       </div>
+
+      <Modal open={isPlayingModalOpen} onOpenChange={setIsPlayingModalOpen}>
+        <ModalContent className="max-w-4xl overflow-hidden rounded-3xl border border-border/60 bg-card/95 p-0 shadow-2xl sm:rounded-4xl [&>button]:hidden">
+          <ModalBody className="p-0">
+            {previewVideoUrl && (
+              <div className="relative flex h-[85vh] w-full items-center justify-center bg-black">
+                <video
+                  src={previewVideoUrl}
+                  className="max-h-full max-w-full object-contain shadow-2xl"
+                  controls
+                  playsInline
+                  autoPlay
+                >
+                  <track kind="captions" srcLang="id" label="Preview final identik export" />
+                </video>
+                <button
+                  type="button"
+                  onClick={() => setIsPlayingModalOpen(false)}
+                  className="absolute right-4 top-4 z-50 flex h-10 w-10 items-center justify-center rounded-full border border-border/60 bg-background/80 text-foreground backdrop-blur-md transition-all hover:bg-background"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+            )}
+          </ModalBody>
+        </ModalContent>
+      </Modal>
 
       <div className="grid grid-cols-1 gap-2">
         <Button
@@ -384,11 +338,7 @@ export function EditingLivePreview({
           ) : (
             <MonitorPlay size={14} className="mr-2" />
           )}
-          {previewStatus === 'generating'
-            ? 'Generating...'
-            : previewStatus === 'dirty' || previewStatus === 'failed'
-              ? 'Generate Ulang'
-              : 'Generate Preview'}
+          {getGenerateButtonText(previewStatus)}
         </Button>
         <Button
           variant="secondary"
@@ -413,25 +363,200 @@ export function EditingLivePreview({
           {downloadError}
         </div>
       ) : null}
-
-      <div className="flex flex-wrap gap-1.5">
-        {resolvedContentMode ? (
-          <Badge className="rounded-full border-border/50 bg-muted/30 px-2 py-1 text-[10px] text-foreground">
-            Mode {getContentModeLabel(resolvedContentMode)}
-          </Badge>
-        ) : null}
-        {exportSettings.includeSubtitles ? (
-          <Badge className="rounded-full border-border/50 bg-muted/30 px-2 py-1 text-[10px] text-foreground">
-            Subtitle Aktif
-          </Badge>
-        ) : null}
-        {activeRefineSettings?.faceTracking && exportSettings.aspectRatio === '9:16' ? (
-          <Badge className="rounded-full border-border/50 bg-muted/30 px-2 py-1 text-[10px] text-foreground">
-            <ScanFace size={12} className="mr-1" />
-            Smart Crop Aktif
-          </Badge>
-        ) : null}
-      </div>
     </div>
+  );
+}
+
+function buildPreviewPayload(
+  primaryClip: SelectedClip | undefined,
+  activeRefineSettings: RefineSettings | undefined,
+  exportSettings: ExportSettings,
+  subtitleStyle: SubtitleStyle,
+) {
+  if (!primaryClip || !activeRefineSettings) {
+    return null;
+  }
+
+  return {
+    aspectRatio: exportSettings.aspectRatio,
+    quality: exportSettings.quality,
+    includeSubtitles: exportSettings.includeSubtitles,
+    normalizeAudio: exportSettings.normalizeAudio,
+    subtitleStyle: {
+      fontToken: subtitleStyle.fontToken,
+      textColorToken: subtitleStyle.textColorToken,
+      bgColorToken: subtitleStyle.bgColorToken,
+      fontSize: subtitleStyle.fontSize,
+      position: subtitleStyle.position,
+      animation: subtitleStyle.animation,
+    },
+    refineSettings: {
+      [primaryClip.id]: {
+        faceTracking: Boolean(activeRefineSettings.faceTracking),
+        removeSilence: Boolean(activeRefineSettings.removeSilence),
+        optimizeHook: Boolean(activeRefineSettings.optimizeHook),
+        stabilize: Boolean(activeRefineSettings.stabilize),
+        contentMode: activeRefineSettings.contentMode,
+      },
+    },
+  };
+}
+
+function getPreviewBadgeText(status: PreviewStatus, progress: number): string {
+  switch (status) {
+    case 'ready':
+      return 'Siap Diunduh';
+    case 'dirty':
+      return 'Perlu Generate Ulang';
+    case 'generating':
+      return `Generating ${progress}%`;
+    case 'failed':
+      return 'Generate Gagal';
+    default:
+      return 'Belum Digenerate';
+  }
+}
+
+function getGenerateButtonText(status: PreviewStatus): string {
+  switch (status) {
+    case 'generating':
+      return 'Generating...';
+    case 'dirty':
+    case 'failed':
+      return 'Generate Ulang';
+    default:
+      return 'Generate Preview';
+  }
+}
+
+function LivePreviewMedia({
+  previewVideoUrl,
+  previewUrl,
+  previewError,
+  showGeneratingState,
+  previewProgressPercent,
+  mediaClass,
+  onPlay,
+}: Readonly<{
+  previewVideoUrl: string | null;
+  previewUrl: string | null;
+  previewError: string | null;
+  showGeneratingState: boolean;
+  previewProgressPercent: number;
+  mediaClass: string;
+  onPlay: () => void;
+}>) {
+  if (previewVideoUrl) {
+    return (
+      <>
+        {previewUrl ? (
+          <img
+            src={previewUrl}
+            alt="Preview hasil edit"
+            className={cn('w-full h-full object-contain rounded-[inherit]', mediaClass)}
+          />
+        ) : (
+          <div className="w-full h-full bg-black/80 rounded-[inherit]" />
+        )}
+
+        {!showGeneratingState && (
+          <button
+            type="button"
+            onClick={onPlay}
+            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-40 w-16 h-16 rounded-[1.25rem] border border-white/20 bg-black/35 text-white backdrop-blur-md transition-all duration-300 hover:scale-105 hover:bg-black/50 flex items-center justify-center shadow-xl"
+            aria-label="Putar Preview Final"
+          >
+            <Play className="w-7 h-7 fill-white translate-x-[2px]" />
+          </button>
+        )}
+        {showGeneratingState ? (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/45">
+            <div className="rounded-2xl border border-primary/20 bg-card/90 px-4 py-3 text-center backdrop-blur-md">
+              <div className="mx-auto mb-2 inline-flex h-10 w-10 items-center justify-center rounded-full border border-primary/30 bg-primary/10">
+                <Loader2 size={16} className="animate-spin text-primary" />
+              </div>
+              <p className="text-sm font-semibold text-foreground">Generate Ulang Preview</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {previewProgressPercent}% • Preview lama tetap tampil sampai selesai.
+              </p>
+            </div>
+          </div>
+        ) : null}
+      </>
+    );
+  }
+
+  if (showGeneratingState) {
+    return (
+      <div className="absolute inset-0 flex items-center justify-center bg-black/60">
+        <div className="rounded-2xl border border-primary/20 bg-card/85 px-4 py-3 text-center backdrop-blur-md">
+          <div className="mx-auto mb-2 inline-flex h-10 w-10 items-center justify-center rounded-full border border-primary/30 bg-primary/10">
+            <Loader2 size={16} className="animate-spin text-primary" />
+          </div>
+          <p className="text-sm font-semibold text-foreground">Preview Sedang Digenerate</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {previewProgressPercent}% • Mohon tunggu sebentar.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (previewUrl) {
+    return (
+      <img
+        src={previewUrl}
+        alt="Preview hasil edit"
+        className={cn('w-full h-full transition-all duration-300', mediaClass)}
+      />
+    );
+  }
+
+  if (previewError) {
+    return (
+      <div className="absolute inset-0 flex items-center justify-center bg-black/60 px-6 text-center">
+        <div className="rounded-2xl border border-border/40 bg-card/90 px-4 py-3">
+          <p className="text-sm font-semibold text-foreground">Preview Final Belum Tersedia</p>
+          <p className="mt-1 text-xs text-muted-foreground">{previewError}</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,99,33,0.18),transparent_42%),linear-gradient(180deg,rgba(255,255,255,0.06),rgba(0,0,0,0.25))]" />
+  );
+}
+
+function PreviewBadges({
+  resolvedContentMode,
+  exportSettings,
+  subtitleStyle,
+  activeRefineSettings,
+}: Readonly<{
+  resolvedContentMode: ResolvedContentMode | null;
+  exportSettings: ExportSettings;
+  subtitleStyle: SubtitleStyle;
+  activeRefineSettings: RefineSettings | undefined;
+}>) {
+  return (
+    <>
+      {resolvedContentMode ? (
+        <Badge className="rounded-full border-border/50 bg-muted/30 px-2 py-1 text-[10px] text-foreground">
+          Mode {getContentModeLabel(resolvedContentMode)}
+        </Badge>
+      ) : null}
+      {exportSettings.includeSubtitles ? (
+        <Badge className="rounded-full border-border/50 bg-muted/30 px-2 py-1 text-[10px] text-foreground">
+          {getTranscriptLayoutLabel(subtitleStyle.animation)}
+        </Badge>
+      ) : null}
+      {activeRefineSettings?.faceTracking && exportSettings.aspectRatio === '9:16' ? (
+        <Badge className="rounded-full border-border/50 bg-muted/30 px-2 py-1 text-[10px] text-foreground">
+          <ScanFace size={12} className="mr-1" />
+          Smart Crop Aktif
+        </Badge>
+      ) : null}
+    </>
   );
 }

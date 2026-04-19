@@ -8,6 +8,10 @@ import { requireAuth } from '@/plugins/auth';
 import { contentModeValues } from '../content-mode';
 import { directorService } from '../director.service';
 import { buildLivePreviewUrls, isValidLivePreviewFilename } from '../export-preview-url';
+import {
+  DIRECTOR_SUBTITLE_FONT_SIZE_MAX,
+  DIRECTOR_SUBTITLE_FONT_SIZE_MIN,
+} from '../processing/video-export-subtitles';
 
 const startExportSchema = z.object({
   aspectRatio: z.enum(['9:16', '16:9', '1:1']).optional(),
@@ -37,13 +41,17 @@ const subtitlePositionValues = [
   'lower-third',
 ] as const;
 
-const subtitleAnimationValues = ['none', 'fade', 'typewriter', 'phrase', 'line'] as const;
+const subtitleAnimationValues = ['none', 'fade', 'typewriter', 'word', 'phrase', 'line'] as const;
 
 const previewSubtitleStyleSchema = z.object({
   fontToken: z.string().optional(),
   textColorToken: z.string().optional(),
   bgColorToken: z.string().optional(),
-  fontSize: z.number().min(8).max(72).optional(),
+  fontSize: z
+    .number()
+    .min(DIRECTOR_SUBTITLE_FONT_SIZE_MIN)
+    .max(DIRECTOR_SUBTITLE_FONT_SIZE_MAX)
+    .optional(),
   position: z.enum(subtitlePositionValues).optional(),
   animation: z.enum(subtitleAnimationValues).optional(),
 });

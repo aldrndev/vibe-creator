@@ -6,6 +6,10 @@ import { AnalyzeStep } from '@/components/director/steps/AnalyzeStep';
 import { EditingStep } from '@/components/director/steps/EditingStep';
 import { ImportStep } from '@/components/director/steps/ImportStep';
 import { PickingStep } from '@/components/director/steps/PickingStep';
+import {
+  DEFAULT_TRANSCRIBE_LANGUAGE,
+  normalizeTranscribeLanguage,
+} from '@/lib/transcribe-language';
 import { resolveHydratedStep } from '@/pages/tools/ai-director-page-utils';
 import { authFetch } from '@/services/api';
 import type {
@@ -30,6 +34,15 @@ interface DirectorSessionPayload extends DirectorSession {
   transcribeJob?: {
     status: string;
     language?: TranscribeLanguage;
+    progressMeta?: {
+      subtitleMode?: 'original' | 'translate';
+      subtitleTargetLanguage?: string | null;
+    } | null;
+    segments?: {
+      subtitleMode?: 'original' | 'translate';
+      subtitleTargetLanguage?: string | null;
+      [key: string]: unknown;
+    } | null;
     [key: string]: unknown;
   } | null;
   exportJob?: (ExportJob & { status: string }) | null;
@@ -42,6 +55,8 @@ interface HydrationActions {
   readonly setSelectedClips: (clips: SelectedClip[]) => void;
   readonly setTranscribeJob: (job: { status: string } | null) => void;
   readonly setTranscribeLanguage: (language: TranscribeLanguage) => void;
+  readonly setSubtitleMode: (mode: 'original' | 'translate') => void;
+  readonly setSubtitleTargetLanguage: (language: string) => void;
   readonly updateSubtitleStyle: (style: Partial<SubtitleStyle>) => void;
   readonly setExportJob: (job: ExportJob | null) => void;
   readonly setWaitingForAsset: (waiting: boolean) => void;
@@ -51,13 +66,41 @@ interface HydrationActions {
 
 function resolveTranscribeLanguage(
   language: unknown,
-  fallback: TranscribeLanguage = 'mixed',
+  fallback: TranscribeLanguage = DEFAULT_TRANSCRIBE_LANGUAGE,
 ): TranscribeLanguage {
-  if (language === 'id' || language === 'en' || language === 'mixed') {
-    return language;
+  return normalizeTranscribeLanguage(language, fallback);
+}
+
+function resolveSubtitleMode(
+  transcribeJob: DirectorSessionPayload['transcribeJob'],
+): 'original' | 'translate' {
+  const modeFromProgress = transcribeJob?.progressMeta?.subtitleMode;
+  if (modeFromProgress === 'original' || modeFromProgress === 'translate') {
+    return modeFromProgress;
   }
 
-  return fallback;
+  const modeFromSegments = transcribeJob?.segments?.subtitleMode;
+  if (modeFromSegments === 'original' || modeFromSegments === 'translate') {
+    return modeFromSegments;
+  }
+
+  return 'original';
+}
+
+function resolveSubtitleTargetLanguage(
+  transcribeJob: DirectorSessionPayload['transcribeJob'],
+): string {
+  const targetFromProgress = transcribeJob?.progressMeta?.subtitleTargetLanguage;
+  if (typeof targetFromProgress === 'string' && targetFromProgress.trim().length > 0) {
+    return targetFromProgress.trim().toLowerCase();
+  }
+
+  const targetFromSegments = transcribeJob?.segments?.subtitleTargetLanguage;
+  if (typeof targetFromSegments === 'string' && targetFromSegments.trim().length > 0) {
+    return targetFromSegments.trim().toLowerCase();
+  }
+
+  return 'en';
 }
 
 function getExportDownloadUrl(
@@ -93,6 +136,8 @@ function applyHydratedSession(
     setSelectedClips,
     setTranscribeJob,
     setTranscribeLanguage,
+    setSubtitleMode,
+    setSubtitleTargetLanguage,
     updateSubtitleStyle,
     setExportJob,
     setWaitingForAsset,
@@ -105,6 +150,8 @@ function applyHydratedSession(
   setSelectedClips(session.selectedClips ?? []);
   setTranscribeJob(session.transcribeJob ?? null);
   setTranscribeLanguage(resolveTranscribeLanguage(session.transcribeJob?.language));
+  setSubtitleMode(resolveSubtitleMode(session.transcribeJob));
+  setSubtitleTargetLanguage(resolveSubtitleTargetLanguage(session.transcribeJob));
 
   if (session.subtitleStyle) {
     updateSubtitleStyle(session.subtitleStyle);
@@ -135,6 +182,8 @@ export function AiDirectorPage() {
     setSelectedClips,
     setTranscribeJob,
     setTranscribeLanguage,
+    setSubtitleMode,
+    setSubtitleTargetLanguage,
     setExportJob,
     updateSubtitleStyle,
     setError,
@@ -175,6 +224,8 @@ export function AiDirectorPage() {
           setSelectedClips,
           setTranscribeJob,
           setTranscribeLanguage,
+          setSubtitleMode,
+          setSubtitleTargetLanguage,
           updateSubtitleStyle,
           setExportJob,
           setWaitingForAsset,
@@ -209,6 +260,8 @@ export function AiDirectorPage() {
     setStep,
     setTranscribeJob,
     setTranscribeLanguage,
+    setSubtitleMode,
+    setSubtitleTargetLanguage,
     updateSubtitleStyle,
     setWaitingForAsset,
   ]);

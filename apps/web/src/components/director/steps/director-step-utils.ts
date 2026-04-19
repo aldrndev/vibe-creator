@@ -6,6 +6,7 @@ export interface DirectorTranscribeProgressMeta {
     | 'queueing-clips'
     | 'extracting-audio'
     | 'running-whisper'
+    | 'translating-transcript'
     | 'saving-transcript'
     | 'cache-hit'
     | 'processing-clips'
@@ -59,6 +60,8 @@ export function getTranscribePhaseLabel(phase: DirectorTranscribeProgressMeta['p
       return 'Menjalankan AI transcribe';
     case 'saving-transcript':
       return 'Menyimpan hasil transkripsi';
+    case 'translating-transcript':
+      return 'Menerjemahkan subtitle';
     case 'cache-hit':
       return 'Mengambil hasil dari cache';
     case 'processing-clips':

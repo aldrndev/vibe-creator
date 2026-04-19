@@ -17,6 +17,8 @@ interface ClipFingerprintInput {
   trimStartMs: number;
   trimEndMs: number;
   language: TranscribeLanguage;
+  subtitleMode?: 'original' | 'translate';
+  subtitleTargetLanguage?: string | null;
 }
 
 function buildCacheKey(input: ClipFingerprintInput): string {
@@ -29,6 +31,8 @@ function buildCacheKey(input: ClipFingerprintInput): string {
         trimStartMs: input.trimStartMs,
         trimEndMs: input.trimEndMs,
         language: input.language,
+        subtitleMode: input.subtitleMode ?? 'original',
+        subtitleTargetLanguage: input.subtitleTargetLanguage ?? null,
         whisperModelSize: env.WHISPER_MODEL_SIZE,
         transcribeProvider: env.TRANSCRIBE_PROVIDER,
         transcribeServiceUrl: env.TRANSCRIBE_SERVICE_URL ?? null,

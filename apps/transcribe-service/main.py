@@ -3,9 +3,10 @@ from __future__ import annotations
 from collections import Counter
 from dataclasses import dataclass
 import os
+import re
 from pathlib import Path
 from threading import Lock
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any
 
 from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field
@@ -18,6 +19,7 @@ _MODEL_LOCK = Lock()
 _DIARIZATION_PIPELINE: Any | None = None
 _DIARIZATION_LOCK = Lock()
 _DIARIZATION_INIT_ERROR: str | None = None
+_DIARIZATION_PROVIDER = "pyannote.audio"
 
 
 @dataclass(frozen=True)
@@ -55,7 +57,7 @@ class TranscribeDiarization(BaseModel):
 class TranscribeRequest(BaseModel):
     audioPath: str = Field(min_length=1)
     wordTimestamps: bool = True
-    language: Literal["id", "en", "mixed"] | None = None
+    language: str | None = None
 
 
 class TranscribeResponse(BaseModel):
@@ -111,7 +113,7 @@ def _validate_audio_path(audio_path: str) -> Path:
 
 
 def _build_model() -> WhisperModel:
-    model_size = os.environ.get("WHISPER_MODEL_SIZE", "small")
+    model_size = os.environ.get("WHISPER_MODEL_SIZE", "medium")
     device = os.environ.get("WHISPER_DEVICE", "cpu")
     compute_type = os.environ.get("WHISPER_COMPUTE_TYPE", "int8")
     hf_home = os.environ.get("HF_HOME")
@@ -264,7 +266,7 @@ def _run_diarization(audio_file_path: Path) -> tuple[list[DiarizationTurn], Tran
         return [], TranscribeDiarization(
             enabled=True,
             applied=False,
-            provider="pyannote.audio",
+            provider=_DIARIZATION_PROVIDER,
             reason=_DIARIZATION_INIT_ERROR or "Diarization pipeline unavailable",
         )
 
@@ -283,7 +285,7 @@ def _run_diarization(audio_file_path: Path) -> tuple[list[DiarizationTurn], Tran
         return turns, TranscribeDiarization(
             enabled=True,
             applied=bool(turns),
-            provider="pyannote.audio",
+            provider=_DIARIZATION_PROVIDER,
             speakers=speakers,
             reason=None if turns else "No speaker turns detected",
         )
@@ -291,7 +293,7 @@ def _run_diarization(audio_file_path: Path) -> tuple[list[DiarizationTurn], Tran
         return [], TranscribeDiarization(
             enabled=True,
             applied=False,
-            provider="pyannote.audio",
+            provider=_DIARIZATION_PROVIDER,
             reason=str(err),
         )
 
@@ -305,33 +307,42 @@ def _is_authorized(authorization_header: str | None) -> bool:
     return authorization_header == expected
 
 
+def _build_words(
+    raw_words: Any, diarization_turns: list[DiarizationTurn]
+) -> list[TranscribeWord]:
+    """Build TranscribeWord list from raw whisper word objects."""
+    words: list[TranscribeWord] = []
+    if not raw_words:
+        return words
+
+    for word in raw_words:
+        if word.start is None or word.end is None:
+            continue
+        word_start = float(word.start)
+        word_end = float(word.end)
+        words.append(
+            TranscribeWord(
+                start=word_start,
+                end=word_end,
+                text=word.word.strip(),
+                confidence=float(word.probability)
+                if getattr(word, "probability", None) is not None
+                else None,
+                speaker=_resolve_speaker_for_range(
+                    diarization_turns, word_start, word_end
+                ),
+            )
+        )
+    return words
+
+
 def _serialize_segments(
     segments: Any, diarization_turns: list[DiarizationTurn]
 ) -> list[TranscribeSegment]:
     output: list[TranscribeSegment] = []
 
     for segment in segments:
-        words: list[TranscribeWord] = []
-        if segment.words:
-            for word in segment.words:
-                if word.start is None or word.end is None:
-                    continue
-                word_start = float(word.start)
-                word_end = float(word.end)
-                words.append(
-                    TranscribeWord(
-                        start=word_start,
-                        end=word_end,
-                        text=word.word.strip(),
-                        confidence=float(word.probability)
-                        if getattr(word, "probability", None) is not None
-                        else None,
-                        speaker=_resolve_speaker_for_range(
-                            diarization_turns, word_start, word_end
-                        ),
-                    )
-                )
-
+        words = _build_words(segment.words, diarization_turns)
         segment_start = float(segment.start)
         segment_end = float(segment.end)
         output.append(
@@ -351,20 +362,32 @@ def _serialize_segments(
     return output
 
 
-def _resolve_language(language: str | None) -> Literal["id", "en"] | None:
-    if language in {"id", "en"}:
-        return language
+_AUTO_LANGUAGE_ALIASES = {"mixed", "auto"}
+_LANGUAGE_PATTERN = re.compile(r"^[a-z]{2,3}(?:-[a-z0-9]{2,8})*$", re.IGNORECASE)
 
-    if language == "mixed":
-        return None
+
+def _resolve_language(language: str | None) -> str | None:
+    """Resolve language to a valid faster-whisper language code.
+
+    Returns None for auto-detect mode (mixed/auto).
+    Accepts any valid ISO 639 language code that faster-whisper supports.
+    """
+    if language is None:
+        # Fall through to env default
+        pass
+    else:
+        normalized = language.strip().lower()
+        if normalized in _AUTO_LANGUAGE_ALIASES:
+            return None
+        if _LANGUAGE_PATTERN.fullmatch(normalized):
+            # faster-whisper expects base language code (e.g. "pt" not "pt-br")
+            return normalized.split("-", 1)[0]
 
     env_default = os.environ.get("TRANSCRIBE_LANGUAGE", "mixed").strip().lower()
-    if env_default == "id":
-        return "id"
-    if env_default == "en":
-        return "en"
-    if env_default == "mixed":
+    if env_default in _AUTO_LANGUAGE_ALIASES:
         return None
+    if _LANGUAGE_PATTERN.fullmatch(env_default):
+        return env_default.split("-", 1)[0]
 
     return None
 
@@ -399,11 +422,23 @@ def transcribe(
 
         beam_size = int(os.environ.get("WHISPER_BEAM_SIZE", "5"))
         target_language = _resolve_language(payload.language)
+
+        vad_threshold = float(os.environ.get("TRANSCRIBE_VAD_THRESHOLD", "0.72"))
+        vad_speech_pad_ms = int(os.environ.get("TRANSCRIBE_VAD_SPEECH_PAD_MS", "120"))
+        vad_min_silence_ms = int(os.environ.get("TRANSCRIBE_VAD_MIN_SILENCE_MS", "300"))
+        vad_min_speech_ms = int(os.environ.get("TRANSCRIBE_VAD_MIN_SPEECH_MS", "150"))
+
         segments, info = model.transcribe(
             str(audio_file_path),
             beam_size=beam_size,
             word_timestamps=payload.wordTimestamps,
-            vad_filter=False,
+            vad_filter=True,
+            vad_parameters={
+                "threshold": vad_threshold,
+                "min_silence_duration_ms": vad_min_silence_ms,
+                "speech_pad_ms": vad_speech_pad_ms,
+                "min_speech_duration_ms": vad_min_speech_ms,
+            },
             condition_on_previous_text=False,
             language=target_language,
         )

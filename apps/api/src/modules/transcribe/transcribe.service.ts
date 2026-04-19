@@ -3,7 +3,12 @@ import path from 'node:path';
 import { env } from '@/config/env';
 import { logger } from '@/lib/logger';
 import { prisma } from '@/lib/prisma';
-import type { TranscribeLanguage } from '@/modules/transcribe/transcribe-language';
+import {
+  DEFAULT_TRANSCRIBE_LANGUAGE,
+  isAutoTranscribeLanguage,
+  normalizeTranscribeLanguage,
+  type TranscribeLanguage,
+} from '@/modules/transcribe/transcribe-language';
 import { directorProcessor } from '../director/director.processor';
 import { resolveSelectedClipRangeMs } from '../director/selected-clip-range';
 import {
@@ -13,6 +18,7 @@ import {
 } from '../director/services/transcribe-progress';
 import { transcribeCacheService } from './transcribe-cache.service';
 import { transcribeNormalizer } from './transcribe-normalizer';
+import { transcriptTranslateService } from './transcript-translate.service';
 import { whisperRunner } from './whisper-runner';
 
 async function updateProgressMeta(
@@ -44,7 +50,12 @@ export const transcribeService = {
    */
   async transcribeSelectedClip(
     selectedClipId: string,
-    options: { bypassCache?: boolean; language?: TranscribeLanguage } = {},
+    options: {
+      bypassCache?: boolean;
+      language?: TranscribeLanguage;
+      subtitleMode?: 'original' | 'translate';
+      subtitleTargetLanguage?: TranscribeLanguage | null;
+    } = {},
   ): Promise<void> {
     const selectedClip = await prisma.directorSelectedClip.findUnique({
       where: { id: selectedClipId },
@@ -65,7 +76,16 @@ export const transcribeService = {
     }
 
     const { storageKey, contentHash, sourceUrlNormalized } = asset;
-    const targetLanguage = options.language ?? env.TRANSCRIBE_LANGUAGE;
+    const targetLanguage = normalizeTranscribeLanguage(options.language, env.TRANSCRIBE_LANGUAGE);
+    const subtitleMode = options.subtitleMode === 'translate' ? 'translate' : 'original';
+    const subtitleTargetLanguage =
+      subtitleMode === 'translate'
+        ? normalizeTranscribeLanguage(options.subtitleTargetLanguage, 'en')
+        : null;
+
+    if (subtitleMode === 'translate' && isAutoTranscribeLanguage(subtitleTargetLanguage)) {
+      throw new Error('Bahasa target terjemahan harus spesifik (contoh: "en", "es", "ja").');
+    }
     const { startMs, endMs } = resolveSelectedClipRangeMs({
       candidateStartMs: candidate.startMs,
       candidateEndMs: candidate.endMs,
@@ -102,6 +122,8 @@ export const transcribeService = {
       trimStartMs,
       trimEndMs,
       language: targetLanguage,
+      subtitleMode,
+      subtitleTargetLanguage,
     });
 
     // Ensure proxy dir exists
@@ -171,6 +193,24 @@ export const transcribeService = {
 
       // 3. Normalize
       const normalizedSegments = transcribeNormalizer.normalizeSegments(result.segments);
+      const finalLanguage =
+        subtitleMode === 'translate'
+          ? (subtitleTargetLanguage ?? DEFAULT_TRANSCRIBE_LANGUAGE)
+          : result.language;
+      const finalSegments =
+        subtitleMode === 'translate' && subtitleTargetLanguage
+          ? await (async () => {
+              await updateProgressMeta(session.transcribeJob?.id, session.transcribeJob?.segments, {
+                phase: 'translating-transcript',
+                currentClipId: selectedClipId,
+              });
+
+              return transcriptTranslateService.translateSegments(
+                normalizedSegments,
+                subtitleTargetLanguage,
+              );
+            })()
+          : normalizedSegments;
 
       await updateProgressMeta(session.transcribeJob?.id, session.transcribeJob?.segments, {
         phase: 'saving-transcript',
@@ -185,27 +225,32 @@ export const transcribeService = {
           selectedClipId,
           status: 'COMPLETED',
           engine: transcriptEngine,
-          language: result.language,
-          segments: normalizedSegments as object[],
+          language: finalLanguage,
+          segments: finalSegments as object[],
           completedAt: new Date(),
         },
         update: {
           status: 'COMPLETED',
           engine: transcriptEngine,
-          segments: normalizedSegments as object[],
-          language: result.language,
+          segments: finalSegments as object[],
+          language: finalLanguage,
           errorMessage: null,
           completedAt: new Date(),
         },
       });
 
       await transcribeCacheService.setCachedTranscript(cacheKey, {
-        language: result.language,
-        segments: normalizedSegments as object[],
+        language: finalLanguage,
+        segments: finalSegments as object[],
       });
 
       logger.info(
-        { selectedClipId, segCount: normalizedSegments.length },
+        {
+          selectedClipId,
+          segCount: finalSegments.length,
+          subtitleMode,
+          subtitleTargetLanguage,
+        },
         'Clip transcription completed',
       );
     } catch (err) {

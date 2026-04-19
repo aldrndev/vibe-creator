@@ -3,6 +3,8 @@ import { env } from '@/config/env';
 
 const OPENAI_RERANK_MODEL = 'gpt-4.1-mini';
 const AI_RERANK_TIMEOUT_MS = 20000;
+/** Keep model loaded in Ollama for 5 minutes to avoid cold-start on sequential pipeline calls. */
+const OLLAMA_KEEP_ALIVE_SECONDS = 300;
 
 const analysisAiCandidateSchema = z.object({
   index: z.number().int().min(0),
@@ -205,7 +207,7 @@ async function requestOpenAiRatings(
     throw new Error(`OpenAI analysis rerank failed: ${response.status}`);
   }
 
-  const payload = (await response.json()) as unknown;
+  const payload = await response.json();
   const outputText = extractOutputText(payload);
   if (!outputText) {
     throw new Error('OpenAI analysis rerank response missing output_text');
@@ -229,7 +231,7 @@ async function requestOllamaRatings(
     body: JSON.stringify({
       model: env.OLLAMA_MODEL,
       stream: false,
-      keep_alive: 0,
+      keep_alive: OLLAMA_KEEP_ALIVE_SECONDS,
       format: analysisAiResponseJsonSchema,
       messages: [
         {
@@ -250,7 +252,7 @@ async function requestOllamaRatings(
     throw new Error(`Ollama analysis rerank failed: ${response.status}`);
   }
 
-  const payload = (await response.json()) as unknown;
+  const payload = await response.json();
   const outputText = extractOllamaMessage(payload);
   if (!outputText) {
     throw new Error('Ollama analysis rerank response missing message content');

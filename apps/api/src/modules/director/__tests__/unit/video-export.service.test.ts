@@ -6,6 +6,7 @@ import {
   buildSubtitleForceStyle,
   buildSubtitlesFilter,
   createSubtitleAsset,
+  generateSRT,
   isMissingSubtitlesFilterError,
   resolveSubtitleDisplaySegments,
   segmentSubtitlesForSrt,
@@ -27,6 +28,55 @@ describe('videoExportService helpers', () => {
     expect(forceStyle).toContain('PrimaryColour=&H000066FF');
     expect(forceStyle).toContain('BackColour=&H80000000');
     expect(forceStyle).toContain('Alignment=8');
+  });
+
+  it('limits subtitle font size based on cinematic content mode', () => {
+    const forceStyle = buildSubtitleForceStyle({
+      fontSize: 80,
+      contentMode: 'cinematic',
+    });
+
+    expect(forceStyle).toContain('FontSize=44');
+  });
+
+  it('limits subtitle font size with safe default cap when content mode is auto', () => {
+    const forceStyle = buildSubtitleForceStyle({
+      fontSize: 80,
+      contentMode: 'auto',
+    });
+
+    expect(forceStyle).toContain('FontSize=56');
+  });
+
+  it('keeps higher cap for talking-head content mode', () => {
+    const forceStyle = buildSubtitleForceStyle({
+      fontSize: 48,
+      contentMode: 'talking-head',
+    });
+
+    expect(forceStyle).toContain('FontSize=48');
+  });
+
+  it('applies stricter cap for center position subtitles', () => {
+    const forceStyle = buildSubtitleForceStyle({
+      fontSize: 80,
+      contentMode: 'talking-head',
+      position: 'center',
+    });
+
+    expect(forceStyle).toContain('FontSize=56');
+  });
+
+  it('uses proportional mapped max font size on 720p landscape output quality', () => {
+    const forceStyle = buildSubtitleForceStyle({
+      fontSize: 80,
+      contentMode: 'talking-head',
+      position: 'bottom',
+      quality: '720p',
+      aspectRatio: '16:9',
+    });
+
+    expect(forceStyle).toContain('FontSize=24');
   });
 
   it('maps extended subtitle positions to force-style margins', () => {
@@ -51,9 +101,9 @@ describe('videoExportService helpers', () => {
       'scale=1080:1080:force_original_aspect_ratio=decrease,pad=1080:1080:(ow-iw)/2:(oh-ih)/2:color=black',
     );
     expect(videoExportService.getAspectRatioFilter('9:16', '720p')).toBe(
-      'scale=720:1280:force_original_aspect_ratio=decrease,pad=720:1280:(ow-iw)/2:(oh-ih)/2:color=black',
+      'scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280',
     );
-    expect(videoExportService.getAspectRatioFilter('9:16', '1080p', true)).toBe(
+    expect(videoExportService.getAspectRatioFilter('9:16', '1080p')).toBe(
       'scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920',
     );
   });
@@ -68,7 +118,7 @@ describe('videoExportService helpers', () => {
     });
 
     expect(filter).toContain('subtitles=filename=uploads/director/exports/temp_sub_1.srt');
-    expect(filter).toContain('force_style=Fontname=Inter\\,FontSize=24');
+    expect(filter).toContain(String.raw`force_style=Fontname=Inter\,FontSize=24`);
     expect(filter).not.toContain("subtitles='");
   });
 
@@ -94,7 +144,83 @@ describe('videoExportService helpers', () => {
     expect(asset.extension).toBe('ass');
     expect(asset.useForceStyle).toBe(false);
     expect(asset.content).toContain('[V4+ Styles]');
-    expect(asset.content).toContain('{\\k40}Hello');
+    expect(asset.content).toContain(String.raw`{\k40}Hello`);
+  });
+
+  it('creates SRT word-by-word subtitles when word animation is selected', () => {
+    const asset = createSubtitleAsset(
+      [
+        {
+          startMs: 0,
+          endMs: 1_200,
+          text: 'Hello there',
+          words: [
+            { startMs: 0, endMs: 500, text: 'Hello' },
+            { startMs: 500, endMs: 1_000, text: 'there' },
+          ],
+        },
+      ],
+      {
+        animation: 'word',
+        textColorToken: 'C_WHITE',
+      },
+    );
+
+    expect(asset.extension).toBe('srt');
+    expect(asset.useForceStyle).toBe(true);
+    expect(asset.content).toContain('00:00:00,000 --> 00:00:00,500');
+    expect(asset.content).toContain('\nHello\n');
+    expect(asset.content).toContain('\nthere\n');
+  });
+
+  it('keeps ASS karaoke cue end time exact (no artificial hold delay)', () => {
+    const asset = createSubtitleAsset(
+      [
+        {
+          startMs: 0,
+          endMs: 1_000,
+          text: 'Hello there',
+          words: [
+            { startMs: 0, endMs: 500, text: 'Hello' },
+            { startMs: 500, endMs: 1_000, text: 'there' },
+          ],
+        },
+        {
+          startMs: 1_260,
+          endMs: 2_000,
+          text: 'Second cue',
+          words: [
+            { startMs: 1_260, endMs: 1_600, text: 'Second' },
+            { startMs: 1_600, endMs: 2_000, text: 'cue' },
+          ],
+        },
+      ],
+      {
+        animation: 'typewriter',
+        textColorToken: 'C_WHITE',
+      },
+    );
+
+    expect(asset.extension).toBe('ass');
+    expect(asset.content).toContain('Dialogue: 0,0:00:00.00,0:00:01.00');
+  });
+
+  it('uses export play resolution in ASS header for stable subtitle scale', () => {
+    const portraitAsset = createSubtitleAsset([{ startMs: 0, endMs: 1_000, text: 'Halo semua' }], {
+      animation: 'typewriter',
+      aspectRatio: '9:16',
+      quality: '1080p',
+    });
+    const landscapeAsset = createSubtitleAsset([{ startMs: 0, endMs: 1_000, text: 'Halo semua' }], {
+      animation: 'typewriter',
+      aspectRatio: '16:9',
+      quality: '720p',
+    });
+
+    expect(portraitAsset.content).toContain('PlayResX: 1080');
+    expect(portraitAsset.content).toContain('PlayResY: 1920');
+    expect(landscapeAsset.content).toContain('PlayResX: 1280');
+    expect(landscapeAsset.content).toContain('PlayResY: 720');
   });
 
   it('creates ASS karaoke subtitles with synthetic timings when word timestamps are missing', () => {
@@ -113,8 +239,32 @@ describe('videoExportService helpers', () => {
     );
 
     expect(asset.extension).toBe('ass');
-    expect(asset.content).toContain('{\\k');
+    expect(asset.content).toContain(String.raw`{\k`);
     expect(asset.content).toContain('Ini');
+  });
+
+  it('drops out-of-range karaoke words to avoid lead or lag timing', () => {
+    const asset = createSubtitleAsset(
+      [
+        {
+          startMs: 500,
+          endMs: 1_400,
+          text: 'Kayaknya aku',
+          words: [
+            { startMs: 100, endMs: 300, text: 'noise' },
+            { startMs: 500, endMs: 900, text: 'Kayaknya' },
+            { startMs: 900, endMs: 1_350, text: 'aku' },
+          ],
+        },
+      ],
+      {
+        animation: 'typewriter',
+        textColorToken: 'C_WHITE',
+      },
+    );
+
+    expect(asset.content).not.toContain('noise');
+    expect(asset.content).toContain('Kayaknya');
   });
 
   it('merges close subtitle segments into one speaker turn for cinematic mode', () => {
@@ -166,7 +316,7 @@ describe('videoExportService helpers', () => {
 
     expect(asset.extension).toBe('srt');
     expect((asset.content.match(/-->/g) ?? []).length).toBe(1);
-    expect(asset.content).toContain('Ini hook pembuka. Lalu lanjut');
+    expect(asset.content).toContain('Ini hook pembuka.');
     expect(asset.content).toContain('value konten.');
   });
 
@@ -265,15 +415,26 @@ describe('videoExportService helpers', () => {
     ]);
 
     expect(chunks.length).toBeGreaterThan(1);
-    expect(chunks[0]?.text.length).toBeLessThanOrEqual(72);
+    expect(chunks[0]?.text.length).toBeLessThanOrEqual(48);
     expect(chunks.at(-1)?.endMs).toBe(4_000);
   });
 
-  it('wraps subtitle text into at most two readable lines', () => {
-    const wrapped = wrapSubtitleText('Ini contoh subtitle yang perlu dibungkus menjadi dua baris');
+  it('wraps subtitle text into readable lines based on length limit', () => {
+    const wrapped = wrapSubtitleText('Ini contoh subtitle yang perlu dibungkus menjadi lebih dari satu baris');
 
     expect(wrapped).toContain('\n');
-    expect(wrapped.split('\n')).toHaveLength(2);
+    expect(wrapped.split('\n').length).toBeGreaterThan(1);
+    expect(wrapped.split('\n').every(line => line.length <= 25)).toBe(true);
+  });
+
+  it('keeps SRT cue timing exact without additional hold delay', () => {
+    const srt = generateSRT([
+      { startMs: 0, endMs: 1_000, text: 'Cue satu' },
+      { startMs: 1_260, endMs: 2_000, text: 'Cue dua' },
+    ]);
+
+    expect(srt).toContain('00:00:00,000 --> 00:00:01,000');
+    expect(srt).not.toContain('00:00:00,000 --> 00:00:01,200');
   });
 
   it('extends subtitle visibility slightly to avoid flicker between close cues', () => {

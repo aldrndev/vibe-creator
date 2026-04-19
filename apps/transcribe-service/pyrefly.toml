@@ -1,0 +1,2 @@
+# Pyrefly config — point to local venv for correct import resolution
+python_interpreter = ".venv/bin/python"

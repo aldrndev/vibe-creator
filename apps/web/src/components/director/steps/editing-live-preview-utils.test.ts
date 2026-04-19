@@ -123,6 +123,14 @@ describe('deriveLivePreviewScene', () => {
     expect(getLivePreviewSubtitleText(draft, 1_600, 'typewriter')).toBe('Ini contoh hook');
   });
 
+  it('shows one word at a time for word-by-word animation mode', () => {
+    const draft = deriveLivePreviewDraft(clip, refineSettings);
+
+    expect(getLivePreviewSubtitleText(draft, 200, 'word')).toBe('Ini');
+    expect(getLivePreviewSubtitleText(draft, 800, 'word')).toBe('contoh');
+    expect(getLivePreviewSubtitleText(draft, 1_600, 'word')).toBe('');
+  });
+
   it('keeps typewriter behavior even when words timestamps are missing', () => {
     const clipWithoutWords: SelectedClip = {
       ...clip,
@@ -255,6 +263,31 @@ describe('getLivePreviewSubtitleText timing fix', () => {
     const emptyDraft = deriveLivePreviewDraft({ ...clip, transcript: { segments: [] } }, undefined);
 
     expect(getLivePreviewSubtitleText(emptyDraft, 1_000, 'fade')).toBe('');
+  });
+
+  it('skips empty-text segments so subtitle does not appear before speech', () => {
+    const clipWithEmptySegment: SelectedClip = {
+      ...clip,
+      transcript: {
+        segments: [
+          { startMs: 0, endMs: 2_000, text: '' },
+          { startMs: 0, endMs: 2_000, text: '   ' },
+          { startMs: 2_500, endMs: 4_000, text: 'Baru mulai bicara di sini.' },
+        ],
+      },
+    };
+    const noTrimSettings: RefineSettings = {
+      contentMode: 'general',
+      removeSilence: false,
+      optimizeHook: false,
+      faceTracking: false,
+      stabilize: false,
+    };
+    const draft = deriveLivePreviewDraft(clipWithEmptySegment, noTrimSettings);
+
+    expect(getLivePreviewSubtitleText(draft, 500, 'none')).toBe('');
+    expect(getLivePreviewSubtitleText(draft, 1_500, 'none')).toBe('');
+    expect(getLivePreviewSubtitleText(draft, 3_000, 'none')).toBe('Baru mulai bicara di sini.');
   });
 });
 

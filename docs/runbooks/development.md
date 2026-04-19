@@ -152,7 +152,7 @@ console.log('JWT_VERIFY_KEYS=' + JSON.stringify([publicKey.export({ format: 'jwk
 | `XENDIT_SECRET_KEY`    | Payments      |
 | `R2_*`                 | Cloud storage |
 | `TURNSTILE_SECRET_KEY` | Captcha       |
-| `WHISPER_MODEL_SIZE`   | Model transcribe lokal (`small` default) |
+| `WHISPER_MODEL_SIZE`   | Model transcribe lokal (`medium` default) |
 
 ## Common Commands
 

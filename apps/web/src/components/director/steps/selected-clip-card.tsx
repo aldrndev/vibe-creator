@@ -1,4 +1,4 @@
-import { Captions, FileVideo, Pause, Play, Scissors, Trash2 } from 'lucide-react';
+import { Captions, FileVideo, Pause, Play, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import {
   applyTranscriptCueEdit,
@@ -9,10 +9,10 @@ import {
 } from '@/components/director/steps/editing-transcript-cues';
 import { Badge, Button } from '@/components/ui';
 import { useAuthenticatedObjectUrl } from '@/hooks/use-authenticated-object-url';
-import type { DirectorSession, SelectedClip, SubtitleStyle } from '@/stores/director-store';
+import type { SelectedClip, SubtitleStyle } from '@/stores/director-store';
 
 export interface SelectedClipCardProps {
-  readonly activeSession: DirectorSession;
+  readonly sessionId: string;
   readonly clip: SelectedClip;
   readonly index: number;
   readonly onRemoveClip: (clipId: string) => void;
@@ -27,7 +27,7 @@ export interface SelectedClipCardProps {
  * Render one ready-to-edit short with transcript editing controls.
  */
 export function SelectedClipCard({
-  activeSession,
+  sessionId,
   clip,
   index,
   onRemoveClip,
@@ -37,12 +37,10 @@ export function SelectedClipCard({
   const [isLandscape, setIsLandscape] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const posterUrl = useAuthenticatedObjectUrl(
-    `/api/v1/director/sessions/${activeSession.id}/clips/${clip.candidate.id}/poster`,
+    `/api/v1/director/sessions/${sessionId}/clips/${clip.candidate.id}/poster`,
   );
   const previewVideoUrl = useAuthenticatedObjectUrl(
-    isPlaying
-      ? `/api/v1/director/sessions/${activeSession.id}/clips/${clip.candidate.id}/preview`
-      : null,
+    isPlaying ? `/api/v1/director/sessions/${sessionId}/clips/${clip.candidate.id}/preview` : null,
   );
   const duration = Math.round((clip.candidate.endMs - clip.candidate.startMs) / 1000);
   const aspectClass = isLandscape ? 'aspect-video' : 'aspect-9/16';
@@ -55,10 +53,6 @@ export function SelectedClipCard({
     [subtitleStyle.animation, transcriptSegments],
   );
   const transcriptLayoutLabel = getTranscriptLayoutLabel(subtitleStyle.animation);
-  const resizeTextarea = (element: HTMLTextAreaElement) => {
-    element.style.height = 'auto';
-    element.style.height = `${Math.max(element.scrollHeight, 72)}px`;
-  };
   const mediaContent = useMemo(() => {
     if (isPlaying && previewVideoUrl) {
       return (
@@ -102,7 +96,10 @@ export function SelectedClipCard({
       </div>
     );
   }, [clip.candidate.id, index, isPlaying, posterUrl, previewVideoUrl]);
-
+  const resizeTextarea = (element: HTMLTextAreaElement) => {
+    element.style.height = 'auto';
+    element.style.height = `${Math.max(element.scrollHeight, 72)}px`;
+  };
   return (
     <div className="bg-card/40 p-5 sm:p-6 rounded-4xl border border-border/40 flex flex-col gap-6 group hover:border-primary/30 transition-all duration-300 relative z-10 shadow-sm">
       <div className="w-full flex justify-center">
@@ -124,11 +121,6 @@ export function SelectedClipCard({
               <Play size={14} className="fill-white" />
             )}
           </button>
-          <div className="absolute top-3 right-3">
-            <div className="w-8 h-8 rounded-xl bg-primary/20 backdrop-blur-md flex items-center justify-center border border-primary/30">
-              <Scissors size={14} className="text-primary" />
-            </div>
-          </div>
           <div className="absolute bottom-3 left-0 right-0 text-center">
             <span className="text-[10px] font-black tracking-widest px-3 py-1 rounded-full bg-black/60 text-white backdrop-blur-md border border-white/10 uppercase">
               {duration}s

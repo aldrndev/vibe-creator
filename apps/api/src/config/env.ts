@@ -1,6 +1,10 @@
 import { z } from 'zod';
 import 'dotenv/config';
-import { TRANSCRIBE_LANGUAGE_VALUES } from '@/modules/transcribe/transcribe-language';
+import {
+  DEFAULT_TRANSCRIBE_LANGUAGE,
+  isTranscribeLanguage,
+  normalizeTranscribeLanguage,
+} from '@/modules/transcribe/transcribe-language';
 import { optionalNonEmptyStringSchema, optionalUrlSchema } from './env.utils';
 
 const envSchema = z.object({
@@ -69,7 +73,7 @@ const envSchema = z.object({
   OLLAMA_MODEL: z.string().min(1).default('qwen3:14b'),
   WHISPER_MODEL_SIZE: z
     .enum(['tiny', 'base', 'small', 'medium', 'large-v2', 'large-v3'])
-    .default('small'),
+    .default('medium'),
   TRANSCRIBE_PROVIDER: z.enum(['auto', 'local', 'http']).default('auto'),
   TRANSCRIBE_SERVICE_URL: optionalUrlSchema,
   TRANSCRIBE_SERVICE_TOKEN: optionalNonEmptyStringSchema,
@@ -78,7 +82,19 @@ const envSchema = z.object({
     .enum(['true', 'false', '1', '0'])
     .optional()
     .transform((val) => (val === undefined ? true : val === 'true' || val === '1')),
-  TRANSCRIBE_LANGUAGE: z.enum(TRANSCRIBE_LANGUAGE_VALUES).default('mixed'),
+  TRANSCRIBE_LANGUAGE: z
+    .string()
+    .trim()
+    .optional()
+    .refine((value) => value === undefined || isTranscribeLanguage(value), {
+      message:
+        'TRANSCRIBE_LANGUAGE must be "mixed"/"auto" or a valid language code (example: "id", "en", "es", "pt-BR")',
+    })
+    .transform((value) => normalizeTranscribeLanguage(value, DEFAULT_TRANSCRIBE_LANGUAGE)),
+  TRANSCRIBE_VAD_THRESHOLD: z.coerce.number().min(0).max(1).default(0.72),
+  TRANSCRIBE_VAD_SPEECH_PAD_MS: z.coerce.number().int().nonnegative().default(120),
+  TRANSCRIBE_VAD_MIN_SILENCE_MS: z.coerce.number().int().nonnegative().default(300),
+  TRANSCRIBE_VAD_MIN_SPEECH_MS: z.coerce.number().int().nonnegative().default(150),
 
   // Testing - disable rate limiting for E2E tests
   RATE_LIMIT_TEST_MODE: z

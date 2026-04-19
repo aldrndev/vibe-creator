@@ -28,7 +28,7 @@ export const platformPresets: PlatformPreset[] = [
     },
     subtitleStyle: {
       fontToken: 'F_INTER',
-      fontSize: 28,
+      fontSize: 32,
       textColorToken: 'C_WHITE',
       bgColorToken: 'C_BLACK',
       position: 'bottom',
@@ -47,7 +47,7 @@ export const platformPresets: PlatformPreset[] = [
     },
     subtitleStyle: {
       fontToken: 'F_INTER',
-      fontSize: 32,
+      fontSize: 38,
       textColorToken: 'C_WHITE',
       bgColorToken: 'C_BLACK',
       position: 'center',
@@ -66,7 +66,7 @@ export const platformPresets: PlatformPreset[] = [
     },
     subtitleStyle: {
       fontToken: 'F_INTER',
-      fontSize: 26,
+      fontSize: 32,
       textColorToken: 'C_WHITE',
       bgColorToken: 'C_BLACK',
       position: 'bottom',
@@ -82,7 +82,7 @@ export const subtitlePresets: SubtitlePreset[] = [
     description: 'Highlight kata berjalan supaya subtitle terasa hidup dan ritmis.',
     subtitleStyle: {
       fontToken: 'F_INTER',
-      fontSize: 30,
+      fontSize: 44,
       textColorToken: 'C_YELLOW',
       bgColorToken: 'BG_TRANSPARENT',
       position: 'center',
@@ -95,7 +95,7 @@ export const subtitlePresets: SubtitlePreset[] = [
     description: 'Per frasa, posisi cinematic bawah. Cocok untuk movie, short film, dan montage.',
     subtitleStyle: {
       fontToken: 'F_SERIF',
-      fontSize: 22,
+      fontSize: 28,
       textColorToken: 'C_WHITE',
       bgColorToken: 'BG_TRANSPARENT',
       position: 'cinema-bottom',
@@ -108,7 +108,7 @@ export const subtitlePresets: SubtitlePreset[] = [
     description: 'Tebal, kontras tinggi, dan paling mencolok untuk hook.',
     subtitleStyle: {
       fontToken: 'F_INTER',
-      fontSize: 30,
+      fontSize: 52,
       textColorToken: 'C_WHITE',
       bgColorToken: 'C_BLACK',
       position: 'center',
@@ -121,7 +121,7 @@ export const subtitlePresets: SubtitlePreset[] = [
     description: 'Minimalis dan aman untuk berbagai jenis konten.',
     subtitleStyle: {
       fontToken: 'F_INTER',
-      fontSize: 24,
+      fontSize: 32,
       textColorToken: 'C_WHITE',
       bgColorToken: 'C_BLACK',
       position: 'bottom',
@@ -134,11 +134,11 @@ export const subtitlePresets: SubtitlePreset[] = [
     description: 'Word-by-word besar di tengah layar, optimal untuk hook cepat di sosial media.',
     subtitleStyle: {
       fontToken: 'F_INTER',
-      fontSize: 32,
+      fontSize: 48,
       textColorToken: 'C_WHITE',
       bgColorToken: 'C_BLACK',
       position: 'center',
-      animation: 'typewriter',
+      animation: 'word',
     },
   },
   {
@@ -147,7 +147,7 @@ export const subtitlePresets: SubtitlePreset[] = [
     description: 'Cocok untuk talking head dan percakapan yang lebih panjang.',
     subtitleStyle: {
       fontToken: 'F_SERIF',
-      fontSize: 26,
+      fontSize: 34,
       textColorToken: 'C_WHITE',
       bgColorToken: 'C_BLACK',
       position: 'bottom',
@@ -160,7 +160,7 @@ export const subtitlePresets: SubtitlePreset[] = [
     description: 'Per baris penuh, aman untuk storytelling, dokumenter, dan narasi dramatis.',
     subtitleStyle: {
       fontToken: 'F_INTER',
-      fontSize: 24,
+      fontSize: 32,
       textColorToken: 'C_WHITE',
       bgColorToken: 'C_BLACK',
       position: 'safe-bottom',

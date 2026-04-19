@@ -1,13 +1,20 @@
 import { Captions, ScanFace, Scissors, Sparkles, Type, Waves } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { type ReactNode, useEffect } from 'react';
 import { EditingLivePreview } from '@/components/director/steps/editing-live-preview';
 import { subtitlePresets } from '@/components/director/steps/editing-presets';
 import { Card, CardBody, Switch, Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui';
 import {
+  type ContentMode,
   getCandidateSuggestedContentMode,
   getContentModeLabel,
   getEffectiveRefineSettings,
+  getResolvedContentMode,
 } from '@/lib/director-refine-settings';
+import {
+  clampSubtitleFontSize,
+  DIRECTOR_SUBTITLE_FONT_SIZE_MIN,
+  resolveSubtitleFontSizeMax,
+} from '@/lib/director-subtitle-style';
 import { cn } from '@/lib/utils';
 import type {
   DirectorSession,
@@ -45,9 +52,58 @@ export function EditingSidebar({
   const activeRefineSettings = primaryClip
     ? getEffectiveRefineSettings(primaryClip, refineSettings[primaryClip.id])
     : null;
+  const resolvedContentMode = primaryClip
+    ? getResolvedContentMode(primaryClip.candidate, refineSettings[primaryClip.id])
+    : null;
+  const subtitleFontSizeMax = resolveSubtitleFontSizeMax({
+    mode: resolvedContentMode,
+    position: subtitleStyle.position,
+    animation: subtitleStyle.animation,
+    quality: exportSettings.quality,
+    aspectRatio: exportSettings.aspectRatio,
+  });
   const suggestedMode = primaryClip
     ? getCandidateSuggestedContentMode(primaryClip.candidate)
     : null;
+  const effectiveContentMode = (resolvedContentMode ?? 'auto') as ContentMode;
+
+  useEffect(() => {
+    const clampedFontSize = clampSubtitleFontSize(subtitleStyle.fontSize, {
+      mode: effectiveContentMode,
+      position: subtitleStyle.position,
+      animation: subtitleStyle.animation,
+      quality: exportSettings.quality,
+      aspectRatio: exportSettings.aspectRatio,
+    });
+    if (clampedFontSize !== subtitleStyle.fontSize) {
+      onUpdateSubtitleStyle({ fontSize: clampedFontSize });
+    }
+  }, [
+    effectiveContentMode,
+    exportSettings.quality,
+    exportSettings.aspectRatio,
+    onUpdateSubtitleStyle,
+    subtitleStyle.fontSize,
+    subtitleStyle.position,
+    subtitleStyle.animation,
+  ]);
+
+  const handleUpdateSubtitleStyle = (style: Partial<SubtitleStyle>) => {
+    const nextFontSize = style.fontSize ?? subtitleStyle.fontSize;
+    const nextPosition = style.position ?? subtitleStyle.position;
+    const nextAnimation = style.animation ?? subtitleStyle.animation;
+    const clampedFontSize = clampSubtitleFontSize(nextFontSize, {
+      mode: effectiveContentMode,
+      position: nextPosition,
+      animation: nextAnimation,
+      quality: exportSettings.quality,
+      aspectRatio: exportSettings.aspectRatio,
+    });
+    onUpdateSubtitleStyle({
+      ...style,
+      fontSize: clampedFontSize,
+    });
+  };
 
   return (
     <div className="w-full lg:w-[24rem] xl:w-104 shrink-0 self-start pb-6 lg:pb-8">
@@ -59,7 +115,7 @@ export function EditingSidebar({
                 value="refine"
                 className="flex-1 rounded-xl text-[11px] font-black uppercase tracking-widest data-[state=active]:bg-card data-[state=active]:text-primary"
               >
-                Refine
+                Setting
               </TabsTrigger>
               <TabsTrigger
                 value="subtitle"
@@ -87,11 +143,12 @@ export function EditingSidebar({
             <TabsContent value="subtitle" className="mt-4">
               <SubtitleStyleCard
                 subtitleStyle={subtitleStyle}
-                onUpdateSubtitleStyle={onUpdateSubtitleStyle}
+                onUpdateSubtitleStyle={handleUpdateSubtitleStyle}
+                subtitleFontSizeMax={subtitleFontSizeMax}
               />
             </TabsContent>
 
-            <TabsContent value="preview" className="mt-4">
+            <TabsContent value="preview" forceMount className="mt-4 data-[state=inactive]:hidden">
               <EditingLivePreview
                 activeSession={activeSession}
                 exportSettings={exportSettings}
@@ -152,10 +209,10 @@ function RefineCard({
             <ScanFace size={19} className="text-primary" />
           </div>
           <div>
-            <h4 className="font-black tracking-tight text-lg">Refine Short</h4>
+            <h4 className="font-black tracking-tight text-lg">Setting Short</h4>
             {suggestedMode ? (
               <p className="text-xs text-muted-foreground">
-                Saran AI (rekomendasi otomatis, bisa diubah manual):{' '}
+                Mode short (rekomendasi AI) :{' '}
                 <span className="font-semibold">{getContentModeLabel(suggestedMode)}</span>
               </p>
             ) : null}
@@ -196,29 +253,29 @@ function RefineCard({
         <div className="space-y-2">
           <RefineToggleRow
             icon={<ScanFace size={14} className="text-primary" />}
-            title="Face Tracking"
-            description="Kamera otomatis langsung fokus ke subjek utama. Cocok untuk 1 pembicara atau 1 objek utama."
+            title="Fokus ke Subjek"
+            description="Kamera mengikuti subjek utama agar framing tetap pas."
             checked={Boolean(activeRefineSettings.faceTracking)}
             onChange={(checked) => onUpdateRefineSetting('faceTracking', checked)}
           />
           <RefineToggleRow
             icon={<Waves size={14} className="text-primary" />}
-            title="Remove Silence"
-            description="Trim jeda kosong agar pacing lebih rapat."
+            title="Pangkas Jeda"
+            description="Potong bagian hening supaya alur video lebih cepat."
             checked={Boolean(activeRefineSettings.removeSilence)}
             onChange={(checked) => onUpdateRefineSetting('removeSilence', checked)}
           />
           <RefineToggleRow
             icon={<Sparkles size={14} className="text-primary" />}
-            title="Optimize Hook"
-            description="Kurangi filler awal untuk opening lebih cepat."
+            title="Percepat Opening"
+            description="Kurangi filler di awal agar penonton cepat masuk ke inti."
             checked={Boolean(activeRefineSettings.optimizeHook)}
             onChange={(checked) => onUpdateRefineSetting('optimizeHook', checked)}
           />
           <RefineToggleRow
             icon={<Scissors size={14} className="text-primary" />}
-            title="Stabilize Crop"
-            description="Menjaga framing tetap tenang agar tidak terasa goyang."
+            title="Stabilkan Frame"
+            description="Buat perpindahan framing lebih halus dan tidak terlihat goyang."
             checked={Boolean(activeRefineSettings.stabilize)}
             onChange={(checked) => onUpdateRefineSetting('stabilize', checked)}
           />
@@ -260,9 +317,11 @@ function RefineToggleRow({
 function SubtitleStyleCard({
   subtitleStyle,
   onUpdateSubtitleStyle,
+  subtitleFontSizeMax,
 }: Readonly<{
   subtitleStyle: SubtitleStyle;
   onUpdateSubtitleStyle: (style: Partial<SubtitleStyle>) => void;
+  subtitleFontSizeMax: number;
 }>) {
   return (
     <Card className="bg-transparent border-none shadow-none">
@@ -282,9 +341,10 @@ function SubtitleStyleCard({
             {subtitlePresets.map((preset) => {
               const isActive =
                 subtitleStyle.fontToken === preset.subtitleStyle.fontToken &&
+                subtitleStyle.textColorToken === preset.subtitleStyle.textColorToken &&
+                subtitleStyle.bgColorToken === preset.subtitleStyle.bgColorToken &&
                 subtitleStyle.position === preset.subtitleStyle.position &&
-                subtitleStyle.animation === preset.subtitleStyle.animation &&
-                subtitleStyle.fontSize === preset.subtitleStyle.fontSize;
+                subtitleStyle.animation === preset.subtitleStyle.animation;
 
               return (
                 <button
@@ -319,8 +379,8 @@ function SubtitleStyleCard({
           </div>
           <input
             type="range"
-            min="16"
-            max="48"
+            min={String(DIRECTOR_SUBTITLE_FONT_SIZE_MIN)}
+            max={String(subtitleFontSizeMax)}
             value={subtitleStyle.fontSize}
             onChange={(event) =>
               onUpdateSubtitleStyle({
@@ -329,6 +389,9 @@ function SubtitleStyleCard({
             }
             className="w-full accent-primary h-1.5 bg-muted rounded-full appearance-none cursor-pointer"
           />
+          <p className="text-[10px] text-muted-foreground">
+            Maksimal {subtitleFontSizeMax}px sesuai mode, posisi, dan kualitas video.
+          </p>
         </div>
 
         <div className="space-y-3">
@@ -411,6 +474,7 @@ function SubtitleStyleCard({
               { value: 'none', label: 'Static' },
               { value: 'fade', label: 'Fade' },
               { value: 'typewriter', label: 'Karaoke' },
+              { value: 'word', label: 'Word by Word' },
               { value: 'phrase', label: 'Cinema' },
               { value: 'line', label: 'Line' },
             ].map((animation) => (
