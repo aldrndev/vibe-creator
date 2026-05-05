@@ -59,6 +59,14 @@ const contentModePresets: Record<ResolvedContentMode, RefinePreset> = {
   },
 };
 
+function normalizeLegacyMode(mode: ResolvedContentMode): ResolvedContentMode {
+  if (mode === 'talking-head' || mode === 'general') {
+    return 'podcast';
+  }
+
+  return mode;
+}
+
 function isResolvedContentMode(mode: string | undefined): mode is ResolvedContentMode {
   return (
     mode === 'podcast' ||
@@ -73,10 +81,10 @@ function isResolvedContentMode(mode: string | undefined): mode is ResolvedConten
 export function getCandidateSuggestedContentMode(candidate: Candidate): ResolvedContentMode {
   const suggestion = candidate.metadata?.scoreBreakdown?.contentModeSuggestion;
   if (isResolvedContentMode(suggestion)) {
-    return suggestion;
+    return normalizeLegacyMode(suggestion);
   }
 
-  return 'general';
+  return 'podcast';
 }
 
 export function getContentModePreset(mode: ResolvedContentMode): RefinePreset {
@@ -91,7 +99,7 @@ export function getResolvedContentMode(
     return getCandidateSuggestedContentMode(candidate);
   }
 
-  return settings.contentMode;
+  return normalizeLegacyMode(settings.contentMode);
 }
 
 export function getEffectiveRefineSettings(
@@ -127,12 +135,12 @@ export function getContentModeLabel(mode: ResolvedContentMode): string {
     case 'interview':
       return 'Interview';
     case 'talking-head':
-      return 'Talking Head';
+      return 'Podcast';
     case 'product-review':
       return 'Review Produk';
     case 'cinematic':
       return 'Sinematik';
     case 'general':
-      return 'Umum';
+      return 'Podcast';
   }
 }

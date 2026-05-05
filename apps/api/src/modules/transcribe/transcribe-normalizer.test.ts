@@ -80,6 +80,30 @@ describe('transcribeNormalizer', () => {
     ]);
   });
 
+  it('preserves full segment text when word timestamps miss a spoken word', () => {
+    const normalized = transcribeNormalizer.normalizeSegments([
+      {
+        start: 0,
+        end: 1.5,
+        text: 'Hello missing there',
+        confidence: 0.82,
+        words: [
+          { start: 0, end: 0.35, text: 'Hello' },
+          { start: 1, end: 1.4, text: 'there' },
+        ],
+      },
+    ]);
+
+    expect(normalized).toEqual([
+      {
+        startMs: 0,
+        endMs: 1500,
+        text: 'Hello missing there',
+        speaker: undefined,
+      },
+    ]);
+  });
+
   it('keeps same-speaker sentence as one fuller subtitle utterance', () => {
     const normalized = transcribeNormalizer.normalizeSegments([
       {

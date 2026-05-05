@@ -1,6 +1,7 @@
 import { AlertCircle, FileVideo, Link as LinkIcon, Plus, Wand2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Badge, Button, Card, CardBody, Input } from '@/components/ui';
+import { targetDurationRangeOptions } from '@/lib/director-target-duration';
 import { cn } from '@/lib/utils';
 import { authFetch } from '@/services/api';
 import type { DirectorSession } from '@/stores/director-store';
@@ -68,10 +69,12 @@ export const ImportStep = () => {
     error,
     isWaitingForAsset,
     downloadProgress,
+    targetDurationRange,
     setSession,
     setStep,
     setLoading,
     setError,
+    setTargetDurationRange,
     setWaitingForAsset,
     setDownloadProgress,
     reset,
@@ -135,6 +138,10 @@ export const ImportStep = () => {
         setIsPreparingAnalysis(true);
         const res = await authFetch(`/api/v1/director/sessions/${sessionId}/analyze`, {
           method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            targetDurationRange,
+          }),
         });
         const data = await res.json();
         if (data.success) {
@@ -153,7 +160,7 @@ export const ImportStep = () => {
         setIsPreparingAnalysis(false);
       }
     },
-    [setLoading, setStep, setWaitingForAsset, rollbackSession],
+    [rollbackSession, setLoading, setStep, setWaitingForAsset, targetDurationRange],
   );
 
   const handleUrlImport = async () => {
@@ -403,6 +410,36 @@ export const ImportStep = () => {
               <span className="font-semibold text-left">{error}</span>
             </div>
           )}
+
+          <div className="w-full rounded-3xl border border-border/40 bg-muted/10 p-4 sm:p-5">
+            <div className="mb-3 text-left">
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground/60">
+                Target Durasi Short
+              </p>
+              <p className="mt-1 text-xs font-medium text-muted-foreground">
+                Analisa kandidat akan diprioritaskan mengikuti rentang durasi ini.
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+              {targetDurationRangeOptions.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setTargetDurationRange(option.value)}
+                  className={cn(
+                    'rounded-2xl border px-2 py-2 text-center transition-all',
+                    targetDurationRange === option.value
+                      ? 'border-primary/40 bg-primary/10 text-primary'
+                      : 'border-border/40 bg-card/40 text-muted-foreground hover:border-primary/30 hover:text-foreground',
+                  )}
+                  disabled={isSubmittingImport || isWaitingForAsset || isPreparingAnalysis}
+                >
+                  <p className="text-[11px] font-black tracking-wide">{option.label}</p>
+                  <p className="mt-1 text-[10px] font-medium opacity-80">{option.helper}</p>
+                </button>
+              ))}
+            </div>
+          </div>
 
           <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-6 mt-2">
             {/* Upload Zone */}

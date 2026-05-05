@@ -33,14 +33,14 @@ export TRANSCRIBE_DIARIZATION_AUTH_TOKEN=hf_xxx
 - `TRANSCRIBE_DIARIZATION_AUTH_TOKEN` (HuggingFace token for pyannote models)
 - `TRANSCRIBE_DIARIZATION_MODEL` (default `pyannote/speaker-diarization-3.1`)
 - `TRANSCRIBE_DIARIZATION_DEVICE` (default `cpu`)
-- `TRANSCRIBE_VAD_THRESHOLD` (float `0.0 - 1.0`, default `0.72`)
-- `TRANSCRIBE_VAD_SPEECH_PAD_MS` (int, default `120`)
-- `TRANSCRIBE_VAD_MIN_SILENCE_MS` (int, default `300`)
-- `TRANSCRIBE_VAD_MIN_SPEECH_MS` (int, default `150`)
+- `TRANSCRIBE_VAD_THRESHOLD` (float `0.0 - 1.0`, default `0.5`)
+- `TRANSCRIBE_VAD_SPEECH_PAD_MS` (int, default `300`)
+- `TRANSCRIBE_VAD_MIN_SILENCE_MS` (int, default `200`)
+- `TRANSCRIBE_VAD_MIN_SPEECH_MS` (int, default `80`)
 
 ## Endpoints
 
 - `GET /health`
 - `POST /transcribe`
-  - Body: `{ "audioPath": string, "wordTimestamps": boolean, "language"?: string }`
+  - Body: `{ "audioPath": string, "wordTimestamps": boolean, "language"?: string, "vadThreshold"?: number, "vadSpeechPadMs"?: number, "vadMinSilenceMs"?: number, "vadMinSpeechMs"?: number }`
   - Language accepts any ISO 639 code (e.g. `"id"`, `"en"`, `"pt-br"`, `"ja"`, `"es"`) or `"mixed"`/`"auto"` for auto-detection.

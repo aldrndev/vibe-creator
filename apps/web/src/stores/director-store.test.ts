@@ -35,4 +35,30 @@ describe('director-store transcribe language', () => {
     expect(useDirectorStore.getState().subtitleMode).toBe('original');
     expect(useDirectorStore.getState().subtitleTargetLanguage).toBe('en');
   });
+
+  it('uses viral pop as the default subtitle style', () => {
+    const subtitleStyle = useDirectorStore.getState().subtitleStyle;
+
+    expect(subtitleStyle).toMatchObject({
+      stylePreset: 'viral-pop',
+      fontToken: 'F_INTER',
+      fontSize: 52,
+      textColorToken: 'C_YELLOW',
+      bgColorToken: 'BG_TRANSPARENT',
+      position: 'center',
+      animation: 'pop-word',
+    });
+  });
+
+  it('uses auto target duration as default and supports updates', () => {
+    const state = useDirectorStore.getState();
+
+    expect(state.targetDurationRange).toBe('auto');
+
+    state.setTargetDurationRange('60-90');
+    expect(useDirectorStore.getState().targetDurationRange).toBe('60-90');
+
+    state.reset();
+    expect(useDirectorStore.getState().targetDurationRange).toBe('auto');
+  });
 });

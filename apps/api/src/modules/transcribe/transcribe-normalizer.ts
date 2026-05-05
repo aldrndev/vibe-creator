@@ -1,3 +1,4 @@
+import { hasCompleteWordTextCoverage } from './transcript-word-coverage.js';
 import type { RawWhisperSegment, RawWhisperWord } from './whisper-runner.js';
 
 export interface SubtitleWord {
@@ -38,9 +39,9 @@ export class TranscribeNormalizer {
   normalizeSegments(rawSegments: RawWhisperSegment[]): SubtitleSegment[] {
     if (!rawSegments || rawSegments.length === 0) return [];
 
-    const wordSegments = this.buildWordSegments(rawSegments);
-    if (wordSegments.length > 0) {
-      return this.clampAndEnsureMonotonicity(wordSegments);
+    const coverageAwareSegments = this.buildCoverageAwareSegments(rawSegments);
+    if (coverageAwareSegments.length > 0) {
+      return this.clampAndEnsureMonotonicity(coverageAwareSegments);
     }
 
     const segments = this.preprocessSegments(rawSegments);
@@ -50,13 +51,38 @@ export class TranscribeNormalizer {
     return this.clampAndEnsureMonotonicity(merged);
   }
 
-  private buildWordSegments(rawSegments: RawWhisperSegment[]): SubtitleSegment[] {
-    const words = rawSegments
-      .flatMap((segment) => segment.words ?? [])
-      .map((word) => this.normalizeWord(word))
-      .filter((word): word is SubtitleWord => word !== null)
-      .sort((a, b) => a.startMs - b.startMs);
+  private buildCoverageAwareSegments(rawSegments: RawWhisperSegment[]): SubtitleSegment[] {
+    const segments: SubtitleSegment[] = [];
+    let usedWordTimings = false;
 
+    for (const rawSegment of rawSegments) {
+      const words = (rawSegment.words ?? [])
+        .map((word) => this.normalizeWord(word))
+        .filter((word): word is SubtitleWord => word !== null)
+        .sort((a, b) => a.startMs - b.startMs);
+
+      if (
+        words.length > 0 &&
+        hasCompleteWordTextCoverage(
+          rawSegment.text,
+          words.map((word) => word.text),
+        )
+      ) {
+        segments.push(...this.buildWordSegments(words));
+        usedWordTimings = true;
+        continue;
+      }
+
+      const fallbackSegment = this.normalizeRawSegment(rawSegment);
+      if (fallbackSegment) {
+        segments.push(fallbackSegment);
+      }
+    }
+
+    return usedWordTimings ? segments.sort((a, b) => a.startMs - b.startMs) : [];
+  }
+
+  private buildWordSegments(words: SubtitleWord[]): SubtitleSegment[] {
     if (words.length === 0) {
       return [];
     }
@@ -125,6 +151,21 @@ export class TranscribeNormalizer {
 
     grouped.push(current);
     return grouped;
+  }
+
+  private normalizeRawSegment(rawSegment: RawWhisperSegment): SubtitleSegment | null {
+    const text = rawSegment.text.trim();
+    if (text.length === 0) {
+      return null;
+    }
+
+    return {
+      startMs: Math.round(rawSegment.start * 1000),
+      endMs: Math.round(rawSegment.end * 1000),
+      text,
+      speaker:
+        typeof rawSegment.speaker === 'string' ? rawSegment.speaker.trim() || undefined : undefined,
+    };
   }
 
   private preprocessSegments(rawSegments: RawWhisperSegment[]): SubtitleSegment[] {

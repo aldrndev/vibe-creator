@@ -26,6 +26,46 @@ function createCandidate(): Candidate {
   };
 }
 
+function createTalkingHeadCandidate(): Candidate {
+  return {
+    id: 'candidate-talking-head',
+    startMs: 0,
+    endMs: 24_000,
+    score: 0.84,
+    metadata: {
+      scoreBreakdown: {
+        energy: 74,
+        dialogDensity: 76,
+        durationFit: 88,
+        visualPenalty: 18,
+        topSignals: ['Dialog padat', 'Energi tinggi'],
+        badges: ['Talking Head'],
+        contentModeSuggestion: 'talking-head',
+      },
+    },
+  };
+}
+
+function createGeneralCandidate(): Candidate {
+  return {
+    id: 'candidate-general',
+    startMs: 0,
+    endMs: 24_000,
+    score: 0.72,
+    metadata: {
+      scoreBreakdown: {
+        energy: 58,
+        dialogDensity: 48,
+        durationFit: 90,
+        visualPenalty: 26,
+        topSignals: ['Durasi pas'],
+        badges: ['Umum'],
+        contentModeSuggestion: 'general',
+      },
+    },
+  };
+}
+
 function createClip(): SelectedClip {
   return {
     id: 'clip-1',
@@ -82,5 +122,17 @@ describe('director refine settings', () => {
       removeSilence: true,
       optimizeHook: true,
     });
+  });
+
+  it('maps talking-head recommendation to podcast in auto mode', () => {
+    expect(getResolvedContentMode(createTalkingHeadCandidate(), { contentMode: 'auto' })).toBe(
+      'podcast',
+    );
+  });
+
+  it('maps general recommendation to podcast in auto mode', () => {
+    expect(getResolvedContentMode(createGeneralCandidate(), { contentMode: 'auto' })).toBe(
+      'podcast',
+    );
   });
 });

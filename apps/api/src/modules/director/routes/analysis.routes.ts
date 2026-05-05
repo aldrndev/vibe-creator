@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
+import { targetDurationRangeValues } from '../analysis-duration-config';
 import { directorService } from '../director.service';
 
 const selectClipsSchema = z.object({
@@ -15,13 +16,32 @@ const updateClipSchema = z.object({
   orderIndex: z.number().min(0).optional(),
 });
 
+const analyzeRequestSchema = z
+  .object({
+    targetDurationRange: z.enum(targetDurationRangeValues).optional(),
+  })
+  .optional();
+
 export const analysisRoutes: FastifyPluginAsync = async (fastify) => {
   /**
    * Start analysis
    */
-  fastify.post<{ Params: { id: string } }>(
+  fastify.post<{
+    Params: { id: string };
+    Body?: {
+      targetDurationRange?: (typeof targetDurationRangeValues)[number];
+    };
+  }>(
     '/sessions/:id/analyze',
-    async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+    async (
+      request: FastifyRequest<{
+        Params: { id: string };
+        Body?: {
+          targetDurationRange?: (typeof targetDurationRangeValues)[number];
+        };
+      }>,
+      reply: FastifyReply,
+    ) => {
       const user = request.user;
       if (!user) {
         return reply.status(401).send({
@@ -31,12 +51,24 @@ export const analysisRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       try {
-        const job = await directorService.startAnalysis(request.params.id, user.id);
+        const body = analyzeRequestSchema.parse(request.body ?? {});
+        const job = await directorService.startAnalysis(request.params.id, user.id, {
+          targetDurationRange: body?.targetDurationRange,
+        });
         return reply.status(202).send({
           success: true,
           data: job,
         });
       } catch (err) {
+        if (err instanceof z.ZodError) {
+          return reply.status(400).send({
+            success: false,
+            error: {
+              code: 'VALIDATION_ERROR',
+              message: err.issues[0]?.message,
+            },
+          });
+        }
         const message = err instanceof Error ? err.message : 'Analysis failed';
         return reply.status(400).send({
           success: false,

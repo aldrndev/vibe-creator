@@ -36,7 +36,7 @@ describe('videoExportService helpers', () => {
       contentMode: 'cinematic',
     });
 
-    expect(forceStyle).toContain('FontSize=44');
+    expect(forceStyle).toContain('FontSize=56');
   });
 
   it('limits subtitle font size with safe default cap when content mode is auto', () => {
@@ -45,7 +45,7 @@ describe('videoExportService helpers', () => {
       contentMode: 'auto',
     });
 
-    expect(forceStyle).toContain('FontSize=56');
+    expect(forceStyle).toContain('FontSize=64');
   });
 
   it('keeps higher cap for talking-head content mode', () => {
@@ -64,7 +64,7 @@ describe('videoExportService helpers', () => {
       position: 'center',
     });
 
-    expect(forceStyle).toContain('FontSize=56');
+    expect(forceStyle).toContain('FontSize=72');
   });
 
   it('uses proportional mapped max font size on 720p landscape output quality', () => {
@@ -76,21 +76,26 @@ describe('videoExportService helpers', () => {
       aspectRatio: '16:9',
     });
 
-    expect(forceStyle).toContain('FontSize=24');
+    expect(forceStyle).toContain('FontSize=27');
   });
 
-  it('maps extended subtitle positions to force-style margins', () => {
-    const cinemaBottomStyle = buildSubtitleForceStyle({
-      position: 'cinema-bottom',
+  it('maps top/center/bottom subtitle positions with 30/50/30 anchors', () => {
+    const topStyle = buildSubtitleForceStyle({
+      position: 'top',
     });
-    const lowerThirdStyle = buildSubtitleForceStyle({
-      position: 'lower-third',
+    const centerStyle = buildSubtitleForceStyle({
+      position: 'center',
+    });
+    const bottomStyle = buildSubtitleForceStyle({
+      position: 'bottom',
     });
 
-    expect(cinemaBottomStyle).toContain('Alignment=2');
-    expect(cinemaBottomStyle).toContain('MarginV=180');
-    expect(lowerThirdStyle).toContain('Alignment=2');
-    expect(lowerThirdStyle).toContain('MarginV=300');
+    expect(topStyle).toContain('Alignment=8');
+    expect(topStyle).toContain('MarginV=576');
+    expect(centerStyle).toContain('Alignment=5');
+    expect(centerStyle).toContain('MarginV=0');
+    expect(bottomStyle).toContain('Alignment=2');
+    expect(bottomStyle).toContain('MarginV=576');
   });
 
   it('maps aspect ratio to the expected ffmpeg filter', () => {
@@ -147,7 +152,39 @@ describe('videoExportService helpers', () => {
     expect(asset.content).toContain(String.raw`{\k40}Hello`);
   });
 
-  it('creates SRT word-by-word subtitles when word animation is selected', () => {
+  it('keeps Viral Pop effect when the animation is customized to karaoke', () => {
+    const asset = createSubtitleAsset(
+      [
+        {
+          startMs: 0,
+          endMs: 1_200,
+          text: 'Hello there',
+          words: [
+            { startMs: 0, endMs: 400, text: 'Hello' },
+            { startMs: 450, endMs: 900, text: 'there' },
+          ],
+        },
+      ],
+      {
+        stylePreset: 'viral-pop',
+        animation: 'typewriter',
+        fontToken: 'F_SERIF',
+        fontSize: 52,
+        textColorToken: 'C_YELLOW',
+        bgColorToken: 'BG_TRANSPARENT',
+        position: 'center',
+      },
+    );
+
+    expect(asset.extension).toBe('ass');
+    expect(asset.content).toContain('Fontsize');
+    expect(asset.content).toContain(String.raw`\fscx118`);
+    expect(asset.content).toContain('Dialogue: 0,0:00:00.00,0:00:00.45');
+    expect(asset.content).toContain('Hello');
+    expect(asset.content).toContain('there');
+  });
+
+  it('creates ASS word-by-word subtitles when word animation is selected', () => {
     const asset = createSubtitleAsset(
       [
         {
@@ -166,11 +203,11 @@ describe('videoExportService helpers', () => {
       },
     );
 
-    expect(asset.extension).toBe('srt');
-    expect(asset.useForceStyle).toBe(true);
-    expect(asset.content).toContain('00:00:00,000 --> 00:00:00,500');
-    expect(asset.content).toContain('\nHello\n');
-    expect(asset.content).toContain('\nthere\n');
+    expect(asset.extension).toBe('ass');
+    expect(asset.useForceStyle).toBe(false);
+    expect(asset.content).toContain('Dialogue: 0,0:00:00.00,0:00:00.50');
+    expect(asset.content).toContain('Hello');
+    expect(asset.content).toContain('there');
   });
 
   it('keeps ASS karaoke cue end time exact (no artificial hold delay)', () => {
@@ -243,6 +280,74 @@ describe('videoExportService helpers', () => {
     expect(asset.content).toContain('Ini');
   });
 
+  it('uses synthetic subtitle words when word timestamps do not cover full text', () => {
+    const asset = createSubtitleAsset(
+      [
+        {
+          startMs: 0,
+          endMs: 1_500,
+          text: 'Hello missing there',
+          words: [
+            { startMs: 0, endMs: 350, text: 'Hello' },
+            { startMs: 1_000, endMs: 1_400, text: 'there' },
+          ],
+        },
+      ],
+      {
+        animation: 'typewriter',
+        textColorToken: 'C_WHITE',
+      },
+    );
+
+    expect(asset.extension).toBe('ass');
+    expect(asset.content).toContain('Hello');
+    expect(asset.content).toContain('missing');
+    expect(asset.content).toContain('there');
+  });
+
+  it('creates viral pop word subtitles with enlarged synthetic words inside clip timing', () => {
+    const asset = createSubtitleAsset(
+      [
+        {
+          startMs: 0,
+          endMs: 900,
+          text: 'Hook cepat banget',
+        },
+      ],
+      {
+        animation: 'pop-word',
+        fontSize: 52,
+        textColorToken: 'C_YELLOW',
+        bgColorToken: 'BG_TRANSPARENT',
+        position: 'center',
+      },
+    );
+
+    expect(asset.extension).toBe('ass');
+    expect(asset.useForceStyle).toBe(false);
+    expect(asset.content.match(/^Dialogue:/gm) ?? []).toHaveLength(3);
+    expect(asset.content).toContain(String.raw`\fs63`);
+    expect(asset.content).toContain(String.raw`\fscx118`);
+    expect(asset.content).toContain('Hook');
+    expect(asset.content).toContain('cepat');
+    expect(asset.content).toContain('banget');
+    expect(asset.content).toContain('Dialogue: 0,0:00:00.60,0:00:00.90');
+    expect(asset.content).not.toContain('0:00:00.91');
+  });
+
+  it('renders transparent orange karaoke captions with stronger glow-style outline', () => {
+    const asset = createSubtitleAsset([{ startMs: 0, endMs: 1_000, text: 'Neon glow' }], {
+      animation: 'typewriter',
+      textColorToken: 'C_ORANGE',
+      bgColorToken: 'BG_TRANSPARENT',
+      position: 'center',
+    });
+
+    const styleLine = asset.content.split('\n').find((line) => line.startsWith('Style: Default'));
+
+    expect(styleLine).toContain(',3,3,2,5,');
+  });
+
   it('drops out-of-range karaoke words to avoid lead or lag timing', () => {
     const asset = createSubtitleAsset(
       [
@@ -305,7 +410,7 @@ describe('videoExportService helpers', () => {
     expect(resolved[1]?.speaker).toBe('SPEAKER_01');
   });
 
-  it('creates SRT with merged turn content for phrase animation', () => {
+  it('creates ASS with merged turn content for phrase animation', () => {
     const asset = createSubtitleAsset(
       [
         { startMs: 0, endMs: 1_000, text: 'Ini hook pembuka.' },
@@ -314,8 +419,8 @@ describe('videoExportService helpers', () => {
       { animation: 'phrase' },
     );
 
-    expect(asset.extension).toBe('srt');
-    expect((asset.content.match(/-->/g) ?? []).length).toBe(1);
+    expect(asset.extension).toBe('ass');
+    expect((asset.content.match(/^Dialogue:/gm) ?? []).length).toBe(1);
     expect(asset.content).toContain('Ini hook pembuka.');
     expect(asset.content).toContain('value konten.');
   });
@@ -420,11 +525,13 @@ describe('videoExportService helpers', () => {
   });
 
   it('wraps subtitle text into readable lines based on length limit', () => {
-    const wrapped = wrapSubtitleText('Ini contoh subtitle yang perlu dibungkus menjadi lebih dari satu baris');
+    const wrapped = wrapSubtitleText(
+      'Ini contoh subtitle yang perlu dibungkus menjadi lebih dari satu baris',
+    );
 
     expect(wrapped).toContain('\n');
     expect(wrapped.split('\n').length).toBeGreaterThan(1);
-    expect(wrapped.split('\n').every(line => line.length <= 25)).toBe(true);
+    expect(wrapped.split('\n').every((line) => line.length <= 25)).toBe(true);
   });
 
   it('keeps SRT cue timing exact without additional hold delay', () => {

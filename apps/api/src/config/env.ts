@@ -91,10 +91,10 @@ const envSchema = z.object({
         'TRANSCRIBE_LANGUAGE must be "mixed"/"auto" or a valid language code (example: "id", "en", "es", "pt-BR")',
     })
     .transform((value) => normalizeTranscribeLanguage(value, DEFAULT_TRANSCRIBE_LANGUAGE)),
-  TRANSCRIBE_VAD_THRESHOLD: z.coerce.number().min(0).max(1).default(0.72),
-  TRANSCRIBE_VAD_SPEECH_PAD_MS: z.coerce.number().int().nonnegative().default(120),
-  TRANSCRIBE_VAD_MIN_SILENCE_MS: z.coerce.number().int().nonnegative().default(300),
-  TRANSCRIBE_VAD_MIN_SPEECH_MS: z.coerce.number().int().nonnegative().default(150),
+  TRANSCRIBE_VAD_THRESHOLD: z.coerce.number().min(0).max(1).default(0.5),
+  TRANSCRIBE_VAD_SPEECH_PAD_MS: z.coerce.number().int().nonnegative().default(300),
+  TRANSCRIBE_VAD_MIN_SILENCE_MS: z.coerce.number().int().nonnegative().default(200),
+  TRANSCRIBE_VAD_MIN_SPEECH_MS: z.coerce.number().int().nonnegative().default(80),
 
   // Testing - disable rate limiting for E2E tests
   RATE_LIMIT_TEST_MODE: z

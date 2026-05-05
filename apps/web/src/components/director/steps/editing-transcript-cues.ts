@@ -193,6 +193,10 @@ export function formatSrtRange(startMs: number, endMs: number): string {
 }
 
 export function getTranscriptLayoutLabel(animation: SubtitleStyle['animation']): string {
+  if (animation === 'pop-word') {
+    return 'Gaya viral pop';
+  }
+
   if (animation === 'word') {
     return 'Gaya word by word';
   }
@@ -220,7 +224,7 @@ export function buildTranscriptCues(
   segments: TranscriptSegment[],
   animation: SubtitleStyle['animation'],
 ): TranscriptCue[] {
-  if (animation === 'typewriter' || animation === 'word') {
+  if (animation === 'typewriter' || animation === 'word' || animation === 'pop-word') {
     const cues: TranscriptCue[] = [];
     segments.forEach((segment, segmentIndex) => {
       const words = segment.words?.length ? segment.words : buildSyntheticWords(segment);

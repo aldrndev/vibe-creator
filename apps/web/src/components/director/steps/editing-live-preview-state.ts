@@ -52,3 +52,10 @@ export function estimatePreviewProgressPercent(elapsedMs: number): number {
   // Cap at 85% to leave visible room while backend finishes processing.
   return Math.min(85, Math.round(85 * (1 - Math.exp(-elapsedSec / 14))));
 }
+
+export function canPlayFinalPreview(
+  status: PreviewStatus,
+  previewVideoUrl: string | null,
+): boolean {
+  return status === 'ready' && Boolean(previewVideoUrl);
+}

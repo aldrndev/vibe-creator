@@ -34,6 +34,7 @@ export interface LivePreviewDraft {
 
 const LEADING_SPEECH_PADDING_MS = 120;
 const TRAILING_SPEECH_PADDING_MS = 180;
+const MAX_AUTOMATIC_TRAILING_TRIM_MS = 5_000;
 const MIN_CLIP_DURATION_MS = 800;
 const MAX_HOOK_TRIM_MS = 6_000;
 const HOOK_PADDING_MS = 100;
@@ -158,6 +159,28 @@ function getLeadingTrimMs(
   return Math.max(silenceTrimMs, boundedHookTrimMs);
 }
 
+function getTrailingTrimMs(
+  lastSegment: NonNullable<SelectedClip['transcript']>['segments'][number],
+  settings: RefineSettings | undefined,
+  clipDurationMs: number,
+): number {
+  if (!settings?.removeSilence) {
+    return 0;
+  }
+
+  const trailingTrimMs = Math.max(
+    0,
+    clipDurationMs - lastSegment.endMs - TRAILING_SPEECH_PADDING_MS,
+  );
+
+  // Long transcript tails are often ASR misses, so preserve the chosen clip duration.
+  if (trailingTrimMs > MAX_AUTOMATIC_TRAILING_TRIM_MS) {
+    return 0;
+  }
+
+  return trailingTrimMs;
+}
+
 function getAppliedFeatureLabels(
   exportSettings: ExportSettings,
   subtitleStyle: SubtitleStyle,
@@ -173,17 +196,19 @@ function getAppliedFeatureLabels(
 
   if (exportSettings.includeSubtitles) {
     const subtitleAnimationLabel =
-      subtitleStyle.animation === 'word'
-        ? 'Word by Word'
-        : subtitleStyle.animation === 'typewriter'
-          ? 'Karaoke'
-          : subtitleStyle.animation === 'phrase'
-            ? 'Cinema'
-            : subtitleStyle.animation === 'line'
-              ? 'Line'
-              : subtitleStyle.animation === 'fade'
-                ? 'Fade'
-                : 'Static';
+      subtitleStyle.animation === 'pop-word'
+        ? 'Viral Pop'
+        : subtitleStyle.animation === 'word'
+          ? 'Word by Word'
+          : subtitleStyle.animation === 'typewriter'
+            ? 'Karaoke'
+            : subtitleStyle.animation === 'phrase'
+              ? 'Cinema'
+              : subtitleStyle.animation === 'line'
+                ? 'Line'
+                : subtitleStyle.animation === 'fade'
+                  ? 'Fade'
+                  : 'Static';
     labels.push(
       clip?.transcript?.segments?.length ? `Subtitle ${subtitleAnimationLabel}` : 'Subtitle Aktif',
     );
@@ -435,7 +460,7 @@ export function getLivePreviewSubtitleText(
     return '';
   }
 
-  if (animation === 'word') {
+  if (animation === 'word' || animation === 'pop-word') {
     const sourceWords = activeSegment.words?.filter((word) => word.endMs > word.startMs) ?? [];
     const wordTrack =
       sourceWords.length > 0 ? sourceWords : buildSyntheticWordsForTypewriter(activeSegment);
@@ -501,7 +526,7 @@ export function deriveLivePreviewDraft(
   );
   const lastSegment = transcriptSegments.at(-1);
   const trailingTrimMs = lastSegment
-    ? Math.max(0, baseDurationMs - lastSegment.endMs - TRAILING_SPEECH_PADDING_MS)
+    ? getTrailingTrimMs(lastSegment, effectiveRefineSettings, baseDurationMs)
     : 0;
   const maxTrimMs = Math.max(0, baseDurationMs - MIN_CLIP_DURATION_MS);
   const normalizedLeadingTrimMs = Math.min(leadingTrimMs, maxTrimMs);
@@ -544,17 +569,11 @@ export function deriveLivePreviewDraft(
 function getSubtitlePositionClass(position: SubtitleStyle['position']): string {
   switch (position) {
     case 'top':
-      return 'items-start pt-5';
+      return 'items-start pt-[30%]';
     case 'center':
       return 'items-center';
-    case 'cinema-bottom':
-      return 'items-end pb-[15%]';
-    case 'safe-bottom':
-      return 'items-end pb-[10%]';
-    case 'lower-third':
-      return 'items-end pb-[33%]';
     default:
-      return 'items-end pb-5';
+      return 'items-end pb-[30%]';
   }
 }
 
@@ -562,6 +581,8 @@ function getSubtitleAnimationClass(animation: SubtitleStyle['animation']): strin
   switch (animation) {
     case 'word':
       return 'tracking-[0.05em]';
+    case 'pop-word':
+      return 'scale-110 tracking-[0.04em] drop-shadow-[0_6px_18px_rgba(0,0,0,0.55)]';
     case 'typewriter':
       return 'tracking-[0.06em]';
     case 'fade':
@@ -629,10 +650,14 @@ export function deriveLivePreviewScene(
   const effectiveRefineSettings = clip
     ? getEffectiveRefineSettings(clip, refineSettings)
     : undefined;
-  const useFocusSubject =
-    exportSettings.aspectRatio === '9:16' && effectiveRefineSettings?.faceTracking;
+  const isPortrait = exportSettings.aspectRatio === '9:16';
+  const useFocusSubject = isPortrait && effectiveRefineSettings?.faceTracking;
   const aspectClass = getAspectClass(exportSettings.aspectRatio);
-  const baseMediaClass = useFocusSubject ? 'object-cover scale-[1.06]' : 'object-contain';
+  const baseMediaClass = isPortrait
+    ? useFocusSubject
+      ? 'object-cover scale-[1.06]'
+      : 'object-cover'
+    : 'object-contain';
   const mediaClass = effectiveRefineSettings?.stabilize
     ? `${baseMediaClass} will-change-transform`
     : baseMediaClass;

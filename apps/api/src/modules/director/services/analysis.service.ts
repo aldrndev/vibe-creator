@@ -7,53 +7,21 @@ import { basename, join } from 'node:path';
 import { DirectorIngestStatus, DirectorJobStatus, DirectorStep, Prisma } from '@prisma/client';
 import { env } from '@/config/env';
 import { logger } from '@/lib/logger';
+import {
+  DEFAULT_MAX_CANDIDATES,
+  isConfigCompatible,
+  preferCandidatesWithinTargetDurationRange,
+  resolveClipDurationConfig,
+  resolveHardMaxCandidateDurationMs,
+  resolveTargetDurationRangeConfig,
+  type TargetDurationRange,
+} from '../analysis-duration-config';
 import { directorProcessor } from '../director.processor';
 import { buildDirectorQueueJobId, directorQueue } from '../director.queue';
 import { directorRepo } from '../director.repo';
 import { directorAnalysisReuseService } from './analysis-reuse.service';
 
-const DEFAULT_MIN_CLIP_DURATION_MS = 15000;
-const DEFAULT_MAX_CLIP_DURATION_MS = 60000;
-const DEFAULT_MAX_CANDIDATES = 20;
-const DIALOG_COMPLETION_EXTENSION_MS = 30000;
-const ABSOLUTE_MAX_SHORT_DURATION_MS = 90000;
 const MIN_SCENE_GAP_MS = 200;
-
-interface ClipDurationConfig {
-  minClipDurationMs: number;
-  maxClipDurationMs: number;
-}
-
-function parsePositiveNumber(value: unknown, fallback: number): number {
-  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
-    return fallback;
-  }
-
-  return value;
-}
-
-function resolveClipDurationConfig(config: unknown): ClipDurationConfig {
-  if (typeof config !== 'object' || config === null || Array.isArray(config)) {
-    return {
-      minClipDurationMs: DEFAULT_MIN_CLIP_DURATION_MS,
-      maxClipDurationMs: DEFAULT_MAX_CLIP_DURATION_MS,
-    };
-  }
-
-  const cfg = config as Record<string, unknown>;
-  return {
-    minClipDurationMs: parsePositiveNumber(cfg.minClipDuration, DEFAULT_MIN_CLIP_DURATION_MS),
-    maxClipDurationMs: parsePositiveNumber(cfg.maxClipDuration, DEFAULT_MAX_CLIP_DURATION_MS),
-  };
-}
-
-function isConfigCompatible(config: unknown): boolean {
-  const resolved = resolveClipDurationConfig(config);
-  return (
-    resolved.minClipDurationMs === DEFAULT_MIN_CLIP_DURATION_MS &&
-    resolved.maxClipDurationMs === DEFAULT_MAX_CLIP_DURATION_MS
-  );
-}
 
 function filterCandidatesByMaxDuration<T extends { startMs: number; endMs: number }>(
   candidates: T[],
@@ -91,18 +59,50 @@ function removeOverlappingCandidates<T extends { startMs: number; endMs: number;
   return selected.sort((left, right) => (left.rank ?? 9999) - (right.rank ?? 9999));
 }
 
-function resolveHardMaxCandidateDurationMs(maxClipDurationMs: number): number {
-  return Math.min(
-    ABSOLUTE_MAX_SHORT_DURATION_MS,
-    maxClipDurationMs + DIALOG_COMPLETION_EXTENSION_MS,
-  );
+function normalizeCandidateMetadata(metadata: unknown): Prisma.InputJsonValue {
+  if (typeof metadata !== 'object' || metadata === null || Array.isArray(metadata)) {
+    return {};
+  }
+
+  return metadata as Prisma.InputJsonValue;
+}
+
+function toPersistedCandidateInput(
+  candidate: {
+    startMs: number;
+    endMs: number;
+    tags?: string[] | null;
+    score?: number | null;
+    rank?: number;
+    previewStorageKey?: string | null;
+    videoPreviewStorageKey?: string | null;
+    metadata?: unknown;
+  },
+  fallbackRank: number,
+) {
+  return {
+    startMs: candidate.startMs,
+    endMs: candidate.endMs,
+    tags: candidate.tags ?? ['highlight'],
+    score: typeof candidate.score === 'number' ? candidate.score : null,
+    rank: candidate.rank ?? fallbackRank,
+    previewStorageKey: candidate.previewStorageKey ?? null,
+    videoPreviewStorageKey: candidate.videoPreviewStorageKey ?? null,
+    metadata: normalizeCandidateMetadata(candidate.metadata),
+  };
 }
 
 export const directorAnalysisService = {
   /**
    * Start analysis job
    */
-  async startAnalysis(sessionId: string, userId: string) {
+  async startAnalysis(
+    sessionId: string,
+    userId: string,
+    options?: {
+      targetDurationRange?: TargetDurationRange;
+    },
+  ) {
     const session = await directorRepo.findSession(sessionId, userId);
 
     if (!session) {
@@ -121,18 +121,20 @@ export const directorAnalysisService = {
       return session.analysisJob;
     }
 
+    const durationConfig = resolveTargetDurationRangeConfig(options?.targetDurationRange);
     const analysisConfig = {
       silenceThreshold: -30,
       silenceMinDuration: 0.5,
       sceneChangeThreshold: 0.4,
-      minClipDuration: DEFAULT_MIN_CLIP_DURATION_MS,
-      maxClipDuration: DEFAULT_MAX_CLIP_DURATION_MS,
+      minClipDuration: durationConfig.minClipDurationMs,
+      maxClipDuration: durationConfig.maxClipDurationMs,
       maxCandidates: DEFAULT_MAX_CANDIDATES,
+      targetDurationRange: durationConfig.targetDurationRange,
     };
 
     if (
       session.analysisJob?.status === DirectorJobStatus.COMPLETED &&
-      isConfigCompatible(session.analysisJob.config)
+      isConfigCompatible(session.analysisJob.config, durationConfig.targetDurationRange)
     ) {
       return session.analysisJob;
     }
@@ -157,31 +159,40 @@ export const directorAnalysisService = {
 
     const reusableCandidates = await directorAnalysisReuseService.getReusableCandidates(
       session.asset,
+      durationConfig.targetDurationRange,
     );
     const reusableHardMaxDurationMs = resolveHardMaxCandidateDurationMs(
       analysisConfig.maxClipDuration,
     );
-    const compatibleReusableCandidates = reusableCandidates
+    const normalizedReusableCandidates = reusableCandidates
       ? removeOverlappingCandidates(
           filterCandidatesByMaxDuration(reusableCandidates, reusableHardMaxDurationMs),
+        )
+      : null;
+    const compatibleReusableCandidates = normalizedReusableCandidates
+      ? preferCandidatesWithinTargetDurationRange(
+          normalizedReusableCandidates,
+          durationConfig.targetDurationRange,
         )
       : null;
 
     if (
       reusableCandidates &&
       compatibleReusableCandidates &&
-      compatibleReusableCandidates.length !== reusableCandidates.length
+      compatibleReusableCandidates.candidates.length !== reusableCandidates.length
     ) {
       logger.info(
         {
           sessionId,
-          droppedCount: reusableCandidates.length - compatibleReusableCandidates.length,
+          droppedCount: reusableCandidates.length - compatibleReusableCandidates.candidates.length,
           hardMaxDurationMs: reusableHardMaxDurationMs,
+          targetDurationRange: durationConfig.targetDurationRange,
+          rangeFallbackApplied: compatibleReusableCandidates.fallbackApplied,
         },
-        'Ignored stale reusable candidates that exceed hard short duration limit',
+        'Ignored stale reusable candidates outside short duration preference',
       );
     }
-    if (compatibleReusableCandidates && compatibleReusableCandidates.length > 0) {
+    if (compatibleReusableCandidates && compatibleReusableCandidates.candidates.length > 0) {
       const completedAt = new Date();
       const completedJob = await directorRepo.upsertAnalysisJobBySession(
         sessionId,
@@ -192,7 +203,9 @@ export const directorAnalysisService = {
           completedAt,
           metrics: {
             reused: true,
-            candidateCount: compatibleReusableCandidates.length,
+            candidateCount: compatibleReusableCandidates.candidates.length,
+            targetDurationRange: durationConfig.targetDurationRange,
+            rangeFallbackApplied: compatibleReusableCandidates.fallbackApplied,
           },
           config: analysisConfig,
         },
@@ -203,15 +216,29 @@ export const directorAnalysisService = {
           errorMessage: null,
           metrics: {
             reused: true,
-            candidateCount: compatibleReusableCandidates.length,
+            candidateCount: compatibleReusableCandidates.candidates.length,
+            targetDurationRange: durationConfig.targetDurationRange,
+            rangeFallbackApplied: compatibleReusableCandidates.fallbackApplied,
           },
           config: analysisConfig,
         },
       );
 
+      await directorRepo.replaceAnalysisCandidates(
+        completedJob.id,
+        compatibleReusableCandidates.candidates.map((candidate, index) =>
+          toPersistedCandidateInput(candidate, index + 1),
+        ),
+      );
+
       await directorRepo.updateStep(sessionId, userId, DirectorStep.PICKING);
       logger.info(
-        { sessionId, candidateCount: compatibleReusableCandidates.length },
+        {
+          sessionId,
+          candidateCount: compatibleReusableCandidates.candidates.length,
+          targetDurationRange: durationConfig.targetDurationRange,
+          rangeFallbackApplied: compatibleReusableCandidates.fallbackApplied,
+        },
         'Director analysis reused cached candidates',
       );
       return completedJob;
@@ -275,33 +302,45 @@ export const directorAnalysisService = {
     ) {
       const reusableCandidates = await directorAnalysisReuseService.getReusableCandidates(
         session.asset,
+        resolvedConfig.targetDurationRange,
+      );
+      const reusableCandidatesByDuration = preferCandidatesWithinTargetDurationRange(
+        removeOverlappingCandidates(
+          filterCandidatesByMaxDuration(reusableCandidates ?? [], hardMaxDurationMs),
+        ),
+        resolvedConfig.targetDurationRange,
       );
       return {
         ...session.analysisJob,
-        candidates: removeOverlappingCandidates(
-          filterCandidatesByMaxDuration(reusableCandidates ?? [], hardMaxDurationMs),
-        ),
+        candidates: reusableCandidatesByDuration.candidates,
       };
     }
 
-    const filteredCandidates = removeOverlappingCandidates(
+    const normalizedCandidates = removeOverlappingCandidates(
       filterCandidatesByMaxDuration(session.analysisJob.candidates, hardMaxDurationMs),
     );
+    const filteredCandidates = preferCandidatesWithinTargetDurationRange(
+      normalizedCandidates,
+      resolvedConfig.targetDurationRange,
+    );
 
-    if (filteredCandidates.length !== session.analysisJob.candidates.length) {
+    if (filteredCandidates.candidates.length !== session.analysisJob.candidates.length) {
       logger.info(
         {
           sessionId,
-          droppedCount: session.analysisJob.candidates.length - filteredCandidates.length,
+          droppedCount:
+            session.analysisJob.candidates.length - filteredCandidates.candidates.length,
           hardMaxDurationMs,
+          targetDurationRange: resolvedConfig.targetDurationRange,
+          rangeFallbackApplied: filteredCandidates.fallbackApplied,
         },
-        'Filtered analysis candidates exceeding hard short duration limit',
+        'Filtered analysis candidates by short duration preference',
       );
     }
 
     return {
       ...session.analysisJob,
-      candidates: filteredCandidates,
+      candidates: filteredCandidates.candidates,
     };
   },
 
@@ -323,29 +362,58 @@ export const directorAnalysisService = {
       throw new Error('Pilih tepat 1 klip untuk membuat 1 short');
     }
 
+    const resolvedConfig = resolveClipDurationConfig(session.analysisJob.config);
     const sourceCandidates =
       session.analysisJob.candidates.length > 0
         ? session.analysisJob.candidates
         : session.asset
-          ? ((await directorAnalysisReuseService.getReusableCandidates(session.asset)) ?? [])
+          ? ((await directorAnalysisReuseService.getReusableCandidates(
+              session.asset,
+              resolvedConfig.targetDurationRange,
+            )) ?? [])
           : [];
-    const resolvedConfig = resolveClipDurationConfig(session.analysisJob.config);
     const hardMaxDurationMs = resolveHardMaxCandidateDurationMs(resolvedConfig.maxClipDurationMs);
-    const validationCandidates = sourceCandidates.map((candidate) => ({
-      id: candidate.id,
-      startMs: candidate.startMs,
-      endMs: candidate.endMs,
-      rank: candidate.rank,
+    const validationCandidates = sourceCandidates.map((candidate, index) => ({
+      ...candidate,
+      rank: candidate.rank ?? index + 1,
     }));
-    const eligibleCandidates = removeOverlappingCandidates(
+    const normalizedCandidates = removeOverlappingCandidates(
       filterCandidatesByMaxDuration(validationCandidates, hardMaxDurationMs),
+    );
+    const eligibleCandidates = preferCandidatesWithinTargetDurationRange(
+      normalizedCandidates,
+      resolvedConfig.targetDurationRange,
     );
 
     // Validate candidate IDs
-    const validCandidateIds = eligibleCandidates.map((candidate) => candidate.id);
+    const validCandidateIds = eligibleCandidates.candidates.map((candidate) => candidate.id);
     const invalidIds = candidateIds.filter((id) => !validCandidateIds.includes(id));
     if (invalidIds.length > 0) {
       throw new Error(`Invalid candidate IDs: ${invalidIds.join(', ')}`);
+    }
+
+    let selectedCandidateIds = candidateIds;
+    if (session.analysisJob.candidates.length === 0) {
+      const persistedCandidates = await directorRepo.replaceAnalysisCandidates(
+        session.analysisJob.id,
+        eligibleCandidates.candidates.map((candidate, index) =>
+          toPersistedCandidateInput(candidate, index + 1),
+        ),
+      );
+      const persistedIdByReusableId = new Map(
+        eligibleCandidates.candidates.map((candidate, index) => [
+          candidate.id,
+          persistedCandidates[index]?.id,
+        ]),
+      );
+
+      selectedCandidateIds = candidateIds.map((candidateId) => {
+        const mappedCandidateId = persistedIdByReusableId.get(candidateId);
+        if (!mappedCandidateId) {
+          throw new Error(`Failed to persist reusable candidate: ${candidateId}`);
+        }
+        return mappedCandidateId;
+      });
     }
 
     // Clear existing selections
@@ -353,7 +421,7 @@ export const directorAnalysisService = {
 
     // Create new selections
     const clips = await directorRepo.createSelectedClips(
-      candidateIds.map((candidateId, index) => ({
+      selectedCandidateIds.map((candidateId, index) => ({
         sessionId,
         candidateId,
         orderIndex: index,

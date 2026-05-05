@@ -1,8 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   buildUniformWindows,
   pickNonOverlappingCandidates,
   splitSegmentAtSmartPauses,
+  videoAnalysisService,
 } from '@/modules/director/processing/video-analysis.service';
 
 describe('video-analysis segmentation helpers', () => {
@@ -56,5 +57,48 @@ describe('video-analysis segmentation helpers', () => {
     expect(selected).toHaveLength(2);
     expect(selected[0]?.start).toBe(0);
     expect(selected[1]?.start).toBe(31);
+  });
+
+  it('builds long uniform fallback candidates for 90-120s targets', async () => {
+    const energySpy = vi
+      .spyOn(videoAnalysisService, 'analyzeSegmentEnergy')
+      .mockResolvedValue({ meanVolume: -18, maxVolume: -6 });
+
+    const candidates = await videoAnalysisService.refineSegments(
+      buildUniformWindows(180),
+      '/tmp/audio.wav',
+      {
+        minDuration: 90,
+        maxDuration: 120,
+        maxCandidates: 5,
+      },
+    );
+
+    expect(candidates.length).toBeGreaterThan(0);
+    expect(candidates.some((candidate) => candidate.duration >= 90)).toBe(true);
+    expect(candidates.every((candidate) => candidate.duration <= 120)).toBe(true);
+
+    energySpy.mockRestore();
+  });
+
+  it('keeps nearest fallback candidates when no candidate reaches the target minimum', async () => {
+    const energySpy = vi
+      .spyOn(videoAnalysisService, 'analyzeSegmentEnergy')
+      .mockResolvedValue({ meanVolume: -20, maxVolume: -8 });
+
+    const candidates = await videoAnalysisService.refineSegments(
+      [{ start: 0, end: 82, duration: 82, score: 0.8, activeDuration: 78 }],
+      '/tmp/audio.wav',
+      {
+        minDuration: 90,
+        maxDuration: 120,
+        maxCandidates: 5,
+      },
+    );
+
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0]?.duration).toBe(82);
+
+    energySpy.mockRestore();
   });
 });

@@ -19,6 +19,7 @@ const exportSettings: ExportSettings = {
 };
 
 const subtitleStyle: SubtitleStyle = {
+  stylePreset: 'viral-pop',
   fontToken: 'F_INTER',
   fontSize: 28,
   textColorToken: 'C_WHITE',
@@ -80,12 +81,22 @@ describe('deriveLivePreviewScene', () => {
 
     expect(scene.aspectClass).toBe('aspect-9/16');
     expect(scene.mediaClass).toContain('object-cover');
-    expect(scene.presetLabel).toBe('Short Vertical');
+    expect(scene.presetLabel).toBe('Podcast Short');
     expect(scene.subtitleContainerClass).toContain('items-center');
     expect(scene.subtitleTextClass).toContain('tracking');
     expect(scene.appliedFeatureLabels).toContain('Subtitle Karaoke');
-    expect(scene.appliedFeatureLabels).toContain('Mode Umum');
+    expect(scene.appliedFeatureLabels).toContain('Mode Podcast');
     expect(scene.appliedFeatureLabels).toContain('Audio Rata');
+  });
+
+  it('keeps portrait frame filled when fokus subjek dimatikan', () => {
+    const scene = deriveLivePreviewScene(exportSettings, subtitleStyle, clip, {
+      ...refineSettings,
+      faceTracking: false,
+    });
+
+    expect(scene.aspectClass).toBe('aspect-9/16');
+    expect(scene.mediaClass).toBe('object-cover');
   });
 
   it('shows stabilize metadata on scene when stabilize is enabled', () => {
@@ -98,7 +109,7 @@ describe('deriveLivePreviewScene', () => {
     expect(scene.mediaClass).toContain('will-change-transform');
     expect(scene.frameClass).toContain('shadow');
     expect(scene.appliedFeatureLabels).toContain('Stabilize');
-    expect(scene.appliedFeatureLabels).toContain('Mode Umum');
+    expect(scene.appliedFeatureLabels).toContain('Mode Podcast');
   });
 
   it('falls back to safe sample text when transcript is unavailable', () => {
@@ -183,11 +194,32 @@ describe('deriveLivePreviewScene', () => {
 
     expect(draft).not.toBeNull();
     expect(draft?.startOffsetMs).toBe(2_100);
-    expect(draft?.durationMs).toBe(2_080);
+    expect(draft?.durationMs).toBe(12_900);
     expect(draft?.transcriptSegments[0]?.text).toBe(
       'Ini inti hook yang langsung masuk ke poin utama.',
     );
     expect(draft?.transcriptSegments[0]?.startMs).toBe(100);
+  });
+
+  it('preserves a long visual tail when transcript ends before selected duration', () => {
+    const longTailClip: SelectedClip = {
+      ...clip,
+      candidate: { ...clip.candidate, startMs: 0, endMs: 60_000 },
+      transcript: {
+        segments: [
+          {
+            startMs: 0,
+            endMs: 40_000,
+            text: 'Transkrip berhenti sebelum akhir visual.',
+          },
+        ],
+      },
+    };
+
+    const draft = deriveLivePreviewDraft(longTailClip, refineSettings);
+
+    expect(draft?.durationMs).toBe(60_000);
+    expect(draft?.transcriptSegments.at(-1)?.endMs).toBe(40_000);
   });
 });
 
@@ -443,37 +475,26 @@ describe('getLivePreviewSubtitleText line mode', () => {
 });
 
 describe('deriveLivePreviewScene positions', () => {
-  it('maps cinema-bottom to correct container class', () => {
+  it('maps top to 30% anchor from top', () => {
     const scene = deriveLivePreviewScene(
       exportSettings,
-      { ...subtitleStyle, position: 'cinema-bottom' },
+      { ...subtitleStyle, position: 'top' },
       clip,
       undefined,
     );
 
-    expect(scene.subtitleContainerClass).toContain('pb-[15%]');
+    expect(scene.subtitleContainerClass).toContain('pt-[30%]');
   });
 
-  it('maps safe-bottom to correct container class', () => {
+  it('maps bottom to 30% anchor from bottom', () => {
     const scene = deriveLivePreviewScene(
       exportSettings,
-      { ...subtitleStyle, position: 'safe-bottom' },
+      { ...subtitleStyle, position: 'bottom' },
       clip,
       undefined,
     );
 
-    expect(scene.subtitleContainerClass).toContain('pb-[10%]');
-  });
-
-  it('maps lower-third to correct container class', () => {
-    const scene = deriveLivePreviewScene(
-      exportSettings,
-      { ...subtitleStyle, position: 'lower-third' },
-      clip,
-      undefined,
-    );
-
-    expect(scene.subtitleContainerClass).toContain('pb-[33%]');
+    expect(scene.subtitleContainerClass).toContain('pb-[30%]');
   });
 
   it('maps phrase animation to correct text class', () => {
@@ -496,6 +517,17 @@ describe('deriveLivePreviewScene positions', () => {
     );
 
     expect(scene.subtitleTextClass).toContain('opacity-90');
+  });
+
+  it('maps viral pop animation to an enlarged preview text class', () => {
+    const scene = deriveLivePreviewScene(
+      exportSettings,
+      { ...subtitleStyle, animation: 'pop-word' },
+      clip,
+      undefined,
+    );
+
+    expect(scene.subtitleTextClass).toContain('scale-110');
   });
 
   it('maps subtitle color, background, and font tokens into preview style', () => {

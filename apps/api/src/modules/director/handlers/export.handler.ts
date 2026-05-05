@@ -21,6 +21,63 @@ import { prisma } from '@/lib/prisma';
 import { directorProcessor } from '../director.processor';
 import type { DirectorExportJobData } from '../director.queue';
 import { type BuiltExportClip, buildExportClipFromSelectedClip } from '../export-clip-builder';
+import type { SubtitleStyleOptions } from '../processing/video-export-subtitles';
+
+const subtitlePositionValues = ['top', 'center', 'bottom'] as const;
+const defaultViralPopSubtitleStyle = {
+  stylePreset: 'viral-pop',
+  fontToken: 'F_INTER',
+  textColorToken: 'C_YELLOW',
+  bgColorToken: 'BG_TRANSPARENT',
+  fontSize: 52,
+  position: 'center' as const,
+  animation: 'pop-word',
+};
+
+function resolveSubtitlePosition(position: string): SubtitleStyleOptions['position'] {
+  if (subtitlePositionValues.includes(position as (typeof subtitlePositionValues)[number])) {
+    return position as SubtitleStyleOptions['position'];
+  }
+
+  if (position === 'cinema-bottom' || position === 'safe-bottom' || position === 'lower-third') {
+    return 'bottom';
+  }
+
+  return undefined;
+}
+
+function buildExportSubtitleStyle(
+  style: {
+    fontToken: string;
+    stylePreset: string;
+    textColorToken: string;
+    bgColorToken: string;
+    fontSize: number;
+    position: string;
+    animation: string;
+  } | null,
+  options: DirectorExportJobData['options'],
+  contentMode: SubtitleStyleOptions['contentMode'],
+): SubtitleStyleOptions {
+  const baseStyle = style
+    ? {
+        fontToken: style.fontToken,
+        stylePreset: style.stylePreset,
+        textColorToken: style.textColorToken,
+        bgColorToken: style.bgColorToken,
+        fontSize: style.fontSize,
+        position: resolveSubtitlePosition(style.position),
+        animation: style.animation,
+      }
+    : defaultViralPopSubtitleStyle;
+
+  return {
+    ...baseStyle,
+    contentMode,
+    aspectRatio: options.aspectRatio ?? '9:16',
+    quality: options.quality ?? '1080p',
+  };
+}
 
 /**
  * Processes a video export job for the AI Director.
@@ -125,19 +182,11 @@ export async function processExportJob(job: Job<DirectorExportJobData>) {
     }
 
     const primaryClip = clipsToExport[0];
-    const subtitleStyle = session.subtitleStyle
-      ? {
-          fontToken: session.subtitleStyle.fontToken,
-          textColorToken: session.subtitleStyle.textColorToken,
-          bgColorToken: session.subtitleStyle.bgColorToken,
-          fontSize: session.subtitleStyle.fontSize,
-          position: session.subtitleStyle.position,
-          animation: session.subtitleStyle.animation,
-          contentMode: primaryClip?.resolvedContentMode,
-          aspectRatio: options.aspectRatio ?? '9:16',
-          quality: options.quality ?? '1080p',
-        }
-      : undefined;
+    const subtitleStyle = buildExportSubtitleStyle(
+      session.subtitleStyle,
+      options,
+      primaryClip?.resolvedContentMode,
+    );
 
     if (clipsToExport.length === 0) {
       throw new Error('Tidak ada klip valid untuk diekspor');

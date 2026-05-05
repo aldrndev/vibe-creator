@@ -5,6 +5,7 @@
 
 import { DirectorStep, type Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
+import { isConfigCompatible, type TargetDurationRange } from './analysis-duration-config';
 
 // Comprehensive type including all relations needed for the UI
 export type DirectorSessionWithDetails = Prisma.DirectorSessionGetPayload<{
@@ -128,6 +129,7 @@ export const directorRepo = {
   async upsertSubtitleStyle(
     sessionId: string,
     data: {
+      stylePreset?: string;
       fontToken?: string;
       textColorToken?: string;
       bgColorToken?: string;
@@ -222,6 +224,12 @@ export const directorRepo = {
     return prisma.directorAsset.delete({ where: { id } });
   },
 
+  async countAssetsByStorageKey(storageKey: string): Promise<number> {
+    return prisma.directorAsset.count({
+      where: { storageKey },
+    });
+  },
+
   // ===========================================================================
   // ANALYSIS METHODS
   // ===========================================================================
@@ -252,11 +260,54 @@ export const directorRepo = {
     });
   },
 
-  async findLatestReusableAnalysisByAsset(asset: {
-    contentHash?: string | null;
-    sourceUrlNormalized?: string | null;
-    storageKey: string;
-  }) {
+  async replaceAnalysisCandidates(
+    analysisJobId: string,
+    candidates: Array<{
+      startMs: number;
+      endMs: number;
+      tags: string[];
+      score: number | null;
+      rank: number;
+      previewStorageKey?: string | null;
+      videoPreviewStorageKey?: string | null;
+      metadata?: Prisma.InputJsonValue;
+    }>,
+  ) {
+    return prisma.$transaction(async (tx) => {
+      await tx.directorClipCandidate.deleteMany({
+        where: { analysisJobId },
+      });
+
+      const createdCandidates = await Promise.all(
+        candidates.map((candidate) =>
+          tx.directorClipCandidate.create({
+            data: {
+              analysisJobId,
+              startMs: candidate.startMs,
+              endMs: candidate.endMs,
+              tags: candidate.tags,
+              score: candidate.score,
+              rank: candidate.rank,
+              previewStorageKey: candidate.previewStorageKey ?? null,
+              videoPreviewStorageKey: candidate.videoPreviewStorageKey ?? null,
+              metadata: candidate.metadata ?? {},
+            },
+          }),
+        ),
+      );
+
+      return createdCandidates;
+    });
+  },
+
+  async findLatestReusableAnalysisByAsset(
+    asset: {
+      contentHash?: string | null;
+      sourceUrlNormalized?: string | null;
+      storageKey: string;
+    },
+    targetDurationRange: TargetDurationRange = 'auto',
+  ) {
     let assetFilter: Record<string, string>;
     if (asset.contentHash) {
       assetFilter = { contentHash: asset.contentHash };
@@ -266,7 +317,7 @@ export const directorRepo = {
       assetFilter = { storageKey: asset.storageKey };
     }
 
-    return prisma.directorAnalysisJob.findFirst({
+    const reusableAnalyses = await prisma.directorAnalysisJob.findMany({
       where: {
         status: 'COMPLETED',
         candidates: {
@@ -284,7 +335,14 @@ export const directorRepo = {
       orderBy: {
         completedAt: 'desc',
       },
+      take: 20,
     });
+
+    return (
+      reusableAnalyses.find((analysis) =>
+        isConfigCompatible(analysis.config, targetDurationRange),
+      ) ?? null
+    );
   },
 
   // ===========================================================================

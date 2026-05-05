@@ -4,29 +4,14 @@
  */
 
 import { logger } from '@/lib/logger';
+import {
+  preferCandidatesWithinTargetDurationRange,
+  resolveClipDurationConfig,
+  resolveHardMaxCandidateDurationMs,
+} from '../analysis-duration-config';
+import { cleanupDirectorAssetFileIfUnreferenced } from '../asset-file-cleanup';
 import { directorRepo } from '../director.repo';
 import { directorAnalysisReuseService } from './analysis-reuse.service';
-
-const DEFAULT_MAX_CLIP_DURATION_MS = 60000;
-const DIALOG_COMPLETION_EXTENSION_MS = 30000;
-const ABSOLUTE_MAX_SHORT_DURATION_MS = 90000;
-
-function resolveMaxClipDurationMs(config: unknown): number {
-  if (typeof config !== 'object' || config === null || Array.isArray(config)) {
-    return DEFAULT_MAX_CLIP_DURATION_MS;
-  }
-
-  const maxClipDuration = (config as Record<string, unknown>).maxClipDuration;
-  if (
-    typeof maxClipDuration !== 'number' ||
-    !Number.isFinite(maxClipDuration) ||
-    maxClipDuration <= 0
-  ) {
-    return DEFAULT_MAX_CLIP_DURATION_MS;
-  }
-
-  return maxClipDuration;
-}
 
 function filterCandidatesByMaxDuration<T extends { startMs: number; endMs: number }>(
   candidates: T[],
@@ -58,14 +43,6 @@ function removeOverlappingCandidates<T extends { startMs: number; endMs: number;
   return selected.sort((left, right) => (left.rank ?? 9999) - (right.rank ?? 9999));
 }
 
-function resolveHardMaxDurationMs(config: unknown): number {
-  const baseMaxDurationMs = resolveMaxClipDurationMs(config);
-  return Math.min(
-    ABSOLUTE_MAX_SHORT_DURATION_MS,
-    baseMaxDurationMs + DIALOG_COMPLETION_EXTENSION_MS,
-  );
-}
-
 export const directorSessionService = {
   /**
    * Create a new director session
@@ -92,31 +69,42 @@ export const directorSessionService = {
       session.analysisJob.candidates.length === 0 &&
       session.asset
     ) {
-      const hardMaxDurationMs = resolveHardMaxDurationMs(session.analysisJob.config);
+      const resolvedConfig = resolveClipDurationConfig(session.analysisJob.config);
+      const hardMaxDurationMs = resolveHardMaxCandidateDurationMs(resolvedConfig.maxClipDurationMs);
       const reusableCandidates = await directorAnalysisReuseService.getReusableCandidates(
         session.asset,
+        resolvedConfig.targetDurationRange,
+      );
+      const filteredCandidates = preferCandidatesWithinTargetDurationRange(
+        removeOverlappingCandidates(
+          filterCandidatesByMaxDuration(reusableCandidates ?? [], hardMaxDurationMs),
+        ),
+        resolvedConfig.targetDurationRange,
       );
 
       return {
         ...session,
         analysisJob: {
           ...session.analysisJob,
-          candidates: removeOverlappingCandidates(
-            filterCandidatesByMaxDuration(reusableCandidates ?? [], hardMaxDurationMs),
-          ),
+          candidates: filteredCandidates.candidates,
         },
       };
     }
 
     if (session.analysisJob?.candidates.length) {
-      const hardMaxDurationMs = resolveHardMaxDurationMs(session.analysisJob.config);
+      const resolvedConfig = resolveClipDurationConfig(session.analysisJob.config);
+      const hardMaxDurationMs = resolveHardMaxCandidateDurationMs(resolvedConfig.maxClipDurationMs);
+      const filteredCandidates = preferCandidatesWithinTargetDurationRange(
+        removeOverlappingCandidates(
+          filterCandidatesByMaxDuration(session.analysisJob.candidates, hardMaxDurationMs),
+        ),
+        resolvedConfig.targetDurationRange,
+      );
       return {
         ...session,
         analysisJob: {
           ...session.analysisJob,
-          candidates: removeOverlappingCandidates(
-            filterCandidatesByMaxDuration(session.analysisJob.candidates, hardMaxDurationMs),
-          ),
+          candidates: filteredCandidates.candidates,
         },
       };
     }
@@ -128,19 +116,16 @@ export const directorSessionService = {
    * Delete session with cleanup
    */
   async deleteSession(sessionId: string, userId: string) {
-    // Check existence/authorization implicitly via delete count checking
-    // But logically we should check first for 404 vs 403?
-    // Repo deleteSession uses deleteMany with userId scope.
-
-    // Check first to ensure valid request
-    const exists = await directorRepo.exists(sessionId, userId);
-    if (!exists) {
+    const session = await directorRepo.findSession(sessionId, userId);
+    if (!session) {
       throw new Error('Session not found');
     }
 
-    // TODO: Trigger async cleanup of files if needed (s3 delete etc)
-
+    const storageKey = session.asset?.storageKey ?? null;
     const deleted = await directorRepo.deleteSession(sessionId, userId);
+    if (deleted && storageKey) {
+      await cleanupDirectorAssetFileIfUnreferenced(storageKey);
+    }
 
     logger.info({ sessionId, userId, deleted }, 'Director session deleted');
     return { deleted };
@@ -153,6 +138,7 @@ export const directorSessionService = {
     sessionId: string,
     userId: string,
     updates: {
+      stylePreset?: string;
       fontToken?: string;
       textColorToken?: string;
       bgColorToken?: string;

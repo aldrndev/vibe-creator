@@ -25,6 +25,7 @@
     "docker:ps": "docker compose -f infra/compose/docker-compose.dev.yml ps",
     "docker:restart": "pnpm docker:down && pnpm docker:up",
     "docker:build": "docker compose -f infra/compose/docker-compose.dev.yml build",
+    "docker:server:build": "docker compose -f infra/compose/docker-compose.dev.yml --env-file infra/compose/.env.docker.infra build server",
     "docker:up:build": "docker compose -f infra/compose/docker-compose.dev.yml --env-file infra/compose/.env.docker.infra up -d --build",
     "docker:prod:up": "docker compose -f infra/compose/docker-compose.prod.single-node.yml up -d",
     "docker:prod:down": "docker compose -f infra/compose/docker-compose.prod.single-node.yml down",

@@ -1,4 +1,5 @@
 import type { SubtitleSegment, SubtitleWord } from '@/modules/transcribe/transcribe-normalizer';
+import { hasCompleteWordTextCoverage } from '@/modules/transcribe/transcript-word-coverage';
 
 export type SubtitleContentMode =
   | 'auto'
@@ -8,17 +9,19 @@ export type SubtitleContentMode =
   | 'product-review'
   | 'cinematic'
   | 'general';
-type SubtitlePosition =
-  | 'top'
-  | 'center'
-  | 'bottom'
-  | 'cinema-bottom'
-  | 'safe-bottom'
-  | 'lower-third';
+type SubtitlePosition = 'top' | 'center' | 'bottom';
+type SubtitleStylePreset =
+  | 'custom'
+  | 'viral-pop'
+  | 'clean-bold'
+  | 'neon-glow'
+  | 'creator-box'
+  | 'cinema';
 type ExportAspectRatio = '9:16' | '16:9' | '1:1';
 type ExportQuality = '720p' | '1080p';
 
 export interface SubtitleStyleOptions {
+  stylePreset?: SubtitleStylePreset | string;
   fontToken?: string;
   textColorToken?: string;
   bgColorToken?: string;
@@ -48,30 +51,31 @@ const TURN_GROUP_MAX_CHARS = 120;
 const TURN_GROUP_MAX_WORDS = 24;
 const TURN_GROUP_PUNCTUATION_BREAK_GAP_MS = 280;
 const MIN_SYNTHETIC_WORD_DURATION_MS = 90;
+const POP_WORD_SCALE_PERCENT = 118;
+const POP_WORD_FONT_SCALE = 1.22;
+const POP_WORD_IN_MS = 90;
+const POP_WORD_SETTLE_MS = 220;
 export const DIRECTOR_SUBTITLE_FONT_SIZE_MIN = 16;
 export const DIRECTOR_SUBTITLE_FONT_SIZE_MAX = 72;
-const DEFAULT_SUBTITLE_FONT_SIZE_MAX = 56;
+const DEFAULT_SUBTITLE_FONT_SIZE_MAX = 64;
 const DIRECTOR_SUBTITLE_MAX_RENDER_HEIGHT_RATIO = 0.06;
 
 /** Base render height used for proportional MarginV scaling. */
 const MARGIN_V_BASE_HEIGHT = 1920;
 
 const subtitleFontSizeMaxByContentMode: Record<Exclude<SubtitleContentMode, 'auto'>, number> = {
-  podcast: 56,
-  interview: 52,
-  'talking-head': 64,
-  'product-review': 64,
-  cinematic: 44,
-  general: 56,
+  podcast: 64,
+  interview: 60,
+  'talking-head': 72,
+  'product-review': 72,
+  cinematic: 56,
+  general: 72,
 };
 
 const subtitleFontSizeMaxByPosition: Record<SubtitlePosition, number> = {
-  top: 52,
-  center: 56,
-  bottom: 64,
-  'cinema-bottom': 46,
-  'safe-bottom': 54,
-  'lower-third': 50,
+  top: 64,
+  center: 72,
+  bottom: 72,
 };
 
 /**
@@ -80,22 +84,22 @@ const subtitleFontSizeMaxByPosition: Record<SubtitlePosition, number> = {
  * Portrait 9:16 has only 1080px width (at 1080p), so limits must be aggressive.
  */
 const wordAnimationMaxByAspectRatio: Record<ExportAspectRatio, number> = {
-  '9:16': 56,
-  '1:1': 64,
-  '16:9': 80,
+  '9:16': 72,
+  '1:1': 80,
+  '16:9': 96,
 };
 
 const typewriterAnimationMaxByAspectRatio: Record<ExportAspectRatio, number> = {
-  '9:16': 56,
-  '1:1': 64,
-  '16:9': 80,
+  '9:16': 64,
+  '1:1': 72,
+  '16:9': 90,
 };
 
 function resolveAnimationFontSizeMax(
   animation: string | undefined,
   aspectRatio: ExportAspectRatio,
 ): number {
-  if (animation === 'word') {
+  if (animation === 'word' || animation === 'pop-word') {
     return wordAnimationMaxByAspectRatio[aspectRatio];
   }
 
@@ -107,15 +111,17 @@ function resolveAnimationFontSizeMax(
 }
 
 function isSubtitlePosition(value: string | undefined): value is SubtitlePosition {
-  return (
-    value === 'top' ||
-    value === 'center' ||
-    value === 'bottom' ||
-    value === 'cinema-bottom' ||
-    value === 'safe-bottom' ||
-    value === 'lower-third'
-  );
+  return value === 'top' || value === 'center' || value === 'bottom';
 }
+
+const TOP_TARGET_RATIO = 0.3;
+const CENTER_TARGET_RATIO = 0.5;
+const BOTTOM_TARGET_RATIO = 0.7;
+const TOP_SAFE_RATIO = 0.06;
+const BOTTOM_SAFE_RATIO = 0.1;
+const PORTRAIT_BOTTOM_SAFE_RATIO = 0.18;
+const SUBTITLE_LINE_HEIGHT_RATIO = 1.22;
+const DEFAULT_SUBTITLE_LINE_COUNT = 2;
 
 function resolveRenderHeight(
   quality: ExportQuality = '1080p',
@@ -238,11 +244,14 @@ export function resolveSubtitleFontSize(
     quality: '1080p' as const,
     aspectRatio: '9:16' as const,
   };
-  
+
   const maxFontSizeDesktop = resolveSubtitleFontSizeMax(baselineStyle);
   const normalizedFontSize = Math.round(fontSize ?? 24);
 
-  const baseFontSize = Math.max(DIRECTOR_SUBTITLE_FONT_SIZE_MIN, Math.min(normalizedFontSize, maxFontSizeDesktop));
+  const baseFontSize = Math.max(
+    DIRECTOR_SUBTITLE_FONT_SIZE_MIN,
+    Math.min(normalizedFontSize, maxFontSizeDesktop),
+  );
 
   const safeAspectRatio = (style?.aspectRatio as ExportAspectRatio) ?? '9:16';
   const renderHeight = resolveRenderHeight(style?.quality, safeAspectRatio);
@@ -295,26 +304,42 @@ export function createSubtitleAsset(
 ): SubtitleAsset {
   const displaySegments = resolveSubtitleDisplaySegments(segments, style);
 
+  if (shouldUsePopWord(style, displaySegments)) {
+    return {
+      extension: 'ass',
+      content: generatePopWordASS(displaySegments, style),
+      useForceStyle: false,
+    };
+  }
+
+  if (shouldUsePopKaraoke(style, displaySegments)) {
+    return {
+      extension: 'ass',
+      content: generatePopKaraokeASS(displaySegments, style),
+      useForceStyle: false,
+    };
+  }
+
   if (shouldUseWordByWord(style, displaySegments)) {
     return {
-      extension: 'srt',
-      content: generateSRT(buildWordByWordSegments(displaySegments), style),
-      useForceStyle: true,
+      extension: 'ass',
+      content: generateASS(buildWordByWordSegments(displaySegments), style, false),
+      useForceStyle: false,
     };
   }
 
   if (shouldUseWordHighlight(style, displaySegments)) {
     return {
       extension: 'ass',
-      content: generateASS(displaySegments, style),
+      content: generateASS(displaySegments, style, true),
       useForceStyle: false,
     };
   }
 
   return {
-    extension: 'srt',
-    content: generateSRT(displaySegments, style),
-    useForceStyle: true,
+    extension: 'ass',
+    content: generateASS(displaySegments, style, false),
+    useForceStyle: false,
   };
 }
 
@@ -323,6 +348,47 @@ function shouldUseWordByWord(
   segments: SubtitleSegment[],
 ): boolean {
   return style?.animation === 'word' && segments.some((segment) => segment.text.trim().length > 0);
+}
+
+function shouldUseViralPopPreset(style: SubtitleStyleOptions | undefined): boolean {
+  if (style?.stylePreset === 'viral-pop') {
+    return true;
+  }
+
+  if (style?.stylePreset && style.stylePreset !== 'custom') {
+    return false;
+  }
+
+  return (
+    style?.position === 'center' &&
+    style.bgColorToken === 'BG_TRANSPARENT' &&
+    (style.textColorToken === 'C_YELLOW' || style.textColorToken === 'C_ORANGE') &&
+    (style.animation === 'typewriter' ||
+      style.animation === 'word' ||
+      style.animation === 'pop-word')
+  );
+}
+
+function shouldUsePopWord(
+  style: SubtitleStyleOptions | undefined,
+  segments: SubtitleSegment[],
+): boolean {
+  return (
+    (style?.animation === 'pop-word' ||
+      (shouldUseViralPopPreset(style) && style?.animation === 'word')) &&
+    segments.some((segment) => segment.text.trim().length > 0)
+  );
+}
+
+function shouldUsePopKaraoke(
+  style: SubtitleStyleOptions | undefined,
+  segments: SubtitleSegment[],
+): boolean {
+  return (
+    shouldUseViralPopPreset(style) &&
+    style?.animation === 'typewriter' &&
+    segments.some((segment) => segment.text.trim().length > 0)
+  );
 }
 
 function buildWordByWordSegments(segments: SubtitleSegment[]): SubtitleSegment[] {
@@ -476,7 +542,11 @@ export function generateSRT(segments: SubtitleSegment[], style?: SubtitleStyleOp
     .join('\n');
 }
 
-export function generateASS(segments: SubtitleSegment[], style?: SubtitleStyleOptions): string {
+export function generateASS(
+  segments: SubtitleSegment[],
+  style?: SubtitleStyleOptions,
+  useKaraoke = true,
+): string {
   const fontSize = resolveSubtitleFontSize(style?.fontSize, style);
   const lineLength = resolveSubtitleLineLength(fontSize, style?.quality, style?.aspectRatio);
 
@@ -489,7 +559,9 @@ export function generateASS(segments: SubtitleSegment[], style?: SubtitleStyleOp
     .map((segment) => {
       const start = formatAssTime(segment.startMs);
       const end = formatAssTime(segment.endMs);
-      const text = buildKaraokeText(segment, lineLength);
+      const text = useKaraoke
+        ? buildKaraokeText(segment, lineLength)
+        : escapeAssText(segment.text).replaceAll('\n', String.raw`\N`);
       return `Dialogue: 0,${start},${end},Default,,0,0,0,,${text}`;
     })
     .join('\n');
@@ -510,6 +582,135 @@ export function generateASS(segments: SubtitleSegment[], style?: SubtitleStyleOp
     'Format: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text',
     events,
   ].join('\n');
+}
+
+export function generatePopWordASS(
+  segments: SubtitleSegment[],
+  style?: SubtitleStyleOptions,
+): string {
+  const styleLine = buildAssStyleLine(style);
+  const playResolution = resolveAssPlayResolution(style);
+  const events = buildPopWordEvents(segments, style).join('\n');
+
+  return [
+    '[Script Info]',
+    'ScriptType: v4.00+',
+    `PlayResX: ${playResolution.width}`,
+    `PlayResY: ${playResolution.height}`,
+    'WrapStyle: 2',
+    'ScaledBorderAndShadow: yes',
+    '',
+    '[V4+ Styles]',
+    'Format: Name,Fontname,Fontsize,PrimaryColour,SecondaryColour,OutlineColour,BackColour,Bold,Italic,Underline,StrikeOut,ScaleX,ScaleY,Spacing,Angle,BorderStyle,Outline,Shadow,Alignment,MarginL,MarginR,MarginV,Encoding',
+    styleLine,
+    '',
+    '[Events]',
+    'Format: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text',
+    events,
+  ].join('\n');
+}
+
+export function generatePopKaraokeASS(
+  segments: SubtitleSegment[],
+  style?: SubtitleStyleOptions,
+): string {
+  const styleLine = buildAssStyleLine(style);
+  const playResolution = resolveAssPlayResolution(style);
+  const events = buildPopKaraokeEvents(segments, style).join('\n');
+
+  return [
+    '[Script Info]',
+    'ScriptType: v4.00+',
+    `PlayResX: ${playResolution.width}`,
+    `PlayResY: ${playResolution.height}`,
+    'WrapStyle: 2',
+    'ScaledBorderAndShadow: yes',
+    '',
+    '[V4+ Styles]',
+    'Format: Name,Fontname,Fontsize,PrimaryColour,SecondaryColour,OutlineColour,BackColour,Bold,Italic,Underline,StrikeOut,ScaleX,ScaleY,Spacing,Angle,BorderStyle,Outline,Shadow,Alignment,MarginL,MarginR,MarginV,Encoding',
+    styleLine,
+    '',
+    '[Events]',
+    'Format: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text',
+    events,
+  ].join('\n');
+}
+
+function buildPopWordEvents(segments: SubtitleSegment[], style?: SubtitleStyleOptions): string[] {
+  return segments.flatMap((segment) =>
+    resolveKaraokeWords(segment).map((word) => {
+      const start = formatAssTime(word.startMs);
+      const end = formatAssTime(word.endMs);
+      const text = buildPopWordText(word.text, Math.max(1, word.endMs - word.startMs), style);
+      return `Dialogue: 0,${start},${end},Default,,0,0,0,,${text}`;
+    }),
+  );
+}
+
+function buildPopKaraokeEvents(
+  segments: SubtitleSegment[],
+  style?: SubtitleStyleOptions,
+): string[] {
+  return segments.flatMap((segment) => {
+    const words = resolveKaraokeWords(segment);
+    return words.map((word, index) => {
+      const nextWord = words[index + 1];
+      const start = formatAssTime(word.startMs);
+      const end = formatAssTime(nextWord?.startMs ?? segment.endMs);
+      const text = buildPopKaraokeText(words.slice(0, index + 1), index, style);
+      return `Dialogue: 0,${start},${end},Default,,0,0,0,,${text}`;
+    });
+  });
+}
+
+function buildPopWordText(text: string, durationMs: number, style?: SubtitleStyleOptions): string {
+  const fontSize = resolvePopWordFontSize(style);
+  const highlightColor = formatAssOverrideColor(
+    mapTextColorToken(style?.textColorToken, '&H0000FFFF'),
+  );
+  const outlineColor = formatAssOverrideColor('&H00000000');
+  const popInMs = Math.min(POP_WORD_IN_MS, durationMs);
+  const settleMs = Math.min(durationMs, Math.max(popInMs, POP_WORD_SETTLE_MS));
+  const escapedText = escapeAssText(normalizeCueText(text));
+
+  return String.raw`{\fs${fontSize}\bord4\shad2\c${highlightColor}\3c${outlineColor}\fscx100\fscy100\t(0,${popInMs},\fscx${POP_WORD_SCALE_PERCENT}\fscy${POP_WORD_SCALE_PERCENT})\t(${popInMs},${settleMs},\fscx100\fscy100)}${escapedText}`;
+}
+
+function buildPopKaraokeText(
+  words: SubtitleWord[],
+  activeIndex: number,
+  style?: SubtitleStyleOptions,
+): string {
+  const baseFontSize = resolveSubtitleFontSize(style?.fontSize, style);
+  const activeFontSize = resolvePopWordFontSize(style);
+  const normalColor = formatAssOverrideColor(
+    mapTextColorToken(style?.textColorToken, '&H00FFFFFF'),
+  );
+  const outlineColor = formatAssOverrideColor('&H00000000');
+  const basePrefix = String.raw`{\fs${baseFontSize}\bord3\shad2\c${normalColor}\3c${outlineColor}}`;
+
+  return words
+    .map((word, index) => {
+      const escapedText = escapeAssText(normalizeCueText(word.text));
+      if (index !== activeIndex) {
+        return `${basePrefix}${escapedText}`;
+      }
+
+      return String.raw`{\fs${activeFontSize}\bord4\shad2\c${normalColor}\3c${outlineColor}\fscx100\fscy100\t(0,${POP_WORD_IN_MS},\fscx${POP_WORD_SCALE_PERCENT}\fscy${POP_WORD_SCALE_PERCENT})\t(${POP_WORD_IN_MS},${POP_WORD_SETTLE_MS},\fscx100\fscy100)}${escapedText}`;
+    })
+    .join(' ');
+}
+
+function resolvePopWordFontSize(style?: SubtitleStyleOptions): number {
+  const baseFontSize = resolveSubtitleFontSize(style?.fontSize, style);
+  return Math.min(
+    DIRECTOR_SUBTITLE_FONT_SIZE_MAX,
+    Math.max(DIRECTOR_SUBTITLE_FONT_SIZE_MIN, Math.round(baseFontSize * POP_WORD_FONT_SCALE)),
+  );
+}
+
+function formatAssOverrideColor(color: string): string {
+  return color.endsWith('&') ? color : `${color}&`;
 }
 
 interface AssPlayResolution {
@@ -704,7 +905,12 @@ export function buildSubtitleForceStyle(style?: SubtitleStyleOptions): string {
   const primaryColour = mapTextColorToken(style?.textColorToken, '&H00FFFFFF');
   const backColour = mapBackgroundColorToken(style?.bgColorToken, '&H80000000');
   const alignment = mapPositionToAlignment(style?.position);
-  const marginV = mapPositionToMarginV(style?.position, style?.quality, style?.aspectRatio);
+  const marginV = mapPositionToMarginV(
+    style?.position,
+    fontSize,
+    style?.quality,
+    style?.aspectRatio,
+  );
   const marginH = resolveHorizontalMargin(style?.quality, style?.aspectRatio);
 
   return [
@@ -729,8 +935,15 @@ function buildAssStyleLine(style?: SubtitleStyleOptions): string {
   const secondaryColour = mapTextColorToken(style?.textColorToken, '&H00FFFFFF');
   const outlineColour = '&H00000000';
   const backColour = mapBackgroundColorToken(style?.bgColorToken, '&H80000000');
+  const outline = resolveAssOutline(style);
+  const shadow = resolveAssShadow(style);
   const alignment = mapPositionToAlignment(style?.position);
-  const marginV = mapPositionToMarginV(style?.position, style?.quality, style?.aspectRatio);
+  const marginV = mapPositionToMarginV(
+    style?.position,
+    fontSize,
+    style?.quality,
+    style?.aspectRatio,
+  );
   const marginH = resolveHorizontalMargin(style?.quality, style?.aspectRatio);
 
   return [
@@ -750,14 +963,38 @@ function buildAssStyleLine(style?: SubtitleStyleOptions): string {
     0,
     0,
     3,
-    1,
-    0,
+    outline,
+    shadow,
     alignment,
     marginH,
     marginH,
     marginV,
     1,
   ].join(',');
+}
+
+function resolveAssOutline(style?: SubtitleStyleOptions): number {
+  if (style?.animation === 'pop-word') {
+    return 3;
+  }
+
+  if (style?.bgColorToken === 'BG_TRANSPARENT' && style.textColorToken === 'C_ORANGE') {
+    return 3;
+  }
+
+  return 1;
+}
+
+function resolveAssShadow(style?: SubtitleStyleOptions): number {
+  if (style?.animation === 'pop-word') {
+    return 2;
+  }
+
+  if (style?.bgColorToken === 'BG_TRANSPARENT' && style.textColorToken === 'C_ORANGE') {
+    return 2;
+  }
+
+  return 0;
 }
 
 function buildKaraokeText(segment: SubtitleSegment, lineLength: number): string {
@@ -802,7 +1039,13 @@ function resolveKaraokeWords(segment: SubtitleSegment): SubtitleWord[] {
       }))
       .filter((word) => word.text.trim().length > 0 && word.endMs > word.startMs)
       .sort((left, right) => left.startMs - right.startMs) ?? [];
-  if (timedWords.length > 0) {
+  if (
+    timedWords.length > 0 &&
+    hasCompleteWordTextCoverage(
+      segment.text,
+      timedWords.map((word) => word.text),
+    )
+  ) {
     return timedWords;
   }
 
@@ -882,7 +1125,10 @@ function wrapAssKaraokeText(text: string, lineLength: number): string {
 }
 
 function escapeAssText(text: string): string {
-  return text.replaceAll('\\', String.raw`\\`).replaceAll('{', String.raw`\{`).replaceAll('}', String.raw`\}`);
+  return text
+    .replaceAll('\\', String.raw`\\`)
+    .replaceAll('{', String.raw`\{`)
+    .replaceAll('}', String.raw`\}`);
 }
 
 function mapFontToken(fontToken?: string): string {
@@ -927,11 +1173,13 @@ function mapHighlightColorToken(colorToken?: string): string {
 function mapBackgroundColorToken(colorToken: string | undefined, fallback: string): string {
   switch (colorToken) {
     case 'BG_TRANSPARENT':
-      return '&H00000000';
+      return '&HFF000000';
     case 'C_WHITE':
       return '&H80FFFFFF';
     case 'C_ORANGE':
       return '&H800066FF';
+    case 'C_BLACK':
+      return '&H80000000';
     default:
       return fallback;
   }
@@ -948,26 +1196,65 @@ function mapPositionToAlignment(position?: string): number {
   }
 }
 
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
+}
+
+function estimateSubtitleBlockHeightPx(fontSize: number): number {
+  const lineHeight = Math.round(fontSize * SUBTITLE_LINE_HEIGHT_RATIO);
+  return Math.max(lineHeight, lineHeight * DEFAULT_SUBTITLE_LINE_COUNT);
+}
+
+function resolveSafeBottomRatio(aspectRatio?: ExportAspectRatio): number {
+  return aspectRatio === '9:16' ? PORTRAIT_BOTTOM_SAFE_RATIO : BOTTOM_SAFE_RATIO;
+}
+
+function resolveSubtitleCenterY(
+  position: SubtitlePosition,
+  renderHeight: number,
+  blockHeight: number,
+  aspectRatio?: ExportAspectRatio,
+): number {
+  const halfBlock = blockHeight / 2;
+  const safeTop = renderHeight * TOP_SAFE_RATIO;
+  const safeBottom = renderHeight * resolveSafeBottomRatio(aspectRatio);
+  const minCenterY = safeTop + halfBlock;
+  const maxCenterY = renderHeight - safeBottom - halfBlock;
+  const defaultCenterY = renderHeight * CENTER_TARGET_RATIO;
+
+  if (minCenterY > maxCenterY) {
+    return defaultCenterY;
+  }
+
+  const targetCenterY =
+    position === 'top'
+      ? renderHeight * TOP_TARGET_RATIO + halfBlock
+      : position === 'center'
+        ? defaultCenterY
+        : renderHeight * BOTTOM_TARGET_RATIO - halfBlock;
+
+  return clamp(targetCenterY, minCenterY, maxCenterY);
+}
+
 function mapPositionToMarginV(
   position?: string,
+  fontSize: number = 24,
   quality?: ExportQuality,
   aspectRatio?: ExportAspectRatio,
 ): number {
   const renderHeight = resolveRenderHeight(quality, aspectRatio);
-  const scale = renderHeight / MARGIN_V_BASE_HEIGHT;
+  const blockHeight = estimateSubtitleBlockHeightPx(fontSize);
+  const safePosition: SubtitlePosition =
+    position === 'top' || position === 'center' || position === 'bottom' ? position : 'bottom';
+  const centerY = resolveSubtitleCenterY(safePosition, renderHeight, blockHeight, aspectRatio);
+  const halfBlock = blockHeight / 2;
 
-  switch (position) {
+  switch (safePosition) {
     case 'top':
-      return Math.round(72 * scale);
+      return Math.round(centerY - halfBlock);
     case 'center':
-      return Math.round(40 * scale);
-    case 'safe-bottom':
-      return Math.round(120 * scale);
-    case 'cinema-bottom':
-      return Math.round(180 * scale);
-    case 'lower-third':
-      return Math.round(300 * scale);
+      return 0;
     default:
-      return Math.round(60 * scale);
+      return Math.round(renderHeight - (centerY + halfBlock));
   }
 }

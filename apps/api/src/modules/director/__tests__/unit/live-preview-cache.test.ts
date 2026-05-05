@@ -24,11 +24,11 @@ describe('buildLivePreviewCacheFileName', () => {
         textColorToken: 'C_WHITE',
         bgColorToken: 'C_BLACK',
         fontSize: 28,
-        position: 'bottom',
-        animation: 'none',
+        position: 'bottom' as const,
+        animation: 'none' as const,
       },
     },
-  };
+  } satisfies Parameters<typeof buildLivePreviewCacheFileName>[0];
 
   it('returns deterministic file name for identical payload', () => {
     const first = buildLivePreviewCacheFileName(baseInput);

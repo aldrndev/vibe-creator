@@ -11,11 +11,13 @@ import type { AnalysisOptions, Segment } from './types';
 const ffmpegPath = process.env.FFMPEG_PATH || 'ffmpeg';
 const IDEAL_SHORT_MIN_DURATION = 40;
 const IDEAL_SHORT_MAX_DURATION = 60;
-const EXTENDED_SHORT_MAX_DURATION = 80;
-const UNIFORM_WINDOW_DURATIONS_SEC = [36, 48, 60] as const;
-const UNIFORM_WINDOW_STRIDE_SEC = 12;
+const DEFAULT_UNIFORM_WINDOW_DURATIONS_SEC = [36, 48, 60] as const;
+const DEFAULT_UNIFORM_WINDOW_STRIDE_SEC = 12;
 const MIN_SCENE_GAP_SEC = 0.2;
+const DEFAULT_MIN_CANDIDATE_DURATION_SEC = 15;
 const DIALOG_SAFE_ANCHOR_GRACE_SEC = 8;
+const DIALOG_COMPLETION_EXTENSION_SEC = 20;
+const MAX_SHORT_CANDIDATE_DURATION_SEC = 120;
 const UNIFORM_FALLBACK_TAG = 'UNIFORM_FALLBACK';
 
 interface DetectionResult {
@@ -31,33 +33,101 @@ function clampScore(value: number): number {
   return Math.max(0, Math.min(100, Math.round(value)));
 }
 
-function getDurationFitScore(duration: number): number {
-  if (duration >= IDEAL_SHORT_MIN_DURATION && duration <= IDEAL_SHORT_MAX_DURATION) {
+function getDistanceFromDurationWindow(
+  duration: number,
+  minDuration: number,
+  maxDuration: number,
+): number {
+  if (duration < minDuration) {
+    return minDuration - duration;
+  }
+
+  if (duration > maxDuration) {
+    return duration - maxDuration;
+  }
+
+  return 0;
+}
+
+function getDurationFitScoreForWindow(
+  duration: number,
+  minDuration: number,
+  maxDuration: number,
+): number {
+  if (duration >= minDuration && duration <= maxDuration) {
     return 92;
   }
 
-  if (duration > IDEAL_SHORT_MAX_DURATION && duration <= EXTENDED_SHORT_MAX_DURATION) {
-    return clampScore(86 - (duration - IDEAL_SHORT_MAX_DURATION) * 0.6);
+  const extendedMaxDuration = Math.min(
+    MAX_SHORT_CANDIDATE_DURATION_SEC,
+    maxDuration + DIALOG_COMPLETION_EXTENSION_SEC,
+  );
+  if (duration > maxDuration && duration <= extendedMaxDuration) {
+    return clampScore(86 - (duration - maxDuration) * 0.6);
   }
 
-  if (duration >= 30 && duration < IDEAL_SHORT_MIN_DURATION) {
-    return clampScore(80 - (IDEAL_SHORT_MIN_DURATION - duration) * 1.4);
+  const nearMinDuration = Math.max(DEFAULT_MIN_CANDIDATE_DURATION_SEC, minDuration - 10);
+  if (duration >= nearMinDuration && duration < minDuration) {
+    return clampScore(80 - (minDuration - duration) * 1.4);
   }
 
-  if (duration < 30) {
-    return clampScore(50 - (30 - duration) * 2.2);
+  if (duration < nearMinDuration) {
+    return clampScore(50 - (nearMinDuration - duration) * 2.2);
   }
 
-  return clampScore(64 - (duration - EXTENDED_SHORT_MAX_DURATION) * 2.2);
+  return clampScore(64 - (duration - extendedMaxDuration) * 2.2);
 }
 
-export function buildUniformWindows(totalDuration: number): Segment[] {
+function getDurationFitScore(duration: number): number {
+  return getDurationFitScoreForWindow(duration, IDEAL_SHORT_MIN_DURATION, IDEAL_SHORT_MAX_DURATION);
+}
+
+function resolveDurationScoringWindow(
+  minDuration: number,
+  maxDuration: number,
+): {
+  minDuration: number;
+  maxDuration: number;
+} {
+  const isAutoWindow =
+    minDuration <= DEFAULT_MIN_CANDIDATE_DURATION_SEC && maxDuration === IDEAL_SHORT_MAX_DURATION;
+
+  if (isAutoWindow) {
+    return {
+      minDuration: IDEAL_SHORT_MIN_DURATION,
+      maxDuration: IDEAL_SHORT_MAX_DURATION,
+    };
+  }
+
+  return { minDuration, maxDuration };
+}
+
+function buildTargetUniformDurations(minDuration: number, maxDuration: number): number[] {
+  const boundedMinDuration = Math.max(18, Math.round(minDuration));
+  const boundedMaxDuration = Math.min(
+    MAX_SHORT_CANDIDATE_DURATION_SEC,
+    Math.max(boundedMinDuration, Math.round(maxDuration)),
+  );
+  const midpointDuration = Math.round((boundedMinDuration + boundedMaxDuration) / 2);
+
+  return Array.from(new Set([boundedMinDuration, midpointDuration, boundedMaxDuration]));
+}
+
+function resolveUniformStride(minDuration: number): number {
+  return Math.max(DEFAULT_UNIFORM_WINDOW_STRIDE_SEC, Math.round(minDuration / 3));
+}
+
+export function buildUniformWindows(
+  totalDuration: number,
+  durationsSec: readonly number[] = DEFAULT_UNIFORM_WINDOW_DURATIONS_SEC,
+  strideSec = DEFAULT_UNIFORM_WINDOW_STRIDE_SEC,
+): Segment[] {
   if (!Number.isFinite(totalDuration) || totalDuration <= 0) {
     return [];
   }
 
   const windows: Segment[] = [];
-  for (const preferredDuration of UNIFORM_WINDOW_DURATIONS_SEC) {
+  for (const preferredDuration of durationsSec) {
     let start = 0;
     while (start + 18 <= totalDuration) {
       const duration = Math.min(preferredDuration, totalDuration - start);
@@ -74,7 +144,7 @@ export function buildUniformWindows(totalDuration: number): Segment[] {
         tags: [UNIFORM_FALLBACK_TAG],
       });
 
-      start += UNIFORM_WINDOW_STRIDE_SEC;
+      start += strideSec;
     }
   }
 
@@ -340,7 +410,7 @@ export const videoAnalysisService = {
       (segments.length === 1 && firstSegment && firstSegment.duration > 90)
     ) {
       logger.info(
-        { totalDuration, fallbackWindowDurations: UNIFORM_WINDOW_DURATIONS_SEC },
+        { totalDuration, fallbackWindowDurations: DEFAULT_UNIFORM_WINDOW_DURATIONS_SEC },
         'Fallback: Uniform window segment generation',
       );
       if (totalDuration > 0) {
@@ -448,8 +518,13 @@ export const videoAnalysisService = {
     videoPath?: string,
   ): Promise<(Segment & { tags?: string[] })[]> {
     const { minDuration = 15, maxDuration = 60, mergeGap = 0.5, maxCandidates = 20 } = options;
+    const scoringWindow = resolveDurationScoringWindow(minDuration, maxDuration);
+    const candidateMinDuration = Math.min(DEFAULT_MIN_CANDIDATE_DURATION_SEC, minDuration);
     const preferredMaxDuration = Math.max(minDuration + 1, maxDuration);
-    const hardMaxDuration = Math.min(90, preferredMaxDuration + 20);
+    const hardMaxDuration = Math.min(
+      MAX_SHORT_CANDIDATE_DURATION_SEC,
+      preferredMaxDuration + DIALOG_COMPLETION_EXTENSION_SEC,
+    );
     const isUniformFallbackMode = segments.every((segment) =>
       segment.tags?.includes(UNIFORM_FALLBACK_TAG),
     );
@@ -458,7 +533,14 @@ export const videoAnalysisService = {
 
     let merged: MergeableSegment[] = [];
     if (isUniformFallbackMode) {
-      merged = segments.map((segment) => ({
+      const totalDuration = Math.max(...segments.map((segment) => segment.end));
+      const targetUniformWindows = buildUniformWindows(
+        totalDuration,
+        buildTargetUniformDurations(scoringWindow.minDuration, scoringWindow.maxDuration),
+        resolveUniformStride(scoringWindow.minDuration),
+      );
+      const sourceSegments = targetUniformWindows.length > 0 ? targetUniformWindows : segments;
+      merged = sourceSegments.map((segment) => ({
         ...segment,
         pauseAnchors: [segment.end],
       }));
@@ -499,14 +581,14 @@ export const videoAnalysisService = {
     // 2. Split Long Segments with pause-aware strategy
     const candidates: Segment[] = [];
     for (const s of merged) {
-      if (s.duration < minDuration) continue;
+      if (s.duration < candidateMinDuration) continue;
 
       if (s.duration <= hardMaxDuration) {
         candidates.push(s);
       } else {
         const smartChunks = splitSegmentAtSmartPauses({
           segment: s,
-          minDuration,
+          minDuration: candidateMinDuration,
           preferredMaxDuration,
           hardMaxDuration,
         });
@@ -542,17 +624,30 @@ export const videoAnalysisService = {
           score -= 0.1; // Quiet/Mumble
         }
 
-        // Duration bonus (ideal 40-60s, allowed up to 80s for dialog completion)
-        if (c.duration >= 40 && c.duration <= 60) {
+        // Duration bonus follows the requested range when the user chose one.
+        if (c.duration >= scoringWindow.minDuration && c.duration <= scoringWindow.maxDuration) {
           score += 0.16;
-        } else if (c.duration > 60 && c.duration <= 80) {
+        } else if (
+          c.duration > scoringWindow.maxDuration &&
+          c.duration <=
+            Math.min(
+              MAX_SHORT_CANDIDATE_DURATION_SEC,
+              scoringWindow.maxDuration + DIALOG_COMPLETION_EXTENSION_SEC,
+            )
+        ) {
           score += 0.08;
-        } else if (c.duration >= 32 && c.duration < 40) {
+        } else if (
+          c.duration >= Math.max(candidateMinDuration, scoringWindow.minDuration - 8) &&
+          c.duration < scoringWindow.minDuration
+        ) {
           score += 0.04;
-        } else if (c.duration > 80) {
-          score -= 0.1;
-        } else if (c.duration < 28) {
-          score -= 0.12;
+        } else {
+          const durationDistance = getDistanceFromDurationWindow(
+            c.duration,
+            scoringWindow.minDuration,
+            scoringWindow.maxDuration,
+          );
+          score -= Math.min(0.18, durationDistance / 500);
         }
 
         // 4. Talk Density Analysis
@@ -586,7 +681,11 @@ export const videoAnalysisService = {
 
         const energyScore = clampScore((meanVolume + 45) * 4);
         const dialogDensityScore = clampScore(density * 100);
-        const durationFitScore = getDurationFitScore(c.duration);
+        const durationFitScore = getDurationFitScoreForWindow(
+          c.duration,
+          scoringWindow.minDuration,
+          scoringWindow.maxDuration,
+        );
 
         return {
           ...c,

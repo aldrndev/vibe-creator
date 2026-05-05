@@ -35,6 +35,7 @@ export interface ExportClipDraft {
 
 const LEADING_SPEECH_PADDING_MS = 120;
 const TRAILING_SPEECH_PADDING_MS = 180;
+const MAX_AUTOMATIC_TRAILING_TRIM_MS = 5_000;
 const MIN_CLIP_DURATION_MS = 800;
 const MAX_HOOK_TRIM_MS = 6_000;
 const HOOK_PADDING_MS = 100;
@@ -89,6 +90,28 @@ function getLeadingTrimMs(
   const boundedHookTrimMs = Math.min(hookTrimMs, MAX_HOOK_TRIM_MS, clipDurationMs / 2);
 
   return Math.max(silenceTrimMs, boundedHookTrimMs);
+}
+
+function getTrailingTrimMs(
+  lastSegment: ClipTranscriptSegment,
+  settings: ClipRefineSettings | undefined,
+  clipDurationMs: number,
+): number {
+  if (!settings?.removeSilence) {
+    return 0;
+  }
+
+  const trailingTrimMs = Math.max(
+    0,
+    clipDurationMs - lastSegment.endMs - TRAILING_SPEECH_PADDING_MS,
+  );
+
+  // Long transcript tails are often ASR misses, so preserve the chosen clip duration.
+  if (trailingTrimMs > MAX_AUTOMATIC_TRAILING_TRIM_MS) {
+    return 0;
+  }
+
+  return trailingTrimMs;
 }
 
 export function resolveClipRefineSettings(
@@ -156,10 +179,7 @@ export function applyClipRefineSettings(
   }
 
   const leadingTrimMs = getLeadingTrimMs(segments, resolvedSettings, clipDurationMs);
-  const trailingTrimMs = Math.max(
-    0,
-    clipDurationMs - lastSegment.endMs - TRAILING_SPEECH_PADDING_MS,
-  );
+  const trailingTrimMs = getTrailingTrimMs(lastSegment, resolvedSettings, clipDurationMs);
 
   const maxTrimMs = Math.max(0, clipDurationMs - MIN_CLIP_DURATION_MS);
   const normalizedLeadingTrimMs = Math.min(leadingTrimMs, maxTrimMs);

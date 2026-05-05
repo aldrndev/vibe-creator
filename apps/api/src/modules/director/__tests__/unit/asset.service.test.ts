@@ -97,7 +97,7 @@ describe('directorAssetService.importAsset', () => {
       ingestStatus: 'READY',
     }));
     downloadServiceMock.getVideoMetadata.mockResolvedValue({
-      duration: 120,
+      duration: 600,
       title: 'Reusable video',
       size: 4096,
     });
@@ -109,7 +109,7 @@ describe('directorAssetService.importAsset', () => {
     copyFileMock.mockResolvedValue(undefined);
     mkdirMock.mockResolvedValue(undefined);
     videoMetadataServiceMock.getVideoMetadata.mockResolvedValue({
-      duration: 120,
+      duration: 600,
     });
     resolveTempUploadReferenceMock.mockReturnValue('/tmp/uploads/temp/source.mp4');
   });
@@ -121,7 +121,7 @@ describe('directorAssetService.importAsset', () => {
       contentHash: 'hash-1',
       mimeType: 'video/mp4',
       sizeBytes: BigInt(4096),
-      durationMs: 120000,
+      durationMs: 600000,
       thumbnailStorageKey: null,
       metadata: { title: 'Reusable video' },
     });
@@ -154,7 +154,7 @@ describe('directorAssetService.importAsset', () => {
         contentHash: null,
         mimeType: 'video/mp4',
         sizeBytes: BigInt(4096),
-        durationMs: 120000,
+        durationMs: 600000,
         thumbnailStorageKey: null,
         metadata: {},
       },
@@ -174,5 +174,44 @@ describe('directorAssetService.importAsset', () => {
     });
     expect(copyFileMock).not.toHaveBeenCalled();
     expect(computeFileHashSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it('rejects short uploaded videos and removes the temp upload', async () => {
+    videoMetadataServiceMock.getVideoMetadata.mockResolvedValue({
+      duration: 120,
+    });
+
+    await expect(
+      directorAssetService.importAsset('session-1', 'user-1', {
+        type: 'file',
+        filePath: 'source.mp4',
+      }),
+    ).rejects.toThrow('Video terlalu pendek');
+
+    expect(unlinkMock).toHaveBeenCalledWith('/tmp/uploads/temp/source.mp4');
+    expect(copyFileMock).not.toHaveBeenCalled();
+    expect(directorRepoMock.createAsset).not.toHaveBeenCalled();
+  });
+
+  it('rejects short URL imports before creating an asset', async () => {
+    downloadServiceMock.getVideoMetadata.mockResolvedValue({
+      duration: 120,
+      title: 'Short video',
+      size: 4096,
+    });
+
+    const triggerSpy = vi
+      .spyOn(directorAssetService, 'triggerUrlDownload')
+      .mockResolvedValue(undefined);
+
+    await expect(
+      directorAssetService.importAsset('session-1', 'user-1', {
+        type: 'url',
+        url: 'https://www.youtube.com/watch?v=abc123',
+      }),
+    ).rejects.toThrow('Video terlalu pendek');
+
+    expect(directorRepoMock.createAsset).not.toHaveBeenCalled();
+    expect(triggerSpy).not.toHaveBeenCalled();
   });
 });

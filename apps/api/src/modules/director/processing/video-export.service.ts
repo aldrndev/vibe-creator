@@ -66,6 +66,7 @@ export interface ExportVideoOptions {
   aspectRatio?: '9:16' | '16:9' | '1:1';
   quality?: '720p' | '1080p';
   subtitleStyle?: SubtitleStyleOptions;
+  onProgress?: (progressPercent: number) => void;
 }
 
 export interface ExportClipState {
@@ -88,8 +89,14 @@ async function prepareFaceTracking(
   baseVideoFilters: string[],
 ): Promise<{ trackVideoPath: string; trackAudioPath: string }> {
   const { join } = await import('node:path');
-  const trackAudioPath = join(context.outputDir, `temp_track_source_${context.clipIndex}_${context.clipId}.mp4`);
-  const trackVideoPath = join(context.outputDir, `temp_track_video_${context.clipIndex}_${context.clipId}.mp4`);
+  const trackAudioPath = join(
+    context.outputDir,
+    `temp_track_source_${context.clipIndex}_${context.clipId}.mp4`,
+  );
+  const trackVideoPath = join(
+    context.outputDir,
+    `temp_track_video_${context.clipIndex}_${context.clipId}.mp4`,
+  );
   tempPaths.push(trackAudioPath, trackVideoPath);
 
   try {
@@ -152,7 +159,11 @@ interface FfmpegRetryContext {
   hasTranscript: boolean;
 }
 
-function buildFfmpegArgs(ctx: FfmpegRetryContext, shouldUseStabilize: boolean, shouldIncludeSubtitles: boolean): string[] {
+function buildFfmpegArgs(
+  ctx: FfmpegRetryContext,
+  shouldUseStabilize: boolean,
+  shouldIncludeSubtitles: boolean,
+): string[] {
   const vfFilters = [...ctx.baseVideoFilters];
   if (shouldUseStabilize) {
     vfFilters.push(STABILIZE_FILTER);
@@ -187,7 +198,11 @@ function handleFfmpegError(
   shouldIncludeSubtitles: boolean,
   shouldUseStabilize: boolean,
 ): { retry: boolean; dropSubtitles: boolean; dropStabilize: boolean } {
-  const missingSub = ctx.hasTranscript && shouldIncludeSubtitles && ctx.state.canBurnSubtitles && isMissingSubtitlesFilterError(error);
+  const missingSub =
+    ctx.hasTranscript &&
+    shouldIncludeSubtitles &&
+    ctx.state.canBurnSubtitles &&
+    isMissingSubtitlesFilterError(error);
   if (missingSub) {
     logger.warn(
       { clipIndex: ctx.clipIndex, clipOutPath: ctx.clipOutPath },
@@ -223,8 +238,13 @@ async function executeFfmpegClipWithRetries(
       await service.runFfmpeg(args, `Clip ${ctx.clipIndex + 1} gagal diproses`);
       break;
     } catch (error) {
-      const { retry, dropSubtitles, dropStabilize } = handleFfmpegError(error, ctx, shouldIncludeSubtitles, shouldUseStabilize);
-      
+      const { retry, dropSubtitles, dropStabilize } = handleFfmpegError(
+        error,
+        ctx,
+        shouldIncludeSubtitles,
+        shouldUseStabilize,
+      );
+
       if (!retry) {
         throw error;
       }
@@ -264,10 +284,7 @@ async function processSingleExportClip(
   const transcriptSegments = clip.transcript?.segments;
   const hasTranscript = Boolean(transcriptSegments?.length);
   const useFaceTracking = shouldUseFaceTracking(clip.faceTracking, options.aspectRatio);
-  const aspectRatioFilter = getAspectRatioFilter(
-    options.aspectRatio,
-    quality,
-  );
+  const aspectRatioFilter = getAspectRatioFilter(options.aspectRatio, quality);
 
   if (useFaceTracking) {
     const trackingPaths = await prepareFaceTracking(

@@ -32,18 +32,28 @@ const startExportSchema = z.object({
     .optional(),
 });
 
-const subtitlePositionValues = [
-  'top',
-  'center',
-  'bottom',
-  'cinema-bottom',
-  'safe-bottom',
-  'lower-third',
+const subtitlePositionValues = ['top', 'center', 'bottom'] as const;
+const subtitleStylePresetValues = [
+  'custom',
+  'viral-pop',
+  'clean-bold',
+  'neon-glow',
+  'creator-box',
+  'cinema',
 ] as const;
 
-const subtitleAnimationValues = ['none', 'fade', 'typewriter', 'word', 'phrase', 'line'] as const;
+const subtitleAnimationValues = [
+  'none',
+  'fade',
+  'typewriter',
+  'word',
+  'pop-word',
+  'phrase',
+  'line',
+] as const;
 
 const previewSubtitleStyleSchema = z.object({
+  stylePreset: z.enum(subtitleStylePresetValues).optional(),
   fontToken: z.string().optional(),
   textColorToken: z.string().optional(),
   bgColorToken: z.string().optional(),

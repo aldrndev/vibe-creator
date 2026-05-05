@@ -9,7 +9,7 @@ export interface PlatformPreset {
 }
 
 export interface SubtitlePreset {
-  readonly id: 'karaoke' | 'cinema' | 'viral' | 'clean' | 'podcast' | 'social-hook' | 'story';
+  readonly id: 'viral-pop' | 'clean-bold' | 'neon-glow' | 'creator-box' | 'cinema';
   readonly label: string;
   readonly description: string;
   readonly subtitleStyle: Partial<SubtitleStyle>;
@@ -77,64 +77,55 @@ export const platformPresets: PlatformPreset[] = [
 
 export const subtitlePresets: SubtitlePreset[] = [
   {
-    id: 'karaoke',
-    label: 'Karaoke',
-    description: 'Highlight kata berjalan supaya subtitle terasa hidup dan ritmis.',
+    id: 'viral-pop',
+    label: 'Viral Pop',
+    description: 'Kata aktif membesar dengan warna hook mencolok untuk Shorts, Reels, dan TikTok.',
     subtitleStyle: {
+      stylePreset: 'viral-pop',
       fontToken: 'F_INTER',
-      fontSize: 44,
+      fontSize: 52,
       textColorToken: 'C_YELLOW',
+      bgColorToken: 'BG_TRANSPARENT',
+      position: 'center',
+      animation: 'pop-word',
+    },
+  },
+  {
+    id: 'clean-bold',
+    label: 'Clean Bold',
+    description: 'Tebal, bersih, dan kontras tinggi. Aman untuk hampir semua jenis video.',
+    subtitleStyle: {
+      stylePreset: 'clean-bold',
+      fontToken: 'F_INTER',
+      fontSize: 38,
+      textColorToken: 'C_WHITE',
+      bgColorToken: 'C_BLACK',
+      position: 'bottom',
+      animation: 'fade',
+    },
+  },
+  {
+    id: 'neon-glow',
+    label: 'Neon Glow',
+    description: 'Teks terang dengan nuansa glow untuk footage gelap dan konten energetic.',
+    subtitleStyle: {
+      stylePreset: 'neon-glow',
+      fontToken: 'F_INTER',
+      fontSize: 46,
+      textColorToken: 'C_ORANGE',
       bgColorToken: 'BG_TRANSPARENT',
       position: 'center',
       animation: 'typewriter',
     },
   },
   {
-    id: 'cinema',
-    label: 'Cinema',
-    description: 'Per frasa, posisi cinematic bawah. Cocok untuk movie, short film, dan montage.',
+    id: 'creator-box',
+    label: 'Creator Box',
+    description: 'Caption besar dengan box gelap transparan, cocok untuk talking head dan edukasi.',
     subtitleStyle: {
-      fontToken: 'F_SERIF',
-      fontSize: 28,
-      textColorToken: 'C_WHITE',
-      bgColorToken: 'BG_TRANSPARENT',
-      position: 'cinema-bottom',
-      animation: 'phrase',
-    },
-  },
-  {
-    id: 'viral',
-    label: 'Viral',
-    description: 'Tebal, kontras tinggi, dan paling mencolok untuk hook.',
-    subtitleStyle: {
+      stylePreset: 'creator-box',
       fontToken: 'F_INTER',
-      fontSize: 52,
-      textColorToken: 'C_WHITE',
-      bgColorToken: 'C_BLACK',
-      position: 'center',
-      animation: 'fade',
-    },
-  },
-  {
-    id: 'clean',
-    label: 'Clean',
-    description: 'Minimalis dan aman untuk berbagai jenis konten.',
-    subtitleStyle: {
-      fontToken: 'F_INTER',
-      fontSize: 32,
-      textColorToken: 'C_WHITE',
-      bgColorToken: 'C_BLACK',
-      position: 'bottom',
-      animation: 'none',
-    },
-  },
-  {
-    id: 'social-hook',
-    label: 'Social Hook',
-    description: 'Word-by-word besar di tengah layar, optimal untuk hook cepat di sosial media.',
-    subtitleStyle: {
-      fontToken: 'F_INTER',
-      fontSize: 48,
+      fontSize: 44,
       textColorToken: 'C_WHITE',
       bgColorToken: 'C_BLACK',
       position: 'center',
@@ -142,29 +133,17 @@ export const subtitlePresets: SubtitlePreset[] = [
     },
   },
   {
-    id: 'podcast',
-    label: 'Podcast',
-    description: 'Cocok untuk talking head dan percakapan yang lebih panjang.',
+    id: 'cinema',
+    label: 'Cinema',
+    description: 'Frasa elegan di bawah frame untuk storytelling, montage, dan short film.',
     subtitleStyle: {
+      stylePreset: 'cinema',
       fontToken: 'F_SERIF',
-      fontSize: 34,
+      fontSize: 30,
       textColorToken: 'C_WHITE',
-      bgColorToken: 'C_BLACK',
+      bgColorToken: 'BG_TRANSPARENT',
       position: 'bottom',
-      animation: 'typewriter',
-    },
-  },
-  {
-    id: 'story',
-    label: 'Story',
-    description: 'Per baris penuh, aman untuk storytelling, dokumenter, dan narasi dramatis.',
-    subtitleStyle: {
-      fontToken: 'F_INTER',
-      fontSize: 32,
-      textColorToken: 'C_WHITE',
-      bgColorToken: 'C_BLACK',
-      position: 'safe-bottom',
-      animation: 'line',
+      animation: 'phrase',
     },
   },
 ];

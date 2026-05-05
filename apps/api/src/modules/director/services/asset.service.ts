@@ -12,11 +12,63 @@ import { env } from '@/config/env';
 import { logger } from '@/lib/logger';
 import { resolveTempUploadReference } from '@/utils/temp-upload';
 import { downloadService } from '../../download/download.service';
+import { resolveDirectorStoragePath, unlinkLocalFileIfExists } from '../asset-file-cleanup';
 import { directorRepo } from '../director.repo';
 import { validateImportUrl } from '../director.utils';
 import { videoMetadataService } from '../processing/video-metadata.service';
 
 const REUSE_DURATION_TOLERANCE_MS = 2000;
+const MIN_DIRECTOR_VIDEO_DURATION_SEC = 5 * 60;
+const MAX_VIDEO_DURATION_TOLERANCE_SEC = 10;
+
+function validateDirectorVideoGuards(input: { durationSeconds: number; sizeBytes?: number }): void {
+  if (
+    Number.isFinite(input.durationSeconds) &&
+    input.durationSeconds > 0 &&
+    input.durationSeconds < MIN_DIRECTOR_VIDEO_DURATION_SEC
+  ) {
+    throw new Error(
+      'Video terlalu pendek (< 5 menit). AI Director dirancang untuk konten durasi panjang (minimal 5 menit).',
+    );
+  }
+
+  const maxDurationSec = env.MAX_VIDEO_DURATION_MS / 1000;
+  if (
+    Number.isFinite(input.durationSeconds) &&
+    input.durationSeconds > maxDurationSec + MAX_VIDEO_DURATION_TOLERANCE_SEC
+  ) {
+    throw new Error(
+      `Video is too long (${Math.round(input.durationSeconds / 60)}m). Limit is ${Math.round(
+        maxDurationSec / 60,
+      )}m.`,
+    );
+  }
+
+  if (
+    typeof input.sizeBytes === 'number' &&
+    input.sizeBytes > env.MAX_UPLOAD_SIZE_MB * 1024 * 1024
+  ) {
+    throw new Error(
+      `Video is too large (~${Math.round(
+        input.sizeBytes / 1024 / 1024,
+      )}MB). Limit is ${env.MAX_UPLOAD_SIZE_MB}MB.`,
+    );
+  }
+}
+
+async function cleanupLocalFile(filePath: string, context: Record<string, string>): Promise<void> {
+  try {
+    await unlinkLocalFileIfExists(filePath);
+  } catch (error) {
+    logger.warn(
+      {
+        ...context,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      'Failed to cleanup director local file',
+    );
+  }
+}
 
 export const directorAssetService = {
   /**
@@ -60,24 +112,10 @@ export const directorAssetService = {
 
       // SMART VALIDATION: Check metadata before download (Intelligence Upgrade)
       const meta = await downloadService.getVideoMetadata(normalized);
-
-      const maxDurationSec = env.MAX_VIDEO_DURATION_MS / 1000;
-      if (meta.duration > maxDurationSec + 10) {
-        // 10s tolerance
-        throw new Error(
-          `Video is too long (${Math.round(
-            meta.duration / 60,
-          )}m). Limit is ${Math.round(maxDurationSec / 60)}m.`,
-        );
-      }
-
-      if (meta.size && meta.size > env.MAX_UPLOAD_SIZE_MB * 1024 * 1024) {
-        throw new Error(
-          `Video is too large (~${Math.round(
-            meta.size / 1024 / 1024,
-          )}MB). Limit is ${env.MAX_UPLOAD_SIZE_MB}MB.`,
-        );
-      }
+      validateDirectorVideoGuards({
+        durationSeconds: meta.duration,
+        sizeBytes: meta.size,
+      });
 
       const reusableAsset = await directorRepo.findLatestReusableUrlAsset(normalized);
       if (
@@ -142,87 +180,107 @@ export const directorAssetService = {
     // Handle File Import
     if (input.type === 'file' && input.filePath) {
       const tempUploadPath = resolveTempUploadReference(input.filePath);
+      let shouldCleanupTempUpload = true;
+      let destPath: string | null = null;
 
-      // Verify temp file exists
-      if (!existsSync(tempUploadPath)) {
-        throw new Error('Uploaded file not found');
-      }
+      try {
+        // Verify temp file exists
+        if (!existsSync(tempUploadPath)) {
+          throw new Error('Uploaded file not found');
+        }
 
-      const fileStats = await stat(tempUploadPath);
-      const contentHash = await this.computeFileHash(tempUploadPath);
-      const fileMetadata = await videoMetadataService.getVideoMetadata(tempUploadPath);
+        const fileStats = await stat(tempUploadPath);
+        const fileMetadata = await videoMetadataService.getVideoMetadata(tempUploadPath);
+        validateDirectorVideoGuards({
+          durationSeconds: fileMetadata.duration,
+          sizeBytes: fileStats.size,
+        });
+        const contentHash = await this.computeFileHash(tempUploadPath);
 
-      const reusableAsset =
-        (await directorRepo.findLatestReusableContentAsset(contentHash)) ??
-        (await this.findReusableAssetByFileSignature(
-          contentHash,
-          fileStats.size,
-          fileMetadata.duration,
-        ));
-      if (
-        reusableAsset &&
-        this.canReuseAssetFromMetadata(reusableAsset, fileMetadata.duration, fileStats.size)
-      ) {
+        const reusableAsset =
+          (await directorRepo.findLatestReusableContentAsset(contentHash)) ??
+          (await this.findReusableAssetByFileSignature(
+            contentHash,
+            fileStats.size,
+            fileMetadata.duration,
+          ));
+        if (
+          reusableAsset &&
+          this.canReuseAssetFromMetadata(reusableAsset, fileMetadata.duration, fileStats.size)
+        ) {
+          await unlink(tempUploadPath);
+          shouldCleanupTempUpload = false;
+
+          const reusedAsset = await directorRepo.createAsset({
+            id: randomUUID(),
+            sessionId,
+            storageKey: reusableAsset.storageKey,
+            contentHash,
+            origin: DirectorAssetOrigin.UPLOAD,
+            ingestStatus: DirectorIngestStatus.READY,
+            mimeType: reusableAsset.mimeType,
+            sizeBytes: reusableAsset.sizeBytes,
+            durationMs: reusableAsset.durationMs,
+            thumbnailStorageKey: reusableAsset.thumbnailStorageKey,
+            metadata: reusableAsset.metadata ?? undefined,
+          });
+
+          logger.info(
+            {
+              sessionId,
+              assetId: reusedAsset.id,
+              reusedFromAssetId: reusableAsset.id,
+              contentHash,
+            },
+            'Director asset import (File) reused existing storage asset',
+          );
+          return reusedAsset;
+        }
+
+        // Prepare destination
+        const assetId = randomUUID();
+        const storageKey = `uploads/director/${assetId}.mp4`;
+
+        // We assume local storage for now, mirroring the key structure
+        // Real prod would upload to S3 here
+        const uploadsDir = join(env.MEDIA_INPUT_DIR, 'director');
+        if (!existsSync(uploadsDir)) {
+          await mkdir(uploadsDir, { recursive: true });
+        }
+
+        destPath = join(uploadsDir, `${assetId}.mp4`);
+
+        // Copy file then delete original (cross-filesystem compatible)
+        await copyFile(tempUploadPath, destPath);
         await unlink(tempUploadPath);
+        shouldCleanupTempUpload = false;
 
-        const reusedAsset = await directorRepo.createAsset({
-          id: randomUUID(),
+        // Create asset record
+        const asset = await directorRepo.createAsset({
+          id: assetId,
           sessionId,
-          storageKey: reusableAsset.storageKey,
+          storageKey, // In a real app this would be s3 key. Here it maps to uploads/director/{uuid}.mp4
           contentHash,
           origin: DirectorAssetOrigin.UPLOAD,
           ingestStatus: DirectorIngestStatus.READY,
-          mimeType: reusableAsset.mimeType,
-          sizeBytes: reusableAsset.sizeBytes,
-          durationMs: reusableAsset.durationMs,
-          thumbnailStorageKey: reusableAsset.thumbnailStorageKey,
-          metadata: reusableAsset.metadata ?? undefined,
+          mimeType: 'video/mp4',
+          sizeBytes: BigInt(fileStats.size),
+          durationMs: this.toDurationMs(fileMetadata.duration),
         });
 
-        logger.info(
-          {
-            sessionId,
-            assetId: reusedAsset.id,
-            reusedFromAssetId: reusableAsset.id,
-            contentHash,
-          },
-          'Director asset import (File) reused existing storage asset',
-        );
-        return reusedAsset;
+        logger.info({ sessionId, filePath: destPath }, 'Director asset import (File) completed');
+        return asset;
+      } catch (error) {
+        if (shouldCleanupTempUpload) {
+          await cleanupLocalFile(tempUploadPath, { sessionId, phase: 'file-import-temp' });
+        }
+
+        if (destPath) {
+          await cleanupLocalFile(destPath, { sessionId, phase: 'file-import-final' });
+        }
+
+        throw error;
       }
-
-      // Prepare destination
-      const assetId = randomUUID();
-      const storageKey = `uploads/director/${assetId}.mp4`;
-
-      // We assume local storage for now, mirroring the key structure
-      // Real prod would upload to S3 here
-      const uploadsDir = join(env.MEDIA_INPUT_DIR, 'director');
-      if (!existsSync(uploadsDir)) {
-        await mkdir(uploadsDir, { recursive: true });
-      }
-
-      const destPath = join(uploadsDir, `${assetId}.mp4`);
-
-      // Copy file then delete original (cross-filesystem compatible)
-      await copyFile(tempUploadPath, destPath);
-      await unlink(tempUploadPath);
-
-      // Create asset record
-      const asset = await directorRepo.createAsset({
-        id: assetId,
-        sessionId,
-        storageKey, // In a real app this would be s3 key. Here it maps to uploads/director/{uuid}.mp4
-        contentHash,
-        origin: DirectorAssetOrigin.UPLOAD,
-        ingestStatus: DirectorIngestStatus.READY,
-        mimeType: 'video/mp4',
-        sizeBytes: BigInt(fileStats.size),
-        durationMs: this.toDurationMs(fileMetadata.duration),
-      });
-
-      logger.info({ sessionId, filePath: destPath }, 'Director asset import (File) completed');
-      return asset;
     }
 
     throw new Error('Invalid import input');
@@ -245,6 +303,7 @@ export const directorAssetService = {
    * Background download helper
    */
   async triggerUrlDownload(assetId: string, storageKey: string, url: string) {
+    let outputPath: string | null = null;
     try {
       // Use env.MEDIA_INPUT_DIR which is correctly mapped (e.g. /app/uploads in Docker)
       const uploadsDir = join(env.MEDIA_INPUT_DIR, 'director');
@@ -253,7 +312,7 @@ export const directorAssetService = {
       }
 
       const fileName = basename(storageKey);
-      const outputPath = join(uploadsDir, fileName);
+      outputPath = join(uploadsDir, fileName);
 
       logger.info({ assetId, url, outputPath }, 'Starting background download');
 
@@ -295,6 +354,10 @@ export const directorAssetService = {
       // Get file size
       const fileStats = await stat(outputPath);
       const fileMetadata = await videoMetadataService.getVideoMetadata(outputPath);
+      validateDirectorVideoGuards({
+        durationSeconds: fileMetadata.duration,
+        sizeBytes: fileStats.size,
+      });
       const contentHash = await this.computeFileHash(outputPath);
 
       await directorRepo.updateAsset(assetId, {
@@ -310,6 +373,9 @@ export const directorAssetService = {
       logger.info({ assetId, size: fileStats.size }, 'Background download completed, asset READY');
     } catch (err) {
       logger.error({ err, assetId }, 'Background download failed');
+      if (outputPath) {
+        await cleanupLocalFile(outputPath, { assetId, phase: 'url-download' });
+      }
       await directorRepo.updateAsset(assetId, {
         ingestStatus: DirectorIngestStatus.FAILED,
       });
@@ -362,8 +428,7 @@ export const directorAssetService = {
   },
 
   resolveAssetPath(storageKey: string): string {
-    const cleanStorageKey = storageKey.replace(/^uploads\//, '');
-    return join(env.MEDIA_INPUT_DIR, cleanStorageKey);
+    return resolveDirectorStoragePath(storageKey);
   },
 
   async computeFileHash(filePath: string): Promise<string> {

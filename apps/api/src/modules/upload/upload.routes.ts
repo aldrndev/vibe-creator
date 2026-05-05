@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { createWriteStream, existsSync } from 'node:fs';
-import { mkdir, stat } from 'node:fs/promises';
+import { mkdir, stat, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
@@ -78,6 +78,7 @@ export const uploadRoutes: FastifyPluginAsync = async (fastify) => {
       schema: uploadVideoRouteSchema,
     },
     async (request, reply) => {
+      let filepath: string | null = null;
       try {
         await ensureUploadsDir();
 
@@ -109,7 +110,7 @@ export const uploadRoutes: FastifyPluginAsync = async (fastify) => {
         }
 
         const filename = `${randomUUID()}.${ext}`;
-        const filepath = join(UPLOADS_DIR, filename);
+        filepath = join(UPLOADS_DIR, filename);
 
         // Stream file to disk after validating the initial bytes.
         const validatedStream = Readable.from(
@@ -138,6 +139,9 @@ export const uploadRoutes: FastifyPluginAsync = async (fastify) => {
           },
         });
       } catch (err) {
+        if (filepath) {
+          await unlink(filepath).catch(() => {});
+        }
         const message = err instanceof Error ? err.message : 'Upload failed';
         return sendError(reply, ERROR_CODES.INTERNAL_ERROR, message, 500);
       }

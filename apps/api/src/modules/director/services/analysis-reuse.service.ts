@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { logger } from '@/lib/logger';
 import { redis } from '@/lib/redis';
+import type { TargetDurationRange } from '../analysis-duration-config';
 import { directorRepo } from '../director.repo';
 
 const ANALYSIS_CACHE_TTL_SECONDS = 7 * 24 * 60 * 60;
@@ -35,8 +36,11 @@ function getAssetFingerprint(asset: AssetFingerprintInput): string {
   return asset.contentHash ?? asset.sourceUrlNormalized ?? asset.storageKey;
 }
 
-function getAnalysisCacheKey(asset: AssetFingerprintInput): string {
-  return `director:analysis-cache:${getAssetFingerprint(asset)}`;
+function getAnalysisCacheKey(
+  asset: AssetFingerprintInput,
+  targetDurationRange: TargetDurationRange,
+): string {
+  return `director:analysis-cache:${targetDurationRange}:${getAssetFingerprint(asset)}`;
 }
 
 function normalizeCandidateMetadata(metadata: unknown): Record<string, unknown> {
@@ -59,8 +63,9 @@ function normalizeReusableCandidates(
 export const directorAnalysisReuseService = {
   async getReusableCandidates(
     asset: AssetFingerprintInput,
+    targetDurationRange: TargetDurationRange = 'auto',
   ): Promise<ReusableAnalysisCandidate[] | null> {
-    const cacheKey = getAnalysisCacheKey(asset);
+    const cacheKey = getAnalysisCacheKey(asset, targetDurationRange);
 
     if (redis.status === 'ready') {
       const cached = await redis.get(cacheKey);
@@ -76,26 +81,30 @@ export const directorAnalysisReuseService = {
       }
     }
 
-    const reusableAnalysis = await directorRepo.findLatestReusableAnalysisByAsset(asset);
+    const reusableAnalysis = await directorRepo.findLatestReusableAnalysisByAsset(
+      asset,
+      targetDurationRange,
+    );
     const candidates = normalizeReusableCandidates(reusableAnalysis?.candidates ?? []);
 
     if (candidates.length === 0) {
       return null;
     }
 
-    await this.setReusableCandidates(asset, candidates);
+    await this.setReusableCandidates(asset, candidates, targetDurationRange);
     return candidates;
   },
 
   async setReusableCandidates(
     asset: AssetFingerprintInput,
     candidates: ReusableAnalysisCandidateInput[],
+    targetDurationRange: TargetDurationRange = 'auto',
   ): Promise<void> {
     if (redis.status !== 'ready' || candidates.length === 0) {
       return;
     }
 
-    const cacheKey = getAnalysisCacheKey(asset);
+    const cacheKey = getAnalysisCacheKey(asset, targetDurationRange);
     await redis.set(
       cacheKey,
       JSON.stringify(normalizeReusableCandidates(candidates)),

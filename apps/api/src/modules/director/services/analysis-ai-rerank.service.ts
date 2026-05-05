@@ -1,5 +1,9 @@
 import type { Prisma } from '@prisma/client';
 import { logger } from '@/lib/logger';
+import {
+  resolveTargetDurationRangeConfig,
+  type TargetDurationRange,
+} from '../analysis-duration-config';
 import type { HeuristicScoreBreakdown } from '../analysis-score-breakdown';
 import {
   type AnalysisAiPromptCandidate,
@@ -54,6 +58,16 @@ const DIALOG_COMPLETION_DURATION_FIT = 82;
 const HIGH_VISUAL_PENALTY = 25;
 const MEDIUM_VISUAL_PENALTY = 14;
 
+interface DurationReadinessWindow {
+  idealShortMinSeconds: number;
+  idealShortMaxSeconds: number;
+  extendedShortMaxSeconds: number;
+}
+
+interface AnalysisAiRerankOptions {
+  targetDurationRange?: TargetDurationRange;
+}
+
 function clampScore(value: number): number {
   return Math.max(0, Math.min(100, Math.round(value)));
 }
@@ -64,6 +78,28 @@ function getDurationSeconds(candidate: AnalysisAiCandidateInput): number {
 
 function getHeuristicScore(candidate: AnalysisAiCandidateInput): number {
   return clampScore((candidate.score ?? 0) * 100);
+}
+
+function resolveDurationReadinessWindow(
+  targetDurationRange: TargetDurationRange | undefined,
+): DurationReadinessWindow {
+  if (!targetDurationRange || targetDurationRange === 'auto') {
+    return {
+      idealShortMinSeconds: IDEAL_SHORT_MIN_SECONDS,
+      idealShortMaxSeconds: IDEAL_SHORT_MAX_SECONDS,
+      extendedShortMaxSeconds: EXTENDED_SHORT_MAX_SECONDS,
+    };
+  }
+
+  const resolvedRange = resolveTargetDurationRangeConfig(targetDurationRange);
+  const idealShortMinSeconds = Math.round(resolvedRange.minClipDurationMs / 1000);
+  const idealShortMaxSeconds = Math.round(resolvedRange.maxClipDurationMs / 1000);
+
+  return {
+    idealShortMinSeconds,
+    idealShortMaxSeconds,
+    extendedShortMaxSeconds: Math.min(MAX_SHORT_SECONDS, idealShortMaxSeconds + 20),
+  };
 }
 
 function hasBadge(candidate: AnalysisAiCandidateInput, badge: string): boolean {
@@ -77,7 +113,10 @@ function isDialogCompleteProxy(candidate: AnalysisAiCandidateInput): boolean {
   );
 }
 
-function getShortReadinessAdjustment(candidate: AnalysisAiCandidateInput): number {
+function getShortReadinessAdjustment(
+  candidate: AnalysisAiCandidateInput,
+  durationWindow: DurationReadinessWindow,
+): number {
   const durationSeconds = getDurationSeconds(candidate);
   const dialogDensity = candidate.scoreBreakdown.dialogDensity;
   const durationFit = candidate.scoreBreakdown.durationFit;
@@ -86,16 +125,22 @@ function getShortReadinessAdjustment(candidate: AnalysisAiCandidateInput): numbe
   const hasNeedReviewBadge = hasBadge(candidate, 'Butuh Review');
   let adjustment = 0;
 
-  if (durationSeconds >= IDEAL_SHORT_MIN_SECONDS && durationSeconds <= IDEAL_SHORT_MAX_SECONDS) {
+  if (
+    durationSeconds >= durationWindow.idealShortMinSeconds &&
+    durationSeconds <= durationWindow.idealShortMaxSeconds
+  ) {
     adjustment += 12;
   } else if (
-    durationSeconds > IDEAL_SHORT_MAX_SECONDS &&
-    durationSeconds <= EXTENDED_SHORT_MAX_SECONDS
+    durationSeconds > durationWindow.idealShortMaxSeconds &&
+    durationSeconds <= durationWindow.extendedShortMaxSeconds
   ) {
     adjustment += isDialogCompleteProxy(candidate) ? 5 : -4;
-  } else if (durationSeconds > EXTENDED_SHORT_MAX_SECONDS && durationSeconds <= MAX_SHORT_SECONDS) {
+  } else if (
+    durationSeconds > durationWindow.extendedShortMaxSeconds &&
+    durationSeconds <= MAX_SHORT_SECONDS
+  ) {
     adjustment -= isDialogCompleteProxy(candidate) ? 10 : 16;
-  } else if (durationSeconds < IDEAL_SHORT_MIN_SECONDS) {
+  } else if (durationSeconds < durationWindow.idealShortMinSeconds) {
     adjustment -= durationSeconds < 30 ? 9 : 4;
   } else {
     adjustment -= 20;
@@ -136,12 +181,18 @@ function getShortReadinessAdjustment(candidate: AnalysisAiCandidateInput): numbe
   return adjustment;
 }
 
-function getShortReadinessScore(candidate: AnalysisAiCandidateInput): number {
+function getShortReadinessScore(
+  candidate: AnalysisAiCandidateInput,
+  durationWindow: DurationReadinessWindow,
+): number {
   const heuristicScore = getHeuristicScore(candidate);
-  return clampScore(heuristicScore + getShortReadinessAdjustment(candidate));
+  return clampScore(heuristicScore + getShortReadinessAdjustment(candidate, durationWindow));
 }
 
-function buildHeuristicLabelMeta(candidate: AnalysisAiCandidateInput): {
+function buildHeuristicLabelMeta(
+  candidate: AnalysisAiCandidateInput,
+  durationWindow: DurationReadinessWindow,
+): {
   label: string;
   reason: string;
 } {
@@ -164,16 +215,19 @@ function buildHeuristicLabelMeta(candidate: AnalysisAiCandidateInput): {
     };
   }
 
-  if (durationSeconds >= IDEAL_SHORT_MIN_SECONDS && durationSeconds <= IDEAL_SHORT_MAX_SECONDS) {
+  if (
+    durationSeconds >= durationWindow.idealShortMinSeconds &&
+    durationSeconds <= durationWindow.idealShortMaxSeconds
+  ) {
     return {
       label: 'Short Utuh',
-      reason: 'Durasi 40-60 detik paling aman untuk menjaga narasi tetap lengkap dan rapi.',
+      reason: `Durasi ${durationWindow.idealShortMinSeconds}-${durationWindow.idealShortMaxSeconds} detik paling aman untuk menjaga narasi tetap lengkap dan rapi.`,
     };
   }
 
   if (
-    durationSeconds > IDEAL_SHORT_MAX_SECONDS &&
-    durationSeconds <= EXTENDED_SHORT_MAX_SECONDS &&
+    durationSeconds > durationWindow.idealShortMaxSeconds &&
+    durationSeconds <= durationWindow.extendedShortMaxSeconds &&
     hasStrongDialog
   ) {
     return {
@@ -189,10 +243,13 @@ function buildHeuristicLabelMeta(candidate: AnalysisAiCandidateInput): {
   };
 }
 
-function buildHeuristicMeta(candidate: AnalysisAiCandidateInput): AnalysisAiScoreResult {
+function buildHeuristicMeta(
+  candidate: AnalysisAiCandidateInput,
+  durationWindow: DurationReadinessWindow,
+): AnalysisAiScoreResult {
   const heuristicScore = getHeuristicScore(candidate);
-  const shortReadinessScore = getShortReadinessScore(candidate);
-  const labelMeta = buildHeuristicLabelMeta(candidate);
+  const shortReadinessScore = getShortReadinessScore(candidate, durationWindow);
+  const labelMeta = buildHeuristicLabelMeta(candidate, durationWindow);
 
   return {
     metadata: {
@@ -239,12 +296,13 @@ function buildMetadata(meta: AnalysisAiRerankMetadata): Prisma.JsonObject {
 function buildCompositeScore(
   candidate: AnalysisAiCandidateInput,
   rating: AnalysisAiRating | null,
+  durationWindow: DurationReadinessWindow,
 ): AnalysisAiScoreResult {
   const heuristicScore = getHeuristicScore(candidate);
-  const shortReadinessScore = getShortReadinessScore(candidate);
+  const shortReadinessScore = getShortReadinessScore(candidate, durationWindow);
 
   if (!rating) {
-    return buildHeuristicMeta(candidate);
+    return buildHeuristicMeta(candidate, durationWindow);
   }
 
   const aiCompositeScore = clampScore(
@@ -297,10 +355,12 @@ function applyProviderToMetadata(
 export const directorAnalysisAiRerankService = {
   async rerankCandidates(
     candidates: AnalysisAiCandidateInput[],
+    options: AnalysisAiRerankOptions = {},
   ): Promise<AnalysisAiRerankedCandidate[]> {
     if (candidates.length === 0) {
       return [];
     }
+    const durationWindow = resolveDurationReadinessWindow(options.targetDurationRange);
 
     let provider: AnalysisAiProvider = 'heuristic';
     let ratings: AnalysisAiRating[] | null = null;
@@ -327,7 +387,7 @@ export const directorAnalysisAiRerankService = {
     const ratedCandidates = candidates
       .map((candidate, index) => {
         const rating = ratings?.find((item) => item.index === index) ?? null;
-        const scoreResult = buildCompositeScore(candidate, rating);
+        const scoreResult = buildCompositeScore(candidate, rating, durationWindow);
         const metadata = applyProviderToMetadata(scoreResult.metadata, provider);
 
         return {

@@ -5,6 +5,7 @@ import type { FastifyPluginAsync, FastifyReply } from 'fastify';
 import { env } from '@/config/env';
 import { logger } from '@/lib/logger';
 import { requireAuth } from '@/plugins/auth';
+import { resolveClipDurationConfig } from '../analysis-duration-config';
 import { getClipPosterCacheFileName, getClipPreviewCacheFileName } from '../clip-media-cache';
 import { directorProcessor } from '../director.processor';
 import { directorRepo } from '../director.repo';
@@ -28,8 +29,12 @@ async function findClipCandidate(sessionId: string, userId: string, clipId: stri
     return null;
   }
 
+  const resolvedConfig = resolveClipDurationConfig(session.analysisJob?.config);
   const reusableCandidates =
-    (await directorAnalysisReuseService.getReusableCandidates(session.asset)) ?? [];
+    (await directorAnalysisReuseService.getReusableCandidates(
+      session.asset,
+      resolvedConfig.targetDurationRange,
+    )) ?? [];
   const candidate = [
     ...(session.analysisJob?.candidates ?? []),
     ...session.selectedClips.map((clip) => clip.candidate),
@@ -302,8 +307,12 @@ export const clipMediaRoutes: FastifyPluginAsync = async (fastify) => {
         const sessionCandidates = session?.analysisJob?.candidates ?? [];
         const selectedClipCandidates =
           session?.selectedClips.map((clip) => clip.candidate).filter(Boolean) ?? [];
+        const resolvedConfig = resolveClipDurationConfig(session?.analysisJob?.config);
         const reusableCandidates = session?.asset
-          ? ((await directorAnalysisReuseService.getReusableCandidates(session.asset)) ?? [])
+          ? ((await directorAnalysisReuseService.getReusableCandidates(
+              session.asset,
+              resolvedConfig.targetDurationRange,
+            )) ?? [])
           : [];
         const belongsToSession = canAccessPreviewFile(
           filename,

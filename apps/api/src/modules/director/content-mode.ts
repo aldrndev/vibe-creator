@@ -69,6 +69,14 @@ export function getContentModePreset(mode: ResolvedContentMode): ContentModePres
   return contentModePresets[mode];
 }
 
+function normalizeLegacyMode(mode: ResolvedContentMode): ResolvedContentMode {
+  if (mode === 'talking-head' || mode === 'general') {
+    return 'podcast';
+  }
+
+  return mode;
+}
+
 export function guessContentMode(signal: ContentModeSignal): ResolvedContentMode {
   const hasDenseSpeechTag = signal.tags.includes('DENSE SPEECH');
   const hasHighEnergyTag = signal.tags.includes('HIGH ENERGY');
@@ -87,7 +95,7 @@ export function guessContentMode(signal: ContentModeSignal): ResolvedContentMode
   }
 
   if (hasDenseSpeechTag || (signal.dialogDensityScore >= 72 && hasHighEnergyTag)) {
-    return 'talking-head';
+    return 'podcast';
   }
 
   if (
@@ -109,7 +117,7 @@ export function guessContentMode(signal: ContentModeSignal): ResolvedContentMode
     return 'cinematic';
   }
 
-  return 'general';
+  return 'podcast';
 }
 
 export function resolveContentMode(
@@ -120,5 +128,5 @@ export function resolveContentMode(
     return guessContentMode(signal);
   }
 
-  return mode;
+  return normalizeLegacyMode(mode);
 }

@@ -79,4 +79,23 @@ describe('videoExtractionService.generateClipVideoPreview', () => {
       ]),
     );
   });
+
+  it('normalizes clip audio proxy volume before transcription', async () => {
+    const { videoExtractionService } = await import(
+      '@/modules/director/processing/video-extraction.service'
+    );
+
+    await videoExtractionService.extractClipAudioProxy(
+      '/tmp/source-video.mp4',
+      '/tmp/director-audio',
+      0,
+      60_000,
+    );
+
+    expect(spawnMock).toHaveBeenCalledTimes(1);
+    const spawnArgs = spawnMock.mock.calls[0]?.[1] as string[];
+    expect(spawnArgs).toEqual(
+      expect.arrayContaining(['-af', 'loudnorm=I=-16:TP=-1.5:LRA=11', '-ar', '16000']),
+    );
+  });
 });

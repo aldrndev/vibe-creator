@@ -55,14 +55,20 @@ export interface BuiltExportClip {
   };
 }
 
-function resolveFocusProfileFromMode(
-  mode: 'podcast' | 'interview' | 'talking-head' | 'product-review' | 'cinematic' | 'general',
-): FocusProfile {
-  if (mode === 'podcast' || mode === 'talking-head') {
+function normalizeLegacyMode(mode: Exclude<ContentMode, 'auto'>): Exclude<ContentMode, 'auto'> {
+  if (mode === 'talking-head' || mode === 'general') {
+    return 'podcast';
+  }
+
+  return mode;
+}
+
+function resolveFocusProfileFromMode(mode: Exclude<ContentMode, 'auto'>): FocusProfile {
+  if (mode === 'podcast') {
     return 'subject-center';
   }
 
-  if (mode === 'general' || mode === 'product-review') {
+  if (mode === 'product-review') {
     return 'object-center';
   }
 
@@ -71,7 +77,7 @@ function resolveFocusProfileFromMode(
 
 function getSuggestedMode(metadata: unknown): Exclude<ContentMode, 'auto'> {
   if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
-    return 'general';
+    return 'podcast';
   }
 
   const scoreBreakdown =
@@ -83,7 +89,7 @@ function getSuggestedMode(metadata: unknown): Exclude<ContentMode, 'auto'> {
       : null;
 
   if (!scoreBreakdown) {
-    return 'general';
+    return 'podcast';
   }
 
   const mode =
@@ -93,9 +99,10 @@ function getSuggestedMode(metadata: unknown): Exclude<ContentMode, 'auto'> {
     mode === 'interview' ||
     mode === 'talking-head' ||
     mode === 'product-review' ||
-    mode === 'cinematic'
-    ? mode
-    : 'general';
+    mode === 'cinematic' ||
+    mode === 'general'
+    ? normalizeLegacyMode(mode)
+    : 'podcast';
 }
 
 /**
@@ -124,9 +131,18 @@ export function buildExportClipFromSelectedClip(params: {
 
   const suggestedMode = getSuggestedMode(clip.candidate.metadata);
   const requestedMode = settings?.contentMode;
-  const resolvedMode = requestedMode && requestedMode !== 'auto' ? requestedMode : suggestedMode;
+  const normalizedRequestedMode =
+    requestedMode && requestedMode !== 'auto' ? normalizeLegacyMode(requestedMode) : undefined;
+  const resolvedMode = normalizedRequestedMode ?? suggestedMode;
+  const normalizedSettings =
+    settings?.contentMode && settings.contentMode !== 'auto'
+      ? {
+          ...settings,
+          contentMode: normalizeLegacyMode(settings.contentMode),
+        }
+      : settings;
 
-  const resolvedRefineSettings = resolveClipRefineSettings(settings, {
+  const resolvedRefineSettings = resolveClipRefineSettings(normalizedSettings, {
     contentModeSuggestion: suggestedMode,
   });
 

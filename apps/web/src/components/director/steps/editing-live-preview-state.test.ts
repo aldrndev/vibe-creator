@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  canPlayFinalPreview,
   estimatePreviewProgressPercent,
   resolvePreviewStatus,
 } from '@/components/director/steps/editing-live-preview-state';
@@ -55,5 +56,14 @@ describe('estimatePreviewProgressPercent', () => {
 
     expect(samples[0]).toBe(0);
     expect(samples.at(-1)).toBeLessThanOrEqual(94);
+  });
+});
+
+describe('canPlayFinalPreview', () => {
+  it('allows playback only for the current generated preview', () => {
+    expect(canPlayFinalPreview('ready', 'blob:preview')).toBe(true);
+    expect(canPlayFinalPreview('dirty', 'blob:preview')).toBe(false);
+    expect(canPlayFinalPreview('idle', null)).toBe(false);
+    expect(canPlayFinalPreview('generating', 'blob:preview')).toBe(false);
   });
 });

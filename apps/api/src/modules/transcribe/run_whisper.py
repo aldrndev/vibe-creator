@@ -60,10 +60,10 @@ def transcribe_audio(file_path, language):
         model = WhisperModel(model_size, device="cpu", compute_type="int8", download_root=os.environ.get("HF_HOME"))
 
         # Configure VAD parameters from env
-        vad_threshold = float(os.environ.get("TRANSCRIBE_VAD_THRESHOLD", "0.72"))
-        vad_speech_pad_ms = int(os.environ.get("TRANSCRIBE_VAD_SPEECH_PAD_MS", "120"))
-        vad_min_silence_ms = int(os.environ.get("TRANSCRIBE_VAD_MIN_SILENCE_MS", "300"))
-        vad_min_speech_ms = int(os.environ.get("TRANSCRIBE_VAD_MIN_SPEECH_MS", "150"))
+        vad_threshold = float(os.environ.get("TRANSCRIBE_VAD_THRESHOLD", "0.5"))
+        vad_speech_pad_ms = int(os.environ.get("TRANSCRIBE_VAD_SPEECH_PAD_MS", "300"))
+        vad_min_silence_ms = int(os.environ.get("TRANSCRIBE_VAD_MIN_SILENCE_MS", "200"))
+        vad_min_speech_ms = int(os.environ.get("TRANSCRIBE_VAD_MIN_SPEECH_MS", "80"))
 
         segments, info = model.transcribe(
             file_path, 

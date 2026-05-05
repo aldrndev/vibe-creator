@@ -14,6 +14,7 @@ const ffmpegPath = process.env.FFMPEG_PATH || 'ffmpeg';
 
 /** Maximum time (ms) for FFmpeg clip audio proxy extraction before kill */
 const FFMPEG_CLIP_PROXY_TIMEOUT_MS = 120_000;
+const TRANSCRIBE_AUDIO_FILTER = 'loudnorm=I=-16:TP=-1.5:LRA=11';
 
 export const videoExtractionService = {
   /**
@@ -38,6 +39,8 @@ export const videoExtractionService = {
       '1', // Mono
       '-ar',
       '16000', // 16kHz sample rate
+      '-af',
+      TRANSCRIBE_AUDIO_FILTER,
       '-f',
       'wav',
       outputPath,
@@ -96,6 +99,8 @@ export const videoExtractionService = {
       '1',
       '-ar',
       '16000',
+      '-af',
+      TRANSCRIBE_AUDIO_FILTER,
       '-f',
       'wav',
       outputPath,

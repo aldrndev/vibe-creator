@@ -20,6 +20,13 @@ import type { Job } from 'bullmq';
 import { env } from '@/config/env';
 import { logger } from '@/lib/logger';
 import { prisma } from '@/lib/prisma';
+import {
+  DEFAULT_MAX_CANDIDATES,
+  preferCandidatesWithinTargetDurationRange,
+  resolveClipDurationConfig,
+  resolveHardMaxCandidateDurationMs,
+  type TargetDurationRange,
+} from '../analysis-duration-config';
 import { buildHeuristicScoreBreakdown } from '../analysis-score-breakdown';
 import { directorProcessor } from '../director.processor';
 import type { DirectorAnalysisJobData } from '../director.queue';
@@ -27,10 +34,7 @@ import { directorAnalysisAiRerankService } from '../services/analysis-ai-rerank.
 import { directorAnalysisReuseService } from '../services/analysis-reuse.service';
 
 const TEMP_DIR = join(env.MEDIA_INPUT_DIR, 'temp');
-const DEFAULT_MIN_CLIP_DURATION_MS = 15000;
-const DEFAULT_MAX_CLIP_DURATION_MS = 60000;
-const HARD_MAX_CLIP_DURATION_SEC = 90;
-const DEFAULT_MAX_CANDIDATES = 20;
+const HARD_MAX_CLIP_DURATION_SEC = 120;
 
 function parsePositiveNumber(value: unknown, fallback: number): number {
   if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
@@ -44,18 +48,13 @@ function resolveAnalysisRefineOptions(config: unknown): {
   minDuration: number;
   maxDuration: number;
   maxCandidates: number;
+  targetDurationRange: TargetDurationRange;
 } {
-  if (typeof config !== 'object' || config === null || Array.isArray(config)) {
-    return {
-      minDuration: DEFAULT_MIN_CLIP_DURATION_MS / 1000,
-      maxDuration: DEFAULT_MAX_CLIP_DURATION_MS / 1000,
-      maxCandidates: DEFAULT_MAX_CANDIDATES,
-    };
-  }
-
-  const cfg = config as Record<string, unknown>;
-  const minClipDurationMs = parsePositiveNumber(cfg.minClipDuration, DEFAULT_MIN_CLIP_DURATION_MS);
-  const maxClipDurationMs = parsePositiveNumber(cfg.maxClipDuration, DEFAULT_MAX_CLIP_DURATION_MS);
+  const resolvedConfig = resolveClipDurationConfig(config);
+  const cfg =
+    typeof config === 'object' && config !== null && !Array.isArray(config)
+      ? (config as Record<string, unknown>)
+      : {};
   const maxCandidates = Math.max(
     1,
     Math.round(parsePositiveNumber(cfg.maxCandidates, DEFAULT_MAX_CANDIDATES)),
@@ -63,17 +62,18 @@ function resolveAnalysisRefineOptions(config: unknown): {
 
   const minDurationSec = Math.max(
     5,
-    Math.min(HARD_MAX_CLIP_DURATION_SEC - 1, Math.round(minClipDurationMs / 1000)),
+    Math.min(HARD_MAX_CLIP_DURATION_SEC - 1, Math.round(resolvedConfig.minClipDurationMs / 1000)),
   );
   const maxDurationSec = Math.min(
     HARD_MAX_CLIP_DURATION_SEC,
-    Math.max(minDurationSec + 1, Math.round(maxClipDurationMs / 1000)),
+    Math.max(minDurationSec + 1, Math.round(resolvedConfig.maxClipDurationMs / 1000)),
   );
 
   return {
     minDuration: minDurationSec,
     maxDuration: maxDurationSec,
     maxCandidates,
+    targetDurationRange: resolvedConfig.targetDurationRange,
   };
 }
 
@@ -143,33 +143,54 @@ export async function processAnalysisJob(job: Job<DirectorAnalysisJobData>) {
 
     const segments = await directorProcessor.detectSegments(audioProxyPath);
 
+    const analysisRefineOptions = resolveAnalysisRefineOptions(dbJob?.config);
     const candidates = await directorProcessor.refineSegments(
       segments,
       audioProxyPath,
-      resolveAnalysisRefineOptions(dbJob?.config),
+      analysisRefineOptions,
       filePath,
     );
+    const hardMaxDurationSeconds =
+      resolveHardMaxCandidateDurationMs(analysisRefineOptions.maxDuration * 1000) / 1000;
     const boundedCandidates = candidates.filter(
-      (candidate) => candidate.duration <= HARD_MAX_CLIP_DURATION_SEC,
+      (candidate) => candidate.duration <= hardMaxDurationSeconds,
     );
-    const rerankedCandidates = await directorAnalysisAiRerankService.rerankCandidates(
+    const durationPreferredCandidates = preferCandidatesWithinTargetDurationRange(
       boundedCandidates.map((candidate, index) => ({
         startMs: Math.round(candidate.start * 1000),
         endMs: Math.round(candidate.end * 1000),
         score: candidate.score,
         rank: index + 1,
         tags: candidate.tags && candidate.tags.length > 0 ? candidate.tags : ['highlight'],
-        scoreBreakdown: buildHeuristicScoreBreakdown({
-          durationSeconds: Math.round(candidate.duration),
-          energyScore: candidate.analysis?.energyScore ?? 50,
-          dialogDensityScore: candidate.analysis?.dialogDensityScore ?? 50,
-          visualPenalty: candidate.analysis?.visualPenalty ?? 0,
-          tags: candidate.tags && candidate.tags.length > 0 ? candidate.tags : ['highlight'],
-        }),
+        scoreBreakdown: buildHeuristicScoreBreakdown(
+          {
+            durationSeconds: Math.round(candidate.duration),
+            energyScore: candidate.analysis?.energyScore ?? 50,
+            dialogDensityScore: candidate.analysis?.dialogDensityScore ?? 50,
+            visualPenalty: candidate.analysis?.visualPenalty ?? 0,
+            tags: candidate.tags && candidate.tags.length > 0 ? candidate.tags : ['highlight'],
+          },
+          { targetDurationRange: analysisRefineOptions.targetDurationRange },
+        ),
       })),
+      analysisRefineOptions.targetDurationRange,
+    );
+    const rerankedCandidates = await directorAnalysisAiRerankService.rerankCandidates(
+      durationPreferredCandidates.candidates,
+      {
+        targetDurationRange: analysisRefineOptions.targetDurationRange,
+      },
     );
 
-    logger.info({ ...logCtx, candidatesCount: rerankedCandidates.length }, 'Analysis complete');
+    logger.info(
+      {
+        ...logCtx,
+        candidatesCount: rerankedCandidates.length,
+        targetDurationRange: analysisRefineOptions.targetDurationRange,
+        rangeFallbackApplied: durationPreferredCandidates.fallbackApplied,
+      },
+      'Analysis complete',
+    );
 
     await prisma.$transaction(
       async (tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0]) => {
@@ -252,7 +273,11 @@ export async function processAnalysisJob(job: Job<DirectorAnalysisJobData>) {
       });
 
       if (asset) {
-        await directorAnalysisReuseService.setReusableCandidates(asset, persistedCandidates);
+        await directorAnalysisReuseService.setReusableCandidates(
+          asset,
+          persistedCandidates,
+          analysisRefineOptions.targetDurationRange,
+        );
       }
     }
   } catch (err) {

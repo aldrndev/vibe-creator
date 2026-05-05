@@ -1,10 +1,14 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { envMock, redisMock } = vi.hoisted(() => ({
   envMock: {
     WHISPER_MODEL_SIZE: 'small',
     TRANSCRIBE_PROVIDER: 'auto',
     TRANSCRIBE_SERVICE_URL: 'http://localhost:8765',
+    TRANSCRIBE_VAD_THRESHOLD: 0.5,
+    TRANSCRIBE_VAD_SPEECH_PAD_MS: 300,
+    TRANSCRIBE_VAD_MIN_SILENCE_MS: 200,
+    TRANSCRIBE_VAD_MIN_SPEECH_MS: 80,
   },
   redisMock: {
     status: 'ready',
@@ -24,6 +28,13 @@ vi.mock('@/lib/redis', () => ({
 import { transcribeCacheService } from '@/modules/transcribe/transcribe-cache.service';
 
 describe('transcribeCacheService', () => {
+  beforeEach(() => {
+    envMock.TRANSCRIBE_VAD_THRESHOLD = 0.5;
+    envMock.TRANSCRIBE_VAD_SPEECH_PAD_MS = 300;
+    envMock.TRANSCRIBE_VAD_MIN_SILENCE_MS = 200;
+    envMock.TRANSCRIBE_VAD_MIN_SPEECH_MS = 80;
+  });
+
   it('builds a stable cache key for the same clip fingerprint', () => {
     const firstKey = transcribeCacheService.buildFingerprint({
       assetFingerprint: 'asset-hash',
@@ -64,5 +75,28 @@ describe('transcribeCacheService', () => {
     });
 
     expect(indonesiaKey).not.toBe(englishKey);
+  });
+
+  it('builds different cache keys when VAD quality settings change', () => {
+    const defaultKey = transcribeCacheService.buildFingerprint({
+      assetFingerprint: 'asset-hash',
+      startMs: 0,
+      endMs: 35_000,
+      trimStartMs: 0,
+      trimEndMs: 0,
+      language: 'id',
+    });
+
+    envMock.TRANSCRIBE_VAD_THRESHOLD = 0.72;
+    const tunedKey = transcribeCacheService.buildFingerprint({
+      assetFingerprint: 'asset-hash',
+      startMs: 0,
+      endMs: 35_000,
+      trimStartMs: 0,
+      trimEndMs: 0,
+      language: 'id',
+    });
+
+    expect(defaultKey).not.toBe(tunedKey);
   });
 });

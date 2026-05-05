@@ -1,5 +1,5 @@
 import { Captions, ScanFace, Scissors, Sparkles, Type, Waves } from 'lucide-react';
-import { type ReactNode, useEffect } from 'react';
+import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { EditingLivePreview } from '@/components/director/steps/editing-live-preview';
 import { subtitlePresets } from '@/components/director/steps/editing-presets';
 import { Card, CardBody, Switch, Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui';
@@ -12,8 +12,11 @@ import {
 } from '@/lib/director-refine-settings';
 import {
   clampSubtitleFontSize,
-  DIRECTOR_SUBTITLE_FONT_SIZE_MIN,
   resolveSubtitleFontSizeMax,
+  resolveSubtitleFontSizePreset,
+  resolveSubtitleFontSizePresetValue,
+  type SubtitleFontSizeContext,
+  type SubtitleFontSizePreset,
 } from '@/lib/director-subtitle-style';
 import { cn } from '@/lib/utils';
 import type {
@@ -55,50 +58,47 @@ export function EditingSidebar({
   const resolvedContentMode = primaryClip
     ? getResolvedContentMode(primaryClip.candidate, refineSettings[primaryClip.id])
     : null;
-  const subtitleFontSizeMax = resolveSubtitleFontSizeMax({
-    mode: resolvedContentMode,
-    position: subtitleStyle.position,
-    animation: subtitleStyle.animation,
-    quality: exportSettings.quality,
-    aspectRatio: exportSettings.aspectRatio,
-  });
-  const suggestedMode = primaryClip
-    ? getCandidateSuggestedContentMode(primaryClip.candidate)
-    : null;
   const effectiveContentMode = (resolvedContentMode ?? 'auto') as ContentMode;
-
-  useEffect(() => {
-    const clampedFontSize = clampSubtitleFontSize(subtitleStyle.fontSize, {
+  const subtitleFontSizeContext: SubtitleFontSizeContext = useMemo(
+    () => ({
       mode: effectiveContentMode,
       position: subtitleStyle.position,
       animation: subtitleStyle.animation,
       quality: exportSettings.quality,
       aspectRatio: exportSettings.aspectRatio,
-    });
+    }),
+    [
+      effectiveContentMode,
+      subtitleStyle.position,
+      subtitleStyle.animation,
+      exportSettings.quality,
+      exportSettings.aspectRatio,
+    ],
+  );
+  const subtitleFontSizeMax = resolveSubtitleFontSizeMax(subtitleFontSizeContext);
+  const suggestedMode = primaryClip
+    ? getCandidateSuggestedContentMode(primaryClip.candidate)
+    : null;
+
+  useEffect(() => {
+    const clampedFontSize = clampSubtitleFontSize(subtitleStyle.fontSize, subtitleFontSizeContext);
     if (clampedFontSize !== subtitleStyle.fontSize) {
       onUpdateSubtitleStyle({ fontSize: clampedFontSize });
     }
-  }, [
-    effectiveContentMode,
-    exportSettings.quality,
-    exportSettings.aspectRatio,
-    onUpdateSubtitleStyle,
-    subtitleStyle.fontSize,
-    subtitleStyle.position,
-    subtitleStyle.animation,
-  ]);
+  }, [onUpdateSubtitleStyle, subtitleStyle.fontSize, subtitleFontSizeContext]);
 
   const handleUpdateSubtitleStyle = (style: Partial<SubtitleStyle>) => {
     const nextFontSize = style.fontSize ?? subtitleStyle.fontSize;
     const nextPosition = style.position ?? subtitleStyle.position;
     const nextAnimation = style.animation ?? subtitleStyle.animation;
-    const clampedFontSize = clampSubtitleFontSize(nextFontSize, {
+    const nextFontSizeContext: SubtitleFontSizeContext = {
       mode: effectiveContentMode,
       position: nextPosition,
       animation: nextAnimation,
       quality: exportSettings.quality,
       aspectRatio: exportSettings.aspectRatio,
-    });
+    };
+    const clampedFontSize = clampSubtitleFontSize(nextFontSize, nextFontSizeContext);
     onUpdateSubtitleStyle({
       ...style,
       fontSize: clampedFontSize,
@@ -145,6 +145,7 @@ export function EditingSidebar({
                 subtitleStyle={subtitleStyle}
                 onUpdateSubtitleStyle={handleUpdateSubtitleStyle}
                 subtitleFontSizeMax={subtitleFontSizeMax}
+                subtitleFontSizeContext={subtitleFontSizeContext}
               />
             </TabsContent>
 
@@ -228,10 +229,8 @@ function RefineCard({
               { value: 'auto', label: 'Auto' },
               { value: 'podcast', label: 'Podcast' },
               { value: 'interview', label: 'Interview' },
-              { value: 'talking-head', label: 'Talking' },
               { value: 'product-review', label: 'Product' },
               { value: 'cinematic', label: 'Cinema' },
-              { value: 'general', label: 'General' },
             ].map((mode) => (
               <button
                 type="button"
@@ -318,11 +317,54 @@ function SubtitleStyleCard({
   subtitleStyle,
   onUpdateSubtitleStyle,
   subtitleFontSizeMax,
+  subtitleFontSizeContext,
 }: Readonly<{
   subtitleStyle: SubtitleStyle;
   onUpdateSubtitleStyle: (style: Partial<SubtitleStyle>) => void;
   subtitleFontSizeMax: number;
+  subtitleFontSizeContext: SubtitleFontSizeContext;
 }>) {
+  const [activePresetId, setActivePresetId] = useState(
+    () => subtitleStyle.stylePreset ?? getExactSubtitlePresetId(subtitleStyle) ?? 'viral-pop',
+  );
+  useEffect(() => {
+    if (subtitleStyle.stylePreset && subtitleStyle.stylePreset !== 'custom') {
+      setActivePresetId(subtitleStyle.stylePreset);
+      return;
+    }
+
+    const exactPresetId = getExactSubtitlePresetId(subtitleStyle);
+    if (exactPresetId) {
+      setActivePresetId(exactPresetId);
+    }
+  }, [subtitleStyle]);
+
+  const activeFontSizePreset = resolveSubtitleFontSizePreset(
+    subtitleStyle.fontSize,
+    subtitleFontSizeContext,
+  );
+  const sizePresetOptions: Array<{
+    value: SubtitleFontSizePreset;
+    label: string;
+    fontSize: number;
+  }> = [
+    {
+      value: 'small',
+      label: 'Kecil',
+      fontSize: resolveSubtitleFontSizePresetValue('small', subtitleFontSizeContext),
+    },
+    {
+      value: 'medium',
+      label: 'Sedang',
+      fontSize: resolveSubtitleFontSizePresetValue('medium', subtitleFontSizeContext),
+    },
+    {
+      value: 'large',
+      label: 'Besar',
+      fontSize: resolveSubtitleFontSizePresetValue('large', subtitleFontSizeContext),
+    },
+  ];
+
   return (
     <Card className="bg-transparent border-none shadow-none">
       <CardBody className="p-0 space-y-6">
@@ -339,28 +381,37 @@ function SubtitleStyleCard({
           </div>
           <div className="space-y-2">
             {subtitlePresets.map((preset) => {
-              const isActive =
-                subtitleStyle.fontToken === preset.subtitleStyle.fontToken &&
-                subtitleStyle.textColorToken === preset.subtitleStyle.textColorToken &&
-                subtitleStyle.bgColorToken === preset.subtitleStyle.bgColorToken &&
-                subtitleStyle.position === preset.subtitleStyle.position &&
-                subtitleStyle.animation === preset.subtitleStyle.animation;
+              const isActive = activePresetId === preset.id;
 
               return (
                 <button
                   type="button"
                   key={preset.id}
-                  onClick={() => onUpdateSubtitleStyle(preset.subtitleStyle)}
+                  onClick={() => {
+                    setActivePresetId(preset.id);
+                    onUpdateSubtitleStyle(preset.subtitleStyle);
+                  }}
                   className={cn(
-                    'w-full rounded-2xl border px-4 py-3 text-left transition-all',
+                    'w-full rounded-2xl border px-4 py-3 text-left transition-all hover:-translate-y-0.5 hover:shadow-sm',
                     isActive
-                      ? 'border-orange-500/30 bg-orange-500/10'
-                      : 'border-border/40 bg-muted/20 hover:border-orange-500/20',
+                      ? 'border-orange-500/40 bg-orange-500/10 shadow-[0_0_0_1px_rgba(249,115,22,0.14)]'
+                      : 'border-border/40 bg-muted/20 hover:border-orange-500/25 hover:bg-muted/30',
                   )}
                 >
-                  <div className="text-sm font-black text-foreground">{preset.label}</div>
-                  <div className="mt-1 text-xs leading-5 text-muted-foreground">
-                    {preset.description}
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="text-sm font-black text-foreground">{preset.label}</div>
+                      <div className="mt-1 text-xs leading-5 text-muted-foreground">
+                        {preset.description}
+                      </div>
+                    </div>
+                    <span
+                      aria-hidden="true"
+                      className={cn(
+                        'mt-1 h-5 w-5 shrink-0 rounded-full border shadow-sm',
+                        getPresetSwatchClass(preset.subtitleStyle.textColorToken),
+                      )}
+                    />
                   </div>
                 </button>
               );
@@ -368,7 +419,7 @@ function SubtitleStyleCard({
           </div>
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-3">
           <div className="flex justify-between items-center mb-1">
             <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 ml-1">
               Ukuran Font
@@ -377,20 +428,29 @@ function SubtitleStyleCard({
               {subtitleStyle.fontSize}px
             </span>
           </div>
-          <input
-            type="range"
-            min={String(DIRECTOR_SUBTITLE_FONT_SIZE_MIN)}
-            max={String(subtitleFontSizeMax)}
-            value={subtitleStyle.fontSize}
-            onChange={(event) =>
-              onUpdateSubtitleStyle({
-                fontSize: Number.parseInt(event.target.value, 10),
-              })
-            }
-            className="w-full accent-primary h-1.5 bg-muted rounded-full appearance-none cursor-pointer"
-          />
+          <div className="grid grid-cols-3 gap-1.5 bg-muted/30 rounded-2xl p-1.5 border border-border/40">
+            {sizePresetOptions.map((sizePreset) => (
+              <button
+                type="button"
+                key={sizePreset.value}
+                onClick={() =>
+                  onUpdateSubtitleStyle({
+                    fontSize: sizePreset.fontSize,
+                  })
+                }
+                className={cn(
+                  'px-2 py-1.5 rounded-xl text-[10px] font-black transition-all',
+                  activeFontSizePreset === sizePreset.value
+                    ? 'bg-card text-orange-500 border border-orange-500/30'
+                    : 'text-muted-foreground hover:text-foreground',
+                )}
+              >
+                {sizePreset.label}
+              </button>
+            ))}
+          </div>
           <p className="text-[10px] text-muted-foreground">
-            Maksimal {subtitleFontSizeMax}px sesuai mode, posisi, dan kualitas video.
+            Dinamis sesuai mode, posisi, rasio, dan kualitas video (max {subtitleFontSizeMax}px).
           </p>
         </div>
 
@@ -437,9 +497,6 @@ function SubtitleStyleCard({
               { value: 'top', label: 'Atas' },
               { value: 'center', label: 'Tengah' },
               { value: 'bottom', label: 'Bawah' },
-              { value: 'cinema-bottom', label: 'Cinema' },
-              { value: 'safe-bottom', label: 'Safe' },
-              { value: 'lower-third', label: 'Lower ⅓' },
             ].map((pos) => (
               <button
                 type="button"
@@ -475,6 +532,7 @@ function SubtitleStyleCard({
               { value: 'fade', label: 'Fade' },
               { value: 'typewriter', label: 'Karaoke' },
               { value: 'word', label: 'Word by Word' },
+              { value: 'pop-word', label: 'Pop Word' },
               { value: 'phrase', label: 'Cinema' },
               { value: 'line', label: 'Line' },
             ].map((animation) => (
@@ -578,4 +636,31 @@ function SubtitleStyleCard({
       </CardBody>
     </Card>
   );
+}
+
+function getExactSubtitlePresetId(
+  subtitleStyle: SubtitleStyle,
+): SubtitleStyle['stylePreset'] | null {
+  const matchingPreset = subtitlePresets.find(
+    (preset) =>
+      subtitleStyle.fontToken === preset.subtitleStyle.fontToken &&
+      subtitleStyle.fontSize === preset.subtitleStyle.fontSize &&
+      subtitleStyle.textColorToken === preset.subtitleStyle.textColorToken &&
+      subtitleStyle.bgColorToken === preset.subtitleStyle.bgColorToken &&
+      subtitleStyle.position === preset.subtitleStyle.position &&
+      subtitleStyle.animation === preset.subtitleStyle.animation,
+  );
+
+  return matchingPreset?.id ?? null;
+}
+
+function getPresetSwatchClass(textColorToken: string | undefined): string {
+  switch (textColorToken) {
+    case 'C_ORANGE':
+      return 'border-orange-300 bg-orange-400';
+    case 'C_YELLOW':
+      return 'border-yellow-200 bg-yellow-300';
+    default:
+      return 'border-zinc-200 bg-white';
+  }
 }

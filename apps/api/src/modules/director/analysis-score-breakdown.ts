@@ -1,3 +1,7 @@
+import {
+  resolveTargetDurationRangeConfig,
+  type TargetDurationRange,
+} from './analysis-duration-config';
 import { type ContentModeSignal, guessContentMode, type ResolvedContentMode } from './content-mode';
 
 export interface HeuristicScoreBreakdown {
@@ -16,30 +20,7 @@ function clampScore(value: number): number {
   return Math.max(0, Math.min(100, Math.round(value)));
 }
 
-function buildTopSignals(input: CandidateScoreBreakdownInput): string[] {
-  const signals: Array<{ label: string; weight: number }> = [
-    { label: `Energy ${input.energyScore}`, weight: input.energyScore },
-    { label: `Dialog ${input.dialogDensityScore}`, weight: input.dialogDensityScore },
-    {
-      label: `Durasi ${getDurationFitScore(input.durationSeconds)}`,
-      weight: getDurationFitScore(input.durationSeconds),
-    },
-  ];
-
-  if (input.visualPenalty > 0) {
-    signals.push({
-      label: `Penalty visual ${input.visualPenalty}`,
-      weight: 100 - input.visualPenalty,
-    });
-  }
-
-  return signals
-    .sort((left, right) => right.weight - left.weight)
-    .slice(0, 3)
-    .map((signal) => signal.label);
-}
-
-function getDurationFitScore(durationSeconds: number): number {
+function getDurationFitScoreAuto(durationSeconds: number): number {
   if (durationSeconds >= 40 && durationSeconds <= 60) {
     return 92;
   }
@@ -63,9 +44,75 @@ function getDurationFitScore(durationSeconds: number): number {
   return 38;
 }
 
+function getDurationFitScoreByRange(
+  durationSeconds: number,
+  targetDurationRange: Exclude<TargetDurationRange, 'auto'>,
+): number {
+  const resolvedRange = resolveTargetDurationRangeConfig(targetDurationRange);
+  const minDurationSeconds = Math.round(resolvedRange.minClipDurationMs / 1000);
+  const maxDurationSeconds = Math.round(resolvedRange.maxClipDurationMs / 1000);
+
+  if (durationSeconds >= minDurationSeconds && durationSeconds <= maxDurationSeconds) {
+    return 92;
+  }
+
+  const lowerDistance = Math.max(0, minDurationSeconds - durationSeconds);
+  const upperDistance = Math.max(0, durationSeconds - maxDurationSeconds);
+  const distance = Math.max(lowerDistance, upperDistance);
+
+  if (distance <= 10) {
+    return clampScore(84 - distance * 2);
+  }
+
+  if (distance <= 20) {
+    return clampScore(64 - (distance - 10) * 2.2);
+  }
+
+  return clampScore(38 - (distance - 20) * 1.5);
+}
+
+function getDurationFitScore(
+  durationSeconds: number,
+  targetDurationRange: TargetDurationRange | undefined,
+): number {
+  if (!targetDurationRange || targetDurationRange === 'auto') {
+    return getDurationFitScoreAuto(durationSeconds);
+  }
+
+  return getDurationFitScoreByRange(durationSeconds, targetDurationRange);
+}
+
+function buildTopSignals(
+  input: CandidateScoreBreakdownInput,
+  targetDurationRange: TargetDurationRange | undefined,
+): string[] {
+  const durationFitScore = getDurationFitScore(input.durationSeconds, targetDurationRange);
+  const signals: Array<{ label: string; weight: number }> = [
+    { label: `Energy ${input.energyScore}`, weight: input.energyScore },
+    { label: `Dialog ${input.dialogDensityScore}`, weight: input.dialogDensityScore },
+    {
+      label: `Durasi ${durationFitScore}`,
+      weight: durationFitScore,
+    },
+  ];
+
+  if (input.visualPenalty > 0) {
+    signals.push({
+      label: `Penalty visual ${input.visualPenalty}`,
+      weight: 100 - input.visualPenalty,
+    });
+  }
+
+  return signals
+    .sort((left, right) => right.weight - left.weight)
+    .slice(0, 3)
+    .map((signal) => signal.label);
+}
+
 function buildBadges(
   input: CandidateScoreBreakdownInput,
   contentModeSuggestion: ResolvedContentMode,
+  targetDurationRange: TargetDurationRange | undefined,
 ): string[] {
   const badges = new Set<string>(['Highlight']);
 
@@ -81,7 +128,7 @@ function buildBadges(
     badges.add('Dialog Padat');
   }
 
-  if (getDurationFitScore(input.durationSeconds) >= 85) {
+  if (getDurationFitScore(input.durationSeconds, targetDurationRange) >= 85) {
     badges.add('Durasi Pas');
   }
 
@@ -110,17 +157,21 @@ function buildBadges(
 
 export function buildHeuristicScoreBreakdown(
   input: CandidateScoreBreakdownInput,
+  options?: {
+    targetDurationRange?: TargetDurationRange;
+  },
 ): HeuristicScoreBreakdown {
+  const targetDurationRange = options?.targetDurationRange;
   const contentModeSuggestion = guessContentMode(input);
-  const durationFit = getDurationFitScore(input.durationSeconds);
+  const durationFit = getDurationFitScore(input.durationSeconds, targetDurationRange);
 
   return {
     energy: clampScore(input.energyScore),
     dialogDensity: clampScore(input.dialogDensityScore),
     durationFit,
     visualPenalty: clampScore(input.visualPenalty),
-    topSignals: buildTopSignals(input),
-    badges: buildBadges(input, contentModeSuggestion),
+    topSignals: buildTopSignals(input, targetDurationRange),
+    badges: buildBadges(input, contentModeSuggestion, targetDurationRange),
     contentModeSuggestion,
   };
 }

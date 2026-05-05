@@ -41,6 +41,41 @@ describe('applyClipRefineSettings', () => {
     expect(applyClipRefineSettings(draft, { removeSilence: false })).toEqual(draft);
   });
 
+  it('preserves large transcript tails to avoid shortening selected duration', () => {
+    const refined = applyClipRefineSettings(
+      {
+        startMs: 0,
+        endMs: 60_000,
+        transcript: {
+          segments: [{ startMs: 0, endMs: 40_000, text: 'Speech ends before the visual tail' }],
+        },
+      },
+      { removeSilence: true },
+    );
+
+    expect(refined.startMs).toBe(0);
+    expect(refined.endMs).toBe(60_000);
+  });
+
+  it('does not trim the tail when only hook optimization is enabled', () => {
+    const refined = applyClipRefineSettings(
+      {
+        startMs: 0,
+        endMs: 18_000,
+        transcript: {
+          segments: [
+            { startMs: 200, endMs: 1_800, text: 'Halo guys' },
+            { startMs: 3_400, endMs: 8_000, text: 'Langsung ke poin utama' },
+          ],
+        },
+      },
+      { removeSilence: false, optimizeHook: true },
+    );
+
+    expect(refined.startMs).toBe(3_300);
+    expect(refined.endMs).toBe(18_000);
+  });
+
   it('skips greeting filler when hook optimization is enabled', () => {
     const refined = applyClipRefineSettings(
       {

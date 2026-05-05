@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
+import type { TargetDurationRange } from '@/lib/director-target-duration';
 import { DEFAULT_TRANSCRIBE_LANGUAGE, type TranscribeLanguage } from '@/lib/transcribe-language';
 
 export type { TranscribeLanguage } from '@/lib/transcribe-language';
@@ -16,6 +17,7 @@ export type DirectorStep =
 export interface DirectorSession {
   id: string;
   step: DirectorStep;
+  targetDurationRange?: TargetDurationRange;
   asset?: {
     id: string;
     origin: 'UPLOAD' | 'URL_IMPORT';
@@ -123,12 +125,13 @@ export interface TranscribeJob {
 }
 
 export interface SubtitleStyle {
+  stylePreset: 'custom' | 'viral-pop' | 'clean-bold' | 'neon-glow' | 'creator-box' | 'cinema';
   fontToken: string;
   fontSize: number;
   textColorToken: string;
   bgColorToken: string;
-  position: 'top' | 'center' | 'bottom' | 'cinema-bottom' | 'safe-bottom' | 'lower-third';
-  animation: 'none' | 'fade' | 'typewriter' | 'word' | 'phrase' | 'line';
+  position: 'top' | 'center' | 'bottom';
+  animation: 'none' | 'fade' | 'typewriter' | 'word' | 'pop-word' | 'phrase' | 'line';
 }
 
 export interface ExportSettings {
@@ -164,12 +167,13 @@ export interface ExportJob {
 }
 
 const defaultSubtitleStyle: SubtitleStyle = {
+  stylePreset: 'viral-pop',
   fontToken: 'F_INTER',
-  fontSize: 32,
-  textColorToken: 'C_WHITE',
-  bgColorToken: 'C_BLACK',
-  position: 'bottom',
-  animation: 'none',
+  fontSize: 52,
+  textColorToken: 'C_YELLOW',
+  bgColorToken: 'BG_TRANSPARENT',
+  position: 'center',
+  animation: 'pop-word',
 };
 
 const defaultExportSettings: ExportSettings = {
@@ -203,6 +207,7 @@ interface DirectorState {
 
   // Settings
   refineSettings: Record<string, RefineSettings>;
+  targetDurationRange: TargetDurationRange;
 
   // Export
   exportSettings: ExportSettings;
@@ -227,6 +232,7 @@ interface DirectorState {
   updateSubtitleStyle: (style: Partial<SubtitleStyle>) => void;
   setRefineSettings: (settings: Record<string, RefineSettings>) => void;
   updateRefineSetting: (clipId: string, key: keyof RefineSettings, value: boolean | string) => void;
+  setTargetDurationRange: (range: TargetDurationRange) => void;
   setExportSettings: (settings: Partial<ExportSettings>) => void;
   setExportJob: (job: ExportJob | null) => void;
   setDownloadProgress: (progress: number) => void;
@@ -255,6 +261,7 @@ export const useDirectorStore = create<DirectorState>()(
     subtitleTargetLanguage: 'en',
     subtitleStyle: defaultSubtitleStyle,
     refineSettings: {},
+    targetDurationRange: 'auto',
     exportSettings: defaultExportSettings,
     exportJob: null,
     downloadProgress: 0,
@@ -293,6 +300,7 @@ export const useDirectorStore = create<DirectorState>()(
           },
         },
       })),
+    setTargetDurationRange: (targetDurationRange) => set({ targetDurationRange }),
     setExportSettings: (settings) =>
       set((state) => ({
         exportSettings: { ...state.exportSettings, ...settings },
@@ -324,6 +332,7 @@ export const useDirectorStore = create<DirectorState>()(
         subtitleTargetLanguage: 'en',
         subtitleStyle: defaultSubtitleStyle,
         refineSettings: {},
+        targetDurationRange: 'auto',
         exportSettings: defaultExportSettings,
         exportJob: null,
         downloadProgress: 0,

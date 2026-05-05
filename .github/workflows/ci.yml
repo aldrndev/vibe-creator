@@ -51,6 +51,8 @@ jobs:
           cache: "pnpm"
 
       - name: Install dependencies
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test
         run: pnpm install --frozen-lockfile
 
       - name: Generate Prisma Client

@@ -14,6 +14,10 @@ const { existsSyncMock, spawnMock, breakerFireMock, createCircuitBreakerMock, en
       TRANSCRIBE_HTTP_TIMEOUT_MS: 120000,
       TRANSCRIBE_ALLOW_LOCAL_FALLBACK: true,
       TRANSCRIBE_LANGUAGE: 'mixed',
+      TRANSCRIBE_VAD_THRESHOLD: 0.5,
+      TRANSCRIBE_VAD_SPEECH_PAD_MS: 300,
+      TRANSCRIBE_VAD_MIN_SILENCE_MS: 200,
+      TRANSCRIBE_VAD_MIN_SPEECH_MS: 80,
     },
   }));
 
@@ -62,6 +66,10 @@ describe('WhisperRunner', () => {
     envMock.TRANSCRIBE_HTTP_TIMEOUT_MS = 120000;
     envMock.TRANSCRIBE_ALLOW_LOCAL_FALLBACK = true;
     envMock.TRANSCRIBE_LANGUAGE = 'mixed';
+    envMock.TRANSCRIBE_VAD_THRESHOLD = 0.5;
+    envMock.TRANSCRIBE_VAD_SPEECH_PAD_MS = 300;
+    envMock.TRANSCRIBE_VAD_MIN_SILENCE_MS = 200;
+    envMock.TRANSCRIBE_VAD_MIN_SPEECH_MS = 80;
 
     spawnMock.mockImplementation(() => {
       const process = createMockProcess();
@@ -134,6 +142,15 @@ describe('WhisperRunner', () => {
     const requestInit = breakerFireMock.mock.calls[0]?.[1] as RequestInit | undefined;
     const payload = requestInit?.body ? JSON.parse(requestInit.body as string) : {};
     expect(payload.language).toBe('en');
+    expect(payload).toEqual(
+      expect.objectContaining({
+        wordTimestamps: true,
+        vadThreshold: 0.5,
+        vadSpeechPadMs: 300,
+        vadMinSilenceMs: 200,
+        vadMinSpeechMs: 80,
+      }),
+    );
   });
 
   it('falls back to local whisper when HTTP mode fails and fallback is enabled', async () => {

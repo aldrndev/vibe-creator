@@ -4,6 +4,7 @@ import { redis } from '@/lib/redis';
 import type { TranscribeLanguage } from './transcribe-language';
 
 const TRANSCRIBE_CACHE_TTL_SECONDS = 7 * 24 * 60 * 60;
+const TRANSCRIBE_CACHE_QUALITY_VERSION = 2;
 
 export interface CachedTranscriptPayload {
   language?: string;
@@ -33,9 +34,14 @@ function buildCacheKey(input: ClipFingerprintInput): string {
         language: input.language,
         subtitleMode: input.subtitleMode ?? 'original',
         subtitleTargetLanguage: input.subtitleTargetLanguage ?? null,
+        qualityVersion: TRANSCRIBE_CACHE_QUALITY_VERSION,
         whisperModelSize: env.WHISPER_MODEL_SIZE,
         transcribeProvider: env.TRANSCRIBE_PROVIDER,
         transcribeServiceUrl: env.TRANSCRIBE_SERVICE_URL ?? null,
+        vadThreshold: env.TRANSCRIBE_VAD_THRESHOLD,
+        vadSpeechPadMs: env.TRANSCRIBE_VAD_SPEECH_PAD_MS,
+        vadMinSilenceMs: env.TRANSCRIBE_VAD_MIN_SILENCE_MS,
+        vadMinSpeechMs: env.TRANSCRIBE_VAD_MIN_SPEECH_MS,
       }),
     )
     .digest('hex');

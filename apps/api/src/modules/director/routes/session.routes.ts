@@ -7,18 +7,28 @@ import {
   DIRECTOR_SUBTITLE_FONT_SIZE_MIN,
 } from '../processing/video-export-subtitles';
 
-const subtitlePositionValues = [
-  'top',
-  'center',
-  'bottom',
-  'cinema-bottom',
-  'safe-bottom',
-  'lower-third',
+const subtitlePositionValues = ['top', 'center', 'bottom'] as const;
+const subtitleStylePresetValues = [
+  'custom',
+  'viral-pop',
+  'clean-bold',
+  'neon-glow',
+  'creator-box',
+  'cinema',
 ] as const;
 
-const subtitleAnimationValues = ['none', 'fade', 'typewriter', 'word', 'phrase', 'line'] as const;
+const subtitleAnimationValues = [
+  'none',
+  'fade',
+  'typewriter',
+  'word',
+  'pop-word',
+  'phrase',
+  'line',
+] as const;
 
 export const updateSubtitleStyleSchema = z.object({
+  stylePreset: z.enum(subtitleStylePresetValues).optional(),
   fontToken: z.string().optional(),
   textColorToken: z.string().optional(),
   bgColorToken: z.string().optional(),

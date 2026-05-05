@@ -58,6 +58,10 @@ class TranscribeRequest(BaseModel):
     audioPath: str = Field(min_length=1)
     wordTimestamps: bool = True
     language: str | None = None
+    vadThreshold: float | None = Field(default=None, ge=0.0, le=1.0)
+    vadSpeechPadMs: int | None = Field(default=None, ge=0)
+    vadMinSilenceMs: int | None = Field(default=None, ge=0)
+    vadMinSpeechMs: int | None = Field(default=None, ge=0)
 
 
 class TranscribeResponse(BaseModel):
@@ -423,10 +427,26 @@ def transcribe(
         beam_size = int(os.environ.get("WHISPER_BEAM_SIZE", "5"))
         target_language = _resolve_language(payload.language)
 
-        vad_threshold = float(os.environ.get("TRANSCRIBE_VAD_THRESHOLD", "0.72"))
-        vad_speech_pad_ms = int(os.environ.get("TRANSCRIBE_VAD_SPEECH_PAD_MS", "120"))
-        vad_min_silence_ms = int(os.environ.get("TRANSCRIBE_VAD_MIN_SILENCE_MS", "300"))
-        vad_min_speech_ms = int(os.environ.get("TRANSCRIBE_VAD_MIN_SPEECH_MS", "150"))
+        vad_threshold = (
+            payload.vadThreshold
+            if payload.vadThreshold is not None
+            else float(os.environ.get("TRANSCRIBE_VAD_THRESHOLD", "0.5"))
+        )
+        vad_speech_pad_ms = (
+            payload.vadSpeechPadMs
+            if payload.vadSpeechPadMs is not None
+            else int(os.environ.get("TRANSCRIBE_VAD_SPEECH_PAD_MS", "300"))
+        )
+        vad_min_silence_ms = (
+            payload.vadMinSilenceMs
+            if payload.vadMinSilenceMs is not None
+            else int(os.environ.get("TRANSCRIBE_VAD_MIN_SILENCE_MS", "200"))
+        )
+        vad_min_speech_ms = (
+            payload.vadMinSpeechMs
+            if payload.vadMinSpeechMs is not None
+            else int(os.environ.get("TRANSCRIBE_VAD_MIN_SPEECH_MS", "80"))
+        )
 
         segments, info = model.transcribe(
             str(audio_file_path),

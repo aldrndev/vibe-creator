@@ -428,6 +428,7 @@ model DirectorSubtitleStyle {
   fontSize       Int             @default(32)
   position       String          @default("bottom")
   animation      String          @default("fade")
+  stylePreset    String          @default("custom")
   createdAt      DateTime        @default(now())
   session        DirectorSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
