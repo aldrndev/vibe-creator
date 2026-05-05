@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
+import type { DirectorSubtitleFontToken } from '@/lib/director-subtitle-fonts';
 import type { TargetDurationRange } from '@/lib/director-target-duration';
 import { DEFAULT_TRANSCRIBE_LANGUAGE, type TranscribeLanguage } from '@/lib/transcribe-language';
 
@@ -125,8 +126,15 @@ export interface TranscribeJob {
 }
 
 export interface SubtitleStyle {
-  stylePreset: 'custom' | 'viral-pop' | 'clean-bold' | 'neon-glow' | 'creator-box' | 'cinema';
-  fontToken: string;
+  stylePreset:
+    | 'custom'
+    | 'viral-pop'
+    | 'meme-pop'
+    | 'clean-bold'
+    | 'neon-glow'
+    | 'creator-box'
+    | 'cinema';
+  fontToken: DirectorSubtitleFontToken;
   fontSize: number;
   textColorToken: string;
   bgColorToken: string;
@@ -168,7 +176,7 @@ export interface ExportJob {
 
 const defaultSubtitleStyle: SubtitleStyle = {
   stylePreset: 'viral-pop',
-  fontToken: 'F_INTER',
+  fontToken: 'F_DISPLAY',
   fontSize: 52,
   textColorToken: 'C_YELLOW',
   bgColorToken: 'BG_TRANSPARENT',

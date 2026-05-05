@@ -3,6 +3,7 @@ import {
   getEffectiveRefineSettings,
   getResolvedContentMode,
 } from '@/lib/director-refine-settings';
+import { mapDirectorSubtitlePreviewFont } from '@/lib/director-subtitle-fonts';
 import type {
   ExportSettings,
   RefineSettings,
@@ -596,23 +597,14 @@ function getSubtitleAnimationClass(animation: SubtitleStyle['animation']): strin
   }
 }
 
-function mapPreviewFont(fontToken: string): string {
-  switch (fontToken) {
-    case 'F_SERIF':
-      return 'Georgia, "Times New Roman", serif';
-    case 'F_MONO':
-      return '"IBM Plex Mono", "Courier New", monospace';
-    default:
-      return 'Inter, "Plus Jakarta Sans", sans-serif';
-  }
-}
-
 function mapPreviewTextColor(textColorToken: string): string {
   switch (textColorToken) {
     case 'C_BLACK':
       return '#0A0A0A';
     case 'C_ORANGE':
       return '#FF8C1A';
+    case 'C_GREEN':
+      return '#22FF4B';
     case 'C_YELLOW':
       return '#FDE047';
     default:
@@ -628,6 +620,8 @@ function mapPreviewBackgroundColor(backgroundToken: string): string {
       return 'rgba(255, 255, 255, 0.75)';
     case 'C_ORANGE':
       return 'rgba(255, 140, 26, 0.72)';
+    case 'C_GREEN':
+      return 'rgba(34, 255, 75, 0.72)';
     default:
       return 'rgba(0, 0, 0, 0.68)';
   }
@@ -635,7 +629,7 @@ function mapPreviewBackgroundColor(backgroundToken: string): string {
 
 function getSubtitleTextStyle(subtitleStyle: SubtitleStyle): LivePreviewScene['subtitleTextStyle'] {
   return {
-    fontFamily: mapPreviewFont(subtitleStyle.fontToken),
+    fontFamily: mapDirectorSubtitlePreviewFont(subtitleStyle.fontToken),
     color: mapPreviewTextColor(subtitleStyle.textColorToken),
     backgroundColor: mapPreviewBackgroundColor(subtitleStyle.bgColorToken),
   };

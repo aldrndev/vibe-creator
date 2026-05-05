@@ -26,7 +26,7 @@ import type { SubtitleStyleOptions } from '../processing/video-export-subtitles'
 const subtitlePositionValues = ['top', 'center', 'bottom'] as const;
 const defaultViralPopSubtitleStyle = {
   stylePreset: 'viral-pop',
-  fontToken: 'F_INTER',
+  fontToken: 'F_DISPLAY',
   textColorToken: 'C_YELLOW',
   bgColorToken: 'BG_TRANSPARENT',
   fontSize: 52,

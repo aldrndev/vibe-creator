@@ -40,6 +40,32 @@ describe('updateSubtitleStyleSchema', () => {
     expect(parsed.animation).toBe('pop-word');
   });
 
+  it('accepts meme pop subtitle preset and font token', () => {
+    const parsed = updateSubtitleStyleSchema.parse({
+      stylePreset: 'meme-pop',
+      fontToken: 'F_MEME',
+    });
+
+    expect(parsed.stylePreset).toBe('meme-pop');
+    expect(parsed.fontToken).toBe('F_MEME');
+  });
+
+  it('accepts modern subtitle font tokens', () => {
+    const parsed = updateSubtitleStyleSchema.parse({
+      fontToken: 'F_DISPLAY',
+    });
+
+    expect(parsed.fontToken).toBe('F_DISPLAY');
+  });
+
+  it('rejects invalid subtitle font tokens', () => {
+    expect(() =>
+      updateSubtitleStyleSchema.parse({
+        fontToken: 'F_COMIC',
+      }),
+    ).toThrow();
+  });
+
   it('rejects invalid subtitle animation values', () => {
     expect(() =>
       updateSubtitleStyleSchema.parse({

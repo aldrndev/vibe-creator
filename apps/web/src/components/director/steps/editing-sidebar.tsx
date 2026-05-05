@@ -10,6 +10,7 @@ import {
   getEffectiveRefineSettings,
   getResolvedContentMode,
 } from '@/lib/director-refine-settings';
+import { directorSubtitleFontOptions } from '@/lib/director-subtitle-fonts';
 import {
   clampSubtitleFontSize,
   resolveSubtitleFontSizeMax,
@@ -461,12 +462,8 @@ function SubtitleStyleCard({
               Font
             </div>
           </div>
-          <div className="grid grid-cols-3 gap-1.5 bg-muted/30 rounded-2xl p-1.5 border border-border/40">
-            {[
-              { value: 'F_INTER', label: 'Inter' },
-              { value: 'F_SERIF', label: 'Serif' },
-              { value: 'F_MONO', label: 'Mono' },
-            ].map((font) => (
+          <div className="grid grid-cols-2 gap-1.5 bg-muted/30 rounded-2xl p-1.5 border border-border/40 sm:grid-cols-3">
+            {directorSubtitleFontOptions.map((font) => (
               <button
                 type="button"
                 key={font.value}
@@ -481,6 +478,7 @@ function SubtitleStyleCard({
                     ? 'bg-card text-orange-500 border border-orange-500/30'
                     : 'text-muted-foreground hover:text-foreground',
                 )}
+                style={{ fontFamily: font.previewFamily }}
               >
                 {font.label}
               </button>
@@ -564,6 +562,11 @@ function SubtitleStyleCard({
           <div className="grid grid-cols-4 gap-2">
             {[
               { value: 'C_WHITE', label: 'Putih', swatchClass: 'bg-white border-border/70' },
+              {
+                value: 'C_GREEN',
+                label: 'Hijau',
+                swatchClass: 'bg-green-400 border-green-300',
+              },
               {
                 value: 'C_YELLOW',
                 label: 'Kuning',
@@ -656,6 +659,8 @@ function getExactSubtitlePresetId(
 
 function getPresetSwatchClass(textColorToken: string | undefined): string {
   switch (textColorToken) {
+    case 'C_GREEN':
+      return 'border-green-300 bg-green-400';
     case 'C_ORANGE':
       return 'border-orange-300 bg-orange-400';
     case 'C_YELLOW':

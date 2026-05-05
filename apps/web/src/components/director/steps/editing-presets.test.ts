@@ -8,7 +8,7 @@ describe('AI Director subtitle presets', () => {
 
     expect(viralPop?.subtitleStyle).toMatchObject({
       stylePreset: 'viral-pop',
-      fontToken: 'F_INTER',
+      fontToken: 'F_DISPLAY',
       fontSize: 52,
       textColorToken: 'C_YELLOW',
       bgColorToken: 'BG_TRANSPARENT',
@@ -26,5 +26,19 @@ describe('AI Director subtitle presets', () => {
 
     expect(resolveSubtitleFontSizeMax(context)).toBe(72);
     expect(clampSubtitleFontSize(viralPop?.subtitleStyle.fontSize ?? 0, context)).toBe(52);
+  });
+
+  it('ships Meme Pop as a neon green outline preset', () => {
+    const memePop = subtitlePresets.find((preset) => preset.id === 'meme-pop');
+
+    expect(memePop?.subtitleStyle).toMatchObject({
+      stylePreset: 'meme-pop',
+      fontToken: 'F_MEME',
+      fontSize: 52,
+      textColorToken: 'C_GREEN',
+      bgColorToken: 'BG_TRANSPARENT',
+      position: 'center',
+      animation: 'pop-word',
+    });
   });
 });

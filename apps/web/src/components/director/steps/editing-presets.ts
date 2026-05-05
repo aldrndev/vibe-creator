@@ -9,7 +9,7 @@ export interface PlatformPreset {
 }
 
 export interface SubtitlePreset {
-  readonly id: 'viral-pop' | 'clean-bold' | 'neon-glow' | 'creator-box' | 'cinema';
+  readonly id: 'viral-pop' | 'meme-pop' | 'clean-bold' | 'neon-glow' | 'creator-box' | 'cinema';
   readonly label: string;
   readonly description: string;
   readonly subtitleStyle: Partial<SubtitleStyle>;
@@ -82,9 +82,24 @@ export const subtitlePresets: SubtitlePreset[] = [
     description: 'Kata aktif membesar dengan warna hook mencolok untuk Shorts, Reels, dan TikTok.',
     subtitleStyle: {
       stylePreset: 'viral-pop',
-      fontToken: 'F_INTER',
+      fontToken: 'F_DISPLAY',
       fontSize: 52,
       textColorToken: 'C_YELLOW',
+      bgColorToken: 'BG_TRANSPARENT',
+      position: 'center',
+      animation: 'pop-word',
+    },
+  },
+  {
+    id: 'meme-pop',
+    label: 'Meme Pop',
+    description:
+      'Teks hijau neon ala meme, outline hitam tebal, cocok untuk punchline dan reaction.',
+    subtitleStyle: {
+      stylePreset: 'meme-pop',
+      fontToken: 'F_MEME',
+      fontSize: 52,
+      textColorToken: 'C_GREEN',
       bgColorToken: 'BG_TRANSPARENT',
       position: 'center',
       animation: 'pop-word',
@@ -96,7 +111,7 @@ export const subtitlePresets: SubtitlePreset[] = [
     description: 'Tebal, bersih, dan kontras tinggi. Aman untuk hampir semua jenis video.',
     subtitleStyle: {
       stylePreset: 'clean-bold',
-      fontToken: 'F_INTER',
+      fontToken: 'F_GROTESK',
       fontSize: 38,
       textColorToken: 'C_WHITE',
       bgColorToken: 'C_BLACK',
@@ -110,7 +125,7 @@ export const subtitlePresets: SubtitlePreset[] = [
     description: 'Teks terang dengan nuansa glow untuk footage gelap dan konten energetic.',
     subtitleStyle: {
       stylePreset: 'neon-glow',
-      fontToken: 'F_INTER',
+      fontToken: 'F_CONDENSED',
       fontSize: 46,
       textColorToken: 'C_ORANGE',
       bgColorToken: 'BG_TRANSPARENT',
@@ -124,7 +139,7 @@ export const subtitlePresets: SubtitlePreset[] = [
     description: 'Caption besar dengan box gelap transparan, cocok untuk talking head dan edukasi.',
     subtitleStyle: {
       stylePreset: 'creator-box',
-      fontToken: 'F_INTER',
+      fontToken: 'F_ROUNDED',
       fontSize: 44,
       textColorToken: 'C_WHITE',
       bgColorToken: 'C_BLACK',

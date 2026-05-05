@@ -126,6 +126,35 @@ describe('deriveLivePreviewScene', () => {
     expect(scene.presetLabel).toBe('Landscape Aman');
   });
 
+  it('maps modern subtitle font tokens into preview font stacks', () => {
+    const scene = deriveLivePreviewScene(
+      exportSettings,
+      { ...subtitleStyle, fontToken: 'F_DISPLAY' },
+      clip,
+      refineSettings,
+    );
+
+    expect(scene.subtitleTextStyle.fontFamily).toContain('League Spartan');
+  });
+
+  it('maps meme pop color into neon green preview styling', () => {
+    const scene = deriveLivePreviewScene(
+      exportSettings,
+      {
+        ...subtitleStyle,
+        stylePreset: 'meme-pop',
+        fontToken: 'F_MEME',
+        textColorToken: 'C_GREEN',
+        bgColorToken: 'BG_TRANSPARENT',
+      },
+      clip,
+      refineSettings,
+    );
+
+    expect(scene.subtitleTextStyle.fontFamily).toContain('Impact');
+    expect(scene.subtitleTextStyle.color).toBe('#22FF4B');
+  });
+
   it('syncs subtitle text with current playback time for typewriter mode', () => {
     const draft = deriveLivePreviewDraft(clip, refineSettings);
 

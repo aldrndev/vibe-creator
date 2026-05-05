@@ -41,7 +41,7 @@ describe('director-store transcribe language', () => {
 
     expect(subtitleStyle).toMatchObject({
       stylePreset: 'viral-pop',
-      fontToken: 'F_INTER',
+      fontToken: 'F_DISPLAY',
       fontSize: 52,
       textColorToken: 'C_YELLOW',
       bgColorToken: 'BG_TRANSPARENT',

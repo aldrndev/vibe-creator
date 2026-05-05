@@ -4,6 +4,7 @@ import { basename, join } from 'node:path';
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { env } from '@/config/env';
+import { subtitleFontTokenValues } from '@/modules/director/subtitle-style-tokens';
 import { requireAuth } from '@/plugins/auth';
 import { contentModeValues } from '../content-mode';
 import { directorService } from '../director.service';
@@ -36,6 +37,7 @@ const subtitlePositionValues = ['top', 'center', 'bottom'] as const;
 const subtitleStylePresetValues = [
   'custom',
   'viral-pop',
+  'meme-pop',
   'clean-bold',
   'neon-glow',
   'creator-box',
@@ -54,7 +56,7 @@ const subtitleAnimationValues = [
 
 const previewSubtitleStyleSchema = z.object({
   stylePreset: z.enum(subtitleStylePresetValues).optional(),
-  fontToken: z.string().optional(),
+  fontToken: z.enum(subtitleFontTokenValues).optional(),
   textColorToken: z.string().optional(),
   bgColorToken: z.string().optional(),
   fontSize: z

@@ -30,6 +30,42 @@ describe('videoExportService helpers', () => {
     expect(forceStyle).toContain('Alignment=8');
   });
 
+  it('maps modern subtitle font tokens to export-safe font families', () => {
+    const forceStyle = buildSubtitleForceStyle({
+      fontToken: 'F_MEME',
+      textColorToken: 'C_WHITE',
+      bgColorToken: 'C_BLACK',
+      fontSize: 30,
+      position: 'center',
+    });
+
+    expect(forceStyle).toContain('Fontname=Bebas Neue');
+  });
+
+  it('renders meme pop subtitles with uppercase condensed font and glyph outline', () => {
+    const asset = createSubtitleAsset([{ startMs: 0, endMs: 900, text: 'oh what is this' }], {
+      stylePreset: 'meme-pop',
+      animation: 'pop-word',
+      fontToken: 'F_MEME',
+      fontSize: 52,
+      textColorToken: 'C_GREEN',
+      bgColorToken: 'BG_TRANSPARENT',
+      position: 'center',
+    });
+    const styleLine = asset.content.split('\n').find((line) => line.startsWith('Style: Default'));
+    const styleFields = styleLine?.split(',') ?? [];
+
+    expect(asset.extension).toBe('ass');
+    expect(styleFields[1]).toBe('Bebas Neue');
+    expect(styleFields[15]).toBe('1');
+    expect(styleFields[16]).toBe('5');
+    expect(styleFields[17]).toBe('0');
+    expect(asset.content).toContain(String.raw`\c&H002BFF00&`);
+    expect(asset.content).toContain(String.raw`\bord5`);
+    expect(asset.content).toContain('OH');
+    expect(asset.content).not.toContain('oh');
+  });
+
   it('limits subtitle font size based on cinematic content mode', () => {
     const forceStyle = buildSubtitleForceStyle({
       fontSize: 80,
@@ -182,6 +218,49 @@ describe('videoExportService helpers', () => {
     expect(asset.content).toContain('Dialogue: 0,0:00:00.00,0:00:00.45');
     expect(asset.content).toContain('Hello');
     expect(asset.content).toContain('there');
+  });
+
+  it('keeps Viral Pop karaoke subtitles within a safe visible word window', () => {
+    const asset = createSubtitleAsset(
+      [
+        {
+          startMs: 0,
+          endMs: 3_600,
+          text: "Let's go get her before anything bad happens",
+          words: [
+            { startMs: 0, endMs: 300, text: "Let's" },
+            { startMs: 300, endMs: 600, text: 'go' },
+            { startMs: 600, endMs: 900, text: 'get' },
+            { startMs: 900, endMs: 1_200, text: 'her' },
+            { startMs: 1_200, endMs: 1_650, text: 'before' },
+            { startMs: 1_650, endMs: 2_200, text: 'anything' },
+            { startMs: 2_200, endMs: 2_550, text: 'bad' },
+            { startMs: 2_550, endMs: 3_600, text: 'happens' },
+          ],
+        },
+      ],
+      {
+        stylePreset: 'viral-pop',
+        animation: 'typewriter',
+        fontToken: 'F_SERIF',
+        fontSize: 52,
+        textColorToken: 'C_YELLOW',
+        bgColorToken: 'BG_TRANSPARENT',
+        position: 'center',
+        aspectRatio: '9:16',
+        quality: '1080p',
+      },
+    );
+
+    const dialogueLines = asset.content.split('\n').filter((line) => line.startsWith('Dialogue:'));
+    const finalDialogue = dialogueLines.at(-1) ?? '';
+
+    expect(asset.extension).toBe('ass');
+    expect(dialogueLines).toHaveLength(8);
+    expect(finalDialogue).toContain('happens');
+    expect(finalDialogue).toContain(String.raw`\fscx118`);
+    expect(finalDialogue).not.toContain("Let's");
+    expect(finalDialogue).not.toContain('go get her before');
   });
 
   it('creates ASS word-by-word subtitles when word animation is selected', () => {
@@ -344,8 +423,12 @@ describe('videoExportService helpers', () => {
     });
 
     const styleLine = asset.content.split('\n').find((line) => line.startsWith('Style: Default'));
+    const styleFields = styleLine?.split(',') ?? [];
 
-    expect(styleLine).toContain(',3,3,2,5,');
+    expect(styleFields[15]).toBe('1');
+    expect(styleFields[16]).toBe('3');
+    expect(styleFields[17]).toBe('2');
+    expect(styleFields[18]).toBe('5');
   });
 
   it('drops out-of-range karaoke words to avoid lead or lag timing', () => {

@@ -1,3 +1,4 @@
+import { mapSubtitleFontToken } from '@/modules/director/subtitle-style-tokens';
 import type { SubtitleSegment, SubtitleWord } from '@/modules/transcribe/transcribe-normalizer';
 import { hasCompleteWordTextCoverage } from '@/modules/transcribe/transcript-word-coverage';
 
@@ -13,6 +14,7 @@ type SubtitlePosition = 'top' | 'center' | 'bottom';
 type SubtitleStylePreset =
   | 'custom'
   | 'viral-pop'
+  | 'meme-pop'
   | 'clean-bold'
   | 'neon-glow'
   | 'creator-box'
@@ -55,6 +57,12 @@ const POP_WORD_SCALE_PERCENT = 118;
 const POP_WORD_FONT_SCALE = 1.22;
 const POP_WORD_IN_MS = 90;
 const POP_WORD_SETTLE_MS = 220;
+const POP_KARAOKE_LINE_WIDTH_RATIO = 0.8;
+const POP_WORD_OUTLINE = 4;
+const POP_KARAOKE_BASE_OUTLINE = 3;
+const MEME_POP_OUTLINE = 5;
+const POP_WORD_SHADOW = 2;
+const MEME_POP_SHADOW = 0;
 export const DIRECTOR_SUBTITLE_FONT_SIZE_MIN = 16;
 export const DIRECTOR_SUBTITLE_FONT_SIZE_MAX = 72;
 const DEFAULT_SUBTITLE_FONT_SIZE_MAX = 64;
@@ -350,8 +358,8 @@ function shouldUseWordByWord(
   return style?.animation === 'word' && segments.some((segment) => segment.text.trim().length > 0);
 }
 
-function shouldUseViralPopPreset(style: SubtitleStyleOptions | undefined): boolean {
-  if (style?.stylePreset === 'viral-pop') {
+function shouldUsePopStylePreset(style: SubtitleStyleOptions | undefined): boolean {
+  if (style?.stylePreset === 'viral-pop' || style?.stylePreset === 'meme-pop') {
     return true;
   }
 
@@ -362,7 +370,9 @@ function shouldUseViralPopPreset(style: SubtitleStyleOptions | undefined): boole
   return (
     style?.position === 'center' &&
     style.bgColorToken === 'BG_TRANSPARENT' &&
-    (style.textColorToken === 'C_YELLOW' || style.textColorToken === 'C_ORANGE') &&
+    (style.textColorToken === 'C_GREEN' ||
+      style.textColorToken === 'C_YELLOW' ||
+      style.textColorToken === 'C_ORANGE') &&
     (style.animation === 'typewriter' ||
       style.animation === 'word' ||
       style.animation === 'pop-word')
@@ -375,7 +385,7 @@ function shouldUsePopWord(
 ): boolean {
   return (
     (style?.animation === 'pop-word' ||
-      (shouldUseViralPopPreset(style) && style?.animation === 'word')) &&
+      (shouldUsePopStylePreset(style) && style?.animation === 'word')) &&
     segments.some((segment) => segment.text.trim().length > 0)
   );
 }
@@ -385,7 +395,7 @@ function shouldUsePopKaraoke(
   segments: SubtitleSegment[],
 ): boolean {
   return (
-    shouldUseViralPopPreset(style) &&
+    shouldUsePopStylePreset(style) &&
     style?.animation === 'typewriter' &&
     segments.some((segment) => segment.text.trim().length > 0)
   );
@@ -413,6 +423,15 @@ export function shouldUseWordHighlight(
 
 function normalizeCueText(text: string): string {
   return text.replaceAll(/\s+/g, ' ').trim();
+}
+
+function isMemePopStyle(style?: SubtitleStyleOptions): boolean {
+  return style?.stylePreset === 'meme-pop' || style?.fontToken === 'F_MEME';
+}
+
+function formatStyledCueText(text: string, style?: SubtitleStyleOptions): string {
+  const normalizedText = normalizeCueText(text);
+  return isMemePopStyle(style) ? normalizedText.toUpperCase() : normalizedText;
 }
 
 function countWords(text: string): number {
@@ -560,8 +579,8 @@ export function generateASS(
       const start = formatAssTime(segment.startMs);
       const end = formatAssTime(segment.endMs);
       const text = useKaraoke
-        ? buildKaraokeText(segment, lineLength)
-        : escapeAssText(segment.text).replaceAll('\n', String.raw`\N`);
+        ? buildKaraokeText(segment, lineLength, style)
+        : escapeAssText(formatStyledCueText(segment.text, style)).replaceAll('\n', String.raw`\N`);
       return `Dialogue: 0,${start},${end},Default,,0,0,0,,${text}`;
     })
     .join('\n');
@@ -657,10 +676,52 @@ function buildPopKaraokeEvents(
       const nextWord = words[index + 1];
       const start = formatAssTime(word.startMs);
       const end = formatAssTime(nextWord?.startMs ?? segment.endMs);
-      const text = buildPopKaraokeText(words.slice(0, index + 1), index, style);
+      const visibleWords = resolvePopKaraokeVisibleWords(words, index, style);
+      const text = buildPopKaraokeText(visibleWords.words, visibleWords.activeIndex, style);
       return `Dialogue: 0,${start},${end},Default,,0,0,0,,${text}`;
     });
   });
+}
+
+function resolvePopKaraokeVisibleWords(
+  words: SubtitleWord[],
+  activeIndex: number,
+  style?: SubtitleStyleOptions,
+): {
+  words: SubtitleWord[];
+  activeIndex: number;
+} {
+  const activeWord = words[activeIndex];
+  if (!activeWord) {
+    return { words: [], activeIndex: 0 };
+  }
+
+  const activeFontSize = resolvePopWordFontSize(style);
+  const lineLength = resolveSubtitleLineLength(activeFontSize, style?.quality, style?.aspectRatio);
+  const maxVisibleChars = Math.max(10, Math.floor(lineLength * POP_KARAOKE_LINE_WIDTH_RATIO));
+  const visibleWords: SubtitleWord[] = [activeWord];
+  let visibleCharCount = normalizeCueText(activeWord.text).length;
+
+  for (let index = activeIndex - 1; index >= 0; index--) {
+    const previousWord = words[index];
+    if (!previousWord) {
+      continue;
+    }
+
+    const previousTextLength = normalizeCueText(previousWord.text).length;
+    const nextVisibleCharCount = visibleCharCount + 1 + previousTextLength;
+    if (nextVisibleCharCount > maxVisibleChars) {
+      break;
+    }
+
+    visibleWords.unshift(previousWord);
+    visibleCharCount = nextVisibleCharCount;
+  }
+
+  return {
+    words: visibleWords,
+    activeIndex: visibleWords.length - 1,
+  };
 }
 
 function buildPopWordText(text: string, durationMs: number, style?: SubtitleStyleOptions): string {
@@ -669,11 +730,13 @@ function buildPopWordText(text: string, durationMs: number, style?: SubtitleStyl
     mapTextColorToken(style?.textColorToken, '&H0000FFFF'),
   );
   const outlineColor = formatAssOverrideColor('&H00000000');
+  const outline = resolvePopWordOutline(style);
+  const shadow = resolvePopShadow(style);
   const popInMs = Math.min(POP_WORD_IN_MS, durationMs);
   const settleMs = Math.min(durationMs, Math.max(popInMs, POP_WORD_SETTLE_MS));
-  const escapedText = escapeAssText(normalizeCueText(text));
+  const escapedText = escapeAssText(formatStyledCueText(text, style));
 
-  return String.raw`{\fs${fontSize}\bord4\shad2\c${highlightColor}\3c${outlineColor}\fscx100\fscy100\t(0,${popInMs},\fscx${POP_WORD_SCALE_PERCENT}\fscy${POP_WORD_SCALE_PERCENT})\t(${popInMs},${settleMs},\fscx100\fscy100)}${escapedText}`;
+  return String.raw`{\fs${fontSize}\bord${outline}\shad${shadow}\c${highlightColor}\3c${outlineColor}\fscx100\fscy100\t(0,${popInMs},\fscx${POP_WORD_SCALE_PERCENT}\fscy${POP_WORD_SCALE_PERCENT})\t(${popInMs},${settleMs},\fscx100\fscy100)}${escapedText}`;
 }
 
 function buildPopKaraokeText(
@@ -687,18 +750,33 @@ function buildPopKaraokeText(
     mapTextColorToken(style?.textColorToken, '&H00FFFFFF'),
   );
   const outlineColor = formatAssOverrideColor('&H00000000');
-  const basePrefix = String.raw`{\fs${baseFontSize}\bord3\shad2\c${normalColor}\3c${outlineColor}}`;
+  const baseOutline = resolvePopKaraokeBaseOutline(style);
+  const activeOutline = resolvePopWordOutline(style);
+  const shadow = resolvePopShadow(style);
+  const basePrefix = String.raw`{\fs${baseFontSize}\bord${baseOutline}\shad${shadow}\c${normalColor}\3c${outlineColor}}`;
 
   return words
     .map((word, index) => {
-      const escapedText = escapeAssText(normalizeCueText(word.text));
+      const escapedText = escapeAssText(formatStyledCueText(word.text, style));
       if (index !== activeIndex) {
         return `${basePrefix}${escapedText}`;
       }
 
-      return String.raw`{\fs${activeFontSize}\bord4\shad2\c${normalColor}\3c${outlineColor}\fscx100\fscy100\t(0,${POP_WORD_IN_MS},\fscx${POP_WORD_SCALE_PERCENT}\fscy${POP_WORD_SCALE_PERCENT})\t(${POP_WORD_IN_MS},${POP_WORD_SETTLE_MS},\fscx100\fscy100)}${escapedText}`;
+      return String.raw`{\fs${activeFontSize}\bord${activeOutline}\shad${shadow}\c${normalColor}\3c${outlineColor}\fscx100\fscy100\t(0,${POP_WORD_IN_MS},\fscx${POP_WORD_SCALE_PERCENT}\fscy${POP_WORD_SCALE_PERCENT})\t(${POP_WORD_IN_MS},${POP_WORD_SETTLE_MS},\fscx100\fscy100)}${escapedText}`;
     })
     .join(' ');
+}
+
+function resolvePopWordOutline(style?: SubtitleStyleOptions): number {
+  return isMemePopStyle(style) ? MEME_POP_OUTLINE : POP_WORD_OUTLINE;
+}
+
+function resolvePopKaraokeBaseOutline(style?: SubtitleStyleOptions): number {
+  return isMemePopStyle(style) ? MEME_POP_OUTLINE : POP_KARAOKE_BASE_OUTLINE;
+}
+
+function resolvePopShadow(style?: SubtitleStyleOptions): number {
+  return isMemePopStyle(style) ? MEME_POP_SHADOW : POP_WORD_SHADOW;
 }
 
 function resolvePopWordFontSize(style?: SubtitleStyleOptions): number {
@@ -900,7 +978,7 @@ export function formatAssTime(ms: number): string {
 }
 
 export function buildSubtitleForceStyle(style?: SubtitleStyleOptions): string {
-  const fontName = mapFontToken(style?.fontToken);
+  const fontName = mapSubtitleFontToken(style?.fontToken);
   const fontSize = resolveSubtitleFontSize(style?.fontSize, style);
   const primaryColour = mapTextColorToken(style?.textColorToken, '&H00FFFFFF');
   const backColour = mapBackgroundColorToken(style?.bgColorToken, '&H80000000');
@@ -918,9 +996,9 @@ export function buildSubtitleForceStyle(style?: SubtitleStyleOptions): string {
     `FontSize=${fontSize}`,
     `PrimaryColour=${primaryColour}`,
     `BackColour=${backColour}`,
-    'BorderStyle=3',
-    'Outline=1',
-    'Shadow=0',
+    `BorderStyle=${resolveAssBorderStyle(style)}`,
+    `Outline=${resolveAssOutline(style)}`,
+    `Shadow=${resolveAssShadow(style)}`,
     `Alignment=${alignment}`,
     `MarginL=${marginH}`,
     `MarginR=${marginH}`,
@@ -929,12 +1007,13 @@ export function buildSubtitleForceStyle(style?: SubtitleStyleOptions): string {
 }
 
 function buildAssStyleLine(style?: SubtitleStyleOptions): string {
-  const fontName = mapFontToken(style?.fontToken);
+  const fontName = mapSubtitleFontToken(style?.fontToken);
   const fontSize = resolveSubtitleFontSize(style?.fontSize, style);
   const primaryColour = mapHighlightColorToken(style?.textColorToken);
   const secondaryColour = mapTextColorToken(style?.textColorToken, '&H00FFFFFF');
   const outlineColour = '&H00000000';
   const backColour = mapBackgroundColorToken(style?.bgColorToken, '&H80000000');
+  const borderStyle = resolveAssBorderStyle(style);
   const outline = resolveAssOutline(style);
   const shadow = resolveAssShadow(style);
   const alignment = mapPositionToAlignment(style?.position);
@@ -962,7 +1041,7 @@ function buildAssStyleLine(style?: SubtitleStyleOptions): string {
     100,
     0,
     0,
-    3,
+    borderStyle,
     outline,
     shadow,
     alignment,
@@ -973,12 +1052,23 @@ function buildAssStyleLine(style?: SubtitleStyleOptions): string {
   ].join(',');
 }
 
+function resolveAssBorderStyle(style?: SubtitleStyleOptions): number {
+  return style?.bgColorToken === 'BG_TRANSPARENT' || isMemePopStyle(style) ? 1 : 3;
+}
+
 function resolveAssOutline(style?: SubtitleStyleOptions): number {
+  if (isMemePopStyle(style)) {
+    return MEME_POP_OUTLINE;
+  }
+
   if (style?.animation === 'pop-word') {
     return 3;
   }
 
-  if (style?.bgColorToken === 'BG_TRANSPARENT' && style.textColorToken === 'C_ORANGE') {
+  if (
+    style?.bgColorToken === 'BG_TRANSPARENT' &&
+    (style.textColorToken === 'C_GREEN' || style.textColorToken === 'C_ORANGE')
+  ) {
     return 3;
   }
 
@@ -986,18 +1076,29 @@ function resolveAssOutline(style?: SubtitleStyleOptions): number {
 }
 
 function resolveAssShadow(style?: SubtitleStyleOptions): number {
+  if (isMemePopStyle(style)) {
+    return MEME_POP_SHADOW;
+  }
+
   if (style?.animation === 'pop-word') {
     return 2;
   }
 
-  if (style?.bgColorToken === 'BG_TRANSPARENT' && style.textColorToken === 'C_ORANGE') {
+  if (
+    style?.bgColorToken === 'BG_TRANSPARENT' &&
+    (style.textColorToken === 'C_GREEN' || style.textColorToken === 'C_ORANGE')
+  ) {
     return 2;
   }
 
   return 0;
 }
 
-function buildKaraokeText(segment: SubtitleSegment, lineLength: number): string {
+function buildKaraokeText(
+  segment: SubtitleSegment,
+  lineLength: number,
+  style?: SubtitleStyleOptions,
+): string {
   const words = resolveKaraokeWords(segment);
   if (words.length === 0) {
     return '';
@@ -1007,7 +1108,7 @@ function buildKaraokeText(segment: SubtitleSegment, lineLength: number): string 
   let cursor = segment.startMs;
 
   words.forEach((word, index) => {
-    const normalizedWord = escapeAssText(word.text);
+    const normalizedWord = escapeAssText(formatStyledCueText(word.text, style));
     const gapMs = Math.max(0, word.startMs - cursor);
     if (gapMs > 0) {
       textParts.push(String.raw`{\k${Math.max(1, Math.round(gapMs / 10))}}`);
@@ -1131,23 +1232,14 @@ function escapeAssText(text: string): string {
     .replaceAll('}', String.raw`\}`);
 }
 
-function mapFontToken(fontToken?: string): string {
-  switch (fontToken) {
-    case 'F_MONO':
-      return 'Courier New';
-    case 'F_SERIF':
-      return 'Georgia';
-    default:
-      return 'Inter';
-  }
-}
-
 function mapTextColorToken(colorToken: string | undefined, fallback: string): string {
   switch (colorToken) {
     case 'C_BLACK':
       return '&H00000000';
     case 'C_ORANGE':
       return '&H000066FF';
+    case 'C_GREEN':
+      return '&H002BFF00';
     case 'C_YELLOW':
       return '&H0000FFFF';
     case 'C_WHITE':
@@ -1163,6 +1255,8 @@ function mapHighlightColorToken(colorToken?: string): string {
       return '&H0000FFFF';
     case 'C_YELLOW':
       return '&H000066FF';
+    case 'C_GREEN':
+      return '&H002BFF00';
     case 'C_BLACK':
       return '&H00FFFFFF';
     default:
@@ -1178,6 +1272,8 @@ function mapBackgroundColorToken(colorToken: string | undefined, fallback: strin
       return '&H80FFFFFF';
     case 'C_ORANGE':
       return '&H800066FF';
+    case 'C_GREEN':
+      return '&H802BFF00';
     case 'C_BLACK':
       return '&H80000000';
     default:

@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { AuditAction, audit } from '@/lib/audit';
+import { subtitleFontTokenValues } from '@/modules/director/subtitle-style-tokens';
 import { directorService } from '../director.service';
 import {
   DIRECTOR_SUBTITLE_FONT_SIZE_MAX,
@@ -11,6 +12,7 @@ const subtitlePositionValues = ['top', 'center', 'bottom'] as const;
 const subtitleStylePresetValues = [
   'custom',
   'viral-pop',
+  'meme-pop',
   'clean-bold',
   'neon-glow',
   'creator-box',
@@ -29,7 +31,7 @@ const subtitleAnimationValues = [
 
 export const updateSubtitleStyleSchema = z.object({
   stylePreset: z.enum(subtitleStylePresetValues).optional(),
-  fontToken: z.string().optional(),
+  fontToken: z.enum(subtitleFontTokenValues).optional(),
   textColorToken: z.string().optional(),
   bgColorToken: z.string().optional(),
   fontSize: z

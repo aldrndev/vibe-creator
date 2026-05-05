@@ -20,8 +20,17 @@ RUN corepack enable \
     wget \
     openssl \
     ca-certificates \
+    fontconfig \
+    fonts-bebas-neue \
+    fonts-comfortaa \
+    fonts-inter \
+    fonts-lato \
+    fonts-league-spartan \
     fonts-liberation \
+    fonts-manrope \
+    fonts-open-sans \
     && rm -rf /var/lib/apt/lists/* \
+    && fc-cache -f \
     && pip3 install --no-cache-dir --break-system-packages yt-dlp faster-whisper opencv-python-headless
 
 # 2. Development Stage (Hot Reload)
