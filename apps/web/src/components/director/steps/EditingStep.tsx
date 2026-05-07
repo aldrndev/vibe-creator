@@ -6,6 +6,7 @@ import {
   shouldPollTranscribeStatus,
 } from '@/components/director/steps/director-step-utils';
 import { EditingSidebar } from '@/components/director/steps/editing-sidebar';
+import type { TranscriptSegment } from '@/components/director/steps/editing-transcript-cues';
 import { SelectedClipCard } from '@/components/director/steps/selected-clip-card';
 import {
   Button,
@@ -296,10 +297,7 @@ export const EditingStep = () => {
     };
   }, [activeSession, subtitleStyle]);
 
-  const handleUpdateTranscript = async (
-    clipId: string,
-    segments: Array<{ startMs: number; endMs: number; text: string }>,
-  ) => {
+  const handleUpdateTranscript = async (clipId: string, segments: TranscriptSegment[]) => {
     if (!activeSession) return;
     try {
       // Optimistic update

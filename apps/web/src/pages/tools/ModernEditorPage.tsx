@@ -38,10 +38,20 @@ import { cn } from '@/lib/utils';
 import { useModernEditorStore } from '@/stores/modern-editor-store';
 
 export function ModernEditorPage() {
-  const { initProject, projectTitle, isDirty, getProject, isPlaying, selectLayer } =
-    useModernEditorStore();
+  const {
+    initProject,
+    projectTitle,
+    isDirty,
+    getProject,
+    isPlaying,
+    selectLayer,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+  } = useModernEditorStore();
 
-  const { exportProject, isExporting } = useModernExport();
+  const { exportProject, isExporting, exportError, exportProgress } = useModernExport();
 
   const [activeMobileTab, setActiveMobileTab] = useState<'assets' | 'canvas' | 'properties'>(
     'canvas',
@@ -65,11 +75,11 @@ export function ModernEditorPage() {
   };
 
   const handleUndo = () => {
-    // TODO: Implement undo
+    undo();
   };
 
   const handleRedo = () => {
-    // TODO: Implement redo
+    redo();
   };
 
   const handleSettings = () => {
@@ -105,8 +115,10 @@ export function ModernEditorPage() {
                   <Button
                     size="icon"
                     variant="ghost"
+                    aria-label="Undo"
                     className="rounded-xl w-10 h-10"
                     onClick={handleUndo}
+                    disabled={!canUndo}
                   >
                     <Undo2 size={18} />
                   </Button>
@@ -118,8 +130,10 @@ export function ModernEditorPage() {
                   <Button
                     size="icon"
                     variant="ghost"
+                    aria-label="Redo"
                     className="rounded-xl w-10 h-10"
                     onClick={handleRedo}
+                    disabled={!canRedo}
                   >
                     <Redo2 size={18} />
                   </Button>
@@ -135,6 +149,7 @@ export function ModernEditorPage() {
                 <Button
                   size="icon"
                   variant="ghost"
+                  aria-label="Open canvas settings"
                   className="rounded-xl w-10 h-10"
                   onClick={handleSettings}
                 >
@@ -155,6 +170,16 @@ export function ModernEditorPage() {
             </Button>
           </div>
         </header>
+
+        {(exportError || isExporting) && (
+          <div className="border-b border-border/50 bg-card/70 px-6 py-3 text-xs font-bold">
+            {exportError ? (
+              <p className="text-destructive">{exportError}</p>
+            ) : (
+              <p className="text-muted-foreground">Exporting {Math.round(exportProgress * 100)}%</p>
+            )}
+          </div>
+        )}
 
         {/* Main Content */}
         <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative">

@@ -32,7 +32,7 @@ export function LivePreviewMedia({
         {posterUrl ? (
           <img
             src={posterUrl}
-            alt="Thumbnail preview final"
+            alt="Thumbnail video akhir"
             className={cn('w-full h-full object-contain rounded-[inherit]', mediaClass)}
           />
         ) : (
@@ -44,7 +44,7 @@ export function LivePreviewMedia({
             type="button"
             onClick={onPlay}
             className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-40 w-16 h-16 rounded-[1.25rem] border border-white/20 bg-black/35 text-white backdrop-blur-md transition-all duration-300 hover:scale-105 hover:bg-black/50 flex items-center justify-center shadow-xl"
-            aria-label="Putar Preview Final"
+            aria-label="Putar Video Akhir"
           >
             <Play className="w-7 h-7 fill-white translate-x-[2px]" />
           </button>
@@ -55,7 +55,7 @@ export function LivePreviewMedia({
               <div className="mx-auto mb-2 inline-flex h-10 w-10 items-center justify-center rounded-full border border-primary/30 bg-primary/10">
                 <Loader2 size={16} className="animate-spin text-primary" />
               </div>
-              <p className="text-sm font-semibold text-foreground">Generate Ulang Preview</p>
+              <p className="text-sm font-semibold text-foreground">Generate Ulang Video</p>
               <p className="mt-1 text-xs text-muted-foreground">{previewProgressPercent}%</p>
             </div>
           </div>
@@ -78,7 +78,7 @@ export function LivePreviewMedia({
           <div className="mx-auto mb-2 inline-flex h-10 w-10 items-center justify-center rounded-full border border-primary/30 bg-primary/10">
             <Loader2 size={16} className="animate-spin text-primary" />
           </div>
-          <p className="text-sm font-semibold text-foreground">Preview Sedang Digenerate</p>
+          <p className="text-sm font-semibold text-foreground">Video Sedang Digenerate</p>
           <p className="mt-1 text-xs text-muted-foreground">
             {previewProgressPercent}% • Mohon tunggu sebentar.
           </p>
@@ -91,7 +91,7 @@ export function LivePreviewMedia({
     return (
       <div className="absolute inset-0 flex items-center justify-center bg-black/60 px-6 text-center">
         <div className="rounded-2xl border border-border/40 bg-card/90 px-4 py-3">
-          <p className="text-sm font-semibold text-foreground">Preview Final Belum Tersedia</p>
+          <p className="text-sm font-semibold text-foreground">Video Akhir Belum Tersedia</p>
           <p className="mt-1 text-xs text-muted-foreground">{previewError}</p>
         </div>
       </div>
@@ -108,9 +108,9 @@ export function LivePreviewMedia({
         />
       ) : null}
       <div className="relative rounded-2xl border border-border/40 bg-card/80 px-4 py-3 backdrop-blur-md">
-        <p className="text-sm font-semibold text-foreground">Preview Final Belum Digenerate</p>
+        <p className="text-sm font-semibold text-foreground">Video Akhir Belum Digenerate</p>
         <p className="mt-1 text-xs text-muted-foreground">
-          Generate preview untuk memutar hasil final.
+          Generate video untuk memutar hasil final.
         </p>
       </div>
     </div>

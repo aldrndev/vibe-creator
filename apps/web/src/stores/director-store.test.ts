@@ -47,6 +47,27 @@ describe('director-store transcribe language', () => {
       bgColorToken: 'BG_TRANSPARENT',
       position: 'center',
       animation: 'pop-word',
+      speakerMode: 'single',
+      speakerStyles: [],
+    });
+  });
+
+  it('keeps the active subtitle preset when a single style control is customized', () => {
+    const state = useDirectorStore.getState();
+
+    state.updateSubtitleStyle({
+      stylePreset: 'meme-pop',
+      fontToken: 'F_MEME',
+      textColorToken: 'C_GREEN',
+      bgColorToken: 'BG_TRANSPARENT',
+      animation: 'pop-word',
+    });
+    state.updateSubtitleStyle({ animation: 'typewriter' });
+
+    expect(useDirectorStore.getState().subtitleStyle).toMatchObject({
+      stylePreset: 'meme-pop',
+      animation: 'typewriter',
+      fontToken: 'F_MEME',
     });
   });
 
@@ -60,5 +81,15 @@ describe('director-store transcribe language', () => {
 
     state.reset();
     expect(useDirectorStore.getState().targetDurationRange).toBe('auto');
+  });
+
+  it('clears candidate selection before choosing another clip', () => {
+    const state = useDirectorStore.getState();
+
+    state.toggleCandidateSelection('candidate-1');
+    expect(useDirectorStore.getState().selectedCandidateIds.has('candidate-1')).toBe(true);
+
+    state.clearCandidateSelection();
+    expect(useDirectorStore.getState().selectedCandidateIds.size).toBe(0);
   });
 });

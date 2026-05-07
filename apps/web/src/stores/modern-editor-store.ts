@@ -9,18 +9,29 @@
  * - `ModernProject` is derived on save/compile
  */
 
-import type { AllowedFps, Layer, ModernProject, ModernProjectSettings } from '@vibe-creator/shared';
+import type { Layer, ModernProject, ModernProjectSettings } from '@vibe-creator/shared';
 import {
   createAudioLayer,
   createImageLayer,
   createTextLayer,
   createVideoLayer,
-  MODERN_LIMITS,
   MODERN_SCHEMA_VERSION,
 } from '@vibe-creator/shared';
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
 import type { EditorAsset } from './editor-store';
+import {
+  clamp,
+  copyLayers,
+  createSnapshot,
+  generateId,
+  getDefaultSettings,
+  MAX_HISTORY_ENTRIES,
+  type ModernEditorSnapshot,
+  normalizeLayerUpdates,
+  normalizeSettings,
+  pushHistory,
+} from './modern-editor-store-helpers';
 
 // -----------------------------------------------------------------------------
 // Types
@@ -49,10 +60,16 @@ interface ModernEditorState {
   // UI state
   isDirty: boolean;
   isExporting: boolean;
+  historyPast: ModernEditorSnapshot[];
+  historyFuture: ModernEditorSnapshot[];
+  canUndo: boolean;
+  canRedo: boolean;
 
   // Actions
   initProject: (id: string, title: string, settings?: Partial<ModernProjectSettings>) => void;
   resetProject: () => void;
+  undo: () => void;
+  redo: () => void;
 
   // Asset actions
   addAsset: (asset: EditorAsset) => void;
@@ -90,25 +107,6 @@ interface ModernEditorState {
 }
 
 // -----------------------------------------------------------------------------
-// Helpers
-// -----------------------------------------------------------------------------
-
-function generateId(): string {
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function getDefaultSettings(): ModernProjectSettings {
-  const resolution = MODERN_LIMITS.ALLOWED_RESOLUTIONS[MODERN_LIMITS.DEFAULT_RESOLUTION];
-  return {
-    width: resolution.width,
-    height: resolution.height,
-    fps: MODERN_LIMITS.DEFAULT_FPS as AllowedFps,
-    durationMs: 0,
-    backgroundColor: '#000000',
-  };
-}
-
-// -----------------------------------------------------------------------------
 // Store
 // -----------------------------------------------------------------------------
 
@@ -131,6 +129,10 @@ export const useModernEditorStore = create<ModernEditorState>()(
 
     isDirty: false,
     isExporting: false,
+    historyPast: [],
+    historyFuture: [],
+    canUndo: false,
+    canRedo: false,
 
     // ---------------------------------------------------------------------
     // Project actions
@@ -149,6 +151,10 @@ export const useModernEditorStore = create<ModernEditorState>()(
         isPlaying: false,
         isDirty: false,
         isExporting: false,
+        historyPast: [],
+        historyFuture: [],
+        canUndo: false,
+        canRedo: false,
       });
     },
 
@@ -165,6 +171,59 @@ export const useModernEditorStore = create<ModernEditorState>()(
         isPlaying: false,
         isDirty: false,
         isExporting: false,
+        historyPast: [],
+        historyFuture: [],
+        canUndo: false,
+        canRedo: false,
+      });
+    },
+
+    undo: () => {
+      set((state) => {
+        const previous = state.historyPast.at(-1);
+        if (!previous) return state;
+
+        const future = [createSnapshot(state), ...state.historyFuture].slice(
+          0,
+          MAX_HISTORY_ENTRIES,
+        );
+        const historyPast = state.historyPast.slice(0, -1);
+
+        return {
+          ...previous,
+          layersById: copyLayers(previous.layersById),
+          layerOrder: [...previous.layerOrder],
+          assets: [...previous.assets],
+          settings: { ...previous.settings },
+          historyPast,
+          historyFuture: future,
+          canUndo: historyPast.length > 0,
+          canRedo: true,
+        };
+      });
+    },
+
+    redo: () => {
+      set((state) => {
+        const next = state.historyFuture[0];
+        if (!next) return state;
+
+        const historyPast = [...state.historyPast, createSnapshot(state)].slice(
+          -MAX_HISTORY_ENTRIES,
+        );
+        const historyFuture = state.historyFuture.slice(1);
+
+        return {
+          ...next,
+          layersById: copyLayers(next.layersById),
+          layerOrder: [...next.layerOrder],
+          assets: [...next.assets],
+          settings: { ...next.settings },
+          historyPast,
+          historyFuture,
+          canUndo: true,
+          canRedo: historyFuture.length > 0,
+        };
       });
     },
 
@@ -174,13 +233,25 @@ export const useModernEditorStore = create<ModernEditorState>()(
 
     addAsset: (asset) => {
       set((state) => ({
+        ...pushHistory(state),
         assets: [...state.assets, asset],
+        isDirty: true,
       }));
     },
 
     removeAsset: (assetId) => {
       set((state) => ({
+        ...pushHistory(state),
         assets: state.assets.filter((a) => a.id !== assetId),
+        layersById: Object.fromEntries(
+          Object.entries(state.layersById).filter(([, layer]) => layer.assetId !== assetId),
+        ),
+        layerOrder: state.layerOrder.filter((id) => state.layersById[id]?.assetId !== assetId),
+        selectedLayerId:
+          state.selectedLayerId && state.layersById[state.selectedLayerId]?.assetId === assetId
+            ? null
+            : state.selectedLayerId,
+        isDirty: true,
       }));
     },
 
@@ -201,8 +272,10 @@ export const useModernEditorStore = create<ModernEditorState>()(
       const layer = createVideoLayer(id, assetId, zIndex, startMs, startMs + duration);
 
       set((s) => ({
+        ...pushHistory(s),
         layersById: { ...s.layersById, [id]: layer },
         layerOrder: [...s.layerOrder, id],
+        selectedLayerId: id,
         isDirty: true,
       }));
 
@@ -221,6 +294,7 @@ export const useModernEditorStore = create<ModernEditorState>()(
       const layer = createImageLayer(id, assetId, zIndex, startMs, startMs + 5000);
 
       set((s) => ({
+        ...pushHistory(s),
         layersById: { ...s.layersById, [id]: layer },
         layerOrder: [...s.layerOrder, id],
         selectedLayerId: id,
@@ -239,6 +313,7 @@ export const useModernEditorStore = create<ModernEditorState>()(
       const layer = createTextLayer(id, text, zIndex, startMs, startMs + 5000);
 
       set((s) => ({
+        ...pushHistory(s),
         layersById: { ...s.layersById, [id]: layer },
         layerOrder: [...s.layerOrder, id],
         selectedLayerId: id,
@@ -261,8 +336,10 @@ export const useModernEditorStore = create<ModernEditorState>()(
       const layer = createAudioLayer(id, assetId, zIndex, startMs, startMs + duration);
 
       set((s) => ({
+        ...pushHistory(s),
         layersById: { ...s.layersById, [id]: layer },
         layerOrder: [...s.layerOrder, id],
+        selectedLayerId: id,
         isDirty: true,
       }));
 
@@ -297,6 +374,7 @@ export const useModernEditorStore = create<ModernEditorState>()(
       };
 
       set((s) => ({
+        ...pushHistory(s),
         layersById: { ...s.layersById, [id]: layer },
         layerOrder: [...s.layerOrder, id],
         selectedLayerId: id,
@@ -312,6 +390,7 @@ export const useModernEditorStore = create<ModernEditorState>()(
         delete newLayersById[layerId];
 
         return {
+          ...pushHistory(state),
           layersById: newLayersById,
           layerOrder: state.layerOrder.filter((id) => id !== layerId),
           selectedLayerId: state.selectedLayerId === layerId ? null : state.selectedLayerId,
@@ -324,11 +403,17 @@ export const useModernEditorStore = create<ModernEditorState>()(
       set((state) => {
         const layer = state.layersById[layerId];
         if (!layer) return state;
+        if (layer.locked && updates.locked === undefined && updates.visible === undefined) {
+          return state;
+        }
+
+        const normalizedUpdates = normalizeLayerUpdates(layer, updates);
 
         return {
+          ...pushHistory(state),
           layersById: {
             ...state.layersById,
-            [layerId]: { ...layer, ...updates } as Layer,
+            [layerId]: { ...layer, ...normalizedUpdates } as Layer,
           },
           isDirty: true,
         };
@@ -342,7 +427,7 @@ export const useModernEditorStore = create<ModernEditorState>()(
 
         const newOrder = [...state.layerOrder];
         newOrder.splice(currentIndex, 1);
-        newOrder.splice(newZIndex, 0, layerId);
+        newOrder.splice(clamp(newZIndex, 0, newOrder.length), 0, layerId);
 
         // Update zIndex for all layers
         const newLayersById = { ...state.layersById };
@@ -353,6 +438,7 @@ export const useModernEditorStore = create<ModernEditorState>()(
         });
 
         return {
+          ...pushHistory(state),
           layerOrder: newOrder,
           layersById: newLayersById,
           isDirty: true,
@@ -375,6 +461,7 @@ export const useModernEditorStore = create<ModernEditorState>()(
       } as Layer;
 
       set((s) => ({
+        ...pushHistory(s),
         layersById: { ...s.layersById, [newId]: newLayer },
         layerOrder: [...s.layerOrder, newId],
         selectedLayerId: newId,
@@ -400,9 +487,24 @@ export const useModernEditorStore = create<ModernEditorState>()(
       set({ currentTimeMs: Math.max(0, timeMs) });
     },
 
-    play: () => set({ isPlaying: true }),
+    play: () =>
+      set((state) => ({
+        currentTimeMs: state.currentTimeMs >= state.getMaxEndMs() ? 0 : state.currentTimeMs,
+        isPlaying: true,
+      })),
     pause: () => set({ isPlaying: false }),
-    togglePlayback: () => set((s) => ({ isPlaying: !s.isPlaying })),
+    togglePlayback: () =>
+      set((state) => {
+        const maxEndMs = state.getMaxEndMs();
+        if (state.isPlaying) {
+          return { isPlaying: false };
+        }
+
+        return {
+          currentTimeMs: maxEndMs > 0 && state.currentTimeMs >= maxEndMs ? 0 : state.currentTimeMs,
+          isPlaying: true,
+        };
+      }),
 
     // ---------------------------------------------------------------------
     // Settings
@@ -410,7 +512,8 @@ export const useModernEditorStore = create<ModernEditorState>()(
 
     updateSettings: (settings) => {
       set((state) => ({
-        settings: { ...state.settings, ...settings },
+        ...pushHistory(state),
+        settings: { ...state.settings, ...normalizeSettings(settings) },
         isDirty: true,
       }));
     },

@@ -4,7 +4,7 @@ import { redis } from '@/lib/redis';
 import type { TranscribeLanguage } from './transcribe-language';
 
 const TRANSCRIBE_CACHE_TTL_SECONDS = 7 * 24 * 60 * 60;
-const TRANSCRIBE_CACHE_QUALITY_VERSION = 2;
+const TRANSCRIBE_CACHE_QUALITY_VERSION = 4;
 
 export interface CachedTranscriptPayload {
   language?: string;

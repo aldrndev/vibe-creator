@@ -3,6 +3,7 @@
  * Handles session lifecycle and settings
  */
 
+import type { Prisma } from '@prisma/client';
 import { logger } from '@/lib/logger';
 import {
   preferCandidatesWithinTargetDurationRange,
@@ -145,6 +146,8 @@ export const directorSessionService = {
       fontSize?: number;
       position?: string;
       animation?: string;
+      speakerMode?: string;
+      speakerStyles?: Prisma.InputJsonValue;
     },
   ) {
     const exists = await directorRepo.exists(sessionId, userId);

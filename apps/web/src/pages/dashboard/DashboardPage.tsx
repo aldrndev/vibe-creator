@@ -58,7 +58,7 @@ const quickActions = [
     title: 'Video Studio',
     description: 'Professional video editing',
     icon: Wand2,
-    href: '/tools/modern-editor',
+    href: '/tools/video-studio',
     color: 'from-orange-500/20 to-amber-500/20',
     iconColor: 'text-orange-500',
   },

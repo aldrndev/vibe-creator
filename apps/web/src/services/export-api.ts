@@ -5,6 +5,7 @@ interface UploadResponse {
   uploadToken: string;
   mimetype: string;
   size: number;
+  mediaType: 'video' | 'image' | 'audio';
 }
 
 interface ExportJobResponse {
@@ -25,6 +26,7 @@ interface ExportStatusResponse {
 interface TimelineData {
   clips: Array<{
     localPath: string;
+    mediaType?: 'video' | 'image';
     startTime: number;
     endTime: number;
     transforms?: {
@@ -84,6 +86,25 @@ export const exportApi = {
     formData.append('file', file);
 
     const response = await authFetch(`${API_BASE}/upload/video`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    const data = await response.json();
+    if (!data.success) {
+      throw new Error(data.error?.message || 'Upload failed');
+    }
+    return data.data;
+  },
+
+  /**
+   * Upload media file to server-side export temp storage.
+   */
+  async uploadMedia(file: File): Promise<UploadResponse> {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await authFetch(`${API_BASE}/upload/media`, {
       method: 'POST',
       body: formData,
     });

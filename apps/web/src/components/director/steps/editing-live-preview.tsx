@@ -1,4 +1,4 @@
-import { Download, MonitorPlay, RefreshCcw, X } from 'lucide-react';
+import { Download, MonitorPlay, RefreshCcw, Scissors, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   LivePreviewMedia,
@@ -17,12 +17,13 @@ import { getEffectiveRefineSettings, getResolvedContentMode } from '@/lib/direct
 import { logger } from '@/lib/logger';
 import { cn } from '@/lib/utils';
 import { authFetch, downloadAuthenticatedFile } from '@/services/api';
-import type {
-  DirectorSession,
-  ExportSettings,
-  RefineSettings,
-  SelectedClip,
-  SubtitleStyle,
+import {
+  type DirectorSession,
+  type ExportSettings,
+  type RefineSettings,
+  type SelectedClip,
+  type SubtitleStyle,
+  useDirectorStore,
 } from '@/stores/director-store';
 
 interface EditingLivePreviewProps {
@@ -40,6 +41,8 @@ export function EditingLivePreview({
   selectedClips,
   refineSettings,
 }: Readonly<EditingLivePreviewProps>) {
+  const clearCandidateSelection = useDirectorStore((state) => state.clearCandidateSelection);
+  const setStep = useDirectorStore((state) => state.setStep);
   const [renderPreviewPath, setRenderPreviewPath] = useState<string | null>(null);
   const [previewDownloadPath, setPreviewDownloadPath] = useState<string | null>(null);
   const [previewFileName, setPreviewFileName] = useState<string | null>(null);
@@ -180,7 +183,7 @@ export function EditingLivePreview({
         !payload.data?.downloadUrl ||
         !payload.data?.previewFileName
       ) {
-        throw new Error(payload.error?.message || 'Preview final gagal digenerate');
+        throw new Error(payload.error?.message || 'Video akhir gagal digenerate');
       }
 
       if (requestVersionRef.current !== requestVersion) {
@@ -207,7 +210,7 @@ export function EditingLivePreview({
       logger.error('Generate preview failed', error);
       setPreviewProgressPercent(0);
       setPreviewStatus('failed');
-      setPreviewError(error instanceof Error ? error.message : 'Preview final gagal dimuat');
+      setPreviewError(error instanceof Error ? error.message : 'Video akhir gagal dimuat');
     } finally {
       globalThis.clearInterval(progressIntervalId);
     }
@@ -222,7 +225,7 @@ export function EditingLivePreview({
       setDownloadError(null);
       await downloadAuthenticatedFile(
         previewDownloadPath,
-        previewFileName ?? `short-preview-${activeSession?.id ?? Date.now()}.mp4`,
+        previewFileName ?? `short-video-${activeSession?.id ?? Date.now()}.mp4`,
       );
     } catch (error) {
       logger.error('Preview download failed', error);
@@ -248,6 +251,10 @@ export function EditingLivePreview({
   const shouldDisableGenerate = !previewPayloadJson || previewStatus === 'generating';
   const shouldEnableDownload = previewStatus === 'ready' && Boolean(previewDownloadPath);
   const canPlayPreview = canPlayFinalPreview(previewStatus, previewVideoUrl);
+  const handlePickNewClip = useCallback(() => {
+    clearCandidateSelection();
+    setStep('PICKING');
+  }, [clearCandidateSelection, setStep]);
 
   useEffect(() => {
     if (!canPlayPreview && isPlayingModalOpen) {
@@ -278,9 +285,9 @@ export function EditingLivePreview({
             <MonitorPlay size={18} className="text-primary" />
           </div>
           <div className="min-w-0">
-            <h4 className="font-black tracking-tight text-base leading-none">Preview Final</h4>
+            <h4 className="font-black tracking-tight text-base leading-none">Video Akhir</h4>
             <p className="mt-1 text-[11px] leading-4 text-muted-foreground">
-              Generate manual, lalu download hasil yang sama.
+              Generate video akhir, lalu download hasil yang sama.
             </p>
           </div>
         </div>
@@ -323,7 +330,7 @@ export function EditingLivePreview({
                   playsInline
                   autoPlay
                 >
-                  <track kind="captions" srcLang="id" label="Preview final identik export" />
+                  <track kind="captions" srcLang="id" label="Video akhir identik export" />
                 </video>
                 <button
                   type="button"
@@ -364,6 +371,20 @@ export function EditingLivePreview({
           <Download size={14} className="mr-2" />
           Download Video
         </Button>
+        {previewStatus === 'ready' ? (
+          <>
+            <div className="my-1 h-px bg-border/55" />
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={handlePickNewClip}
+              className="h-11 rounded-2xl text-xs font-semibold tracking-normal text-muted-foreground hover:text-foreground"
+            >
+              <Scissors size={14} className="mr-2" />
+              Pilih Klip Baru
+            </Button>
+          </>
+        ) : null}
       </div>
 
       {previewError ? (
@@ -403,6 +424,8 @@ function buildPreviewPayload(
       fontSize: subtitleStyle.fontSize,
       position: subtitleStyle.position,
       animation: subtitleStyle.animation,
+      speakerMode: subtitleStyle.speakerMode,
+      speakerStyles: subtitleStyle.speakerStyles,
     },
     refineSettings: {
       [primaryClip.id]: {
@@ -423,22 +446,22 @@ function getPreviewBadgeText(status: PreviewStatus, progress: number): string {
     case 'dirty':
       return 'Perlu Generate Ulang';
     case 'generating':
-      return `Generating ${progress}%`;
+      return `Membuat Video ${progress}%`;
     case 'failed':
       return 'Generate Gagal';
     default:
-      return 'Belum Digenerate';
+      return 'Belum Generate';
   }
 }
 
 function getGenerateButtonText(status: PreviewStatus): string {
   switch (status) {
     case 'generating':
-      return 'Generating...';
+      return 'Membuat Video...';
     case 'dirty':
     case 'failed':
-      return 'Generate Ulang';
+      return 'Generate Ulang Video';
     default:
-      return 'Generate Preview';
+      return 'Generate Video';
   }
 }

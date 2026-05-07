@@ -21,7 +21,10 @@ import { prisma } from '@/lib/prisma';
 import { directorProcessor } from '../director.processor';
 import type { DirectorExportJobData } from '../director.queue';
 import { type BuiltExportClip, buildExportClipFromSelectedClip } from '../export-clip-builder';
-import type { SubtitleStyleOptions } from '../processing/video-export-subtitles';
+import {
+  normalizeSubtitleSpeakerStyles,
+  type SubtitleStyleOptions,
+} from '../processing/video-export-subtitles';
 
 const subtitlePositionValues = ['top', 'center', 'bottom'] as const;
 const defaultViralPopSubtitleStyle = {
@@ -32,6 +35,8 @@ const defaultViralPopSubtitleStyle = {
   fontSize: 52,
   position: 'center' as const,
   animation: 'pop-word',
+  speakerMode: 'single',
+  speakerStyles: [],
 };
 
 function resolveSubtitlePosition(position: string): SubtitleStyleOptions['position'] {
@@ -55,6 +60,8 @@ function buildExportSubtitleStyle(
     fontSize: number;
     position: string;
     animation: string;
+    speakerMode: string;
+    speakerStyles: unknown;
   } | null,
   options: DirectorExportJobData['options'],
   contentMode: SubtitleStyleOptions['contentMode'],
@@ -68,6 +75,8 @@ function buildExportSubtitleStyle(
         fontSize: style.fontSize,
         position: resolveSubtitlePosition(style.position),
         animation: style.animation,
+        speakerMode: style.speakerMode,
+        speakerStyles: normalizeSubtitleSpeakerStyles(style.speakerStyles),
       }
     : defaultViralPopSubtitleStyle;
 

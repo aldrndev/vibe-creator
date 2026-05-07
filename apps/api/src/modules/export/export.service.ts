@@ -7,6 +7,7 @@ import { processExportJob } from './processors/export.processor';
 interface TimelineData {
   clips: Array<{
     localPath: string;
+    mediaType?: 'video' | 'image';
     startTime: number;
     endTime: number;
     transforms?: {

@@ -22,6 +22,7 @@ import { env } from '@/config/env';
 import { logger } from '@/lib/logger';
 import { prisma } from '@/lib/prisma';
 import { ffmpegProcessor } from '../ffmpeg.processor';
+import { createImageClip } from './image-clip.processor';
 
 /** Directory for temporary processing files */
 const TEMP_DIR = join(env.MEDIA_INPUT_DIR, 'temp');
@@ -37,6 +38,7 @@ interface TimelineData {
   /** Video clips with timing and optional transforms/effects */
   clips: Array<{
     localPath: string;
+    mediaType?: 'video' | 'image';
     startTime: number;
     endTime: number;
     transforms?: {
@@ -127,19 +129,35 @@ export async function processExportJob(jobId: string, addWatermark: boolean): Pr
     const tempFiles: string[] = [];
     const outputId = randomUUID();
 
+    if (timelineData.clips.length === 0) {
+      throw new Error('Export requires at least one video or image clip');
+    }
+
     // Step 1: Trim and apply effects to each clip
     logger.info({ jobId }, 'Starting clip trimming and effects');
     for (let i = 0; i < timelineData.clips.length; i++) {
       const clip = timelineData.clips[i];
       if (!clip) continue;
+      const mediaType = clip.mediaType ?? 'video';
 
       const trimmedPath = join(TEMP_DIR, `${outputId}_trimmed_${i}.mp4`);
-      await ffmpegProcessor.trim({
-        inputPath: clip.localPath,
-        outputPath: trimmedPath,
-        startTime: clip.startTime,
-        endTime: clip.endTime,
-      });
+      if (mediaType === 'image') {
+        await createImageClip({
+          inputPath: clip.localPath,
+          outputPath: trimmedPath,
+          durationSec: Math.max(0.1, clip.endTime - clip.startTime),
+          width: timelineData.settings.width,
+          height: timelineData.settings.height,
+          fps: timelineData.settings.fps,
+        });
+      } else {
+        await ffmpegProcessor.trim({
+          inputPath: clip.localPath,
+          outputPath: trimmedPath,
+          startTime: clip.startTime,
+          endTime: clip.endTime,
+        });
+      }
 
       const hasTransforms =
         clip.transforms &&
@@ -149,6 +167,7 @@ export async function processExportJob(jobId: string, addWatermark: boolean): Pr
           clip.transforms.rotation !== 0 ||
           clip.transforms.opacity !== 1);
       const hasEffects =
+        mediaType === 'video' &&
         clip.effects &&
         (clip.effects.speed !== 1 ||
           clip.effects.volume !== 1 ||
@@ -164,7 +183,7 @@ export async function processExportJob(jobId: string, addWatermark: boolean): Pr
           inputPath: trimmedPath,
           outputPath: effectsPath,
           transforms: clip.transforms,
-          effects: clip.effects,
+          effects: mediaType === 'video' ? clip.effects : undefined,
           outputWidth: timelineData.settings.width,
           outputHeight: timelineData.settings.height,
           durationMs: clipDurationMs,

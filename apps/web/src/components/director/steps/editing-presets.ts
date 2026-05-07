@@ -9,7 +9,14 @@ export interface PlatformPreset {
 }
 
 export interface SubtitlePreset {
-  readonly id: 'viral-pop' | 'meme-pop' | 'clean-bold' | 'neon-glow' | 'creator-box' | 'cinema';
+  readonly id:
+    | 'viral-pop'
+    | 'meme-pop'
+    | 'podcast-duo'
+    | 'clean-bold'
+    | 'neon-glow'
+    | 'creator-box'
+    | 'cinema';
   readonly label: string;
   readonly description: string;
   readonly subtitleStyle: Partial<SubtitleStyle>;
@@ -88,11 +95,13 @@ export const subtitlePresets: SubtitlePreset[] = [
       bgColorToken: 'BG_TRANSPARENT',
       position: 'center',
       animation: 'pop-word',
+      speakerMode: 'single',
+      speakerStyles: [],
     },
   },
   {
     id: 'meme-pop',
-    label: 'Meme Pop',
+    label: 'Meme Green',
     description:
       'Teks hijau neon ala meme, outline hitam tebal, cocok untuk punchline dan reaction.',
     subtitleStyle: {
@@ -103,6 +112,37 @@ export const subtitlePresets: SubtitlePreset[] = [
       bgColorToken: 'BG_TRANSPARENT',
       position: 'center',
       animation: 'pop-word',
+      speakerMode: 'single',
+      speakerStyles: [],
+    },
+  },
+  {
+    id: 'podcast-duo',
+    label: 'Podcast Duo',
+    description: 'Subtitle interview dua warna untuk membedakan penanya dan penjawab.',
+    subtitleStyle: {
+      stylePreset: 'podcast-duo',
+      fontToken: 'F_GROTESK',
+      fontSize: 40,
+      textColorToken: 'C_WHITE',
+      bgColorToken: 'BG_TRANSPARENT',
+      position: 'bottom',
+      animation: 'phrase',
+      speakerMode: 'speaker-colors',
+      speakerStyles: [
+        {
+          speaker: 'Penanya',
+          label: 'Penanya',
+          textColorToken: 'C_CYAN',
+          bgColorToken: 'BG_TRANSPARENT',
+        },
+        {
+          speaker: 'Penjawab',
+          label: 'Penjawab',
+          textColorToken: 'C_YELLOW',
+          bgColorToken: 'BG_TRANSPARENT',
+        },
+      ],
     },
   },
   {
@@ -117,6 +157,8 @@ export const subtitlePresets: SubtitlePreset[] = [
       bgColorToken: 'C_BLACK',
       position: 'bottom',
       animation: 'fade',
+      speakerMode: 'single',
+      speakerStyles: [],
     },
   },
   {
@@ -131,6 +173,8 @@ export const subtitlePresets: SubtitlePreset[] = [
       bgColorToken: 'BG_TRANSPARENT',
       position: 'center',
       animation: 'typewriter',
+      speakerMode: 'single',
+      speakerStyles: [],
     },
   },
   {
@@ -145,6 +189,8 @@ export const subtitlePresets: SubtitlePreset[] = [
       bgColorToken: 'C_BLACK',
       position: 'center',
       animation: 'word',
+      speakerMode: 'single',
+      speakerStyles: [],
     },
   },
   {
@@ -159,6 +205,8 @@ export const subtitlePresets: SubtitlePreset[] = [
       bgColorToken: 'BG_TRANSPARENT',
       position: 'bottom',
       animation: 'phrase',
+      speakerMode: 'single',
+      speakerStyles: [],
     },
   },
 ];

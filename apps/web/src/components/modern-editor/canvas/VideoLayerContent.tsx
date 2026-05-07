@@ -6,6 +6,8 @@ interface VideoLayerContentProps {
   layerStartMs: number;
   layerTrimStartMs?: number;
   volume?: number;
+  fit?: 'cover' | 'contain';
+  loop?: boolean;
 }
 
 export function VideoLayerContent({
@@ -13,6 +15,8 @@ export function VideoLayerContent({
   layerStartMs,
   layerTrimStartMs = 0,
   volume = 1,
+  fit = 'contain',
+  loop = false,
 }: VideoLayerContentProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const { isPlaying, currentTimeMs } = useModernEditorStore();
@@ -58,8 +62,13 @@ export function VideoLayerContent({
     <video
       ref={videoRef}
       src={src}
-      className="w-full h-full object-contain pointer-events-none"
+      className={
+        fit === 'cover'
+          ? 'w-full h-full object-cover pointer-events-none'
+          : 'w-full h-full object-contain pointer-events-none'
+      }
       playsInline
+      loop={loop}
       muted={volume === 0}
     />
   );

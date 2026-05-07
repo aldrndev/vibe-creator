@@ -351,12 +351,16 @@ export default function App() {
               }
             />
             <Route
-              path="/tools/modern-editor"
+              path="/tools/video-studio"
               element={
                 <Suspense fallback={<PageLoader />}>
                   <ModernEditorPage />
                 </Suspense>
               }
+            />
+            <Route
+              path="/tools/modern-editor"
+              element={<Navigate to="/tools/video-studio" replace />}
             />
             <Route
               path="/tools/ai-director"

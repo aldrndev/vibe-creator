@@ -3,7 +3,7 @@
  * Handles transcription jobs
  */
 
-import { DirectorJobStatus } from '@prisma/client';
+import { DirectorJobStatus, type Prisma } from '@prisma/client';
 import { env } from '@/config/env';
 import { logger } from '@/lib/logger';
 import { redis } from '@/lib/redis';
@@ -27,6 +27,42 @@ export interface StartTranscribeOptions {
   language?: TranscribeLanguage;
   subtitleMode?: 'original' | 'translate';
   subtitleTargetLanguage?: TranscribeLanguage;
+}
+
+export interface TranscriptUpdateWord {
+  startMs: number;
+  endMs: number;
+  text: string;
+  confidence?: number;
+  speaker?: string;
+}
+
+export interface TranscriptUpdateSegment {
+  startMs: number;
+  endMs: number;
+  text: string;
+  speaker?: string;
+  words?: TranscriptUpdateWord[];
+}
+
+function toTranscriptJsonSegments(segments: TranscriptUpdateSegment[]): Prisma.InputJsonValue[] {
+  return segments.map((segment) => ({
+    startMs: segment.startMs,
+    endMs: segment.endMs,
+    text: segment.text,
+    ...(segment.speaker ? { speaker: segment.speaker } : {}),
+    ...(segment.words
+      ? {
+          words: segment.words.map((word) => ({
+            startMs: word.startMs,
+            endMs: word.endMs,
+            text: word.text,
+            ...(word.confidence !== undefined ? { confidence: word.confidence } : {}),
+            ...(word.speaker ? { speaker: word.speaker } : {}),
+          })),
+        }
+      : {}),
+  }));
 }
 
 /**
@@ -224,7 +260,7 @@ export const directorTranscribeService = {
     sessionId: string,
     userId: string,
     clipId: string,
-    segments: Array<{ startMs: number; endMs: number; text: string }>,
+    segments: TranscriptUpdateSegment[],
   ) {
     const exists = await directorRepo.exists(sessionId, userId);
 
@@ -232,6 +268,6 @@ export const directorTranscribeService = {
       throw new Error('Session not found');
     }
 
-    return directorRepo.updateClipTranscript(clipId, sessionId, segments);
+    return directorRepo.updateClipTranscript(clipId, sessionId, toTranscriptJsonSegments(segments));
   },
 };

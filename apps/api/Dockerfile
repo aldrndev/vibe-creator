@@ -22,6 +22,7 @@ RUN corepack enable \
     ca-certificates \
     fontconfig \
     fonts-bebas-neue \
+    fonts-cherrybomb \
     fonts-comfortaa \
     fonts-inter \
     fonts-lato \

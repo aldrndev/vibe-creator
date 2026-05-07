@@ -1,5 +1,9 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
+import type {
+  DirectorSubtitleBackgroundColorToken,
+  DirectorSubtitleTextColorToken,
+} from '@/lib/director-subtitle-colors';
 import type { DirectorSubtitleFontToken } from '@/lib/director-subtitle-fonts';
 import type { TargetDurationRange } from '@/lib/director-target-duration';
 import { DEFAULT_TRANSCRIBE_LANGUAGE, type TranscribeLanguage } from '@/lib/transcribe-language';
@@ -130,16 +134,24 @@ export interface SubtitleStyle {
     | 'custom'
     | 'viral-pop'
     | 'meme-pop'
+    | 'podcast-duo'
     | 'clean-bold'
     | 'neon-glow'
     | 'creator-box'
     | 'cinema';
   fontToken: DirectorSubtitleFontToken;
   fontSize: number;
-  textColorToken: string;
-  bgColorToken: string;
+  textColorToken: DirectorSubtitleTextColorToken;
+  bgColorToken: DirectorSubtitleBackgroundColorToken;
   position: 'top' | 'center' | 'bottom';
   animation: 'none' | 'fade' | 'typewriter' | 'word' | 'pop-word' | 'phrase' | 'line';
+  speakerMode: 'single' | 'speaker-colors';
+  speakerStyles: Array<{
+    speaker: string;
+    label: string;
+    textColorToken: DirectorSubtitleTextColorToken;
+    bgColorToken?: DirectorSubtitleBackgroundColorToken;
+  }>;
 }
 
 export interface ExportSettings {
@@ -182,6 +194,8 @@ const defaultSubtitleStyle: SubtitleStyle = {
   bgColorToken: 'BG_TRANSPARENT',
   position: 'center',
   animation: 'pop-word',
+  speakerMode: 'single',
+  speakerStyles: [],
 };
 
 const defaultExportSettings: ExportSettings = {
@@ -231,6 +245,7 @@ interface DirectorState {
   setImportUrl: (url: string) => void;
   setCandidates: (candidates: Candidate[]) => void;
   toggleCandidateSelection: (id: string) => void;
+  clearCandidateSelection: () => void;
   setSelectedClips: (clips: SelectedClip[]) => void;
   setPlayingClipId: (id: string | null) => void;
   setTranscribeJob: (job: TranscribeJob | null) => void;
@@ -287,6 +302,7 @@ export const useDirectorStore = create<DirectorState>()(
         const newSet = isAlreadySelected ? new Set<string>() : new Set([id]);
         return { selectedCandidateIds: newSet };
       }),
+    clearCandidateSelection: () => set({ selectedCandidateIds: new Set() }),
     setSelectedClips: (clips) => set({ selectedClips: clips }),
     setPlayingClipId: (id) => set({ playingClipId: id }),
     setTranscribeJob: (job) => set({ transcribeJob: job }),

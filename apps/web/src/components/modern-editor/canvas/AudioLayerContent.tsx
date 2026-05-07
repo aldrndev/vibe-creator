@@ -35,18 +35,18 @@ export function AudioLayerContent({ layer, assets, layerStartMs }: AudioLayerCon
   useEffect(() => {
     if (!audioRef.current) return;
     const audio = audioRef.current;
-    const layerTimeMs = currentTimeMs - layerStartMs;
+    const layerTimeMs = currentTimeMs - layerStartMs + layer.data.trimStartMs;
     const audioTimeSec = Math.max(0, layerTimeMs / 1000);
 
     if (Math.abs(audio.currentTime - audioTimeSec) > 0.1) {
       audio.currentTime = audioTimeSec;
     }
-  }, [currentTimeMs, layerStartMs]);
+  }, [currentTimeMs, layerStartMs, layer.data.trimStartMs]);
 
   if (!asset) return null;
 
   return (
-    <audio ref={audioRef} src={asset.url}>
+    <audio ref={audioRef} src={asset.url} loop={layer.data.loop}>
       <track kind="captions" label="Decorative audio layer" />
     </audio>
   );

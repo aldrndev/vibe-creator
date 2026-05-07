@@ -45,7 +45,7 @@ const toolsChildren = [
   },
   FEATURES.MODERN_EDITOR && {
     name: 'Video Studio',
-    href: '/tools/modern-editor',
+    href: '/tools/video-studio',
     icon: Wand2,
   },
   { name: 'Edit Video', href: '/tools/editor', icon: Video },
@@ -272,7 +272,7 @@ export function DashboardLayout() {
         <header
           className={cn(
             'flex h-16 items-center justify-between border-b border-border px-6 sticky top-0 z-30 transition-all duration-300',
-            location.pathname.includes('/modern-editor')
+            location.pathname.includes('/video-studio')
               ? 'bg-background border-b-0' // More solid background for editor to avoid ghosting
               : 'bg-card/80 backdrop-blur-md',
           )}
@@ -337,7 +337,7 @@ export function DashboardLayout() {
           className={cn(
             'flex-1 flex flex-col min-w-0', // base styles
             // For Modern Editor (Full Screen Tool), remove padding/overflow to let tool handle it
-            location.pathname.includes('/modern-editor')
+            location.pathname.includes('/video-studio')
               ? 'overflow-hidden p-0'
               : 'overflow-auto p-4 md:p-6 pb-20 md:pb-6',
           )}

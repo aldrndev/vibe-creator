@@ -65,6 +65,14 @@ const transcribeHttpBreaker = createCircuitBreaker(
   },
 );
 
+export interface WhisperRunOptions {
+  readonly vadFilter?: boolean;
+  readonly vadThreshold?: number;
+  readonly vadSpeechPadMs?: number;
+  readonly vadMinSilenceMs?: number;
+  readonly vadMinSpeechMs?: number;
+}
+
 function isObjectRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -162,6 +170,7 @@ export class WhisperRunner {
   private async runWhisperViaHttp(
     audioPath: string,
     language: TranscribeLanguage,
+    options: WhisperRunOptions,
   ): Promise<WhisperResult> {
     const serviceUrl = env.TRANSCRIBE_SERVICE_URL;
     if (!serviceUrl) {
@@ -189,10 +198,11 @@ export class WhisperRunner {
             audioPath,
             wordTimestamps: true,
             language,
-            vadThreshold: env.TRANSCRIBE_VAD_THRESHOLD,
-            vadSpeechPadMs: env.TRANSCRIBE_VAD_SPEECH_PAD_MS,
-            vadMinSilenceMs: env.TRANSCRIBE_VAD_MIN_SILENCE_MS,
-            vadMinSpeechMs: env.TRANSCRIBE_VAD_MIN_SPEECH_MS,
+            vadFilter: options.vadFilter ?? true,
+            vadThreshold: options.vadThreshold ?? env.TRANSCRIBE_VAD_THRESHOLD,
+            vadSpeechPadMs: options.vadSpeechPadMs ?? env.TRANSCRIBE_VAD_SPEECH_PAD_MS,
+            vadMinSilenceMs: options.vadMinSilenceMs ?? env.TRANSCRIBE_VAD_MIN_SILENCE_MS,
+            vadMinSpeechMs: options.vadMinSpeechMs ?? env.TRANSCRIBE_VAD_MIN_SPEECH_MS,
           }),
           signal: AbortSignal.timeout(env.TRANSCRIBE_HTTP_TIMEOUT_MS),
         },
@@ -231,10 +241,22 @@ export class WhisperRunner {
   private async runWhisperLocal(
     audioPath: string,
     language: TranscribeLanguage,
+    options: WhisperRunOptions,
   ): Promise<WhisperResult> {
     return new Promise((resolve, reject) => {
       const pythonCommand = this.getPythonCommand();
-      const pythonProcess = spawn(pythonCommand, [this.scriptPath, audioPath, language]);
+      const pythonProcess = spawn(pythonCommand, [
+        this.scriptPath,
+        audioPath,
+        language,
+        JSON.stringify({
+          vadFilter: options.vadFilter ?? true,
+          vadThreshold: options.vadThreshold ?? env.TRANSCRIBE_VAD_THRESHOLD,
+          vadSpeechPadMs: options.vadSpeechPadMs ?? env.TRANSCRIBE_VAD_SPEECH_PAD_MS,
+          vadMinSilenceMs: options.vadMinSilenceMs ?? env.TRANSCRIBE_VAD_MIN_SILENCE_MS,
+          vadMinSpeechMs: options.vadMinSpeechMs ?? env.TRANSCRIBE_VAD_MIN_SPEECH_MS,
+        }),
+      ]);
 
       let settled = false;
       const timeout = setTimeout(() => {
@@ -305,11 +327,12 @@ export class WhisperRunner {
   async runWhisperOnAudio(
     audioPath: string,
     language: TranscribeLanguage = env.TRANSCRIBE_LANGUAGE,
+    options: WhisperRunOptions = {},
   ): Promise<WhisperResult> {
     const normalizedLanguage = normalizeTranscribeLanguage(language, env.TRANSCRIBE_LANGUAGE);
 
     if (this.shouldUseHttpProvider()) {
-      const httpResult = await this.runWhisperViaHttp(audioPath, normalizedLanguage);
+      const httpResult = await this.runWhisperViaHttp(audioPath, normalizedLanguage, options);
       if (httpResult.success) {
         return httpResult;
       }
@@ -327,7 +350,7 @@ export class WhisperRunner {
       );
     }
 
-    return this.runWhisperLocal(audioPath, normalizedLanguage);
+    return this.runWhisperLocal(audioPath, normalizedLanguage, options);
   }
 }
 

@@ -13,6 +13,7 @@ const createExportSchema = z.object({
     clips: z.array(
       z.object({
         localPath: z.string(),
+        mediaType: z.enum(['video', 'image']).optional().default('video'),
         startTime: z.number(),
         endTime: z.number(),
         transforms: z

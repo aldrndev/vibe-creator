@@ -9,7 +9,7 @@ const navItems = [
   { name: 'AI Director', href: '/tools/ai-director', icon: Sparkles },
   {
     name: 'Video Studio',
-    href: '/tools/modern-editor',
+    href: '/tools/video-studio',
     icon: Wand2,
     isMain: true,
   },

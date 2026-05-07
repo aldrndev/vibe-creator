@@ -3,8 +3,22 @@ import { extname, relative, resolve } from 'node:path';
 import { env } from '@/config/env';
 
 const TEMP_UPLOAD_DIR = resolve(env.MEDIA_INPUT_DIR, 'temp');
-const ALLOWED_VIDEO_EXTENSIONS = new Set(['.mp4', '.m4v', '.mov', '.qt', '.webm']);
-const TEMP_UPLOAD_TOKEN_PATTERN = /^[a-f0-9-]+\.(mp4|m4v|mov|qt|webm)$/i;
+const ALLOWED_MEDIA_EXTENSIONS = new Set([
+  '.mp4',
+  '.m4v',
+  '.mov',
+  '.qt',
+  '.webm',
+  '.jpg',
+  '.jpeg',
+  '.png',
+  '.webp',
+  '.mp3',
+  '.wav',
+  '.ogg',
+]);
+const TEMP_UPLOAD_TOKEN_PATTERN =
+  /^[a-f0-9-]+\.(mp4|m4v|mov|qt|webm|jpg|jpeg|png|webp|mp3|wav|ogg)$/i;
 
 function isUrlLike(value: string): boolean {
   return /^(https?|ftp|file|data):/i.test(value);
@@ -37,7 +51,7 @@ export function validateTempUploadPath(inputPath: string): string {
     throw new Error('Upload path is outside the allowed temp directory');
   }
 
-  if (!ALLOWED_VIDEO_EXTENSIONS.has(extname(resolvedPath).toLowerCase())) {
+  if (!ALLOWED_MEDIA_EXTENSIONS.has(extname(resolvedPath).toLowerCase())) {
     throw new Error('Unsupported uploaded file type');
   }
 

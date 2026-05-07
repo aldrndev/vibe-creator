@@ -17,7 +17,12 @@ import {
   updateTranscribeProgressMeta,
 } from '../director/services/transcribe-progress';
 import { transcribeCacheService } from './transcribe-cache.service';
+import type { SubtitleSegment } from './transcribe-normalizer';
 import { transcribeNormalizer } from './transcribe-normalizer';
+import {
+  getTranscriptTailRecoveryWindow,
+  offsetRecoveredTailSegments,
+} from './transcript-tail-recovery';
 import { transcriptTranslateService } from './transcript-translate.service';
 import { whisperRunner } from './whisper-runner';
 
@@ -38,6 +43,94 @@ async function updateProgressMeta(
       ),
     },
   });
+}
+
+async function unlinkIfExists(filePath: string): Promise<void> {
+  try {
+    await fs.unlink(filePath);
+  } catch {
+    // ignore cleanup failures
+  }
+}
+
+async function recoverMissingTailSegments(params: {
+  inputPath: string;
+  audioProxyDir: string;
+  clipStartMs: number;
+  clipEndMs: number;
+  selectedClipId: string;
+  language: TranscribeLanguage;
+  segments: SubtitleSegment[];
+}): Promise<SubtitleSegment[]> {
+  const clipDurationMs = Math.max(0, params.clipEndMs - params.clipStartMs);
+  const recoveryWindow = getTranscriptTailRecoveryWindow(params.segments, clipDurationMs);
+  if (!recoveryWindow) {
+    return params.segments;
+  }
+
+  const tailStartMs = params.clipStartMs + recoveryWindow.startMs;
+  let tailAudioProxyPath = '';
+
+  try {
+    tailAudioProxyPath = await directorProcessor.extractClipAudioProxy(
+      params.inputPath,
+      params.audioProxyDir,
+      tailStartMs,
+      params.clipEndMs,
+    );
+    const tailResult = await whisperRunner.runWhisperOnAudio(tailAudioProxyPath, params.language, {
+      vadFilter: false,
+    });
+
+    if (!tailResult.success || !tailResult.segments?.length) {
+      logger.warn(
+        {
+          selectedClipId: params.selectedClipId,
+          tailStartMs,
+          clipEndMs: params.clipEndMs,
+          error: tailResult.error,
+        },
+        'Transcript tail recovery produced no segments',
+      );
+      return params.segments;
+    }
+
+    const normalizedTailSegments = transcribeNormalizer.normalizeSegments(tailResult.segments);
+    const recoveredTailSegments = offsetRecoveredTailSegments(
+      normalizedTailSegments,
+      recoveryWindow,
+    );
+
+    if (recoveredTailSegments.length === 0) {
+      return params.segments;
+    }
+
+    logger.info(
+      {
+        selectedClipId: params.selectedClipId,
+        tailStartMs,
+        recoveredSegmentCount: recoveredTailSegments.length,
+      },
+      'Recovered missing transcript tail segments',
+    );
+
+    return [...params.segments, ...recoveredTailSegments].sort((a, b) => a.startMs - b.startMs);
+  } catch (error) {
+    logger.warn(
+      {
+        selectedClipId: params.selectedClipId,
+        tailStartMs,
+        clipEndMs: params.clipEndMs,
+        error,
+      },
+      'Transcript tail recovery failed',
+    );
+    return params.segments;
+  } finally {
+    if (tailAudioProxyPath) {
+      await unlinkIfExists(tailAudioProxyPath);
+    }
+  }
 }
 
 export const transcribeService = {
@@ -192,7 +285,15 @@ export const transcribeService = {
       }
 
       // 3. Normalize
-      const normalizedSegments = transcribeNormalizer.normalizeSegments(result.segments);
+      const normalizedSegments = await recoverMissingTailSegments({
+        inputPath,
+        audioProxyDir,
+        clipStartMs: startMs,
+        clipEndMs: endMs,
+        selectedClipId,
+        language: targetLanguage,
+        segments: transcribeNormalizer.normalizeSegments(result.segments),
+      });
       const finalLanguage =
         subtitleMode === 'translate'
           ? (subtitleTargetLanguage ?? DEFAULT_TRANSCRIBE_LANGUAGE)
@@ -279,11 +380,7 @@ export const transcribeService = {
     } finally {
       // Cleanup temp audio
       if (audioProxyPath) {
-        try {
-          await fs.unlink(audioProxyPath);
-        } catch {
-          // ignore
-        }
+        await unlinkIfExists(audioProxyPath);
       }
     }
   },

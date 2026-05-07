@@ -28,65 +28,44 @@ import {
   TabsContent,
   TabsList,
 } from '@/components/ui';
-import { logger } from '@/lib/logger';
 import { cn } from '@/lib/utils';
 import type { EditorAsset } from '@/stores/editor-store';
-import { useEditorStore } from '@/stores/editor-store';
+import { useModernEditorStore } from '@/stores/modern-editor-store';
 
 interface AssetSidebarProps {
   className?: string;
 }
 
 export function AssetSidebar({ className }: Readonly<AssetSidebarProps>) {
-  const { assets, timeline, addAsset, removeAsset, addClip, addTrack } = useEditorStore();
+  const {
+    assets,
+    addAsset,
+    removeAsset,
+    addAudioLayer,
+    addImageLayer,
+    addSubtitleLayer,
+    addTextLayer,
+    addVideoLayer,
+  } = useModernEditorStore();
 
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleAddAssetToTimeline = useCallback(
     (asset: EditorAsset) => {
-      const trackType = asset.type === 'AUDIO' ? 'AUDIO' : 'VIDEO';
-
-      // Find suitable track or create one (optimistic)
-      let track = timeline.tracks.find((t) => t.type === trackType);
-
-      if (!track) {
-        addTrack(trackType);
-        track = timeline.tracks.find((t) => t.type === trackType);
-        if (!track) {
-          logger.warn('Track not found immediately after addition');
-          return;
-        }
+      if (asset.type === 'VIDEO') {
+        addVideoLayer(asset.id);
+        return;
       }
 
-      if (!track) return;
+      if (asset.type === 'IMAGE') {
+        addImageLayer(asset.id);
+        return;
+      }
 
-      const lastClipEnd = track.clips.length > 0 ? Math.max(...track.clips.map((c) => c.endMs)) : 0;
-
-      addClip(track.id, {
-        assetId: asset.id,
-        startMs: lastClipEnd,
-        endMs: lastClipEnd + (asset.durationMs || 5000),
-        trimStartMs: 0,
-        trimEndMs: 0,
-        transforms: {
-          x: 0,
-          y: 0,
-          scale: 1,
-          rotation: 0,
-          opacity: 1,
-        },
-        effects: {
-          filters: [],
-          speed: 1,
-          volume: 1,
-          fadeIn: 0,
-          fadeOut: 0,
-        },
-        asset: asset,
-      });
+      addAudioLayer(asset.id);
     },
-    [timeline, addClip, addTrack],
+    [addAudioLayer, addImageLayer, addVideoLayer],
   );
 
   const handleFiles = useCallback(
@@ -171,6 +150,7 @@ export function AssetSidebar({ className }: Readonly<AssetSidebarProps>) {
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       handleFiles(e.target.files);
+      e.target.value = '';
     }
   };
 
@@ -225,9 +205,7 @@ export function AssetSidebar({ className }: Readonly<AssetSidebarProps>) {
           size="sm"
           className="flex-1 rounded-xl font-bold h-9 md:h-10 border-border/40 bg-card/50 hover:bg-card/70 backdrop-blur-sm"
           variant="outline"
-          onClick={() => {
-            /* Add Text Logic */
-          }}
+          onClick={() => addTextLayer('Text layer')}
         >
           <Type size={14} className="mr-2 text-primary md:w-4 md:h-4" />
           Text
@@ -236,9 +214,7 @@ export function AssetSidebar({ className }: Readonly<AssetSidebarProps>) {
           size="sm"
           className="flex-1 rounded-xl font-bold h-9 md:h-10 border-border/40 bg-card/50 hover:bg-card/70 backdrop-blur-sm"
           variant="outline"
-          onClick={() => {
-            /* Add Subtitle Logic */
-          }}
+          onClick={() => addSubtitleLayer('Subtitle text...')}
         >
           <Subtitles size={14} className="mr-2 text-primary md:w-4 md:h-4" />
           Subtitle

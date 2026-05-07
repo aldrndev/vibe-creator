@@ -13,6 +13,21 @@ import {
   wrapSubtitleText,
 } from '@/modules/director/processing/video-export-subtitles';
 
+function extractAssDialogueText(dialogueLine: string): string {
+  return dialogueLine.replace(/^Dialogue: 0,[^,]+,[^,]+,Default,,0,0,0,,/, '');
+}
+
+function stripAssOverrides(text: string): string {
+  return text.replaceAll(/\{[^}]*\}/g, '');
+}
+
+function extractVisibleAssLines(dialogueLine: string): string[] {
+  return extractAssDialogueText(dialogueLine)
+    .split(String.raw`\N`)
+    .map((line) => stripAssOverrides(line).replaceAll(/\s+/g, ' ').trim())
+    .filter(Boolean);
+}
+
 describe('videoExportService helpers', () => {
   it('builds subtitle style from session subtitle settings', () => {
     const forceStyle = buildSubtitleForceStyle({
@@ -39,7 +54,7 @@ describe('videoExportService helpers', () => {
       position: 'center',
     });
 
-    expect(forceStyle).toContain('Fontname=Bebas Neue');
+    expect(forceStyle).toContain('Fontname=Cherry Bomb One');
   });
 
   it('renders meme pop subtitles with uppercase condensed font and glyph outline', () => {
@@ -56,14 +71,134 @@ describe('videoExportService helpers', () => {
     const styleFields = styleLine?.split(',') ?? [];
 
     expect(asset.extension).toBe('ass');
-    expect(styleFields[1]).toBe('Bebas Neue');
+    expect(styleFields[1]).toBe('Cherry Bomb One');
     expect(styleFields[15]).toBe('1');
-    expect(styleFields[16]).toBe('5');
+    expect(styleFields[16]).toBe('6');
     expect(styleFields[17]).toBe('0');
     expect(asset.content).toContain(String.raw`\c&H002BFF00&`);
-    expect(asset.content).toContain(String.raw`\bord5`);
+    expect(asset.content).toContain(String.raw`\bord6`);
     expect(asset.content).toContain('OH');
     expect(asset.content).not.toContain('oh');
+  });
+
+  it('renders speaker colors per subtitle segment when speaker color mode is enabled', () => {
+    const asset = createSubtitleAsset(
+      [
+        { startMs: 0, endMs: 1_000, text: 'Pertanyaan pertama', speaker: 'Penanya' },
+        { startMs: 1_100, endMs: 2_000, text: 'Jawaban utama', speaker: 'Penjawab' },
+      ],
+      {
+        stylePreset: 'podcast-duo',
+        animation: 'phrase',
+        textColorToken: 'C_WHITE',
+        bgColorToken: 'BG_TRANSPARENT',
+        speakerMode: 'speaker-colors',
+        speakerStyles: [
+          { speaker: 'Penanya', label: 'Penanya', textColorToken: 'C_CYAN' },
+          { speaker: 'Penjawab', label: 'Penjawab', textColorToken: 'C_YELLOW' },
+        ],
+      },
+    );
+
+    const dialogueLines = asset.content.split('\n').filter((line) => line.startsWith('Dialogue:'));
+
+    expect(dialogueLines[0]).toContain(String.raw`\c&H00EED322&`);
+    expect(dialogueLines[1]).toContain(String.raw`\c&H0000FFFF&`);
+    expect(dialogueLines[0]).toContain('Pertanyaan pertama');
+    expect(dialogueLines[1]).toContain('Jawaban utama');
+  });
+
+  it('uses the available portrait width for Cinema phrase captions', () => {
+    const asset = createSubtitleAsset(
+      [
+        {
+          startMs: 0,
+          endMs: 2_400,
+          text: "Okay, well, I mean, there's Susan, so let's go get",
+        },
+      ],
+      {
+        stylePreset: 'cinema',
+        animation: 'phrase',
+        fontToken: 'F_SERIF',
+        fontSize: 30,
+        textColorToken: 'C_WHITE',
+        bgColorToken: 'BG_TRANSPARENT',
+        position: 'bottom',
+        aspectRatio: '9:16',
+        quality: '1080p',
+      },
+    );
+
+    const dialogueLine =
+      asset.content.split('\n').find((line) => line.startsWith('Dialogue:')) ?? '';
+    const visibleLines = extractVisibleAssLines(dialogueLine);
+
+    expect(visibleLines).toEqual(["Okay, well, I mean, there's Susan, so let's", 'go get']);
+  });
+
+  it('keeps long Podcast Duo phrase captions to two visible lines per cue', () => {
+    const asset = createSubtitleAsset(
+      [
+        {
+          startMs: 0,
+          endMs: 4_000,
+          text: 'The quest is to escort me to her last known location, the summit of Mount Shmargle',
+          speaker: 'Penanya',
+        },
+      ],
+      {
+        stylePreset: 'podcast-duo',
+        animation: 'phrase',
+        fontSize: 24,
+        textColorToken: 'C_WHITE',
+        bgColorToken: 'BG_TRANSPARENT',
+        speakerMode: 'speaker-colors',
+        speakerStyles: [{ speaker: 'Penanya', label: 'Penanya', textColorToken: 'C_CYAN' }],
+        aspectRatio: '9:16',
+        quality: '1080p',
+      },
+    );
+
+    const dialogueLines = asset.content.split('\n').filter((line) => line.startsWith('Dialogue:'));
+    const visibleLineGroups = dialogueLines.map(extractVisibleAssLines);
+
+    expect(asset.content).toContain('WrapStyle: 0');
+    expect(dialogueLines.length).toBe(1);
+    expect(dialogueLines.every((line) => line.includes(String.raw`\c&H00EED322&`))).toBe(true);
+    expect(visibleLineGroups.every((lines) => lines.length <= 2)).toBe(true);
+    expect(visibleLineGroups.flat().every((line) => line.length <= 44)).toBe(true);
+  });
+
+  it('splits very long Podcast Duo phrase captions instead of rendering three lines', () => {
+    const asset = createSubtitleAsset(
+      [
+        {
+          startMs: 0,
+          endMs: 5_000,
+          text: 'The quest is to escort me to her last known location, the summit of Mount Shmargle, before anything worse happens tonight',
+          speaker: 'Penanya',
+        },
+      ],
+      {
+        stylePreset: 'podcast-duo',
+        animation: 'phrase',
+        fontSize: 24,
+        textColorToken: 'C_WHITE',
+        bgColorToken: 'BG_TRANSPARENT',
+        speakerMode: 'speaker-colors',
+        speakerStyles: [{ speaker: 'Penanya', label: 'Penanya', textColorToken: 'C_CYAN' }],
+        aspectRatio: '9:16',
+        quality: '1080p',
+      },
+    );
+
+    const dialogueLines = asset.content.split('\n').filter((line) => line.startsWith('Dialogue:'));
+    const visibleLineGroups = dialogueLines.map(extractVisibleAssLines);
+
+    expect(dialogueLines.length).toBeGreaterThan(1);
+    expect(visibleLineGroups.every((lines) => lines.length <= 2)).toBe(true);
+    expect(visibleLineGroups.flat().every((line) => line.length <= 44)).toBe(true);
   });
 
   it('limits subtitle font size based on cinematic content mode', () => {
@@ -261,6 +396,60 @@ describe('videoExportService helpers', () => {
     expect(finalDialogue).toContain(String.raw`\fscx118`);
     expect(finalDialogue).not.toContain("Let's");
     expect(finalDialogue).not.toContain('go get her before');
+  });
+
+  it('keeps Viral Pop karaoke captions from expanding to a full sentence on wide outputs', () => {
+    const asset = createSubtitleAsset(
+      [
+        {
+          startMs: 0,
+          endMs: 5_200,
+          text: 'The quest is to escort me to her last known location, the summit of Mount Shmargle',
+          words: [
+            { startMs: 0, endMs: 250, text: 'The' },
+            { startMs: 250, endMs: 500, text: 'quest' },
+            { startMs: 500, endMs: 700, text: 'is' },
+            { startMs: 700, endMs: 900, text: 'to' },
+            { startMs: 900, endMs: 1_250, text: 'escort' },
+            { startMs: 1_250, endMs: 1_450, text: 'me' },
+            { startMs: 1_450, endMs: 1_650, text: 'to' },
+            { startMs: 1_650, endMs: 1_900, text: 'her' },
+            { startMs: 1_900, endMs: 2_250, text: 'last' },
+            { startMs: 2_250, endMs: 2_650, text: 'known' },
+            { startMs: 2_650, endMs: 3_100, text: 'location,' },
+            { startMs: 3_100, endMs: 3_350, text: 'the' },
+            { startMs: 3_350, endMs: 3_850, text: 'summit' },
+            { startMs: 3_850, endMs: 4_050, text: 'of' },
+            { startMs: 4_050, endMs: 4_450, text: 'Mount' },
+            { startMs: 4_450, endMs: 5_200, text: 'Shmargle' },
+          ],
+        },
+      ],
+      {
+        stylePreset: 'viral-pop',
+        animation: 'typewriter',
+        fontToken: 'F_DISPLAY',
+        fontSize: 24,
+        textColorToken: 'C_YELLOW',
+        bgColorToken: 'BG_TRANSPARENT',
+        position: 'center',
+        aspectRatio: '16:9',
+        quality: '1080p',
+      },
+    );
+
+    const finalDialogue =
+      asset.content
+        .split('\n')
+        .filter((line) => line.startsWith('Dialogue:'))
+        .at(-1) ?? '';
+    const finalText = stripAssOverrides(extractAssDialogueText(finalDialogue))
+      .replaceAll(/\s+/g, ' ')
+      .trim();
+
+    expect(finalText).toContain('Shmargle');
+    expect(finalText.length).toBeLessThanOrEqual(56);
+    expect(finalText).not.toContain('quest is to escort me');
   });
 
   it('creates ASS word-by-word subtitles when word animation is selected', () => {

@@ -15,12 +15,21 @@ type SubtitleStylePreset =
   | 'custom'
   | 'viral-pop'
   | 'meme-pop'
+  | 'podcast-duo'
   | 'clean-bold'
   | 'neon-glow'
   | 'creator-box'
   | 'cinema';
+type SubtitleSpeakerMode = 'single' | 'speaker-colors';
 type ExportAspectRatio = '9:16' | '16:9' | '1:1';
 type ExportQuality = '720p' | '1080p';
+
+export interface SubtitleSpeakerStyle {
+  speaker: string;
+  label: string;
+  textColorToken: string;
+  bgColorToken?: string;
+}
 
 export interface SubtitleStyleOptions {
   stylePreset?: SubtitleStylePreset | string;
@@ -30,6 +39,8 @@ export interface SubtitleStyleOptions {
   fontSize?: number;
   position?: SubtitlePosition;
   animation?: string;
+  speakerMode?: SubtitleSpeakerMode | string;
+  speakerStyles?: unknown;
   contentMode?: SubtitleContentMode;
   aspectRatio?: ExportAspectRatio;
   quality?: ExportQuality;
@@ -60,9 +71,19 @@ const POP_WORD_SETTLE_MS = 220;
 const POP_KARAOKE_LINE_WIDTH_RATIO = 0.8;
 const POP_WORD_OUTLINE = 4;
 const POP_KARAOKE_BASE_OUTLINE = 3;
-const MEME_POP_OUTLINE = 5;
+const MEME_POP_OUTLINE = 6;
 const POP_WORD_SHADOW = 2;
 const MEME_POP_SHADOW = 0;
+const MAX_SPEAKER_STYLE_COUNT = 8;
+const SUBTITLE_SAFE_WIDTH_RATIO = 0.9;
+const SUBTITLE_AVERAGE_GLYPH_WIDTH_RATIO = 0.66;
+const SUBTITLE_HORIZONTAL_MARGIN_RATIO = 0.05;
+const ASS_HARD_LINE_LENGTH_MAX = 72;
+const subtitleLineLengthMaxByAspectRatio: Record<ExportAspectRatio, number> = {
+  '9:16': 44,
+  '1:1': 56,
+  '16:9': 72,
+};
 export const DIRECTOR_SUBTITLE_FONT_SIZE_MIN = 16;
 export const DIRECTOR_SUBTITLE_FONT_SIZE_MAX = 72;
 const DEFAULT_SUBTITLE_FONT_SIZE_MAX = 64;
@@ -174,8 +195,7 @@ function resolveHorizontalMargin(
   aspectRatio: ExportAspectRatio | undefined,
 ): number {
   const frameWidth = resolveRenderWidth(quality, aspectRatio);
-  // ~2% of frame width, minimum 14px
-  return Math.max(14, Math.round(frameWidth * 0.02));
+  return Math.max(24, Math.round(frameWidth * SUBTITLE_HORIZONTAL_MARGIN_RATIO));
 }
 
 function resolveSubtitleLineLength(
@@ -183,13 +203,20 @@ function resolveSubtitleLineLength(
   quality?: ExportQuality,
   aspectRatio?: ExportAspectRatio,
 ): number {
+  const safeAspectRatio = aspectRatio ?? '9:16';
   const frameWidth = resolveRenderWidth(quality, aspectRatio);
-  // Calculate based on user suggestion: max width 90% of frame width
-  const availableWidth = frameWidth * 0.9;
-  // Inter font typical character width is ~55% of its height
-  const averageCharWidth = fontSize * 0.55;
+  const availableWidth = frameWidth * SUBTITLE_SAFE_WIDTH_RATIO;
+  const averageCharWidth = fontSize * SUBTITLE_AVERAGE_GLYPH_WIDTH_RATIO;
   const maxChars = Math.floor(availableWidth / averageCharWidth);
-  return Math.max(14, maxChars);
+  return Math.max(14, Math.min(subtitleLineLengthMaxByAspectRatio[safeAspectRatio], maxChars));
+}
+
+function normalizeAssLineLength(lineLength: number): number {
+  if (!Number.isFinite(lineLength)) {
+    return TARGET_SUBTITLE_LINE_LENGTH_BASE;
+  }
+
+  return Math.max(14, Math.min(ASS_HARD_LINE_LENGTH_MAX, Math.floor(lineLength)));
 }
 
 function resolveMaxCharsPerCue(
@@ -268,6 +295,48 @@ export function resolveSubtitleFontSize(
   // on 720p/16:9/1:1 as it does on a 1080p 9:16 canvas (base height 1920).
   const scaledFontSize = Math.round(baseFontSize * (renderHeight / MARGIN_V_BASE_HEIGHT));
   return Math.max(DIRECTOR_SUBTITLE_FONT_SIZE_MIN, scaledFontSize);
+}
+
+export function normalizeSubtitleSpeakerStyles(value: unknown): SubtitleSpeakerStyle[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const speakerStyles: SubtitleSpeakerStyle[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) {
+      continue;
+    }
+
+    const speaker =
+      'speaker' in item && typeof item.speaker === 'string' ? item.speaker.trim() : '';
+    const label = 'label' in item && typeof item.label === 'string' ? item.label.trim() : speaker;
+    const textColorToken =
+      'textColorToken' in item && typeof item.textColorToken === 'string'
+        ? item.textColorToken.trim()
+        : '';
+    const bgColorToken =
+      'bgColorToken' in item && typeof item.bgColorToken === 'string'
+        ? item.bgColorToken.trim()
+        : undefined;
+
+    if (!speaker || !label || !textColorToken) {
+      continue;
+    }
+
+    speakerStyles.push({
+      speaker,
+      label,
+      textColorToken,
+      ...(bgColorToken ? { bgColorToken } : {}),
+    });
+
+    if (speakerStyles.length >= MAX_SPEAKER_STYLE_COUNT) {
+      break;
+    }
+  }
+
+  return speakerStyles;
 }
 
 export function escapeSubtitleFilterValue(value: string): string {
@@ -434,6 +503,36 @@ function formatStyledCueText(text: string, style?: SubtitleStyleOptions): string
   return isMemePopStyle(style) ? normalizedText.toUpperCase() : normalizedText;
 }
 
+function formatStyledWrappedCueText(text: string, style?: SubtitleStyleOptions): string {
+  return text
+    .split('\n')
+    .map((line) => formatStyledCueText(line, style))
+    .filter(Boolean)
+    .join('\n');
+}
+
+function resolveSpeakerSubtitleStyle(
+  style: SubtitleStyleOptions | undefined,
+  speaker: string | undefined,
+): SubtitleStyleOptions | undefined {
+  if (!style || style.speakerMode !== 'speaker-colors' || !speaker) {
+    return style;
+  }
+
+  const speakerStyle = normalizeSubtitleSpeakerStyles(style.speakerStyles).find(
+    (candidate) => candidate.speaker === speaker,
+  );
+  if (!speakerStyle) {
+    return style;
+  }
+
+  return {
+    ...style,
+    textColorToken: speakerStyle.textColorToken,
+    bgColorToken: speakerStyle.bgColorToken ?? style.bgColorToken,
+  };
+}
+
 function countWords(text: string): number {
   return normalizeCueText(text).split(' ').filter(Boolean).length;
 }
@@ -578,9 +677,10 @@ export function generateASS(
     .map((segment) => {
       const start = formatAssTime(segment.startMs);
       const end = formatAssTime(segment.endMs);
+      const segmentStyle = resolveSpeakerSubtitleStyle(style, segment.speaker);
       const text = useKaraoke
-        ? buildKaraokeText(segment, lineLength, style)
-        : escapeAssText(formatStyledCueText(segment.text, style)).replaceAll('\n', String.raw`\N`);
+        ? buildKaraokeText(segment, lineLength, segmentStyle)
+        : buildStaticAssText(segment.text, segmentStyle);
       return `Dialogue: 0,${start},${end},Default,,0,0,0,,${text}`;
     })
     .join('\n');
@@ -590,7 +690,7 @@ export function generateASS(
     'ScriptType: v4.00+',
     `PlayResX: ${playResolution.width}`,
     `PlayResY: ${playResolution.height}`,
-    'WrapStyle: 2',
+    'WrapStyle: 0',
     'ScaledBorderAndShadow: yes',
     '',
     '[V4+ Styles]',
@@ -616,7 +716,7 @@ export function generatePopWordASS(
     'ScriptType: v4.00+',
     `PlayResX: ${playResolution.width}`,
     `PlayResY: ${playResolution.height}`,
-    'WrapStyle: 2',
+    'WrapStyle: 0',
     'ScaledBorderAndShadow: yes',
     '',
     '[V4+ Styles]',
@@ -642,7 +742,7 @@ export function generatePopKaraokeASS(
     'ScriptType: v4.00+',
     `PlayResX: ${playResolution.width}`,
     `PlayResY: ${playResolution.height}`,
-    'WrapStyle: 2',
+    'WrapStyle: 0',
     'ScaledBorderAndShadow: yes',
     '',
     '[V4+ Styles]',
@@ -660,7 +760,8 @@ function buildPopWordEvents(segments: SubtitleSegment[], style?: SubtitleStyleOp
     resolveKaraokeWords(segment).map((word) => {
       const start = formatAssTime(word.startMs);
       const end = formatAssTime(word.endMs);
-      const text = buildPopWordText(word.text, Math.max(1, word.endMs - word.startMs), style);
+      const wordStyle = resolveSpeakerSubtitleStyle(style, word.speaker ?? segment.speaker);
+      const text = buildPopWordText(word.text, Math.max(1, word.endMs - word.startMs), wordStyle);
       return `Dialogue: 0,${start},${end},Default,,0,0,0,,${text}`;
     }),
   );
@@ -676,8 +777,9 @@ function buildPopKaraokeEvents(
       const nextWord = words[index + 1];
       const start = formatAssTime(word.startMs);
       const end = formatAssTime(nextWord?.startMs ?? segment.endMs);
-      const visibleWords = resolvePopKaraokeVisibleWords(words, index, style);
-      const text = buildPopKaraokeText(visibleWords.words, visibleWords.activeIndex, style);
+      const wordStyle = resolveSpeakerSubtitleStyle(style, word.speaker ?? segment.speaker);
+      const visibleWords = resolvePopKaraokeVisibleWords(words, index, wordStyle);
+      const text = buildPopKaraokeText(visibleWords.words, visibleWords.activeIndex, wordStyle);
       return `Dialogue: 0,${start},${end},Default,,0,0,0,,${text}`;
     });
   });
@@ -698,7 +800,10 @@ function resolvePopKaraokeVisibleWords(
 
   const activeFontSize = resolvePopWordFontSize(style);
   const lineLength = resolveSubtitleLineLength(activeFontSize, style?.quality, style?.aspectRatio);
-  const maxVisibleChars = Math.max(10, Math.floor(lineLength * POP_KARAOKE_LINE_WIDTH_RATIO));
+  const maxVisibleChars = Math.max(
+    10,
+    Math.floor(normalizeAssLineLength(lineLength) * POP_KARAOKE_LINE_WIDTH_RATIO),
+  );
   const visibleWords: SubtitleWord[] = [activeWord];
   let visibleCharCount = normalizeCueText(activeWord.text).length;
 
@@ -834,10 +939,13 @@ export function segmentSubtitlesForAss(
   segments: SubtitleSegment[],
   lineLength: number = TARGET_SUBTITLE_LINE_LENGTH_BASE,
 ): SubtitleSegment[] {
+  const safeLineLength = normalizeAssLineLength(lineLength);
+  const maxChars = safeLineLength * DEFAULT_SUBTITLE_LINE_COUNT;
   return segments
+    .flatMap((segment) => splitSubtitleCue(segment, maxChars))
     .map((segment) => ({
       ...segment,
-      text: wrapSubtitleText(segment.text, lineLength),
+      text: wrapSubtitleText(segment.text, safeLineLength),
     }))
     .filter((segment) => segment.text.trim().length > 0);
 }
@@ -914,6 +1022,7 @@ export function splitSubtitleCue(
       : Math.min(segment.endMs, cursor + proportionalDurationMs, cursor + remainingDurationMs);
 
     const splitSegment = {
+      ...segment,
       startMs: cursor,
       endMs: isLastChunk
         ? segment.endMs
@@ -922,6 +1031,7 @@ export function splitSubtitleCue(
             Math.max(nextEndMs, Math.min(segment.endMs, cursor + MIN_SUBTITLE_CUE_DURATION_MS)),
           ),
       text: chunk,
+      words: undefined,
     };
 
     cursor = splitSegment.endMs;
@@ -1127,7 +1237,7 @@ function buildKaraokeText(
     textParts.push(String.raw`{\k${Math.max(1, Math.round(trailingGapMs / 10))}}`);
   }
 
-  return wrapAssKaraokeText(textParts.join(''), lineLength);
+  return `${buildAssColorOverride(style)}${wrapAssKaraokeText(textParts.join(''), lineLength)}`;
 }
 
 function resolveKaraokeWords(segment: SubtitleSegment): SubtitleWord[] {
@@ -1188,8 +1298,9 @@ function resolveKaraokeWords(segment: SubtitleSegment): SubtitleWord[] {
 }
 
 function wrapAssKaraokeText(text: string, lineLength: number): string {
-  const plainText = text.replaceAll(/\{\\k\d+\}/g, '').trim();
-  if (plainText.length <= lineLength) {
+  const safeLineLength = normalizeAssLineLength(lineLength);
+  const plainText = stripAssOverrideTags(text).trim();
+  if (plainText.length <= safeLineLength) {
     return text;
   }
 
@@ -1199,7 +1310,7 @@ function wrapAssKaraokeText(text: string, lineLength: number): string {
   let currentVisibleCount = 0;
 
   for (const part of parts) {
-    const plainPart = part.replaceAll(/\{\\k\d+\}/g, '');
+    const plainPart = stripAssOverrideTags(part);
     const partLen = plainPart.length;
 
     if (currentLineParts.length === 0) {
@@ -1207,7 +1318,7 @@ function wrapAssKaraokeText(text: string, lineLength: number): string {
       currentVisibleCount = partLen;
     } else {
       const nextVisibleCount = currentVisibleCount + 1 + partLen;
-      if (nextVisibleCount <= lineLength) {
+      if (nextVisibleCount <= safeLineLength) {
         currentLineParts.push(part);
         currentVisibleCount = nextVisibleCount;
       } else {
@@ -1225,11 +1336,35 @@ function wrapAssKaraokeText(text: string, lineLength: number): string {
   return lines.map((lineContent) => lineContent.join(' ')).join(String.raw`\N`);
 }
 
+function stripAssOverrideTags(text: string): string {
+  return text.replaceAll(/\{[^}]*\}/g, '');
+}
+
 function escapeAssText(text: string): string {
   return text
     .replaceAll('\\', String.raw`\\`)
     .replaceAll('{', String.raw`\{`)
     .replaceAll('}', String.raw`\}`);
+}
+
+function buildAssColorOverride(style?: SubtitleStyleOptions): string {
+  const primaryColor = formatAssOverrideColor(
+    mapTextColorToken(style?.textColorToken, '&H00FFFFFF'),
+  );
+  const secondaryColor = formatAssOverrideColor(mapHighlightColorToken(style?.textColorToken));
+  const backColor = formatAssOverrideColor(
+    mapBackgroundColorToken(style?.bgColorToken, '&H80000000'),
+  );
+
+  return String.raw`{\c${primaryColor}\2c${secondaryColor}\4c${backColor}}`;
+}
+
+function buildStaticAssText(text: string, style?: SubtitleStyleOptions): string {
+  const escapedText = escapeAssText(formatStyledWrappedCueText(text, style)).replaceAll(
+    '\n',
+    String.raw`\N`,
+  );
+  return `${buildAssColorOverride(style)}${escapedText}`;
 }
 
 function mapTextColorToken(colorToken: string | undefined, fallback: string): string {
@@ -1238,6 +1373,12 @@ function mapTextColorToken(colorToken: string | undefined, fallback: string): st
       return '&H00000000';
     case 'C_ORANGE':
       return '&H000066FF';
+    case 'C_CYAN':
+      return '&H00EED322';
+    case 'C_BLUE':
+      return '&H00FAA560';
+    case 'C_PINK':
+      return '&H00D84FFF';
     case 'C_GREEN':
       return '&H002BFF00';
     case 'C_YELLOW':
@@ -1251,6 +1392,12 @@ function mapTextColorToken(colorToken: string | undefined, fallback: string): st
 
 function mapHighlightColorToken(colorToken?: string): string {
   switch (colorToken) {
+    case 'C_CYAN':
+      return '&H00FFFFFF';
+    case 'C_BLUE':
+      return '&H00FFFFFF';
+    case 'C_PINK':
+      return '&H00FFFFFF';
     case 'C_ORANGE':
       return '&H0000FFFF';
     case 'C_YELLOW':
@@ -1272,6 +1419,12 @@ function mapBackgroundColorToken(colorToken: string | undefined, fallback: strin
       return '&H80FFFFFF';
     case 'C_ORANGE':
       return '&H800066FF';
+    case 'C_CYAN':
+      return '&H80EED322';
+    case 'C_BLUE':
+      return '&H80FAA560';
+    case 'C_PINK':
+      return '&H80D84FFF';
     case 'C_GREEN':
       return '&H802BFF00';
     case 'C_BLACK':

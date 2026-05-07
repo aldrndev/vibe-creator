@@ -185,6 +185,7 @@ export function LayerStack({ className }: LayerStackProps) {
                 <Button
                   size="icon"
                   variant="ghost"
+                  aria-label={layer.visible ? 'Hide layer' : 'Show layer'}
                   className="h-8 w-8 hover:bg-primary/20 hover:text-primary transition-colors"
                   onClick={(e) => {
                     e.stopPropagation();
@@ -196,6 +197,7 @@ export function LayerStack({ className }: LayerStackProps) {
                 <Button
                   size="icon"
                   variant="ghost"
+                  aria-label={layer.locked ? 'Unlock layer' : 'Lock layer'}
                   className="h-8 w-8 hover:bg-primary/20 hover:text-primary transition-colors"
                   onClick={(e) => {
                     e.stopPropagation();
@@ -207,6 +209,7 @@ export function LayerStack({ className }: LayerStackProps) {
                 <Button
                   size="icon"
                   variant="ghost"
+                  aria-label="Duplicate layer"
                   className="h-8 w-8 hover:bg-muted-foreground/10"
                   onClick={(e) => {
                     e.stopPropagation();
@@ -218,6 +221,7 @@ export function LayerStack({ className }: LayerStackProps) {
                 <Button
                   size="icon"
                   variant="ghost"
+                  aria-label="Delete layer"
                   className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive ml-auto"
                   onClick={(e) => {
                     e.stopPropagation();

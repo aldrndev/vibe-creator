@@ -39,7 +39,40 @@ def resolve_language(raw_language: str | None) -> str | None:
     return normalize_language(default_language)
 
 
-def transcribe_audio(file_path, language):
+def parse_transcribe_options(raw_options: str | None) -> dict:
+    if raw_options is None:
+        return {}
+
+    try:
+        parsed = json.loads(raw_options)
+    except json.JSONDecodeError:
+        return {}
+
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def resolve_bool_option(options: dict, key: str, default: bool) -> bool:
+    value = options.get(key)
+    if isinstance(value, bool):
+        return value
+    return default
+
+
+def resolve_float_option(options: dict, key: str, default: float) -> float:
+    value = options.get(key)
+    if isinstance(value, (int, float)):
+        return float(value)
+    return default
+
+
+def resolve_int_option(options: dict, key: str, default: int) -> int:
+    value = options.get(key)
+    if isinstance(value, int):
+        return value
+    return default
+
+
+def transcribe_audio(file_path, language, options):
     try:
         # Check if file exists
         if not os.path.exists(file_path):
@@ -60,16 +93,33 @@ def transcribe_audio(file_path, language):
         model = WhisperModel(model_size, device="cpu", compute_type="int8", download_root=os.environ.get("HF_HOME"))
 
         # Configure VAD parameters from env
-        vad_threshold = float(os.environ.get("TRANSCRIBE_VAD_THRESHOLD", "0.5"))
-        vad_speech_pad_ms = int(os.environ.get("TRANSCRIBE_VAD_SPEECH_PAD_MS", "300"))
-        vad_min_silence_ms = int(os.environ.get("TRANSCRIBE_VAD_MIN_SILENCE_MS", "200"))
-        vad_min_speech_ms = int(os.environ.get("TRANSCRIBE_VAD_MIN_SPEECH_MS", "80"))
+        vad_filter = resolve_bool_option(options, "vadFilter", True)
+        vad_threshold = resolve_float_option(
+            options,
+            "vadThreshold",
+            float(os.environ.get("TRANSCRIBE_VAD_THRESHOLD", "0.5")),
+        )
+        vad_speech_pad_ms = resolve_int_option(
+            options,
+            "vadSpeechPadMs",
+            int(os.environ.get("TRANSCRIBE_VAD_SPEECH_PAD_MS", "300")),
+        )
+        vad_min_silence_ms = resolve_int_option(
+            options,
+            "vadMinSilenceMs",
+            int(os.environ.get("TRANSCRIBE_VAD_MIN_SILENCE_MS", "200")),
+        )
+        vad_min_speech_ms = resolve_int_option(
+            options,
+            "vadMinSpeechMs",
+            int(os.environ.get("TRANSCRIBE_VAD_MIN_SPEECH_MS", "80")),
+        )
 
         segments, info = model.transcribe(
             file_path, 
             beam_size=5, 
             word_timestamps=True,
-            vad_filter=True,
+            vad_filter=vad_filter,
             vad_parameters={
                 "threshold": vad_threshold,
                 "min_silence_duration_ms": vad_min_silence_ms,
@@ -127,5 +177,7 @@ if __name__ == "__main__":
     
     file_path = sys.argv[1]
     language_arg = sys.argv[2] if len(sys.argv) >= 3 else None
+    options_arg = sys.argv[3] if len(sys.argv) >= 4 else None
     target_language = resolve_language(language_arg)
-    transcribe_audio(file_path, target_language)
+    transcribe_options = parse_transcribe_options(options_arg)
+    transcribe_audio(file_path, target_language, transcribe_options)

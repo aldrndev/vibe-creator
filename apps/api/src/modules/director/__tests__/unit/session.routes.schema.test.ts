@@ -50,6 +50,32 @@ describe('updateSubtitleStyleSchema', () => {
     expect(parsed.fontToken).toBe('F_MEME');
   });
 
+  it('accepts podcast duo speaker color settings', () => {
+    const parsed = updateSubtitleStyleSchema.parse({
+      stylePreset: 'podcast-duo',
+      speakerMode: 'speaker-colors',
+      textColorToken: 'C_CYAN',
+      bgColorToken: 'BG_TRANSPARENT',
+      speakerStyles: [
+        {
+          speaker: 'Penanya',
+          label: 'Penanya',
+          textColorToken: 'C_CYAN',
+          bgColorToken: 'BG_TRANSPARENT',
+        },
+        {
+          speaker: 'Penjawab',
+          label: 'Penjawab',
+          textColorToken: 'C_YELLOW',
+        },
+      ],
+    });
+
+    expect(parsed.stylePreset).toBe('podcast-duo');
+    expect(parsed.speakerMode).toBe('speaker-colors');
+    expect(parsed.speakerStyles).toHaveLength(2);
+  });
+
   it('accepts modern subtitle font tokens', () => {
     const parsed = updateSubtitleStyleSchema.parse({
       fontToken: 'F_DISPLAY',
@@ -62,6 +88,29 @@ describe('updateSubtitleStyleSchema', () => {
     expect(() =>
       updateSubtitleStyleSchema.parse({
         fontToken: 'F_COMIC',
+      }),
+    ).toThrow();
+  });
+
+  it('rejects invalid subtitle color tokens', () => {
+    expect(() =>
+      updateSubtitleStyleSchema.parse({
+        textColorToken: 'C_RAINBOW',
+      }),
+    ).toThrow();
+  });
+
+  it('rejects invalid speaker style payloads', () => {
+    expect(() =>
+      updateSubtitleStyleSchema.parse({
+        speakerMode: 'speaker-colors',
+        speakerStyles: [
+          {
+            speaker: '',
+            label: 'Penanya',
+            textColorToken: 'C_CYAN',
+          },
+        ],
       }),
     ).toThrow();
   });

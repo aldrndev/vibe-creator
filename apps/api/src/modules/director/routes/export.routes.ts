@@ -4,7 +4,11 @@ import { basename, join } from 'node:path';
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { env } from '@/config/env';
-import { subtitleFontTokenValues } from '@/modules/director/subtitle-style-tokens';
+import {
+  subtitleBackgroundColorTokenValues,
+  subtitleFontTokenValues,
+  subtitleTextColorTokenValues,
+} from '@/modules/director/subtitle-style-tokens';
 import { requireAuth } from '@/plugins/auth';
 import { contentModeValues } from '../content-mode';
 import { directorService } from '../director.service';
@@ -38,6 +42,7 @@ const subtitleStylePresetValues = [
   'custom',
   'viral-pop',
   'meme-pop',
+  'podcast-duo',
   'clean-bold',
   'neon-glow',
   'creator-box',
@@ -54,11 +59,20 @@ const subtitleAnimationValues = [
   'line',
 ] as const;
 
+const subtitleSpeakerModeValues = ['single', 'speaker-colors'] as const;
+
+const previewSpeakerStyleSchema = z.object({
+  speaker: z.string().trim().min(1).max(64),
+  label: z.string().trim().min(1).max(32),
+  textColorToken: z.enum(subtitleTextColorTokenValues),
+  bgColorToken: z.enum(subtitleBackgroundColorTokenValues).optional(),
+});
+
 const previewSubtitleStyleSchema = z.object({
   stylePreset: z.enum(subtitleStylePresetValues).optional(),
   fontToken: z.enum(subtitleFontTokenValues).optional(),
-  textColorToken: z.string().optional(),
-  bgColorToken: z.string().optional(),
+  textColorToken: z.enum(subtitleTextColorTokenValues).optional(),
+  bgColorToken: z.enum(subtitleBackgroundColorTokenValues).optional(),
   fontSize: z
     .number()
     .min(DIRECTOR_SUBTITLE_FONT_SIZE_MIN)
@@ -66,6 +80,8 @@ const previewSubtitleStyleSchema = z.object({
     .optional(),
   position: z.enum(subtitlePositionValues).optional(),
   animation: z.enum(subtitleAnimationValues).optional(),
+  speakerMode: z.enum(subtitleSpeakerModeValues).optional(),
+  speakerStyles: z.array(previewSpeakerStyleSchema).max(8).optional(),
 });
 
 const previewExportSchema = startExportSchema.extend({

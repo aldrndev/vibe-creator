@@ -42,5 +42,5 @@ export TRANSCRIBE_DIARIZATION_AUTH_TOKEN=hf_xxx
 
 - `GET /health`
 - `POST /transcribe`
-  - Body: `{ "audioPath": string, "wordTimestamps": boolean, "language"?: string, "vadThreshold"?: number, "vadSpeechPadMs"?: number, "vadMinSilenceMs"?: number, "vadMinSpeechMs"?: number }`
+  - Body: `{ "audioPath": string, "wordTimestamps": boolean, "language"?: string, "vadFilter"?: boolean, "vadThreshold"?: number, "vadSpeechPadMs"?: number, "vadMinSilenceMs"?: number, "vadMinSpeechMs"?: number }`
   - Language accepts any ISO 639 code (e.g. `"id"`, `"en"`, `"pt-br"`, `"ja"`, `"es"`) or `"mixed"`/`"auto"` for auto-detection.

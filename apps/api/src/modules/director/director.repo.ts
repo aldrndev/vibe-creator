@@ -136,6 +136,8 @@ export const directorRepo = {
       fontSize?: number;
       position?: string;
       animation?: string;
+      speakerMode?: string;
+      speakerStyles?: Prisma.InputJsonValue;
     },
   ) {
     return prisma.directorSubtitleStyle.upsert({
@@ -391,7 +393,7 @@ export const directorRepo = {
     });
   },
 
-  async updateClipTranscript(clipId: string, sessionId: string, segments: object[]) {
+  async updateClipTranscript(clipId: string, sessionId: string, segments: Prisma.InputJsonValue[]) {
     return prisma.directorClipTranscript.update({
       where: {
         selectedClipId: clipId,

@@ -26,6 +26,8 @@ const subtitleStyle: SubtitleStyle = {
   bgColorToken: 'C_BLACK',
   position: 'center',
   animation: 'typewriter',
+  speakerMode: 'single',
+  speakerStyles: [],
 };
 
 const refineSettings: RefineSettings = {
@@ -151,7 +153,7 @@ describe('deriveLivePreviewScene', () => {
       refineSettings,
     );
 
-    expect(scene.subtitleTextStyle.fontFamily).toContain('Impact');
+    expect(scene.subtitleTextStyle.fontFamily).toContain('Cherry Bomb One');
     expect(scene.subtitleTextStyle.color).toBe('#22FF4B');
   });
 

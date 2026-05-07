@@ -14,6 +14,7 @@ describe('AI Director subtitle presets', () => {
       bgColorToken: 'BG_TRANSPARENT',
       position: 'center',
       animation: 'pop-word',
+      speakerMode: 'single',
     });
 
     const context = {
@@ -39,6 +40,25 @@ describe('AI Director subtitle presets', () => {
       bgColorToken: 'BG_TRANSPARENT',
       position: 'center',
       animation: 'pop-word',
+      speakerMode: 'single',
     });
+  });
+
+  it('ships Podcast Duo as a two-speaker subtitle preset', () => {
+    const podcastDuo = subtitlePresets.find((preset) => preset.id === 'podcast-duo');
+
+    expect(podcastDuo?.subtitleStyle).toMatchObject({
+      stylePreset: 'podcast-duo',
+      fontToken: 'F_GROTESK',
+      textColorToken: 'C_WHITE',
+      bgColorToken: 'BG_TRANSPARENT',
+      position: 'bottom',
+      animation: 'phrase',
+      speakerMode: 'speaker-colors',
+    });
+    expect(podcastDuo?.subtitleStyle.speakerStyles).toEqual([
+      expect.objectContaining({ speaker: 'Penanya', textColorToken: 'C_CYAN' }),
+      expect.objectContaining({ speaker: 'Penjawab', textColorToken: 'C_YELLOW' }),
+    ]);
   });
 });

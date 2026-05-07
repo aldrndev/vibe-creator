@@ -2,8 +2,15 @@ import type { ModernProject } from '@vibe-creator/shared';
 import { useCallback, useState } from 'react';
 import { logger } from '@/lib/logger';
 import { compileModernProject } from '@/lib/modern-compiler';
+import { buildModernExportTimelineData } from '@/lib/modern-export-payload';
 import { exportApi } from '@/services/export-api';
+import type { EditorAsset, EditorClip } from '@/stores/editor-store';
 import { useModernEditorStore } from '@/stores/modern-editor-store';
+
+interface ClipToProcess {
+  clip: EditorClip;
+  asset: EditorAsset;
+}
 
 export function useModernExport() {
   const [isExporting, setIsExporting] = useState(false);
@@ -32,68 +39,64 @@ export function useModernExport() {
 
       // 2. Prepare upload tasks for video/audio clips
       // We need to map timeline clips to backend format
-      const clipsToProcess = [];
+      const clipsToProcess: ClipToProcess[] = [];
 
-      // Flatten tracks to find all clips
       for (const track of timeline.tracks) {
-        if (track.type !== 'VIDEO' && track.type !== 'AUDIO') continue;
+        if (track.type !== 'VIDEO') continue;
 
         for (const clip of track.clips) {
           const asset = clip.asset;
           if (!asset) continue;
+          if (asset.type !== 'VIDEO' && asset.type !== 'IMAGE') continue;
 
           clipsToProcess.push({
             clip,
             asset,
-            trackType: track.type,
           });
         }
       }
 
-      const uploadedClips = [];
+      if (clipsToProcess.length === 0) {
+        throw new Error('Export requires at least one video or image layer.');
+      }
+
+      const assetPathById = new Map<string, string>();
       let processedCount = 0;
 
       // 3. Upload files if needed
       for (const item of clipsToProcess) {
-        const { clip, asset } = item;
+        const { asset } = item;
+        if (assetPathById.has(asset.id)) {
+          continue;
+        }
 
         let remotePath = asset.url;
 
         // If we have a local file, upload it
         if (asset.file) {
-          const uploadResult = await exportApi.uploadVideo(asset.file);
+          const uploadResult = await exportApi.uploadMedia(asset.file);
           remotePath = uploadResult.uploadToken;
         }
 
-        // Map to backend clip structure
-        uploadedClips.push({
-          localPath: remotePath, // Backend uses this field for the source path
-          startTime: clip.startMs,
-          endTime: clip.startMs + (clip.endMs - clip.startMs), // Duration logic
-          // Apply transforms if video
-          transforms: clip.transforms,
-          effects: clip.effects,
-        });
+        assetPathById.set(asset.id, remotePath);
 
         processedCount++;
         setExportProgress(0.1 + (processedCount / clipsToProcess.length) * 0.3);
       }
 
+      const timelineData = buildModernExportTimelineData({
+        project,
+        timeline,
+        assetPathById,
+      });
+
       // 4. Create Export Job
       const job = await exportApi.createExportJob({
         projectId: project.id,
         format: 'MP4',
-        resolution: 'HD', // TODO: Use project settings
+        resolution: getExportResolution(project),
         addWatermark: false,
-        timelineData: {
-          clips: uploadedClips,
-          textOverlays: [], // TODO: map text overlays if needed
-          settings: {
-            width: project.settings.width,
-            height: project.settings.height,
-            fps: project.settings.fps,
-          },
-        },
+        timelineData,
       });
 
       setExportProgress(0.5);
@@ -137,4 +140,11 @@ export function useModernExport() {
     exportError,
     exportProject,
   };
+}
+
+function getExportResolution(project: ModernProject): 'SD' | 'HD' | 'UHD' {
+  const maxDimension = Math.max(project.settings.width, project.settings.height);
+  if (maxDimension >= 2160) return 'UHD';
+  if (maxDimension >= 1080) return 'HD';
+  return 'SD';
 }

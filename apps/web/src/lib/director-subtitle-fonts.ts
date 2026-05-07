@@ -30,8 +30,8 @@ export const directorSubtitleFontOptions = [
   },
   {
     value: 'F_MEME',
-    label: 'Bebas',
-    previewFamily: '"Bebas Neue", Impact, "Arial Black", Anton, sans-serif',
+    label: 'Cherry',
+    previewFamily: '"Cherry Bomb One", Impact, "Arial Black", "Bebas Neue", sans-serif',
   },
   {
     value: 'F_DISPLAY',

@@ -2,6 +2,7 @@ import { Captions, ScanFace, Scissors, Sparkles, Type, Waves } from 'lucide-reac
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { EditingLivePreview } from '@/components/director/steps/editing-live-preview';
 import { subtitlePresets } from '@/components/director/steps/editing-presets';
+import { EditingSubtitleSpeakerControls } from '@/components/director/steps/editing-subtitle-speaker-controls';
 import { Card, CardBody, Switch, Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui';
 import {
   type ContentMode,
@@ -10,6 +11,7 @@ import {
   getEffectiveRefineSettings,
   getResolvedContentMode,
 } from '@/lib/director-refine-settings';
+import { directorSubtitleColorOptions } from '@/lib/director-subtitle-colors';
 import { directorSubtitleFontOptions } from '@/lib/director-subtitle-fonts';
 import {
   clampSubtitleFontSize,
@@ -128,7 +130,7 @@ export function EditingSidebar({
                 value="preview"
                 className="flex-1 rounded-xl text-[11px] font-black uppercase tracking-widest data-[state=active]:bg-card data-[state=active]:text-primary"
               >
-                Preview
+                Video
               </TabsTrigger>
             </TabsList>
 
@@ -344,6 +346,10 @@ function SubtitleStyleCard({
     subtitleStyle.fontSize,
     subtitleFontSizeContext,
   );
+  const showSpeakerStyleControls =
+    subtitleStyle.speakerMode === 'speaker-colors' ||
+    subtitleStyle.stylePreset === 'podcast-duo' ||
+    subtitleStyle.speakerStyles.length > 0;
   const sizePresetOptions: Array<{
     value: SubtitleFontSizePreset;
     label: string;
@@ -560,25 +566,7 @@ function SubtitleStyleCard({
             Warna Teks
           </div>
           <div className="grid grid-cols-4 gap-2">
-            {[
-              { value: 'C_WHITE', label: 'Putih', swatchClass: 'bg-white border-border/70' },
-              {
-                value: 'C_GREEN',
-                label: 'Hijau',
-                swatchClass: 'bg-green-400 border-green-300',
-              },
-              {
-                value: 'C_YELLOW',
-                label: 'Kuning',
-                swatchClass: 'bg-yellow-300 border-yellow-200',
-              },
-              {
-                value: 'C_ORANGE',
-                label: 'Oranye',
-                swatchClass: 'bg-orange-400 border-orange-300',
-              },
-              { value: 'C_BLACK', label: 'Hitam', swatchClass: 'bg-zinc-900 border-zinc-700' },
-            ].map((color) => (
+            {directorSubtitleColorOptions.map((color) => (
               <button
                 key={color.value}
                 type="button"
@@ -606,16 +594,25 @@ function SubtitleStyleCard({
           </div>
         </div>
 
+        {showSpeakerStyleControls ? (
+          <EditingSubtitleSpeakerControls
+            subtitleStyle={subtitleStyle}
+            onUpdateSubtitleStyle={onUpdateSubtitleStyle}
+          />
+        ) : null}
+
         <div className="space-y-3">
           <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 block ml-1">
             Background Subtitle
           </div>
           <div className="grid grid-cols-3 gap-1.5 bg-muted/30 rounded-2xl p-1.5 border border-border/40">
-            {[
-              { value: 'C_BLACK', label: 'Dark' },
-              { value: 'C_WHITE', label: 'Soft Light' },
-              { value: 'BG_TRANSPARENT', label: 'Transparent' },
-            ].map((background) => (
+            {(
+              [
+                { value: 'C_BLACK', label: 'Dark' },
+                { value: 'C_WHITE', label: 'Soft Light' },
+                { value: 'BG_TRANSPARENT', label: 'Transparent' },
+              ] as const
+            ).map((background) => (
               <button
                 type="button"
                 key={background.value}
@@ -661,6 +658,12 @@ function getPresetSwatchClass(textColorToken: string | undefined): string {
   switch (textColorToken) {
     case 'C_GREEN':
       return 'border-green-300 bg-green-400';
+    case 'C_CYAN':
+      return 'border-cyan-200 bg-cyan-300';
+    case 'C_BLUE':
+      return 'border-blue-300 bg-blue-400';
+    case 'C_PINK':
+      return 'border-pink-300 bg-pink-400';
     case 'C_ORANGE':
       return 'border-orange-300 bg-orange-400';
     case 'C_YELLOW':

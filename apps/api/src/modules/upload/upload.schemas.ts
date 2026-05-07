@@ -16,6 +16,7 @@ export const uploadResponseSchema = z.object({
     uploadToken: z.string(),
     mimetype: z.string(),
     size: z.number(),
+    mediaType: z.enum(['video', 'image', 'audio']),
   }),
 });
 
@@ -35,6 +36,20 @@ export const uploadVideoRouteSchema = {
   tags: ['Media'],
   summary: 'Upload video file',
   description: 'Upload a video file for processing. Maximum size depends on subscription.',
+  consumes: ['multipart/form-data'],
+  response: {
+    200: uploadResponseSchema,
+    400: errorResponseSchema,
+    401: errorResponseSchema,
+    415: errorResponseSchema,
+    500: errorResponseSchema,
+  },
+};
+
+export const uploadMediaRouteSchema = {
+  tags: ['Media'],
+  summary: 'Upload media file',
+  description: 'Upload a video, image, or audio file for export processing.',
   consumes: ['multipart/form-data'],
   response: {
     200: uploadResponseSchema,

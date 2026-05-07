@@ -605,6 +605,12 @@ function mapPreviewTextColor(textColorToken: string): string {
       return '#FF8C1A';
     case 'C_GREEN':
       return '#22FF4B';
+    case 'C_CYAN':
+      return '#22D3EE';
+    case 'C_BLUE':
+      return '#60A5FA';
+    case 'C_PINK':
+      return '#FF4FD8';
     case 'C_YELLOW':
       return '#FDE047';
     default:
@@ -622,6 +628,12 @@ function mapPreviewBackgroundColor(backgroundToken: string): string {
       return 'rgba(255, 140, 26, 0.72)';
     case 'C_GREEN':
       return 'rgba(34, 255, 75, 0.72)';
+    case 'C_CYAN':
+      return 'rgba(34, 211, 238, 0.72)';
+    case 'C_BLUE':
+      return 'rgba(96, 165, 250, 0.72)';
+    case 'C_PINK':
+      return 'rgba(255, 79, 216, 0.72)';
     default:
       return 'rgba(0, 0, 0, 0.68)';
   }

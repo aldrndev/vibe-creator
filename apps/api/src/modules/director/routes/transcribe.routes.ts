@@ -7,14 +7,54 @@ import {
 } from '@/modules/transcribe/transcribe-language';
 import { directorService } from '../director.service';
 
-const updateTranscriptSchema = z.object({
-  segments: z.array(
-    z.object({
-      startMs: z.number(),
-      endMs: z.number(),
-      text: z.string(),
-    }),
-  ),
+const transcriptWordSchema = z
+  .object({
+    startMs: z.number().int().min(0),
+    endMs: z.number().int().min(0),
+    text: z.string().trim().min(1).max(500),
+    confidence: z.number().min(0).max(1).optional(),
+    speaker: z.string().trim().min(1).max(64).optional(),
+  })
+  .superRefine((word, ctx) => {
+    if (word.endMs <= word.startMs) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['endMs'],
+        message: 'Word endMs harus lebih besar dari startMs.',
+      });
+    }
+  });
+
+const transcriptSegmentSchema = z
+  .object({
+    startMs: z.number().int().min(0),
+    endMs: z.number().int().min(0),
+    text: z.string().trim().min(1).max(2_000),
+    speaker: z.string().trim().min(1).max(64).optional(),
+    words: z.array(transcriptWordSchema).optional(),
+  })
+  .superRefine((segment, ctx) => {
+    if (segment.endMs <= segment.startMs) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['endMs'],
+        message: 'Segment endMs harus lebih besar dari startMs.',
+      });
+    }
+
+    segment.words?.forEach((word, index) => {
+      if (word.startMs < segment.startMs || word.endMs > segment.endMs) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['words', index],
+          message: 'Timing word harus berada di dalam timing segment.',
+        });
+      }
+    });
+  });
+
+export const updateTranscriptSchema = z.object({
+  segments: z.array(transcriptSegmentSchema),
 });
 const transcribeLanguageSchema = z
   .string()

@@ -58,6 +58,7 @@ class TranscribeRequest(BaseModel):
     audioPath: str = Field(min_length=1)
     wordTimestamps: bool = True
     language: str | None = None
+    vadFilter: bool = True
     vadThreshold: float | None = Field(default=None, ge=0.0, le=1.0)
     vadSpeechPadMs: int | None = Field(default=None, ge=0)
     vadMinSilenceMs: int | None = Field(default=None, ge=0)
@@ -452,7 +453,7 @@ def transcribe(
             str(audio_file_path),
             beam_size=beam_size,
             word_timestamps=payload.wordTimestamps,
-            vad_filter=True,
+            vad_filter=payload.vadFilter,
             vad_parameters={
                 "threshold": vad_threshold,
                 "min_silence_duration_ms": vad_min_silence_ms,

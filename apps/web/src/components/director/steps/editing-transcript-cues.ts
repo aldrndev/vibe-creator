@@ -20,6 +20,7 @@ export interface TranscriptCue {
   startMs: number;
   endMs: number;
   text: string;
+  speaker?: string;
   segmentIndices: number[];
   source:
     | {
@@ -35,6 +36,11 @@ export interface TranscriptCue {
       };
 }
 
+export interface TranscriptSpeakerOption {
+  value: string;
+  label: string;
+}
+
 const TURN_GROUP_MAX_GAP_MS = 380;
 const TURN_GROUP_MIN_NEGATIVE_GAP_MS = -120;
 const TURN_GROUP_MAX_DURATION_MS = 7_200;
@@ -46,8 +52,58 @@ function normalizeText(text: string): string {
   return text.replace(/\s+/g, ' ').trim();
 }
 
+function tokenizeText(text: string): string[] {
+  return (
+    normalizeText(text)
+      .toLowerCase()
+      .match(/[\p{L}\p{N}]+/gu) ?? []
+  );
+}
+
+function hasCompleteWordCoverage(text: string, words: TranscriptWord[]): boolean {
+  const textTokens = tokenizeText(text);
+  const wordTokens = words.flatMap((word) => tokenizeText(word.text));
+
+  return (
+    textTokens.length > 0 &&
+    textTokens.length === wordTokens.length &&
+    textTokens.every((token, index) => token === wordTokens[index])
+  );
+}
+
 function countWords(text: string): number {
   return normalizeText(text).split(' ').filter(Boolean).length;
+}
+
+function resolveWordsAfterTextEdit(
+  segment: TranscriptSegment,
+  nextText: string,
+): TranscriptWord[] | undefined {
+  if (!segment.words?.length) {
+    return undefined;
+  }
+
+  return hasCompleteWordCoverage(nextText, segment.words)
+    ? segment.words.map((word) => ({ ...word, speaker: word.speaker ?? segment.speaker }))
+    : undefined;
+}
+
+function updateSegmentText(segment: TranscriptSegment, nextText: string): TranscriptSegment {
+  const normalizedText = normalizeText(nextText);
+  const nextWords = resolveWordsAfterTextEdit(segment, normalizedText);
+  return {
+    ...segment,
+    text: normalizedText,
+    ...(nextWords ? { words: nextWords } : { words: undefined }),
+  };
+}
+
+function updateSegmentSpeaker(segment: TranscriptSegment, speaker: string): TranscriptSegment {
+  return {
+    ...segment,
+    speaker,
+    words: segment.words?.map((word) => ({ ...word, speaker })),
+  };
 }
 
 function shouldMergeSegments(current: TranscriptSegment, next: TranscriptSegment): boolean {
@@ -234,6 +290,7 @@ export function buildTranscriptCues(
           startMs: word.startMs,
           endMs: word.endMs,
           text: normalizeText(word.text),
+          speaker: word.speaker ?? segment.speaker,
           segmentIndices: [segmentIndex],
           source: {
             kind: 'word',
@@ -254,27 +311,34 @@ export function buildTranscriptCues(
     let currentText = '';
     let currentSegment: TranscriptSegment | null = null;
 
-    segments.forEach((segment, segmentIndex) => {
+    for (let segmentIndex = 0; segmentIndex < segments.length; segmentIndex++) {
+      const segment = segments[segmentIndex];
+      if (!segment) {
+        continue;
+      }
+
       if (!currentSegment) {
         currentSegment = segment;
         currentIndices = [segmentIndex];
         currentStart = segment.startMs;
         currentEnd = segment.endMs;
         currentText = normalizeText(segment.text);
-        return;
+        continue;
       }
 
-      if (shouldMergeSegments(currentSegment, segment)) {
+      const activeSegment: TranscriptSegment = currentSegment;
+      if (shouldMergeSegments(activeSegment, segment)) {
         currentSegment = {
-          ...currentSegment,
-          endMs: Math.max(currentSegment.endMs, segment.endMs),
-          text: `${currentSegment.text} ${segment.text}`,
-          speaker: currentSegment.speaker ?? segment.speaker,
+          startMs: activeSegment.startMs,
+          endMs: Math.max(activeSegment.endMs, segment.endMs),
+          text: `${activeSegment.text} ${segment.text}`,
+          speaker: activeSegment.speaker ?? segment.speaker,
+          words: [...(activeSegment.words ?? []), ...(segment.words ?? [])],
         };
         currentIndices.push(segmentIndex);
         currentEnd = Math.max(currentEnd, segment.endMs);
         currentText = normalizeText(`${currentText} ${segment.text}`);
-        return;
+        continue;
       }
 
       cues.push({
@@ -282,6 +346,7 @@ export function buildTranscriptCues(
         startMs: currentStart,
         endMs: currentEnd,
         text: currentText,
+        speaker: currentSegment.speaker,
         segmentIndices: [...currentIndices],
         source: { kind: 'group' },
       });
@@ -291,7 +356,7 @@ export function buildTranscriptCues(
       currentStart = segment.startMs;
       currentEnd = segment.endMs;
       currentText = normalizeText(segment.text);
-    });
+    }
 
     if (currentSegment) {
       cues.push({
@@ -299,6 +364,7 @@ export function buildTranscriptCues(
         startMs: currentStart,
         endMs: currentEnd,
         text: currentText,
+        speaker: currentSegment.speaker,
         segmentIndices: [...currentIndices],
         source: { kind: 'group' },
       });
@@ -312,6 +378,7 @@ export function buildTranscriptCues(
     startMs: segment.startMs,
     endMs: segment.endMs,
     text: normalizeText(segment.text),
+    speaker: segment.speaker,
     segmentIndices: [segmentIndex],
     source: { kind: 'segment' },
   }));
@@ -339,14 +406,31 @@ function applyWordEdit(
   tokenized[tokenIndex] = normalizeText(nextText);
   const updatedText = tokenized.filter(Boolean).join(' ').trim();
 
-  return segments.map((segment, index) =>
-    index === segmentIndex
-      ? {
-          ...segment,
-          text: updatedText,
-        }
-      : segment,
-  );
+  return segments.map((segment, index) => {
+    if (index !== segmentIndex) {
+      return segment;
+    }
+
+    if (!segment.words?.length) {
+      return updateSegmentText(segment, updatedText);
+    }
+
+    const nextWordText = normalizeText(nextText);
+    const nextWordTokens = nextWordText.split(' ').filter(Boolean);
+    if (nextWordTokens.length !== 1) {
+      return updateSegmentText(segment, updatedText);
+    }
+
+    const nextWords = segment.words.map((word, index) =>
+      index === tokenIndex ? { ...word, text: nextWordText } : word,
+    );
+
+    return {
+      ...segment,
+      text: updatedText,
+      words: nextWords,
+    };
+  });
 }
 
 function applyGroupEdit(
@@ -387,8 +471,7 @@ function applyGroupEdit(
     }
 
     return {
-      ...segment,
-      text: nextTexts[localIndex] ?? '',
+      ...updateSegmentText(segment, nextTexts[localIndex] ?? ''),
     };
   });
 }
@@ -413,11 +496,76 @@ export function applyTranscriptCueEdit(params: {
   }
 
   return segments.map((segment, index) =>
-    index === segmentIndex
-      ? {
-          ...segment,
-          text: normalizeText(nextText),
-        }
-      : segment,
+    index === segmentIndex ? updateSegmentText(segment, nextText) : segment,
+  );
+}
+
+export function buildTranscriptSpeakerOptions(
+  segments: TranscriptSegment[],
+): TranscriptSpeakerOption[] {
+  const speakers = new Set<string>(['Penanya', 'Penjawab']);
+
+  for (const segment of segments) {
+    if (segment.speaker) {
+      speakers.add(segment.speaker);
+    }
+
+    segment.words?.forEach((word) => {
+      if (word.speaker) {
+        speakers.add(word.speaker);
+      }
+    });
+  }
+
+  return [...speakers].map((speaker) => ({
+    value: speaker,
+    label: speaker,
+  }));
+}
+
+/**
+ * Detects whether existing transcript data already carries speaker assignments.
+ */
+export function hasTranscriptSpeakerAssignments(segments: TranscriptSegment[]): boolean {
+  return segments.some(
+    (segment) =>
+      Boolean(segment.speaker?.trim()) ||
+      Boolean(segment.words?.some((word) => word.speaker?.trim())),
+  );
+}
+
+/**
+ * Keeps speaker assignment UI contextual so non-interview subtitle presets stay simpler.
+ */
+export function shouldShowTranscriptSpeakerControls(
+  subtitleStyle: SubtitleStyle,
+  segments: TranscriptSegment[],
+): boolean {
+  return (
+    subtitleStyle.speakerMode === 'speaker-colors' ||
+    subtitleStyle.stylePreset === 'podcast-duo' ||
+    hasTranscriptSpeakerAssignments(segments)
+  );
+}
+
+export function applyTranscriptCueSpeaker(params: {
+  segments: TranscriptSegment[];
+  cue: TranscriptCue;
+  speaker: string;
+}): TranscriptSegment[] {
+  const { segments, cue, speaker } = params;
+  if (cue.source.kind === 'group') {
+    return segments.map((segment, index) =>
+      cue.segmentIndices.includes(index) ? updateSegmentSpeaker(segment, speaker) : segment,
+    );
+  }
+
+  const segmentIndex = cue.source.kind === 'word' ? cue.source.segmentIndex : cue.segmentIndices[0];
+  if (segmentIndex === undefined) {
+    return segments;
+  }
+
+  return segments.map((segment, index) =>
+    index === segmentIndex ? updateSegmentSpeaker(segment, speaker) : segment,
   );
 }

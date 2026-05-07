@@ -6,29 +6,41 @@ import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import fastifyMultipart from '@fastify/multipart';
 import { ERROR_CODES } from '@vibe-creator/shared';
-import type { FastifyPluginAsync } from 'fastify';
+import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import { env } from '@/config/env';
 import { requireAuth } from '@/plugins/auth';
 import { sendError } from '@/utils/response';
-import { uploadVideoRouteSchema } from './upload.schemas';
+import { uploadMediaRouteSchema, uploadVideoRouteSchema } from './upload.schemas';
 
 const UPLOADS_DIR = join(env.MEDIA_INPUT_DIR, 'temp');
-const VIDEO_SIGNATURE_BYTES = 16;
+const SIGNATURE_BYTES = 16;
 
-const ALLOWED_VIDEO_FORMATS = [
+type MediaType = 'video' | 'image' | 'audio';
+
+interface AllowedUploadFormat {
+  mediaType: MediaType;
+  mimeType: string;
+  extensions: Set<string>;
+  matchesSignature: (buffer: Buffer) => boolean;
+}
+
+const ALLOWED_UPLOAD_FORMATS: AllowedUploadFormat[] = [
   {
+    mediaType: 'video',
     mimeType: 'video/mp4',
     extensions: new Set(['mp4', 'm4v']),
     matchesSignature: (buffer: Buffer) =>
       buffer.length >= 12 && buffer.subarray(4, 8).toString('ascii') === 'ftyp',
   },
   {
+    mediaType: 'video',
     mimeType: 'video/quicktime',
     extensions: new Set(['mov', 'qt']),
     matchesSignature: (buffer: Buffer) =>
       buffer.length >= 12 && buffer.subarray(4, 8).toString('ascii') === 'ftyp',
   },
   {
+    mediaType: 'video',
     mimeType: 'video/webm',
     extensions: new Set(['webm']),
     matchesSignature: (buffer: Buffer) =>
@@ -38,7 +50,59 @@ const ALLOWED_VIDEO_FORMATS = [
       buffer[2] === 0xdf &&
       buffer[3] === 0xa3,
   },
-] as const;
+  {
+    mediaType: 'image',
+    mimeType: 'image/jpeg',
+    extensions: new Set(['jpg', 'jpeg']),
+    matchesSignature: (buffer: Buffer) =>
+      buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff,
+  },
+  {
+    mediaType: 'image',
+    mimeType: 'image/png',
+    extensions: new Set(['png']),
+    matchesSignature: (buffer: Buffer) =>
+      buffer.length >= 8 &&
+      buffer[0] === 0x89 &&
+      buffer[1] === 0x50 &&
+      buffer[2] === 0x4e &&
+      buffer[3] === 0x47,
+  },
+  {
+    mediaType: 'image',
+    mimeType: 'image/webp',
+    extensions: new Set(['webp']),
+    matchesSignature: (buffer: Buffer) =>
+      buffer.length >= 12 &&
+      buffer.subarray(0, 4).toString('ascii') === 'RIFF' &&
+      buffer.subarray(8, 12).toString('ascii') === 'WEBP',
+  },
+  {
+    mediaType: 'audio',
+    mimeType: 'audio/mpeg',
+    extensions: new Set(['mp3']),
+    matchesSignature: (buffer: Buffer) =>
+      buffer.length >= 3 &&
+      (buffer.subarray(0, 3).toString('ascii') === 'ID3' ||
+        (buffer[0] === 0xff && (buffer[1] ?? 0) >= 0xe0)),
+  },
+  {
+    mediaType: 'audio',
+    mimeType: 'audio/wav',
+    extensions: new Set(['wav']),
+    matchesSignature: (buffer: Buffer) =>
+      buffer.length >= 12 &&
+      buffer.subarray(0, 4).toString('ascii') === 'RIFF' &&
+      buffer.subarray(8, 12).toString('ascii') === 'WAVE',
+  },
+  {
+    mediaType: 'audio',
+    mimeType: 'audio/ogg',
+    extensions: new Set(['ogg']),
+    matchesSignature: (buffer: Buffer) =>
+      buffer.length >= 4 && buffer.subarray(0, 4).toString('ascii') === 'OggS',
+  },
+];
 
 // Ensure uploads directory exists
 async function ensureUploadsDir() {
@@ -51,13 +115,98 @@ function normalizeChunk(chunk: Buffer | string): Buffer {
   return Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
 }
 
-function isAllowedVideoUpload(mimetype: string, extension: string, signature: Buffer): boolean {
-  return ALLOWED_VIDEO_FORMATS.some(
-    (format) =>
-      format.mimeType === mimetype &&
-      format.extensions.has(extension) &&
-      format.matchesSignature(signature),
+function getAllowedUploadFormat(
+  mimetype: string,
+  extension: string,
+  signature: Buffer,
+  allowedMediaTypes: ReadonlySet<MediaType>,
+): AllowedUploadFormat | null {
+  return (
+    ALLOWED_UPLOAD_FORMATS.find(
+      (format) =>
+        allowedMediaTypes.has(format.mediaType) &&
+        format.mimeType === mimetype &&
+        format.extensions.has(extension) &&
+        format.matchesSignature(signature),
+    ) ?? null
   );
+}
+
+async function handleUpload(
+  request: FastifyRequest,
+  reply: FastifyReply,
+  allowedMediaTypes: ReadonlySet<MediaType>,
+) {
+  let filepath: string | null = null;
+
+  try {
+    await ensureUploadsDir();
+
+    const data = await request.file();
+    if (!data) {
+      return reply.status(400).send({
+        success: false,
+        error: { code: 'NO_FILE', message: 'No file uploaded' },
+      });
+    }
+
+    const ext = data.filename.split('.').pop()?.toLowerCase();
+    if (!ext) {
+      data.file.resume();
+      return sendError(reply, ERROR_CODES.INVALID_INPUT, 'File extension is required', 400);
+    }
+
+    const iterator = data.file[Symbol.asyncIterator]();
+    const firstChunkResult = await iterator.next();
+    if (firstChunkResult.done) {
+      return sendError(reply, ERROR_CODES.INVALID_INPUT, 'Uploaded file is empty', 400);
+    }
+
+    const firstChunk = normalizeChunk(firstChunkResult.value);
+    const signature = firstChunk.subarray(0, SIGNATURE_BYTES);
+    const uploadFormat = getAllowedUploadFormat(data.mimetype, ext, signature, allowedMediaTypes);
+
+    if (!uploadFormat) {
+      data.file.resume();
+      return sendError(reply, ERROR_CODES.INVALID_INPUT, 'Unsupported media format', 415);
+    }
+
+    const filename = `${randomUUID()}.${ext}`;
+    filepath = join(UPLOADS_DIR, filename);
+
+    const validatedStream = Readable.from(
+      (async function* () {
+        yield firstChunk;
+        while (true) {
+          const nextChunk = await iterator.next();
+          if (nextChunk.done) {
+            break;
+          }
+          yield nextChunk.value;
+        }
+      })(),
+    );
+
+    await pipeline(validatedStream, createWriteStream(filepath));
+    const fileStats = await stat(filepath);
+
+    return reply.send({
+      success: true,
+      data: {
+        filename,
+        uploadToken: filename,
+        mimetype: data.mimetype,
+        size: fileStats.size,
+        mediaType: uploadFormat.mediaType,
+      },
+    });
+  } catch (err) {
+    if (filepath) {
+      await unlink(filepath).catch(() => {});
+    }
+    const message = err instanceof Error ? err.message : 'Upload failed';
+    return sendError(reply, ERROR_CODES.INTERNAL_ERROR, message, 500);
+  }
 }
 
 export const uploadRoutes: FastifyPluginAsync = async (fastify) => {
@@ -77,74 +226,18 @@ export const uploadRoutes: FastifyPluginAsync = async (fastify) => {
       preHandler: [requireAuth],
       schema: uploadVideoRouteSchema,
     },
-    async (request, reply) => {
-      let filepath: string | null = null;
-      try {
-        await ensureUploadsDir();
+    async (request, reply) => handleUpload(request, reply, new Set(['video'])),
+  );
 
-        const data = await request.file();
-        if (!data) {
-          return reply.status(400).send({
-            success: false,
-            error: { code: 'NO_FILE', message: 'No file uploaded' },
-          });
-        }
-
-        const ext = data.filename.split('.').pop()?.toLowerCase();
-        if (!ext) {
-          data.file.resume();
-          return sendError(reply, ERROR_CODES.INVALID_INPUT, 'File extension is required', 400);
-        }
-
-        const iterator = data.file[Symbol.asyncIterator]();
-        const firstChunkResult = await iterator.next();
-        if (firstChunkResult.done) {
-          return sendError(reply, ERROR_CODES.INVALID_INPUT, 'Uploaded file is empty', 400);
-        }
-
-        const firstChunk = normalizeChunk(firstChunkResult.value);
-        const signature = firstChunk.subarray(0, VIDEO_SIGNATURE_BYTES);
-        if (!isAllowedVideoUpload(data.mimetype, ext, signature)) {
-          data.file.resume();
-          return sendError(reply, ERROR_CODES.INVALID_INPUT, 'Unsupported video format', 415);
-        }
-
-        const filename = `${randomUUID()}.${ext}`;
-        filepath = join(UPLOADS_DIR, filename);
-
-        // Stream file to disk after validating the initial bytes.
-        const validatedStream = Readable.from(
-          (async function* () {
-            yield firstChunk;
-            while (true) {
-              const nextChunk = await iterator.next();
-              if (nextChunk.done) {
-                break;
-              }
-              yield nextChunk.value;
-            }
-          })(),
-        );
-
-        await pipeline(validatedStream, createWriteStream(filepath));
-        const fileStats = await stat(filepath);
-
-        return reply.send({
-          success: true,
-          data: {
-            filename,
-            uploadToken: filename,
-            mimetype: data.mimetype,
-            size: fileStats.size,
-          },
-        });
-      } catch (err) {
-        if (filepath) {
-          await unlink(filepath).catch(() => {});
-        }
-        const message = err instanceof Error ? err.message : 'Upload failed';
-        return sendError(reply, ERROR_CODES.INTERNAL_ERROR, message, 500);
-      }
+  /**
+   * Upload media file for export processing
+   */
+  fastify.post(
+    '/media',
+    {
+      preHandler: [requireAuth],
+      schema: uploadMediaRouteSchema,
     },
+    async (request, reply) => handleUpload(request, reply, new Set(['video', 'image', 'audio'])),
   );
 };

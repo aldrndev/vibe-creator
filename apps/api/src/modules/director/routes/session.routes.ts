@@ -1,7 +1,11 @@
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { AuditAction, audit } from '@/lib/audit';
-import { subtitleFontTokenValues } from '@/modules/director/subtitle-style-tokens';
+import {
+  subtitleBackgroundColorTokenValues,
+  subtitleFontTokenValues,
+  subtitleTextColorTokenValues,
+} from '@/modules/director/subtitle-style-tokens';
 import { directorService } from '../director.service';
 import {
   DIRECTOR_SUBTITLE_FONT_SIZE_MAX,
@@ -13,6 +17,7 @@ const subtitleStylePresetValues = [
   'custom',
   'viral-pop',
   'meme-pop',
+  'podcast-duo',
   'clean-bold',
   'neon-glow',
   'creator-box',
@@ -29,11 +34,20 @@ const subtitleAnimationValues = [
   'line',
 ] as const;
 
+const subtitleSpeakerModeValues = ['single', 'speaker-colors'] as const;
+
+const subtitleSpeakerStyleSchema = z.object({
+  speaker: z.string().trim().min(1).max(64),
+  label: z.string().trim().min(1).max(32),
+  textColorToken: z.enum(subtitleTextColorTokenValues),
+  bgColorToken: z.enum(subtitleBackgroundColorTokenValues).optional(),
+});
+
 export const updateSubtitleStyleSchema = z.object({
   stylePreset: z.enum(subtitleStylePresetValues).optional(),
   fontToken: z.enum(subtitleFontTokenValues).optional(),
-  textColorToken: z.string().optional(),
-  bgColorToken: z.string().optional(),
+  textColorToken: z.enum(subtitleTextColorTokenValues).optional(),
+  bgColorToken: z.enum(subtitleBackgroundColorTokenValues).optional(),
   fontSize: z
     .number()
     .min(DIRECTOR_SUBTITLE_FONT_SIZE_MIN)
@@ -41,6 +55,8 @@ export const updateSubtitleStyleSchema = z.object({
     .optional(),
   position: z.enum(subtitlePositionValues).optional(),
   animation: z.enum(subtitleAnimationValues).optional(),
+  speakerMode: z.enum(subtitleSpeakerModeValues).optional(),
+  speakerStyles: z.array(subtitleSpeakerStyleSchema).max(8).optional(),
 });
 
 export const sessionRoutes: FastifyPluginAsync = async (fastify) => {

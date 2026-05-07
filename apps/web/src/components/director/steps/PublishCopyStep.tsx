@@ -75,7 +75,7 @@ export function PublishCopyStep() {
               </h3>
               <p className="max-w-2xl text-sm leading-6 font-medium text-muted-foreground">
                 Video short sudah final di langkah edit. Sekarang tinggal rapikan judul, caption,
-                hashtag, dan CTA sebelum render.
+                hashtag, dan CTA sebelum generate video akhir.
               </p>
             </div>
 
@@ -87,8 +87,8 @@ export function PublishCopyStep() {
           <CardBody className="p-6 sm:p-8 space-y-5">
             <h4 className="font-black tracking-tight text-lg">Lanjutkan Flow</h4>
             <p className="text-sm leading-6 text-muted-foreground">
-              Kembali ke Video Studio jika transkrip belum pas, atau render jika copy publish sudah
-              siap.
+              Kembali ke Video Studio jika transkrip belum pas, atau generate jika copy publish
+              sudah siap.
             </p>
 
             <Button
@@ -112,7 +112,7 @@ export function PublishCopyStep() {
               isLoading={isLoading}
               disabled={isLoading || selectedClips.length === 0}
             >
-              Render Short
+              Generate Video Akhir
             </Button>
           </CardBody>
         </Card>

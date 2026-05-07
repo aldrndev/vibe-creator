@@ -120,7 +120,10 @@ export function LayerRenderer({
             <VideoLayerContent
               src={asset.url}
               layerStartMs={layer.startMs}
+              layerTrimStartMs={(layer as VideoLayer).data.trimStartMs}
               volume={(layer as VideoLayer).data.volume}
+              fit={(layer as VideoLayer).data.fit}
+              loop={(layer as VideoLayer).data.loop}
             />
           );
         }

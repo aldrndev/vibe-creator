@@ -14,6 +14,8 @@ interface LivePreviewCacheInput {
   };
 }
 
+const LIVE_PREVIEW_RENDERER_CACHE_VERSION = 3;
+
 /**
  * Build deterministic preview filename so identical settings reuse the same rendered file.
  */
@@ -25,6 +27,7 @@ export function buildLivePreviewCacheFileName(input: LivePreviewCacheInput): str
         sourceFileName: input.sourceFileName,
         clip: input.clipPayload,
         options: input.options,
+        rendererVersion: LIVE_PREVIEW_RENDERER_CACHE_VERSION,
       }),
     )
     .digest('hex');
