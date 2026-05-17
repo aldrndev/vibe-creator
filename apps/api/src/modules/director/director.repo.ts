@@ -3,8 +3,12 @@
  * Tenant-scoped data access for Director module
  */
 
-import { DirectorStep, type Prisma } from '@prisma/client';
+import { DirectorStep, LifecycleStatus, type Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
+import {
+  getActiveDraftExpiresAt,
+  getCompletedSessionExpiresAt,
+} from '@/modules/workspace/workspace-lifecycle';
 import { isConfigCompatible, type TargetDurationRange } from './analysis-duration-config';
 
 // Comprehensive type including all relations needed for the UI
@@ -71,6 +75,8 @@ export const directorRepo = {
       data: {
         userId,
         step: DirectorStep.IMPORT,
+        lifecycleStatus: LifecycleStatus.ACTIVE,
+        expiresAt: getActiveDraftExpiresAt(),
       },
     });
   },
@@ -79,14 +85,15 @@ export const directorRepo = {
    * Delete a session (Tenant Scoped)
    */
   async deleteSession(sessionId: string, userId: string) {
-    // Prisma deleteMany is safer for tenancy than delete + check
-    // But typically we want 404 if not found.
-    // Standard pattern: count/findFirst then delete, or deleteMany and check count.
-    // For strictness, deleteMany ensures we never delete someone else's by ID only.
-    const result = await prisma.directorSession.deleteMany({
+    const result = await prisma.directorSession.updateMany({
       where: {
         id: sessionId,
         userId,
+        deletedAt: null,
+      },
+      data: {
+        deletedAt: new Date(),
+        lifecycleStatus: LifecycleStatus.DELETED,
       },
     });
     return result.count > 0;
@@ -96,6 +103,19 @@ export const directorRepo = {
    * Update session step
    */
   async updateStep(sessionId: string, userId: string, step: DirectorStep) {
+    const now = new Date();
+    const lifecycleData =
+      step === DirectorStep.COMPLETED
+        ? {
+            lifecycleStatus: LifecycleStatus.COMPLETED,
+            completedAt: now,
+            expiresAt: getCompletedSessionExpiresAt(now),
+          }
+        : {
+            lifecycleStatus: LifecycleStatus.ACTIVE,
+            expiresAt: getActiveDraftExpiresAt(now),
+          };
+
     try {
       return await prisma.directorSession.update({
         where: { id: sessionId, userId }, // Prisma allows unique constraint filter, so this fails if userid doesn't match?
@@ -103,17 +123,39 @@ export const directorRepo = {
         // Prisma update requires unique input. {id, userId} might not be a composite unique key.
         // So we must rely on findFirst (authorization) then update(id).
         // OR use updateMany which supports arbitrary where clauses.
-        data: { step },
+        data: { step, ...lifecycleData },
       });
     } catch {
       // If composite key isn't supported in update, use updateMany
       const { count } = await prisma.directorSession.updateMany({
         where: { id: sessionId, userId },
-        data: { step },
+        data: { step, ...lifecycleData },
       });
       if (count === 0) throw new Error('Session not found or access denied');
       return { id: sessionId, step };
     }
+  },
+
+  async touchSessionActivity(sessionId: string, userId: string) {
+    const { count } = await prisma.directorSession.updateMany({
+      where: {
+        id: sessionId,
+        userId,
+        deletedAt: null,
+      },
+      data: {
+        lifecycleStatus: LifecycleStatus.ACTIVE,
+        expiresAt: getActiveDraftExpiresAt(),
+      },
+    });
+    if (count === 0) throw new Error('Session not found or access denied');
+  },
+
+  async markSessionOpened(sessionId: string, userId: string) {
+    await prisma.directorSession.updateMany({
+      where: { id: sessionId, userId, deletedAt: null },
+      data: { lastOpenedAt: new Date() },
+    });
   },
 
   async exists(sessionId: string, userId: string): Promise<boolean> {
@@ -131,6 +173,7 @@ export const directorRepo = {
     data: {
       stylePreset?: string;
       fontToken?: string;
+      fontFamily?: string;
       textColorToken?: string;
       bgColorToken?: string;
       fontSize?: number;

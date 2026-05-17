@@ -54,7 +54,7 @@ describe('videoExportService helpers', () => {
       position: 'center',
     });
 
-    expect(forceStyle).toContain('Fontname=Cherry Bomb One');
+    expect(forceStyle).toContain('Fontname=Bangers');
   });
 
   it('renders meme pop subtitles with uppercase condensed font and glyph outline', () => {
@@ -71,7 +71,7 @@ describe('videoExportService helpers', () => {
     const styleFields = styleLine?.split(',') ?? [];
 
     expect(asset.extension).toBe('ass');
-    expect(styleFields[1]).toBe('Cherry Bomb One');
+    expect(styleFields[1]).toBe('Bangers');
     expect(styleFields[15]).toBe('1');
     expect(styleFields[16]).toBe('6');
     expect(styleFields[17]).toBe('0');
@@ -79,6 +79,19 @@ describe('videoExportService helpers', () => {
     expect(asset.content).toContain(String.raw`\bord6`);
     expect(asset.content).toContain('OH');
     expect(asset.content).not.toContain('oh');
+  });
+
+  it('prioritizes explicit Google font families over legacy font tokens', () => {
+    const forceStyle = buildSubtitleForceStyle({
+      fontToken: 'F_MEME',
+      fontFamily: 'Sora',
+      textColorToken: 'C_WHITE',
+      bgColorToken: 'C_BLACK',
+      fontSize: 30,
+      position: 'center',
+    });
+
+    expect(forceStyle).toContain('Fontname=Sora');
   });
 
   it('renders speaker colors per subtitle segment when speaker color mode is enabled', () => {
@@ -294,6 +307,7 @@ describe('videoExportService helpers', () => {
     });
 
     expect(filter).toContain('subtitles=filename=uploads/director/exports/temp_sub_1.srt');
+    expect(filter).toContain('fontsdir=');
     expect(filter).toContain(String.raw`force_style=Fontname=Inter\,FontSize=24`);
     expect(filter).not.toContain("subtitles='");
   });

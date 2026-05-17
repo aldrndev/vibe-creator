@@ -34,6 +34,7 @@ interface WatermarkOptions {
   outputPath: string;
   watermarkText?: string;
   signal?: AbortSignal;
+  onProgress?: (percent: number) => void;
 }
 
 interface ApplyEffectsOptions {
@@ -52,10 +53,21 @@ interface ApplyEffectsOptions {
     volume: number;
     fadeIn: number;
     fadeOut: number;
+    transitionIn?: 'none' | 'fade' | 'slide-left' | 'slide-right' | 'zoom';
+    transitionOut?: 'none' | 'fade' | 'slide-left' | 'slide-right' | 'zoom';
+    motion?: 'none' | 'zoom-in' | 'zoom-out';
   };
   outputWidth: number;
   outputHeight: number;
   durationMs: number;
+  background?: {
+    mode: 'solid' | 'blur';
+    color?: string;
+    blurAmount?: number;
+    blurZoom?: number;
+    dim?: number;
+    saturation?: number;
+  };
   signal?: AbortSignal;
   onProgress?: (percent: number) => void;
 }
@@ -221,7 +233,7 @@ export const ffmpegProcessorCLI = {
    * Add watermark to video
    */
   async addWatermark(options: WatermarkOptions): Promise<void> {
-    const { inputPath, outputPath, watermarkText, signal } = options;
+    const { inputPath, outputPath, watermarkText, signal, onProgress } = options;
 
     const validInput = validateInputPath(inputPath);
     const validOutput = validateOutputPath(outputPath);
@@ -258,6 +270,11 @@ export const ffmpegProcessorCLI = {
       totalDurationMs: 120_000, // Estimate
       timeoutMs: PHASE_TIMEOUTS.WATERMARK,
       signal,
+      onProgress: (update) => {
+        if (update.type === 'PROGRESS' && update.percent !== undefined) {
+          onProgress?.(update.percent);
+        }
+      },
     });
 
     logger.info({ outputPath: validOutput }, 'Watermark added');
@@ -275,6 +292,7 @@ export const ffmpegProcessorCLI = {
       outputWidth,
       outputHeight,
       durationMs,
+      background,
       signal,
       onProgress,
     } = options;
@@ -289,6 +307,7 @@ export const ffmpegProcessorCLI = {
       outputWidth,
       outputHeight,
       durationMs,
+      background,
     });
 
     logger.info({ inputPath: validInput, transforms, effects }, 'Applying video effects');

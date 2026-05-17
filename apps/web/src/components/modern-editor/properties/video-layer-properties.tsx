@@ -1,91 +1,80 @@
-import type { Layer, VideoLayer } from '@vibe-creator/shared';
+import type { Layer, ModernProjectSettings, VideoLayer } from '@vibe-creator/shared';
+import { Repeat2, Volume2, VolumeX } from 'lucide-react';
+import type { ReactNode } from 'react';
+import { Button, Card, CardBody, Slider } from '@/components/ui';
 import {
-  Card,
-  CardBody,
-  Input,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-  Slider,
-  Switch,
-} from '@/components/ui';
-import { parseFiniteNumber } from './property-number';
+  buildVisualStylePresetUpdate,
+  visualStylePresets,
+} from '@/lib/modern-editor-preset-catalog';
+import { cn } from '@/lib/utils';
+import { PresetPreviewCard } from './preset-preview-card';
+import { QuickPresetGrid } from './quick-preset-grid';
 
 interface VideoLayerPropertiesProps {
-  layer: VideoLayer;
-  onUpdate: (updates: Partial<Layer>) => void;
+  readonly layer: VideoLayer;
+  readonly onUpdate: (updates: Partial<Layer>) => void;
+  readonly onUpdateSettings?: (updates: Partial<ModernProjectSettings>) => void;
 }
 
-export function VideoLayerProperties({ layer, onUpdate }: Readonly<VideoLayerPropertiesProps>) {
+export function VideoLayerProperties({
+  layer,
+  onUpdate,
+  onUpdateSettings,
+}: Readonly<VideoLayerPropertiesProps>) {
   const updateData = (dataUpdates: Partial<VideoLayer['data']>) => {
     onUpdate({ data: { ...layer.data, ...dataUpdates } } as Partial<Layer>);
   };
 
   return (
-    <Card className="bg-card/70 backdrop-blur-xl border-border/40 overflow-hidden">
-      <CardBody className="p-6 space-y-8">
-        <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground">
-          Video Properties
-        </h3>
+    <Card className="overflow-hidden rounded-2xl border-border/40 bg-card/70 backdrop-blur-xl">
+      <CardBody className="space-y-4 p-3">
+        <SectionTitle icon={<Volume2 size={15} />}>Video style</SectionTitle>
 
-        <div className="space-y-4">
-          <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 block">
-            Volume ({Math.round(layer.data.volume * 100)}%)
+        <QuickPresetGrid label="Action cepat" columns="two">
+          {visualStylePresets.map((preset) => (
+            <PresetPreviewCard
+              key={preset.id}
+              helper={preset.helper}
+              label={preset.label}
+              previewClassName={preset.previewClassName}
+              onClick={() => {
+                onUpdate(buildVisualStylePresetUpdate(layer, preset));
+                if (preset.canvasSettings) {
+                  onUpdateSettings?.(preset.canvasSettings);
+                }
+              }}
+            />
+          ))}
+        </QuickPresetGrid>
+
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-3">
+            <PanelLabel>Volume</PanelLabel>
+            <span className="rounded-full bg-muted/20 px-2 py-1 font-mono text-[10px] font-black text-muted-foreground">
+              {Math.round(layer.data.volume * 100)}%
+            </span>
           </div>
           <Slider
             min={0}
             max={2}
             step={0.1}
             value={[layer.data.volume]}
-            onValueChange={(value: number[]) => updateData({ volume: value[0] })}
+            onValueChange={(value: number[]) => updateData({ volume: value[0] ?? 1 })}
           />
         </div>
 
-        <div className="flex items-center justify-between gap-4 rounded-2xl bg-background/30 border border-border/30 px-4 py-3">
-          <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
-            Loop Playback
-          </div>
-          <Switch
-            checked={layer.data.loop}
-            onCheckedChange={(checked) => updateData({ loop: checked })}
-            aria-label="Loop video layer"
+        <div className="grid grid-cols-2 gap-2">
+          <ToggleCard
+            active={layer.data.volume === 0}
+            icon={layer.data.volume === 0 ? <VolumeX size={16} /> : <Volume2 size={16} />}
+            label="Mute"
+            onClick={() => updateData({ volume: layer.data.volume === 0 ? 1 : 0 })}
           />
-        </div>
-
-        <div className="space-y-4">
-          <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
-            Fit Mode
-          </div>
-          <Select
-            value={layer.data.fit}
-            onValueChange={(value) => updateData({ fit: value as VideoLayer['data']['fit'] })}
-          >
-            <SelectTrigger className="bg-background/40 border-border/40 h-11 rounded-xl font-bold text-xs uppercase tracking-tight">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="contain" className="text-xs font-bold uppercase">
-                Contain
-              </SelectItem>
-              <SelectItem value="cover" className="text-xs font-bold uppercase">
-                Cover
-              </SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="grid grid-cols-2 gap-6">
-          <TrimInput
-            label="Trim Start (s)"
-            valueMs={layer.data.trimStartMs}
-            onChange={(trimStartMs) => updateData({ trimStartMs })}
-          />
-          <TrimInput
-            label="Trim End (s)"
-            valueMs={layer.data.trimEndMs}
-            onChange={(trimEndMs) => updateData({ trimEndMs })}
+          <ToggleCard
+            active={layer.data.loop}
+            icon={<Repeat2 size={16} />}
+            label="Loop"
+            onClick={() => updateData({ loop: !layer.data.loop })}
           />
         </div>
       </CardBody>
@@ -93,30 +82,50 @@ export function VideoLayerProperties({ layer, onUpdate }: Readonly<VideoLayerPro
   );
 }
 
-function TrimInput({
+function ToggleCard({
+  active,
+  icon,
   label,
-  valueMs,
-  onChange,
+  onClick,
 }: Readonly<{
+  active: boolean;
+  icon: ReactNode;
   label: string;
-  valueMs: number;
-  onChange: (valueMs: number) => void;
+  onClick: () => void;
 }>) {
   return (
-    <div className="space-y-4">
-      <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 block">
+    <Button
+      type="button"
+      variant="ghost"
+      className={cn(
+        'h-10 justify-between rounded-xl border px-3 text-xs font-black',
+        active
+          ? 'border-primary bg-primary/10 text-primary hover:bg-primary/15'
+          : 'border-border/30 bg-background/25 text-muted-foreground hover:border-primary/40 hover:text-foreground',
+      )}
+      onClick={onClick}
+    >
+      <span className="flex items-center gap-2">
+        {icon}
         {label}
-      </div>
-      <Input
-        type="number"
-        min={0}
-        step={0.1}
-        value={(valueMs / 1000).toFixed(1)}
-        className="bg-background/40 border-border/40 h-11 rounded-xl font-bold text-xs uppercase tracking-tight text-center"
-        onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
-          onChange(parseFiniteNumber(event.target.value, valueMs / 1000) * 1000)
-        }
-      />
+      </span>
+    </Button>
+  );
+}
+
+function PanelLabel({ children }: Readonly<{ children: ReactNode }>) {
+  return (
+    <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
+      {children}
     </div>
+  );
+}
+
+function SectionTitle({ children, icon }: Readonly<{ children: ReactNode; icon: ReactNode }>) {
+  return (
+    <h3 className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-muted-foreground">
+      <span className="text-primary">{icon}</span>
+      {children}
+    </h3>
   );
 }

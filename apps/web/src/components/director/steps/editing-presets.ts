@@ -35,6 +35,7 @@ export const platformPresets: PlatformPreset[] = [
     },
     subtitleStyle: {
       fontToken: 'F_INTER',
+      fontFamily: 'Inter',
       fontSize: 32,
       textColorToken: 'C_WHITE',
       bgColorToken: 'C_BLACK',
@@ -54,6 +55,7 @@ export const platformPresets: PlatformPreset[] = [
     },
     subtitleStyle: {
       fontToken: 'F_INTER',
+      fontFamily: 'Inter',
       fontSize: 38,
       textColorToken: 'C_WHITE',
       bgColorToken: 'C_BLACK',
@@ -73,6 +75,7 @@ export const platformPresets: PlatformPreset[] = [
     },
     subtitleStyle: {
       fontToken: 'F_INTER',
+      fontFamily: 'Inter',
       fontSize: 32,
       textColorToken: 'C_WHITE',
       bgColorToken: 'C_BLACK',
@@ -90,6 +93,7 @@ export const subtitlePresets: SubtitlePreset[] = [
     subtitleStyle: {
       stylePreset: 'viral-pop',
       fontToken: 'F_DISPLAY',
+      fontFamily: 'League Spartan',
       fontSize: 52,
       textColorToken: 'C_YELLOW',
       bgColorToken: 'BG_TRANSPARENT',
@@ -107,6 +111,7 @@ export const subtitlePresets: SubtitlePreset[] = [
     subtitleStyle: {
       stylePreset: 'meme-pop',
       fontToken: 'F_MEME',
+      fontFamily: 'Bangers',
       fontSize: 52,
       textColorToken: 'C_GREEN',
       bgColorToken: 'BG_TRANSPARENT',
@@ -123,6 +128,7 @@ export const subtitlePresets: SubtitlePreset[] = [
     subtitleStyle: {
       stylePreset: 'podcast-duo',
       fontToken: 'F_GROTESK',
+      fontFamily: 'Manrope',
       fontSize: 40,
       textColorToken: 'C_WHITE',
       bgColorToken: 'BG_TRANSPARENT',
@@ -152,6 +158,7 @@ export const subtitlePresets: SubtitlePreset[] = [
     subtitleStyle: {
       stylePreset: 'clean-bold',
       fontToken: 'F_GROTESK',
+      fontFamily: 'Manrope',
       fontSize: 38,
       textColorToken: 'C_WHITE',
       bgColorToken: 'C_BLACK',
@@ -168,6 +175,7 @@ export const subtitlePresets: SubtitlePreset[] = [
     subtitleStyle: {
       stylePreset: 'neon-glow',
       fontToken: 'F_CONDENSED',
+      fontFamily: 'Sora',
       fontSize: 46,
       textColorToken: 'C_ORANGE',
       bgColorToken: 'BG_TRANSPARENT',
@@ -184,6 +192,7 @@ export const subtitlePresets: SubtitlePreset[] = [
     subtitleStyle: {
       stylePreset: 'creator-box',
       fontToken: 'F_ROUNDED',
+      fontFamily: 'Bebas Neue',
       fontSize: 44,
       textColorToken: 'C_WHITE',
       bgColorToken: 'C_BLACK',
@@ -200,6 +209,7 @@ export const subtitlePresets: SubtitlePreset[] = [
     subtitleStyle: {
       stylePreset: 'cinema',
       fontToken: 'F_SERIF',
+      fontFamily: 'Outfit',
       fontSize: 30,
       textColorToken: 'C_WHITE',
       bgColorToken: 'BG_TRANSPARENT',

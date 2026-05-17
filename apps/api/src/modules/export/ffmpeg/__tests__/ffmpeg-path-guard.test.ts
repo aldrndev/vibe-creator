@@ -3,7 +3,7 @@
  * Tests for path validation, SSRF prevention, traversal blocking
  */
 
-import { mkdirSync, rmdirSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
+import { mkdirSync, rmdirSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
@@ -139,6 +139,60 @@ describe('ffmpeg-path-guard', () => {
       expect(dirs).toHaveProperty('input');
       expect(dirs).toHaveProperty('temp');
       expect(dirs).toHaveProperty('output');
+    });
+  });
+
+  describe('environment fallback', () => {
+    it('should derive temp and output directories from MEDIA_INPUT_DIR', async () => {
+      const fallbackBase = join(process.cwd(), 'test-temp-ffmpeg-fallback');
+      const fallbackUploads = join(fallbackBase, 'uploads');
+      const fallbackTemp = join(fallbackUploads, 'temp');
+      const fallbackExports = join(fallbackUploads, 'exports');
+
+      mkdirSync(fallbackUploads, { recursive: true });
+
+      const previousMediaInputDir = process.env.MEDIA_INPUT_DIR;
+      const previousMediaTempDir = process.env.MEDIA_TEMP_DIR;
+      const previousMediaOutputDir = process.env.MEDIA_OUTPUT_DIR;
+
+      vi.resetModules();
+      process.env.MEDIA_INPUT_DIR = fallbackUploads;
+      delete process.env.MEDIA_TEMP_DIR;
+      delete process.env.MEDIA_OUTPUT_DIR;
+
+      try {
+        const fallbackGuard = await import('../ffmpeg-path-guard');
+
+        expect(fallbackGuard.getAllowlistedDirs()).toMatchObject({
+          input: fallbackUploads,
+          temp: fallbackTemp,
+          output: fallbackExports,
+        });
+        expect(fallbackGuard.validateOutputPath(join(fallbackTemp, 'clip.mp4'))).toContain(
+          'clip.mp4',
+        );
+        expect(fallbackGuard.validateOutputPath(join(fallbackExports, 'final.mp4'))).toContain(
+          'final.mp4',
+        );
+      } finally {
+        rmSync(fallbackBase, { recursive: true, force: true });
+        vi.resetModules();
+        if (previousMediaInputDir === undefined) {
+          delete process.env.MEDIA_INPUT_DIR;
+        } else {
+          process.env.MEDIA_INPUT_DIR = previousMediaInputDir;
+        }
+        if (previousMediaTempDir === undefined) {
+          delete process.env.MEDIA_TEMP_DIR;
+        } else {
+          process.env.MEDIA_TEMP_DIR = previousMediaTempDir;
+        }
+        if (previousMediaOutputDir === undefined) {
+          delete process.env.MEDIA_OUTPUT_DIR;
+        } else {
+          process.env.MEDIA_OUTPUT_DIR = previousMediaOutputDir;
+        }
+      }
     });
   });
 });

@@ -10,6 +10,7 @@ export interface ModernEditorSnapshot {
   layerOrder: string[];
   assets: EditorAsset[];
   selectedLayerId: string | null;
+  selectedLayerIds: string[];
   currentTimeMs: number;
   isDirty: boolean;
 }
@@ -19,8 +20,13 @@ interface SnapshotSource extends ModernEditorSnapshot {
 }
 
 export const MAX_HISTORY_ENTRIES = 50;
+/** Default project title shown before the editor can infer a better name. */
+export const DEFAULT_PROJECT_TITLE = 'Untitled Project';
 const MIN_CANVAS_SIZE = 320;
 const MAX_CANVAS_SIZE = 4096;
+const FILE_EXTENSION_PATTERN = /\.[^./\\]+$/;
+const READABLE_FILENAME_SEPARATOR_PATTERN = /[_-]+/g;
+const COLLAPSED_WHITESPACE_PATTERN = /\s+/g;
 
 export function generateId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -34,7 +40,62 @@ export function getDefaultSettings(): ModernProjectSettings {
     fps: MODERN_LIMITS.DEFAULT_FPS as AllowedFps,
     durationMs: 0,
     backgroundColor: '#000000',
+    backgroundMode: 'blur',
+    backgroundBlurAmount: 18,
+    backgroundBlurZoom: 1.08,
+    backgroundDim: 0.08,
+    backgroundSaturation: 1.05,
   };
+}
+
+function resolveFps(
+  fps: Partial<ModernProjectSettings>['fps'],
+  fallback: ModernProjectSettings['fps'],
+): ModernProjectSettings['fps'] {
+  if (MODERN_LIMITS.ALLOWED_FPS.some((allowedFps) => allowedFps === fps) && fps !== undefined) {
+    return fps;
+  }
+
+  return fallback;
+}
+
+export function mergeModernProjectSettings(
+  baseSettings: ModernProjectSettings,
+  updates: Partial<ModernProjectSettings> = {},
+): ModernProjectSettings {
+  const normalizedUpdates = normalizeSettings(updates);
+  return {
+    width: normalizedUpdates.width ?? baseSettings.width,
+    height: normalizedUpdates.height ?? baseSettings.height,
+    fps: resolveFps(normalizedUpdates.fps, baseSettings.fps),
+    durationMs: normalizedUpdates.durationMs ?? baseSettings.durationMs,
+    backgroundColor: normalizedUpdates.backgroundColor?.trim() || baseSettings.backgroundColor,
+    backgroundMode: normalizedUpdates.backgroundMode ?? baseSettings.backgroundMode,
+    backgroundBlurAmount:
+      normalizedUpdates.backgroundBlurAmount ?? baseSettings.backgroundBlurAmount ?? 18,
+    backgroundBlurZoom:
+      normalizedUpdates.backgroundBlurZoom ?? baseSettings.backgroundBlurZoom ?? 1.08,
+    backgroundDim: normalizedUpdates.backgroundDim ?? baseSettings.backgroundDim ?? 0.08,
+    backgroundSaturation:
+      normalizedUpdates.backgroundSaturation ?? baseSettings.backgroundSaturation ?? 1.05,
+  };
+}
+
+export function resolveModernProjectSettings(
+  settings: Partial<ModernProjectSettings> = {},
+): ModernProjectSettings {
+  return mergeModernProjectSettings(getDefaultSettings(), settings);
+}
+
+/** Creates a readable editor title from the first imported media filename. */
+export function createProjectTitleFromAssetName(assetName: string): string {
+  const title = assetName
+    .replace(FILE_EXTENSION_PATTERN, '')
+    .replace(READABLE_FILENAME_SEPARATOR_PATTERN, ' ')
+    .replace(COLLAPSED_WHITESPACE_PATTERN, ' ')
+    .trim();
+
+  return title || DEFAULT_PROJECT_TITLE;
 }
 
 export function createSnapshot(state: SnapshotSource): ModernEditorSnapshot {
@@ -46,6 +107,7 @@ export function createSnapshot(state: SnapshotSource): ModernEditorSnapshot {
     layerOrder: [...state.layerOrder],
     assets: [...state.assets],
     selectedLayerId: state.selectedLayerId,
+    selectedLayerIds: [...state.selectedLayerIds],
     currentTimeMs: state.currentTimeMs,
     isDirty: state.isDirty,
   };
@@ -97,6 +159,20 @@ export function normalizeSettings(
       settings.durationMs === undefined
         ? undefined
         : clamp(settings.durationMs, 0, MODERN_LIMITS.MAX_DURATION_MS),
+    backgroundBlurAmount:
+      settings.backgroundBlurAmount === undefined
+        ? undefined
+        : clamp(settings.backgroundBlurAmount, 0, 50),
+    backgroundBlurZoom:
+      settings.backgroundBlurZoom === undefined
+        ? undefined
+        : clamp(settings.backgroundBlurZoom, 1, 1.5),
+    backgroundDim:
+      settings.backgroundDim === undefined ? undefined : clamp(settings.backgroundDim, 0, 0.6),
+    backgroundSaturation:
+      settings.backgroundSaturation === undefined
+        ? undefined
+        : clamp(settings.backgroundSaturation, 0, 2),
   };
 }
 

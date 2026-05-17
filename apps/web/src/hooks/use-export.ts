@@ -42,6 +42,7 @@ export interface TextOverlayData {
   y: number;
   fontSize: number;
   fontFamily: string;
+  fontWeight?: string;
   color: string;
   backgroundColor?: string;
 }

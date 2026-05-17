@@ -308,7 +308,9 @@ export const paymentService = {
         data: {
           tier: 'FREE',
           status: 'EXPIRED',
+          exportsUsed: 0,
           exportsLimit: TIER_EXPORTS.FREE,
+          validUntil: null,
         },
       });
     }
@@ -321,9 +323,9 @@ export const paymentService = {
   },
 
   /**
-   * Check and increment export count
+   * Check export quota without consuming it.
    */
-  async consumeExportQuota(userId: string): Promise<{ allowed: boolean; remaining: number }> {
+  async checkExportQuota(userId: string): Promise<{ allowed: boolean; remaining: number }> {
     const subscription = await this.getSubscription(userId);
 
     if (subscription.isUnlimited) {
@@ -334,6 +336,22 @@ export const paymentService = {
       return { allowed: false, remaining: 0 };
     }
 
+    return {
+      allowed: true,
+      remaining: subscription.exportsLimit - subscription.exportsUsed,
+    };
+  },
+
+  /**
+   * Check and increment export count.
+   */
+  async consumeExportQuota(userId: string): Promise<{ allowed: boolean; remaining: number }> {
+    const quota = await this.checkExportQuota(userId);
+
+    if (!quota.allowed || quota.remaining === -1) {
+      return quota;
+    }
+
     await prisma.subscription.update({
       where: { userId },
       data: { exportsUsed: { increment: 1 } },
@@ -341,7 +359,7 @@ export const paymentService = {
 
     return {
       allowed: true,
-      remaining: subscription.exportsLimit - subscription.exportsUsed - 1,
+      remaining: Math.max(0, quota.remaining - 1),
     };
   },
 };

@@ -123,6 +123,44 @@ services:
           cpus: "1.0"
           memory: 512M
 
+  export-worker:
+    image: vibe-creator-api:${IMAGE_TAG:-latest}
+    container_name: vibe-creator-export-worker-prod
+    command: ["node", "dist/workers/export.worker.js"]
+    env_file:
+      - apps/api/.env.docker
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-password}@postgres:5432/vibe_creator?schema=public
+      REDIS_URL: redis://redis:6379
+      FFMPEG_PATH: /usr/bin/ffmpeg
+      MEDIA_INPUT_DIR: /app/uploads
+      TEMP_DIR: /app/uploads/temp
+      OUTPUT_DIR: /app/uploads/exports
+      EXPORT_WORKER_CONCURRENCY: ${EXPORT_WORKER_CONCURRENCY:-1}
+      EXPORT_QUEUE_MAX_PENDING: ${EXPORT_QUEUE_MAX_PENDING:-50}
+      TRANSCRIBE_PROVIDER: http
+      TRANSCRIBE_SERVICE_URL: http://transcribe:8000
+      TRANSCRIBE_LANGUAGE: ${TRANSCRIBE_LANGUAGE:-mixed}
+    volumes:
+      - api_uploads_prod:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      transcribe:
+        condition: service_healthy
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 3G
+        reservations:
+          cpus: "0.5"
+          memory: 512M
+
 volumes:
   postgres_data_prod:
   redis_data_prod:

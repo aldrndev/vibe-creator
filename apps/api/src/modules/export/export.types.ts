@@ -113,6 +113,9 @@ export interface ExportJobData {
         fontWeight: string;
         color: string;
       };
+      animationIn?: string;
+      animationOut?: string;
+      animationLoop?: string;
     }>;
   };
 

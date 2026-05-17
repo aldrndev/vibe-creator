@@ -29,6 +29,8 @@ import { jobRoutes } from '@/modules/story/job.routes';
 import { streamRoutes } from '@/modules/stream/stream.routes';
 import { trendingRoutes } from '@/modules/trending/trending.routes';
 import { uploadRoutes } from '@/modules/upload/upload.routes';
+import { videoStudioRoutes } from '@/modules/video-studio/video-studio.routes';
+import { workspaceRoutes } from '@/modules/workspace/workspace.routes';
 import { authPlugin } from '@/plugins/auth';
 import { errorHandlerPlugin } from '@/plugins/error-handler';
 import { registerSwagger } from '@/plugins/swagger';
@@ -166,6 +168,8 @@ async function main(): Promise<void> {
       await api.register(paymentRoutes, { prefix: '/payment' });
       await api.register(adminRoutes, { prefix: '/admin' });
       await api.register(projectRoutes, { prefix: '/projects' });
+      await api.register(videoStudioRoutes, { prefix: '/video-studio' });
+      await api.register(workspaceRoutes, { prefix: '/workspaces' });
       await api.register(billingRoutes, { prefix: '/billing' });
       await api.register(jobRoutes, { prefix: '/jobs' });
       await api.register(directorRoutes, { prefix: '/director' });

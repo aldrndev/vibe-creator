@@ -1,3 +1,4 @@
+import type { EditorFontFamily } from '@vibe-creator/shared';
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 import type {
@@ -140,6 +141,7 @@ export interface SubtitleStyle {
     | 'creator-box'
     | 'cinema';
   fontToken: DirectorSubtitleFontToken;
+  fontFamily?: EditorFontFamily;
   fontSize: number;
   textColorToken: DirectorSubtitleTextColorToken;
   bgColorToken: DirectorSubtitleBackgroundColorToken;
@@ -189,6 +191,7 @@ export interface ExportJob {
 const defaultSubtitleStyle: SubtitleStyle = {
   stylePreset: 'viral-pop',
   fontToken: 'F_DISPLAY',
+  fontFamily: 'League Spartan',
   fontSize: 52,
   textColorToken: 'C_YELLOW',
   bgColorToken: 'BG_TRANSPARENT',

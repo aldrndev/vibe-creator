@@ -1,22 +1,25 @@
 import type { Layer, TextLayer } from '@vibe-creator/shared';
-import {
-  Badge,
-  Card,
-  CardBody,
-  Input,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui';
+import { AlignCenter, AlignLeft, AlignRight, Bold, Italic, Type } from 'lucide-react';
+import type { ReactNode } from 'react';
+import { EditorFontSelect } from '@/components/editor-font-select';
+import { Badge, Button, Card, CardBody, Slider, Textarea } from '@/components/ui';
+import { buildTextStylePresetUpdate, textStylePresets } from '@/lib/modern-editor-preset-catalog';
 import { cn } from '@/lib/utils';
-import { parseFiniteNumber } from './property-number';
+import { PresetPreviewCard } from './preset-preview-card';
+import { QuickPresetGrid } from './quick-preset-grid';
 
 interface TextLayerPropertiesProps {
-  layer: TextLayer;
-  onUpdate: (updates: Partial<Layer>) => void;
+  readonly layer: TextLayer;
+  readonly onUpdate: (updates: Partial<Layer>) => void;
 }
+
+const textColors = ['#ffffff', '#111827', '#ff4b1f', '#facc15', '#22c55e', '#38bdf8'] as const;
+const backgroundColors = [
+  { label: 'None', value: undefined },
+  { label: 'Dark', value: 'rgba(0, 0, 0, 0.72)' },
+  { label: 'Brand', value: '#ff4b1f' },
+  { label: 'Teal', value: '#0f766e' },
+] as const;
 
 export function TextLayerProperties({ layer, onUpdate }: Readonly<TextLayerPropertiesProps>) {
   const updateData = (dataUpdates: Partial<TextLayer['data']>) => {
@@ -24,248 +27,271 @@ export function TextLayerProperties({ layer, onUpdate }: Readonly<TextLayerPrope
   };
 
   return (
-    <Card className="bg-card/70 backdrop-blur-xl border-border/40 overflow-hidden">
-      <CardBody className="p-6 space-y-8">
-        <div className="flex items-center justify-between">
-          <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground">
-            Text Style
-          </h3>
+    <Card className="overflow-hidden rounded-2xl border-border/40 bg-card/70 backdrop-blur-xl">
+      <CardBody className="space-y-4 p-3">
+        <div className="flex items-center justify-between gap-3">
+          <SectionTitle icon={<Type size={16} />}>Style</SectionTitle>
           <Badge
             variant="outline"
-            className="bg-primary/5 text-primary border-primary/20 text-[10px] font-black uppercase"
+            className="border-primary/20 bg-primary/5 text-[10px] font-black uppercase text-primary"
           >
-            {layer.data.text.length} chars
+            Text
           </Badge>
         </div>
 
-        <div className="space-y-4">
-          <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
-            Content
-          </div>
-          <textarea
+        <QuickPresetGrid label="Preset siap pakai">
+          {textStylePresets.map((preset) => (
+            <PresetPreviewCard
+              key={preset.id}
+              helper={preset.helper}
+              label={preset.label}
+              previewClassName={preset.previewClassName}
+              sample={preset.sample}
+              onClick={() => onUpdate(buildTextStylePresetUpdate(layer, preset))}
+            />
+          ))}
+        </QuickPresetGrid>
+
+        <div className="space-y-2">
+          <PanelLabel>Isi teks</PanelLabel>
+          <Textarea
             value={layer.data.text}
             placeholder="Ketik teks di sini..."
-            className="w-full min-h-[100px] p-4 bg-background/40 border border-border/40 focus:border-primary/40 focus:ring-1 focus:ring-primary/40 rounded-2xl outline-none text-sm font-bold transition-all resize-none"
+            className="min-h-16 resize-none rounded-xl border-border/40 bg-background/40 p-2.5 text-sm font-bold leading-relaxed focus-visible:ring-primary/40"
             onChange={(event) => updateData({ text: event.target.value })}
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-6">
-          <div className="space-y-4">
-            <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
-              Font Family
-            </div>
-            <Select
-              value={layer.data.fontFamily}
-              onValueChange={(value) => updateData({ fontFamily: value })}
-            >
-              <SelectTrigger className="bg-background/40 border-border/40 h-12 rounded-2xl font-bold text-xs uppercase tracking-widest focus:ring-1 focus:ring-primary/40">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {['Inter', 'Arial', 'Impact', 'Georgia', 'Courier New'].map((font) => (
-                  <SelectItem key={font} value={font} className="text-xs font-bold">
-                    {font}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-4">
-            <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
-              Font Style
-            </div>
-            <Select
-              value={layer.data.fontStyle}
-              onValueChange={(value) =>
-                updateData({ fontStyle: value as TextLayer['data']['fontStyle'] })
-              }
-            >
-              <SelectTrigger className="bg-background/40 border-border/40 h-12 rounded-2xl font-bold text-xs uppercase tracking-widest focus:ring-1 focus:ring-primary/40">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="normal" className="text-xs font-bold uppercase">
-                  Normal
-                </SelectItem>
-                <SelectItem value="italic" className="text-xs font-bold uppercase">
-                  Italic
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+        <div className="space-y-2">
+          <PanelLabel>Font</PanelLabel>
+          <EditorFontSelect
+            value={layer.data.fontFamily}
+            onChange={(fontFamily) => updateData({ fontFamily })}
+          />
         </div>
 
-        <div className="grid grid-cols-2 gap-6">
-          <div className="space-y-4">
-            <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
-              Font Size
-            </div>
-            <div className="flex items-center bg-background/40 border border-border/40 h-12 rounded-2xl overflow-hidden px-4 gap-2 focus-within:border-primary/40 focus-within:ring-1 focus-within:ring-primary/40 transition-all">
-              <input
-                type="number"
-                min={8}
-                max={200}
-                value={layer.data.fontSize}
-                className="bg-transparent border-none focus:ring-0 p-0 h-full font-bold text-sm w-full outline-none"
-                onChange={(event) =>
-                  updateData({
-                    fontSize: parseFiniteNumber(event.target.value, layer.data.fontSize),
-                  })
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-3">
+            <PanelLabel>Ukuran</PanelLabel>
+            <span className="rounded-full bg-muted/20 px-2 py-1 font-mono text-[10px] font-black text-muted-foreground">
+              {layer.data.fontSize}px
+            </span>
+          </div>
+          <Slider
+            min={16}
+            max={140}
+            value={[layer.data.fontSize]}
+            onValueChange={(value: number[]) =>
+              updateData({ fontSize: value[0] ?? layer.data.fontSize })
+            }
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          <ToggleButton
+            active={layer.data.fontWeight === 'bold'}
+            icon={<Bold size={16} />}
+            label="Bold"
+            onClick={() =>
+              updateData({ fontWeight: layer.data.fontWeight === 'bold' ? 'normal' : 'bold' })
+            }
+          />
+          <ToggleButton
+            active={layer.data.fontStyle === 'italic'}
+            icon={<Italic size={16} />}
+            label="Italic"
+            onClick={() =>
+              updateData({ fontStyle: layer.data.fontStyle === 'italic' ? 'normal' : 'italic' })
+            }
+          />
+        </div>
+
+        <ColorSwatchRow
+          label="Warna teks"
+          selectedColor={layer.data.color}
+          colors={textColors}
+          onSelect={(color) => updateData({ color })}
+        />
+
+        <div className="space-y-2">
+          <PanelLabel>Background teks</PanelLabel>
+          <div className="grid grid-cols-2 gap-2">
+            {backgroundColors.map((option) => (
+              <Button
+                key={option.label}
+                type="button"
+                variant="ghost"
+                className={cn(
+                  'h-9 rounded-lg border px-2 text-xs font-black',
+                  layer.data.backgroundColor === option.value ||
+                    (!layer.data.backgroundColor && !option.value)
+                    ? 'border-primary bg-primary/10 text-primary'
+                    : 'border-border/30 bg-background/25 text-muted-foreground hover:border-primary/40 hover:text-foreground',
+                )}
+                onClick={() => updateData({ backgroundColor: option.value })}
+              >
+                {option.label}
+              </Button>
+            ))}
+          </div>
+          <ColorPickerButton
+            label="Custom text background"
+            value={layer.data.backgroundColor ?? '#000000'}
+            onChange={(backgroundColor) => updateData({ backgroundColor })}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <PanelLabel>Rata teks</PanelLabel>
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { icon: <AlignLeft size={16} />, label: 'Left', value: 'left' },
+              { icon: <AlignCenter size={16} />, label: 'Center', value: 'center' },
+              { icon: <AlignRight size={16} />, label: 'Right', value: 'right' },
+            ].map((option) => (
+              <ToggleButton
+                key={option.value}
+                active={layer.data.textAlign === option.value}
+                icon={option.icon}
+                label={option.label}
+                onClick={() =>
+                  updateData({ textAlign: option.value as TextLayer['data']['textAlign'] })
                 }
               />
-              <span className="text-[10px] font-black text-muted-foreground/40">PX</span>
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
-              Weight
-            </div>
-            <Select
-              value={layer.data.fontWeight}
-              onValueChange={(value) => updateData({ fontWeight: value as 'normal' | 'bold' })}
-            >
-              <SelectTrigger className="bg-background/40 border-border/40 h-12 rounded-2xl font-bold text-xs uppercase tracking-widest focus:ring-1 focus:ring-primary/40">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="normal" className="text-xs font-bold uppercase">
-                  Normal
-                </SelectItem>
-                <SelectItem value="bold" className="text-xs font-black uppercase">
-                  Bold
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-6">
-          <div className="space-y-4">
-            <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
-              Color
-            </div>
-            <div className="flex items-center gap-3 bg-background/40 border border-border/40 h-12 rounded-2xl px-3 group transition-all focus-within:border-primary/40 focus-within:ring-1 focus:ring-primary/40">
-              <div className="relative w-8 h-8 rounded-lg overflow-hidden border border-border/20 shrink-0">
-                <input
-                  type="color"
-                  value={layer.data.color}
-                  onChange={(event) => updateData({ color: event.target.value })}
-                  className="absolute inset-[-10px] w-[200%] h-[200%] cursor-pointer"
-                />
-              </div>
-              <span className="text-[10px] font-mono font-black text-muted-foreground/60 group-hover:text-primary transition-colors">
-                {layer.data.color.toUpperCase()}
-              </span>
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
-              Animation
-            </div>
-            <Select
-              value={layer.data.animation}
-              onValueChange={(value) =>
-                updateData({ animation: value as TextLayer['data']['animation'] })
-              }
-            >
-              <SelectTrigger className="bg-background/40 border-border/40 h-12 rounded-2xl font-bold text-xs uppercase tracking-widest focus:ring-1 focus:ring-primary/40">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {[
-                  { label: 'None', value: 'none' },
-                  { label: 'Fade In', value: 'fade' },
-                  { label: 'Slide Up', value: 'slide-up' },
-                  { label: 'Slide Down', value: 'slide-down' },
-                  { label: 'Typewriter', value: 'typewriter' },
-                ].map((option) => (
-                  <SelectItem
-                    key={option.value}
-                    value={option.value}
-                    className="text-xs font-bold uppercase"
-                  >
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        <div className="space-y-4">
-          <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
-            Background
-          </div>
-          <div className="flex items-center gap-3 bg-background/40 border border-border/40 h-12 rounded-2xl px-3 group transition-all focus-within:border-primary/40 focus-within:ring-1 focus-within:ring-primary/40">
-            <Input
-              value={layer.data.backgroundColor ?? ''}
-              placeholder="transparent, #000000, rgba(0,0,0,0.7)"
-              className="bg-transparent border-none focus:ring-0 h-9 font-mono font-bold text-xs"
-              onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
-                updateData({ backgroundColor: event.target.value || undefined })
-              }
-            />
-          </div>
-        </div>
-
-        <div className="space-y-6 pt-2 border-t border-border/10">
-          <div className="space-y-4">
-            <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
-              Position Presets
-            </div>
-            <div className="grid grid-cols-3 gap-2">
-              {[
-                { label: 'Top', x: 50, y: 15, w: 90, h: 12 },
-                { label: 'Center', x: 50, y: 50, w: 80, h: 20 },
-                { label: 'Bottom', x: 50, y: 85, w: 90, h: 12 },
-              ].map((preset) => (
-                <button
-                  key={preset.label}
-                  type="button"
-                  onClick={() =>
-                    onUpdate({
-                      x: preset.x,
-                      y: preset.y,
-                      width: preset.w,
-                      height: preset.h,
-                    })
-                  }
-                  className="h-10 text-[10px] font-black uppercase tracking-widest rounded-xl bg-card border border-border/40 hover:border-primary/40 hover:bg-primary/5 transition-all active:scale-95"
-                >
-                  {preset.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
-              Text Alignment
-            </div>
-            <div className="flex bg-muted/20 p-1.5 rounded-2xl gap-2 border border-border/10">
-              {(['left', 'center', 'right'] as const).map((align) => (
-                <button
-                  key={align}
-                  type="button"
-                  onClick={() => updateData({ textAlign: align })}
-                  className={cn(
-                    'flex-1 h-10 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-300',
-                    layer.data.textAlign === align
-                      ? 'bg-primary text-primary-foreground scale-[1.02]'
-                      : 'text-muted-foreground/60 hover:bg-white/5 hover:text-muted-foreground',
-                  )}
-                >
-                  {align}
-                </button>
-              ))}
-            </div>
+            ))}
           </div>
         </div>
       </CardBody>
     </Card>
   );
+}
+
+function ColorSwatchRow({
+  colors,
+  label,
+  onSelect,
+  selectedColor,
+}: Readonly<{
+  colors: readonly string[];
+  label: string;
+  onSelect: (color: string) => void;
+  selectedColor: string;
+}>) {
+  return (
+    <div className="space-y-2">
+      <PanelLabel>{label}</PanelLabel>
+      <div className="flex flex-wrap gap-2">
+        {colors.map((color) => (
+          <button
+            key={color}
+            type="button"
+            aria-label={`${label} ${color}`}
+            className={cn(
+              'h-8 w-8 rounded-lg border transition-all active:scale-95',
+              getColorClassName(color),
+              selectedColor.toLowerCase() === color
+                ? 'border-primary ring-2 ring-primary/25'
+                : 'border-border/40 hover:border-primary/50',
+            )}
+            onClick={() => onSelect(color)}
+          />
+        ))}
+        <ColorPickerButton label={label} value={selectedColor} onChange={onSelect} compact />
+      </div>
+    </div>
+  );
+}
+
+function ColorPickerButton({
+  compact = false,
+  label,
+  onChange,
+  value,
+}: Readonly<{
+  compact?: boolean;
+  label: string;
+  onChange: (value: string) => void;
+  value: string;
+}>) {
+  return (
+    <label
+      className={cn(
+        'relative flex cursor-pointer items-center overflow-hidden rounded-lg border border-border/40 bg-background/40 transition-all hover:border-primary/50',
+        compact ? 'h-8 w-8 justify-center' : 'h-10 w-full gap-2 px-3',
+      )}
+    >
+      <span className="h-5 w-5 shrink-0 rounded-md bg-gradient-to-br from-primary via-yellow-400 to-sky-400" />
+      {!compact && <span className="text-xs font-black text-muted-foreground">Pick color</span>}
+      <input
+        aria-label={label}
+        type="color"
+        value={getColorInputValue(value)}
+        className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+        onChange={(event) => onChange(event.target.value)}
+      />
+    </label>
+  );
+}
+
+function ToggleButton({
+  active,
+  icon,
+  label,
+  onClick,
+}: Readonly<{
+  active: boolean;
+  icon: ReactNode;
+  label: string;
+  onClick: () => void;
+}>) {
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      className={cn(
+        'h-9 rounded-lg border px-2 text-[10px] font-black transition-all',
+        active
+          ? 'border-primary bg-primary/10 text-primary hover:bg-primary/15'
+          : 'border-border/30 bg-background/25 text-muted-foreground hover:border-primary/40 hover:text-foreground',
+      )}
+      onClick={onClick}
+    >
+      <span className="mr-1.5 shrink-0">{icon}</span>
+      <span className="truncate">{label}</span>
+    </Button>
+  );
+}
+
+function PanelLabel({ children }: Readonly<{ children: ReactNode }>) {
+  return (
+    <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
+      {children}
+    </div>
+  );
+}
+
+function SectionTitle({ children, icon }: Readonly<{ children: ReactNode; icon: ReactNode }>) {
+  return (
+    <h3 className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-muted-foreground">
+      <span className="text-primary">{icon}</span>
+      {children}
+    </h3>
+  );
+}
+
+function getColorInputValue(value: string): string {
+  return /^#[0-9a-f]{6}$/i.test(value) ? value : '#000000';
+}
+
+function getColorClassName(color: string): string {
+  const classes: Record<string, string> = {
+    '#ffffff': 'bg-white',
+    '#111827': 'bg-slate-900',
+    '#ff4b1f': 'bg-primary',
+    '#facc15': 'bg-yellow-400',
+    '#22c55e': 'bg-green-500',
+    '#38bdf8': 'bg-sky-400',
+  };
+
+  return classes[color] ?? 'bg-muted';
 }

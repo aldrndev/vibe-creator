@@ -1,8 +1,11 @@
-import type { ExportResolution } from '@prisma/client';
+import { existsSync } from 'node:fs';
+import type { ExportHistory, ExportResolution, SubscriptionTier } from '@prisma/client';
+import { env } from '@/config/env';
 import { logger } from '@/lib/logger';
 import { prisma } from '@/lib/prisma';
+import { addExportJob, getExportQueueStats } from './export.queue';
+import { createExportDisplayFilename, createExportFingerprint } from './export-cache';
 import { cancelExportJob } from './export-cancel';
-import { processExportJob } from './processors/export.processor';
 
 interface TimelineData {
   clips: Array<{
@@ -23,6 +26,9 @@ interface TimelineData {
       volume: number;
       fadeIn: number;
       fadeOut: number;
+      transitionIn?: 'none' | 'fade' | 'slide-left' | 'slide-right' | 'zoom';
+      transitionOut?: 'none' | 'fade' | 'slide-left' | 'slide-right' | 'zoom';
+      motion?: 'none' | 'zoom-in' | 'zoom-out';
     };
   }>;
   textOverlays?: Array<{
@@ -34,19 +40,34 @@ interface TimelineData {
     y: number;
     fontSize: number;
     fontFamily: string;
+    fontWeight?: string;
     color: string;
     backgroundColor?: string;
+    animation?: 'none' | 'fade' | 'slide-up' | 'slide-down' | 'typewriter';
+    animationIn?: 'none' | 'fade' | 'slide-up' | 'slide-down' | 'pop' | 'zoom' | 'typewriter';
+    animationOut?: 'none' | 'fade-out' | 'slide-out' | 'shrink';
+    animationLoop?: 'none' | 'pulse' | 'shake' | 'glow';
   }>;
   audioTracks?: Array<{
     localPath: string;
     startTime: number;
     endTime: number;
+    timelineStartMs: number;
+    timelineEndMs: number;
     volume: number;
+    fadeInMs: number;
+    fadeOutMs: number;
   }>;
   settings: {
     width: number;
     height: number;
     fps: number;
+    backgroundColor?: string;
+    backgroundMode?: 'solid' | 'blur';
+    backgroundBlurAmount?: number;
+    backgroundBlurZoom?: number;
+    backgroundDim?: number;
+    backgroundSaturation?: number;
   };
 }
 
@@ -54,58 +75,170 @@ interface CreateExportJobInput {
   userId: string;
   projectId?: string | null;
   timelineData: TimelineData;
+  fingerprintTimelineData?: TimelineData;
   format?: 'MP4' | 'WEBM' | 'MOV';
   resolution?: 'SD' | 'HD' | 'UHD';
   addWatermark?: boolean;
+  consumeQuotaOnSuccess?: boolean;
+  pendingLimit?: number;
+  requestId: string;
+  quotaAllowed?: boolean;
 }
+
+type ExportCacheState = 'none' | 'active-job' | 'completed-result';
+
+interface CreateExportJobResult {
+  job: ExportHistory;
+  reused: boolean;
+  cacheState: ExportCacheState;
+}
+
+export class ExportServiceError extends Error {
+  constructor(
+    message: string,
+    readonly code: string,
+    readonly statusCode = 400,
+  ) {
+    super(message);
+    this.name = 'ExportServiceError';
+  }
+}
+
+const EXPORT_RESULT_TTL_MS = 48 * 60 * 60 * 1000;
+const DEFAULT_PENDING_LIMIT = 1;
 
 /**
  * Export service for handling video export jobs
- * NOW REFACTORED: Delegates processing to export.processor.ts
  */
 export const exportService = {
-  async createJob(input: CreateExportJobInput) {
+  async createJob(input: CreateExportJobInput): Promise<CreateExportJobResult> {
     const {
       userId,
       projectId,
       timelineData,
+      fingerprintTimelineData,
       format = 'MP4',
       resolution = 'HD',
       addWatermark = true,
+      consumeQuotaOnSuccess = false,
+      pendingLimit = DEFAULT_PENDING_LIMIT,
+      requestId,
+      quotaAllowed = true,
     } = input;
+    const persistedProjectId = projectId && projectId !== 'default' ? projectId : undefined;
+    const exportFingerprint = createExportFingerprint({
+      projectId: persistedProjectId,
+      format,
+      resolution,
+      addWatermark,
+      timelineData: fingerprintTimelineData ?? timelineData,
+    });
 
-    // Check rate limit (max 3 pending jobs per user)
+    const activeReusableJob = await prisma.exportHistory.findFirst({
+      where: {
+        userId,
+        exportFingerprint,
+        status: { in: ['QUEUED', 'PROCESSING'] },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (activeReusableJob) {
+      return { job: activeReusableJob, reused: true, cacheState: 'active-job' };
+    }
+
+    const completedReusableJob = await prisma.exportHistory.findFirst({
+      where: {
+        userId,
+        exportFingerprint,
+        status: 'COMPLETED',
+        urlExpiresAt: { gt: new Date() },
+        localPath: { not: null },
+      },
+      orderBy: { completedAt: 'desc' },
+    });
+
+    if (
+      completedReusableJob?.localPath &&
+      existsSync(completedReusableJob.localPath) &&
+      completedReusableJob.downloadUrl
+    ) {
+      return { job: completedReusableJob, reused: true, cacheState: 'completed-result' };
+    }
+
+    if (!quotaAllowed) {
+      throw new ExportServiceError(
+        'Export quota exceeded. Please upgrade your plan.',
+        'QUOTA_EXCEEDED',
+        403,
+      );
+    }
+
     const pendingJobs = await prisma.exportHistory.count({
       where: {
         userId,
-        status: {
-          in: ['QUEUED', 'PROCESSING'],
-        },
+        status: { in: ['QUEUED', 'PROCESSING'] },
       },
     });
 
-    if (pendingJobs >= 3) {
-      throw new Error('Too many pending export jobs. Please wait for current exports to complete.');
+    if (pendingJobs >= pendingLimit) {
+      throw new ExportServiceError(
+        'Kamu masih punya export yang sedang berjalan. Tunggu selesai dulu sebelum export lagi.',
+        'EXPORT_TOO_MANY_PENDING',
+        429,
+      );
     }
+
+    const queueStats = await getExportQueueStats();
+    if (queueStats.waiting + queueStats.active >= env.EXPORT_QUEUE_MAX_PENDING) {
+      throw new ExportServiceError(
+        'Antrian export sedang penuh. Coba lagi beberapa menit lagi.',
+        'EXPORT_QUEUE_FULL',
+        503,
+      );
+    }
+
+    const now = new Date();
+    const displayFilename = await createDisplayFilenameForProject(userId, persistedProjectId, now);
 
     const job = await prisma.exportHistory.create({
       data: {
         userId,
-        projectId: projectId && projectId !== 'default' ? projectId : undefined,
+        projectId: persistedProjectId,
         format,
         resolution: resolution as ExportResolution,
         status: 'QUEUED',
+        phase: 'QUEUED',
+        progress: 0,
         timelineData: JSON.parse(JSON.stringify(timelineData)),
-        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        expiresAt: new Date(now.getTime() + EXPORT_RESULT_TTL_MS),
+        exportFingerprint,
+        displayFilename,
+        addWatermark,
+        consumeQuotaOnSuccess,
       },
     });
 
-    // Start processing in background
-    this.processJob(job.id, addWatermark).catch((err) => {
-      logger.error({ err, jobId: job.id }, 'Export job failed');
-    });
+    try {
+      await addExportJob({ jobId: job.id, userId, requestId });
+    } catch (err) {
+      await prisma.exportHistory.update({
+        where: { id: job.id },
+        data: {
+          status: 'FAILED',
+          phase: 'FAILED',
+          errorMessage: 'Export queue unavailable',
+        },
+      });
+      logger.error({ err, jobId: job.id, requestId }, 'Failed to enqueue export job');
+      throw new ExportServiceError(
+        'Service export sedang sibuk. Coba lagi beberapa saat lagi.',
+        'EXPORT_QUEUE_FULL',
+        503,
+      );
+    }
 
-    return job;
+    return { job, reused: false, cacheState: 'none' };
   },
 
   async getOwnedJob(jobId: string, userId: string) {
@@ -130,15 +263,14 @@ export const exportService = {
       id: job.id,
       status: job.status,
       progress: job.progress,
+      phase: job.phase,
       errorMessage: job.errorMessage,
       downloadUrl: job.downloadUrl,
       urlExpiresAt: job.urlExpiresAt,
       completedAt: job.completedAt,
+      filename: job.displayFilename ?? undefined,
+      cacheState: job.reusedFromJobId ? 'completed-result' : 'none',
     };
-  },
-
-  async processJob(jobId: string, addWatermark: boolean) {
-    return processExportJob(jobId, addWatermark);
   },
 
   async cancelJob(jobId: string, userId: string) {
@@ -211,13 +343,15 @@ export const exportService = {
         format: job.format,
         resolution: job.resolution,
         progress: job.progress,
+        phase: job.phase,
         errorMessage: job.errorMessage,
         downloadUrl: job.downloadUrl,
         urlExpiresAt: job.urlExpiresAt,
         completedAt: job.completedAt,
         createdAt: job.createdAt,
-        fileSizeBytes: job.fileSizeBytes,
+        fileSizeBytes: job.fileSizeBytes?.toString(),
         projectId: job.projectId,
+        filename: job.displayFilename ?? undefined,
       })),
       nextCursor,
       hasMore,
@@ -225,3 +359,29 @@ export const exportService = {
     };
   },
 };
+
+export function getPendingExportLimit(tier: SubscriptionTier | 'ADMIN'): number {
+  if (tier === 'ADMIN') return 5;
+  if (tier === 'PRO') return 2;
+  return 1;
+}
+
+async function createDisplayFilenameForProject(
+  userId: string,
+  projectId: string | undefined,
+  createdAt: Date,
+): Promise<string> {
+  if (!projectId) {
+    return createExportDisplayFilename({ createdAt });
+  }
+
+  const project = await prisma.project.findFirst({
+    where: { id: projectId, userId, deletedAt: null },
+    select: { title: true },
+  });
+
+  return createExportDisplayFilename({
+    projectTitle: project?.title,
+    createdAt,
+  });
+}

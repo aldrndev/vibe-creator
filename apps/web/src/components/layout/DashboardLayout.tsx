@@ -1,6 +1,7 @@
 import {
   ChevronDown,
   ChevronRight,
+  FolderClock,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -62,6 +63,7 @@ const toolsChildren = [
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Trending', href: '/dashboard/trending', icon: TrendingUp },
+  { name: 'Riwayat', href: '/dashboard/history', icon: FolderClock },
   // { name: "My Exports", href: "/dashboard/exports", icon: FolderOpen },
   {
     name: 'Tools',

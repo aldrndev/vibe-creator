@@ -1,0 +1,7 @@
+Curated Pixabay Sound Effects for Video Studio.
+
+License: Pixabay Content License
+License summary: https://pixabay.com/service/license-summary/
+Source collection: https://pixabay.com/sound-effects/search/meme/
+
+Individual source URLs are tracked in apps/api/src/modules/video-studio/video-studio-audio-assets.ts.

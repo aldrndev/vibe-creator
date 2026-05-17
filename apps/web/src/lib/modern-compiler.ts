@@ -21,8 +21,13 @@ import type {
   ModernProject,
   TextLayer,
   VideoLayer,
+  VisualLayerEffects,
 } from '@vibe-creator/shared';
-import { MODERN_COMPILER_VERSION, MODERN_LIMITS } from '@vibe-creator/shared';
+import {
+  createDefaultVisualLayerEffects,
+  MODERN_COMPILER_VERSION,
+  MODERN_LIMITS,
+} from '@vibe-creator/shared';
 import type { EditorAsset, EditorClip, EditorTimeline, EditorTrack } from '@/stores/editor-store';
 
 // -----------------------------------------------------------------------------
@@ -228,6 +233,26 @@ function layerToClipTransforms(layer: Layer, projectWidth: number, projectHeight
   };
 }
 
+function visualEffectsToClipEffects(
+  effects: VisualLayerEffects,
+  volume: number,
+): EditorClip['effects'] {
+  const filters = effects.filter === 'none' ? [] : [effects.filter];
+  const transitionInMs = effects.transitionIn === 'none' ? 0 : 500;
+  const transitionOutMs = effects.transitionOut === 'none' ? 0 : 500;
+
+  return {
+    filters,
+    speed: 1,
+    volume,
+    fadeIn: Math.max(effects.fadeInMs, transitionInMs),
+    fadeOut: Math.max(effects.fadeOutMs, transitionOutMs),
+    transitionIn: effects.transitionIn,
+    transitionOut: effects.transitionOut,
+    motion: effects.motion,
+  };
+}
+
 /**
  * Convert a video layer to timeline clips
  */
@@ -237,6 +262,7 @@ function compileVideoLayer(
   projectSettings: ModernProject['settings'],
 ): { videoClip: EditorClip; audioClip?: EditorClip } {
   const linkId = `link-${layer.id}`;
+  const visualEffects = layer.data.effects ?? createDefaultVisualLayerEffects();
 
   const videoClip: EditorClip = {
     id: generateClipId(layer.id, 'VIDEO', 0),
@@ -247,13 +273,7 @@ function compileVideoLayer(
     trimStartMs: layer.data.trimStartMs,
     trimEndMs: layer.data.trimEndMs,
     transforms: layerToClipTransforms(layer, projectSettings.width, projectSettings.height),
-    effects: {
-      filters: [],
-      speed: 1,
-      volume: layer.data.volume,
-      fadeIn: 0,
-      fadeOut: 0,
-    },
+    effects: visualEffectsToClipEffects(visualEffects, layer.data.volume),
     asset,
   };
 
@@ -271,8 +291,8 @@ function compileVideoLayer(
       filters: [],
       speed: 1,
       volume: layer.data.volume,
-      fadeIn: 0,
-      fadeOut: 0,
+      fadeIn: visualEffects.fadeInMs,
+      fadeOut: visualEffects.fadeOutMs,
     },
     asset,
   };
@@ -288,6 +308,8 @@ function compileImageLayer(
   asset: EditorAsset,
   projectSettings: ModernProject['settings'],
 ): EditorClip {
+  const visualEffects = layer.data.effects ?? createDefaultVisualLayerEffects();
+
   return {
     id: generateClipId(layer.id, 'VIDEO', 0), // Images go on video track
     assetId: layer.assetId,
@@ -296,13 +318,7 @@ function compileImageLayer(
     trimStartMs: 0,
     trimEndMs: 0,
     transforms: layerToClipTransforms(layer, projectSettings.width, projectSettings.height),
-    effects: {
-      filters: [],
-      speed: 1,
-      volume: 0,
-      fadeIn: 0,
-      fadeOut: 0,
-    },
+    effects: visualEffectsToClipEffects(visualEffects, 0),
     asset,
   };
 }
@@ -468,6 +484,9 @@ export function extractTextOverlays(project: ModernProject) {
       startMs: layer.startMs,
       endMs: layer.endMs,
       animation: layer.data.animation,
+      animationIn: layer.data.animationIn ?? layer.data.animation,
+      animationOut: layer.data.animationOut ?? 'none',
+      animationLoop: layer.data.animationLoop ?? 'none',
     }));
 }
 

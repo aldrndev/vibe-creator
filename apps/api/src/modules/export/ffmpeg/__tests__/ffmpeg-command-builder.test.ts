@@ -30,8 +30,13 @@ writeFileSync(TEST_VIDEO, 'fake video content');
 writeFileSync(TEST_AUDIO, 'fake audio content');
 
 // Now import the module (after env vars are set)
-const { buildTrimCommand, buildEncodeCommand, buildMuxCommand, buildAudioMixCommand } =
-  await import('../ffmpeg-command-builder');
+const {
+  buildTrimCommand,
+  buildEncodeCommand,
+  buildMuxCommand,
+  buildAudioMixCommand,
+  buildVideoEffectsCommand,
+} = await import('../ffmpeg-command-builder');
 
 describe('ffmpeg-command-builder', () => {
   afterAll(() => {
@@ -75,6 +80,16 @@ describe('ffmpeg-command-builder', () => {
 
       const ssIndex = cmd.args.indexOf('-ss');
       expect(parseFloat(cmd.args[ssIndex + 1] || '0')).toBeGreaterThanOrEqual(0);
+    });
+
+    it('should preserve non-zero source trim ranges', () => {
+      const output = join(TEST_TEMP, 'trimmed-offset.mp4');
+      const cmd = buildTrimCommand(TEST_VIDEO, output, 10_000, 15_000, 5000);
+
+      const ssIndex = cmd.args.indexOf('-ss');
+      const durationIndex = cmd.args.indexOf('-t');
+      expect(cmd.args[ssIndex + 1]).toBe('10.000');
+      expect(cmd.args[durationIndex + 1]).toBe('5.000');
     });
   });
 
@@ -152,6 +167,98 @@ describe('ffmpeg-command-builder', () => {
       const filterIndex = cmd.args.indexOf('-filter_complex');
       const filter = cmd.args[filterIndex + 1] || '';
       expect(filter).toContain('volume=2'); // Clamped to max 2
+    });
+  });
+
+  describe('buildVideoEffectsCommand', () => {
+    it('includes visual filters and fade controls for editor effects', () => {
+      const output = join(TEST_TEMP, 'effects.mp4');
+      const cmd = buildVideoEffectsCommand(TEST_VIDEO, output, {
+        effects: {
+          filters: ['warm'],
+          speed: 1,
+          volume: 0.5,
+          fadeIn: 500,
+          fadeOut: 750,
+        },
+        outputWidth: 1920,
+        outputHeight: 1080,
+        durationMs: 5000,
+      });
+
+      const args = cmd.args.join(' ');
+      expect(args).toContain('colorbalance=rs=0.3:gs=0.1');
+      expect(args).toContain('fade=t=in:st=0:d=0.5');
+      expect(args).toContain('fade=t=out:st=4.250:d=0.75');
+      expect(args).toContain('volume=0.5');
+    });
+
+    it('includes visual slide and zoom transition filters for modern editor export', () => {
+      const output = join(TEST_TEMP, 'animated-effects.mp4');
+      const cmd = buildVideoEffectsCommand(TEST_VIDEO, output, {
+        effects: {
+          filters: [],
+          speed: 1,
+          volume: 1,
+          fadeIn: 500,
+          fadeOut: 500,
+          transitionIn: 'slide-left',
+          transitionOut: 'zoom',
+          motion: 'zoom-in',
+        },
+        outputWidth: 1080,
+        outputHeight: 1920,
+        durationMs: 5000,
+      });
+
+      const args = cmd.args.join(' ');
+      expect(args).toContain('pad=2160:1920:0:0:color=black');
+      expect(args).toContain("crop=1080:1920:x='1080*(1-min(1\\,max(0\\,(t-0.000)/0.500)))':y=0");
+      expect(args).toContain("scale=w='trunc(iw*(1+(0.04)*min(1\\,max(0\\,t/5.000)))/2)*2'");
+      expect(args).toContain(
+        "scale=w='trunc(iw*(1-(1-0.92)*min(1\\,max(0\\,(t-4.500)/0.500)))/2)*2'",
+      );
+    });
+
+    it('builds blur-fill canvas background for mismatched aspect ratios', () => {
+      const output = join(TEST_TEMP, 'blur-fill.mp4');
+      const cmd = buildVideoEffectsCommand(TEST_VIDEO, output, {
+        outputWidth: 1080,
+        outputHeight: 1920,
+        durationMs: 5000,
+        background: {
+          mode: 'blur',
+          color: '#000000',
+        },
+      });
+
+      const args = cmd.args.join(' ');
+      expect(args).toContain('force_original_aspect_ratio=increase');
+      expect(args).toContain('gblur=sigma=18');
+      expect(args).toContain('eq=brightness=-0.08:saturation=1.05');
+      expect(args).toContain('[bg][fg]overlay=(W-w)/2:(H-h)/2');
+      expect(args).toContain('force_original_aspect_ratio=decrease');
+    });
+
+    it('applies custom blur background controls', () => {
+      const output = join(TEST_TEMP, 'blur-fill-custom.mp4');
+      const cmd = buildVideoEffectsCommand(TEST_VIDEO, output, {
+        outputWidth: 1080,
+        outputHeight: 1920,
+        durationMs: 5000,
+        background: {
+          mode: 'blur',
+          blurAmount: 24,
+          blurZoom: 1.12,
+          dim: 0.15,
+          saturation: 1.25,
+        },
+      });
+
+      const args = cmd.args.join(' ');
+      expect(args).toContain('gblur=sigma=24');
+      expect(args).toContain('eq=brightness=-0.15:saturation=1.25');
+      expect(args).toContain(`scale=${Math.ceil(1080 * 1.12)}:${Math.ceil(1920 * 1.12)}`);
     });
   });
 

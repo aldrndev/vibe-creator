@@ -3,6 +3,7 @@ import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { EditingLivePreview } from '@/components/director/steps/editing-live-preview';
 import { subtitlePresets } from '@/components/director/steps/editing-presets';
 import { EditingSubtitleSpeakerControls } from '@/components/director/steps/editing-subtitle-speaker-controls';
+import { EditorFontSelect } from '@/components/editor-font-select';
 import { Card, CardBody, Switch, Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui';
 import {
   type ContentMode,
@@ -12,7 +13,7 @@ import {
   getResolvedContentMode,
 } from '@/lib/director-refine-settings';
 import { directorSubtitleColorOptions } from '@/lib/director-subtitle-colors';
-import { directorSubtitleFontOptions } from '@/lib/director-subtitle-fonts';
+import { resolveDirectorSubtitleFontFamily } from '@/lib/director-subtitle-fonts';
 import {
   clampSubtitleFontSize,
   resolveSubtitleFontSizeMax,
@@ -346,6 +347,10 @@ function SubtitleStyleCard({
     subtitleStyle.fontSize,
     subtitleFontSizeContext,
   );
+  const activeFontFamily = resolveDirectorSubtitleFontFamily(
+    subtitleStyle.fontFamily,
+    subtitleStyle.fontToken,
+  );
   const showSpeakerStyleControls =
     subtitleStyle.speakerMode === 'speaker-colors' ||
     subtitleStyle.stylePreset === 'podcast-duo' ||
@@ -468,28 +473,10 @@ function SubtitleStyleCard({
               Font
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-1.5 bg-muted/30 rounded-2xl p-1.5 border border-border/40 sm:grid-cols-3">
-            {directorSubtitleFontOptions.map((font) => (
-              <button
-                type="button"
-                key={font.value}
-                onClick={() =>
-                  onUpdateSubtitleStyle({
-                    fontToken: font.value,
-                  })
-                }
-                className={cn(
-                  'px-2 py-1.5 rounded-xl text-[10px] font-black transition-all',
-                  subtitleStyle.fontToken === font.value
-                    ? 'bg-card text-orange-500 border border-orange-500/30'
-                    : 'text-muted-foreground hover:text-foreground',
-                )}
-                style={{ fontFamily: font.previewFamily }}
-              >
-                {font.label}
-              </button>
-            ))}
-          </div>
+          <EditorFontSelect
+            value={activeFontFamily}
+            onChange={(fontFamily) => onUpdateSubtitleStyle({ fontFamily })}
+          />
         </div>
 
         <div className="space-y-3">
@@ -644,6 +631,7 @@ function getExactSubtitlePresetId(
   const matchingPreset = subtitlePresets.find(
     (preset) =>
       subtitleStyle.fontToken === preset.subtitleStyle.fontToken &&
+      subtitleStyle.fontFamily === preset.subtitleStyle.fontFamily &&
       subtitleStyle.fontSize === preset.subtitleStyle.fontSize &&
       subtitleStyle.textColorToken === preset.subtitleStyle.textColorToken &&
       subtitleStyle.bgColorToken === preset.subtitleStyle.bgColorToken &&

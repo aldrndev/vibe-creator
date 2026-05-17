@@ -157,6 +157,52 @@ services:
           memory: 512M
 
   # ---------------------------------------------------------------------------
+  # Export Worker (Dedicated FFmpeg Renderer)
+  # ---------------------------------------------------------------------------
+  export-worker:
+    build:
+      context: ../..
+      dockerfile: apps/api/Dockerfile
+      target: development
+    container_name: vibe-creator-export-worker
+    command: ["pnpm", "--filter", "@vibe-creator/api", "worker:export:dev"]
+    env_file:
+      - apps/api/.env.docker
+    environment:
+      NODE_ENV: development
+      FFMPEG_PATH: /usr/bin/ffmpeg
+      MEDIA_INPUT_DIR: /app/uploads
+      TEMP_DIR: /app/uploads/temp
+      OUTPUT_DIR: /app/uploads/exports
+      EXPORT_WORKER_CONCURRENCY: ${EXPORT_WORKER_CONCURRENCY:-1}
+      EXPORT_QUEUE_MAX_PENDING: ${EXPORT_QUEUE_MAX_PENDING:-50}
+      TRANSCRIBE_PROVIDER: http
+      TRANSCRIBE_SERVICE_URL: http://transcribe:8000
+      TRANSCRIBE_LANGUAGE: ${TRANSCRIBE_LANGUAGE:-mixed}
+    volumes:
+      - ../../apps/api/uploads:/app/uploads
+      - ../../apps/api/src:/app/apps/api/src
+      - ../../apps/api/tsconfig.json:/app/apps/api/tsconfig.json
+      - ../../apps/api/package.json:/app/apps/api/package.json
+      - ../../packages/shared/src:/app/packages/shared/src
+      - /app/apps/api/node_modules
+      - /app/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 3G
+        reservations:
+          cpus: "0.5"
+          memory: 512M
+
+  # ---------------------------------------------------------------------------
   # Cobalt API (Video Downloads)
   # ---------------------------------------------------------------------------
   cobalt:

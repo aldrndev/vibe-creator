@@ -324,14 +324,29 @@ describe('paymentService', () => {
         ...expiredSub,
         tier: 'FREE',
         status: 'EXPIRED',
+        exportsUsed: 0,
+        exportsLimit: 5,
+        validUntil: null,
       });
 
       // Act
       const result = await paymentService.getSubscription('user-123');
 
       // Assert
+      expect(mockPrisma.subscription.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            tier: 'FREE',
+            status: 'EXPIRED',
+            exportsUsed: 0,
+            exportsLimit: 5,
+            validUntil: null,
+          }),
+        }),
+      );
       expect(result.tier).toBe('FREE');
       expect(result.status).toBe('EXPIRED');
+      expect(result.exportsUsed).toBe(0);
     });
   });
 
@@ -339,6 +354,20 @@ describe('paymentService', () => {
   // useExport
   // ============================================================================
   describe('useExport', () => {
+    it('should check quota without incrementing export usage', async () => {
+      // Arrange
+      const sub = createMockSubscription({ exportsUsed: 2, exportsLimit: 5 });
+      mockPrisma.subscription.findUnique.mockResolvedValue(sub);
+
+      // Act
+      const result = await paymentService.checkExportQuota('user-123');
+
+      // Assert
+      expect(result.allowed).toBe(true);
+      expect(result.remaining).toBe(3);
+      expect(mockPrisma.subscription.update).not.toHaveBeenCalled();
+    });
+
     it('should allow export and decrement remaining', async () => {
       // Arrange
       const sub = createMockSubscription({ exportsUsed: 2, exportsLimit: 5 });

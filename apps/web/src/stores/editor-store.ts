@@ -57,6 +57,10 @@ export interface EditorAsset {
   height?: number;
   thumbnailUrl?: string;
   thumbnails?: string[]; // Timeline thumbnail strips
+  serverAssetId?: string;
+  serverUrl?: string;
+  serverUploadToken?: string;
+  studioAssetId?: string;
 }
 
 export interface EditorTimeline {

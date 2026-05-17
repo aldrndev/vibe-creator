@@ -1,4 +1,5 @@
-import { mapSubtitleFontToken } from '@/modules/director/subtitle-style-tokens';
+import { getEditorFontsDir } from '@/lib/editor-fonts';
+import { resolveSubtitleFontFamily } from '@/modules/director/subtitle-style-tokens';
 import type { SubtitleSegment, SubtitleWord } from '@/modules/transcribe/transcribe-normalizer';
 import { hasCompleteWordTextCoverage } from '@/modules/transcribe/transcript-word-coverage';
 
@@ -34,6 +35,7 @@ export interface SubtitleSpeakerStyle {
 export interface SubtitleStyleOptions {
   stylePreset?: SubtitleStylePreset | string;
   fontToken?: string;
+  fontFamily?: string;
   textColorToken?: string;
   bgColorToken?: string;
   fontSize?: number;
@@ -356,12 +358,14 @@ export function buildSubtitlesFilter(
   useForceStyle = true,
 ): string {
   const escapedPath = escapeSubtitleFilterValue(subtitlePath.replaceAll('\\', '/'));
+  const escapedFontsDir = escapeSubtitleFilterValue(getEditorFontsDir().replaceAll('\\', '/'));
+  const fontsDirPart = `:fontsdir=${escapedFontsDir}`;
   if (!useForceStyle) {
-    return `subtitles=filename=${escapedPath}`;
+    return `subtitles=filename=${escapedPath}${fontsDirPart}`;
   }
 
   const escapedStyle = escapeSubtitleFilterValue(buildSubtitleForceStyle(style));
-  return `subtitles=filename=${escapedPath}:force_style=${escapedStyle}`;
+  return `subtitles=filename=${escapedPath}${fontsDirPart}:force_style=${escapedStyle}`;
 }
 
 export function isMissingSubtitlesFilterError(error: unknown): boolean {
@@ -495,7 +499,11 @@ function normalizeCueText(text: string): string {
 }
 
 function isMemePopStyle(style?: SubtitleStyleOptions): boolean {
-  return style?.stylePreset === 'meme-pop' || style?.fontToken === 'F_MEME';
+  return (
+    style?.stylePreset === 'meme-pop' ||
+    style?.fontToken === 'F_MEME' ||
+    resolveSubtitleFontFamily(style?.fontFamily, style?.fontToken) === 'Bangers'
+  );
 }
 
 function formatStyledCueText(text: string, style?: SubtitleStyleOptions): string {
@@ -1088,7 +1096,7 @@ export function formatAssTime(ms: number): string {
 }
 
 export function buildSubtitleForceStyle(style?: SubtitleStyleOptions): string {
-  const fontName = mapSubtitleFontToken(style?.fontToken);
+  const fontName = resolveSubtitleFontFamily(style?.fontFamily, style?.fontToken);
   const fontSize = resolveSubtitleFontSize(style?.fontSize, style);
   const primaryColour = mapTextColorToken(style?.textColorToken, '&H00FFFFFF');
   const backColour = mapBackgroundColorToken(style?.bgColorToken, '&H80000000');
@@ -1117,7 +1125,7 @@ export function buildSubtitleForceStyle(style?: SubtitleStyleOptions): string {
 }
 
 function buildAssStyleLine(style?: SubtitleStyleOptions): string {
-  const fontName = mapSubtitleFontToken(style?.fontToken);
+  const fontName = resolveSubtitleFontFamily(style?.fontFamily, style?.fontToken);
   const fontSize = resolveSubtitleFontSize(style?.fontSize, style);
   const primaryColour = mapHighlightColorToken(style?.textColorToken);
   const secondaryColour = mapTextColorToken(style?.textColorToken, '&H00FFFFFF');

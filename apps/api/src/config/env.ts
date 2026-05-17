@@ -59,6 +59,8 @@ const envSchema = z.object({
   TEMP_DIR: z.string().default('./temp'),
   OUTPUT_DIR: z.string().default('./output'),
   MEDIA_INPUT_DIR: z.string().default('./uploads'),
+  EXPORT_WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(5).default(1),
+  EXPORT_QUEUE_MAX_PENDING: z.coerce.number().int().min(1).default(50),
 
   // Video Download (Cobalt API)
   COBALT_API_URL: optionalUrlSchema, // Self-hosted Cobalt API URL

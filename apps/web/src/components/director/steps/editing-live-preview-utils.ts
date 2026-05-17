@@ -641,7 +641,7 @@ function mapPreviewBackgroundColor(backgroundToken: string): string {
 
 function getSubtitleTextStyle(subtitleStyle: SubtitleStyle): LivePreviewScene['subtitleTextStyle'] {
   return {
-    fontFamily: mapDirectorSubtitlePreviewFont(subtitleStyle.fontToken),
+    fontFamily: mapDirectorSubtitlePreviewFont(subtitleStyle.fontFamily, subtitleStyle.fontToken),
     color: mapPreviewTextColor(subtitleStyle.textColorToken),
     backgroundColor: mapPreviewBackgroundColor(subtitleStyle.bgColorToken),
   };

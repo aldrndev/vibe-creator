@@ -36,6 +36,6 @@ describe('derivePublishPack', () => {
     const pack = derivePublishPack([]);
 
     expect(pack.bestClipId).toBeNull();
-    expect(pack.caption).toContain('Pilih klip terbaik dulu');
+    expect(pack.caption).toContain('Pilih 1 short final dulu');
   });
 });

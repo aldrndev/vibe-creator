@@ -1,53 +1,56 @@
-import type { ImageLayer, Layer } from '@vibe-creator/shared';
+import type { ImageLayer, Layer, ModernProjectSettings } from '@vibe-creator/shared';
+import { Image as ImageIcon } from 'lucide-react';
+import type { ReactNode } from 'react';
+import { Card, CardBody } from '@/components/ui';
 import {
-  Card,
-  CardBody,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui';
+  buildVisualStylePresetUpdate,
+  visualStylePresets,
+} from '@/lib/modern-editor-preset-catalog';
+import { PresetPreviewCard } from './preset-preview-card';
+import { QuickPresetGrid } from './quick-preset-grid';
 
 interface ImageLayerPropertiesProps {
-  layer: ImageLayer;
-  onUpdate: (updates: Partial<Layer>) => void;
+  readonly layer: ImageLayer;
+  readonly onUpdate: (updates: Partial<Layer>) => void;
+  readonly onUpdateSettings?: (updates: Partial<ModernProjectSettings>) => void;
 }
 
-export function ImageLayerProperties({ layer, onUpdate }: Readonly<ImageLayerPropertiesProps>) {
-  const updateData = (dataUpdates: Partial<ImageLayer['data']>) => {
-    onUpdate({ data: { ...layer.data, ...dataUpdates } } as Partial<Layer>);
-  };
-
+export function ImageLayerProperties({
+  layer,
+  onUpdate,
+  onUpdateSettings,
+}: Readonly<ImageLayerPropertiesProps>) {
   return (
-    <Card className="bg-card/70 backdrop-blur-xl border-border/40 overflow-hidden">
-      <CardBody className="p-6 space-y-8">
-        <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground">
-          Image Properties
-        </h3>
+    <Card className="overflow-hidden rounded-2xl border-border/40 bg-card/70 backdrop-blur-xl">
+      <CardBody className="space-y-4 p-3">
+        <SectionTitle icon={<ImageIcon size={15} />}>Image style</SectionTitle>
 
-        <div className="space-y-4">
-          <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
-            Fit Mode
-          </div>
-          <Select
-            value={layer.data.fit}
-            onValueChange={(value) => updateData({ fit: value as ImageLayer['data']['fit'] })}
-          >
-            <SelectTrigger className="bg-background/40 border-border/40 h-11 rounded-xl font-bold text-xs uppercase tracking-tight">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="contain" className="text-xs font-bold uppercase">
-                Contain
-              </SelectItem>
-              <SelectItem value="cover" className="text-xs font-bold uppercase">
-                Cover
-              </SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        <QuickPresetGrid label="Action cepat" columns="two">
+          {visualStylePresets.map((preset) => (
+            <PresetPreviewCard
+              key={preset.id}
+              helper={preset.helper}
+              label={preset.label}
+              previewClassName={preset.previewClassName}
+              onClick={() => {
+                onUpdate(buildVisualStylePresetUpdate(layer, preset));
+                if (preset.canvasSettings) {
+                  onUpdateSettings?.(preset.canvasSettings);
+                }
+              }}
+            />
+          ))}
+        </QuickPresetGrid>
       </CardBody>
     </Card>
+  );
+}
+
+function SectionTitle({ children, icon }: Readonly<{ children: ReactNode; icon: ReactNode }>) {
+  return (
+    <h3 className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-muted-foreground">
+      <span className="text-primary">{icon}</span>
+      {children}
+    </h3>
   );
 }

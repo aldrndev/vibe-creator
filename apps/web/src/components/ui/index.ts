@@ -72,6 +72,8 @@ export { PageTransition } from './PageTransition';
 export type { PaginationProps } from './Pagination';
 // Pagination
 export { Pagination } from './Pagination';
+// Popover
+export { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from './Popover';
 // Progress
 export { Progress } from './Progress';
 // ScrollArea

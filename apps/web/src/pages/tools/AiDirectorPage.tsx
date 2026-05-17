@@ -1,11 +1,12 @@
 import { AlertCircle, Plus } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { StepIndicator } from '@/components/director/StepIndicator';
 import { AnalyzeStep } from '@/components/director/steps/AnalyzeStep';
 import { EditingStep } from '@/components/director/steps/EditingStep';
 import { ImportStep } from '@/components/director/steps/ImportStep';
 import { PickingStep } from '@/components/director/steps/PickingStep';
+import { ContinueWorkspaceDialog } from '@/components/workspace/ContinueWorkspaceDialog';
 import {
   DEFAULT_TRANSCRIBE_LANGUAGE,
   normalizeTranscribeLanguage,
@@ -194,16 +195,28 @@ export function AiDirectorPage() {
   } = useDirectorStore();
 
   const sessionParam = searchParams.get('session');
+  const pendingSessionHydrationRef = useRef<string | null>(null);
+  const [openedWithoutSession] = useState(!sessionParam);
+  const [showContinuePrompt, setShowContinuePrompt] = useState(openedWithoutSession);
   const activeSessionId = activeSession?.id ?? null;
   const hasActiveSession = activeSession !== null;
 
   useEffect(() => {
+    if (sessionParam) {
+      setShowContinuePrompt(false);
+    }
+  }, [sessionParam]);
+
+  useEffect(() => {
     if (!sessionParam || activeSessionId === sessionParam) {
+      pendingSessionHydrationRef.current = null;
       setIsHydrating(false);
       return;
     }
 
     let cancelled = false;
+    pendingSessionHydrationRef.current = sessionParam;
+    setIsHydrating(true);
 
     const hydrateSession = async () => {
       try {
@@ -238,6 +251,7 @@ export function AiDirectorPage() {
         }
       } finally {
         if (!cancelled) {
+          pendingSessionHydrationRef.current = null;
           setIsHydrating(false);
         }
       }
@@ -247,6 +261,7 @@ export function AiDirectorPage() {
 
     return () => {
       cancelled = true;
+      pendingSessionHydrationRef.current = null;
     };
   }, [
     activeSessionId,
@@ -267,6 +282,10 @@ export function AiDirectorPage() {
   ]);
 
   useEffect(() => {
+    if (pendingSessionHydrationRef.current) {
+      return;
+    }
+
     const nextSearchParams = new URLSearchParams(searchParams);
 
     if (activeSessionId && sessionParam !== activeSessionId) {
@@ -286,6 +305,20 @@ export function AiDirectorPage() {
       <div className="max-w-400 mx-auto space-y-8">
         {/* Header */}
         <div className="space-y-4 mb-2">
+          {showContinuePrompt && !hasActiveSession ? (
+            <ContinueWorkspaceDialog
+              tool="ai-director"
+              onStartNew={() => {
+                reset();
+                setShowContinuePrompt(false);
+                setSearchParams({}, { replace: true });
+              }}
+              onUnavailable={() => {
+                setShowContinuePrompt(false);
+              }}
+            />
+          ) : null}
+
           {hasActiveSession ? (
             <div className="flex justify-start">
               <button

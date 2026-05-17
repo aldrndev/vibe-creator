@@ -93,6 +93,9 @@ export interface ClipEffects {
   volume: number;
   fadeIn: number;
   fadeOut: number;
+  transitionIn?: 'none' | 'fade' | 'slide-left' | 'slide-right' | 'zoom';
+  transitionOut?: 'none' | 'fade' | 'slide-left' | 'slide-right' | 'zoom';
+  motion?: 'none' | 'zoom-in' | 'zoom-out';
 }
 
 // Text overlay for video editor

@@ -5,8 +5,9 @@
 
 import { logger } from '@/lib/logger';
 import { prisma } from '@/lib/prisma';
-import { exportQueue } from './export.queue';
+import { removeWaitingExportJob } from './export.queue';
 import { unregisterActiveJob } from './export-concurrency';
+import { publishExportEvent } from './export-events';
 import { cleanupTempDir, createJobTempDir } from './ffmpeg/index';
 
 export interface CancelResult {
@@ -70,18 +71,11 @@ export async function cancelExportJob(jobId: string, userId: string): Promise<Ca
     });
 
     // 5. Try to remove from BullMQ queue (if still waiting)
-    const queueJob = await exportQueue.getJob(jobId);
-    if (queueJob) {
-      const state = await queueJob.getState();
-
-      if (state === 'waiting' || state === 'delayed') {
-        // Job hasn't started yet - remove from queue
-        await queueJob.remove();
-        logger.info({ jobId }, 'Removed export job from queue');
-      } else if (state === 'active') {
-        // Job is active - it will check CANCEL_REQUESTED flag
-        logger.info({ jobId }, 'Export job is active, will be cancelled by worker');
-      }
+    const removedFromQueue = await removeWaitingExportJob(jobId);
+    if (removedFromQueue) {
+      logger.info({ jobId }, 'Removed export job from queue');
+    } else {
+      logger.info({ jobId }, 'Export job already active or missing from waiting queue');
     }
 
     // 6. Update final status (use FAILED with CANCELLED phase)
@@ -92,6 +86,11 @@ export async function cancelExportJob(jobId: string, userId: string): Promise<Ca
         phase: 'CANCELLED',
         errorMessage: 'Cancelled by user',
       },
+    });
+    await publishExportEvent({
+      type: 'failed',
+      jobId,
+      errorMessage: 'Export dibatalkan.',
     });
 
     // 7. Cleanup concurrency tracking

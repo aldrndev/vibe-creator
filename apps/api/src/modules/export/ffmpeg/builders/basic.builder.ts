@@ -45,9 +45,10 @@ export function buildTrimCommand(
   const validInput = validateInputPath(input);
   const validOutput = validateOutputPath(output);
 
-  const startSec = clamp(startMs / 1000, 0, durationMs / 1000);
-  const endSec = clamp(endMs / 1000, startSec, durationMs / 1000);
-  const duration = endSec - startSec;
+  const startSec = clamp(startMs / 1000, 0, Number.MAX_SAFE_INTEGER);
+  const requestedDurationSec = (endMs - startMs) / 1000;
+  const fallbackDurationSec = Math.max(0.1, durationMs / 1000);
+  const duration = requestedDurationSec > 0 ? requestedDurationSec : fallbackDurationSec;
 
   const args = [
     ...STANDARD_FLAGS,

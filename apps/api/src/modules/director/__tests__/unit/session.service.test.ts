@@ -41,7 +41,7 @@ describe('directorSessionService.deleteSession', () => {
     cleanupDirectorAssetFileIfUnreferencedMock.mockResolvedValue(true);
   });
 
-  it('cleans up the asset file after deleting the owning session', async () => {
+  it('soft-deletes the session and keeps asset cleanup for lifecycle cron', async () => {
     directorRepoMock.findSession.mockResolvedValue({
       id: 'session-1',
       asset: {
@@ -54,9 +54,7 @@ describe('directorSessionService.deleteSession', () => {
     });
 
     expect(directorRepoMock.deleteSession).toHaveBeenCalledWith('session-1', 'user-1');
-    expect(cleanupDirectorAssetFileIfUnreferencedMock).toHaveBeenCalledWith(
-      'uploads/director/asset-1.mp4',
-    );
+    expect(cleanupDirectorAssetFileIfUnreferencedMock).not.toHaveBeenCalled();
   });
 
   it('does not cleanup storage when the session has no asset', async () => {

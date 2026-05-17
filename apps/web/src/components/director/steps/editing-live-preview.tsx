@@ -419,6 +419,7 @@ function buildPreviewPayload(
     subtitleStyle: {
       stylePreset: subtitleStyle.stylePreset,
       fontToken: subtitleStyle.fontToken,
+      fontFamily: subtitleStyle.fontFamily,
       textColorToken: subtitleStyle.textColorToken,
       bgColorToken: subtitleStyle.bgColorToken,
       fontSize: subtitleStyle.fontSize,

@@ -42,6 +42,36 @@ export type AnchorPoint = 'center' | 'topLeft';
 
 export type FitMode = 'cover' | 'contain';
 
+export type CanvasBackgroundMode = 'solid' | 'blur';
+
+export type VisualFilterId = 'none' | 'grayscale' | 'warm' | 'cold' | 'vivid';
+
+export type VisualTransitionId = 'none' | 'fade' | 'slide-left' | 'slide-right' | 'zoom';
+
+export type VisualMotionId = 'none' | 'zoom-in' | 'zoom-out';
+
+export type TextAnimationInId =
+  | 'none'
+  | 'fade'
+  | 'slide-up'
+  | 'slide-down'
+  | 'pop'
+  | 'zoom'
+  | 'typewriter';
+
+export type TextAnimationOutId = 'none' | 'fade-out' | 'slide-out' | 'shrink';
+
+export type TextAnimationLoopId = 'none' | 'pulse' | 'shake' | 'glow';
+
+export interface VisualLayerEffects {
+  filter: VisualFilterId;
+  fadeInMs: number;
+  fadeOutMs: number;
+  transitionIn: VisualTransitionId;
+  transitionOut: VisualTransitionId;
+  motion: VisualMotionId;
+}
+
 /**
  * Base layer properties shared by all layer types
  */
@@ -75,6 +105,7 @@ export interface VideoLayerData {
   loop: boolean;
   trimStartMs: number;
   trimEndMs: number;
+  effects: VisualLayerEffects;
 }
 
 export interface VideoLayer extends BaseLayer {
@@ -87,6 +118,7 @@ export interface VideoLayer extends BaseLayer {
  */
 export interface ImageLayerData {
   fit: FitMode;
+  effects: VisualLayerEffects;
 }
 
 export interface ImageLayer extends BaseLayer {
@@ -106,7 +138,11 @@ export interface TextLayerData {
   color: string;
   backgroundColor?: string;
   textAlign: 'left' | 'center' | 'right';
-  animation: 'none' | 'fade' | 'slide-up' | 'slide-down' | 'typewriter';
+  /** Legacy single animation value. Keep for older drafts/projects. */
+  animation: Extract<TextAnimationInId, 'none' | 'fade' | 'slide-up' | 'slide-down' | 'typewriter'>;
+  animationIn?: TextAnimationInId;
+  animationOut?: TextAnimationOutId;
+  animationLoop?: TextAnimationLoopId;
 }
 
 export interface TextLayer extends BaseLayer {
@@ -145,6 +181,11 @@ export interface ModernProjectSettings {
   /** Derived from max(layer.endMs) or explicit */
   durationMs: number;
   backgroundColor: string;
+  backgroundMode: CanvasBackgroundMode;
+  backgroundBlurAmount?: number;
+  backgroundBlurZoom?: number;
+  backgroundDim?: number;
+  backgroundSaturation?: number;
 }
 
 /**
@@ -205,8 +246,24 @@ export function createDefaultModernProject(id: string, title: string): ModernPro
       fps: MODERN_LIMITS.DEFAULT_FPS,
       durationMs: 0,
       backgroundColor: '#000000',
+      backgroundMode: 'blur',
+      backgroundBlurAmount: 18,
+      backgroundBlurZoom: 1.08,
+      backgroundDim: 0.08,
+      backgroundSaturation: 1.05,
     },
     layers: [],
+  };
+}
+
+export function createDefaultVisualLayerEffects(): VisualLayerEffects {
+  return {
+    filter: 'none',
+    fadeInMs: 0,
+    fadeOutMs: 0,
+    transitionIn: 'none',
+    transitionOut: 'none',
+    motion: 'none',
   };
 }
 
@@ -239,6 +296,7 @@ export function createVideoLayer(
       loop: false,
       trimStartMs: 0,
       trimEndMs: 0,
+      effects: createDefaultVisualLayerEffects(),
     },
   };
 }
@@ -268,6 +326,7 @@ export function createImageLayer(
     endMs,
     data: {
       fit: 'contain',
+      effects: createDefaultVisualLayerEffects(),
     },
   };
 }
@@ -304,6 +363,9 @@ export function createTextLayer(
       color: '#ffffff',
       textAlign: 'center',
       animation: 'none',
+      animationIn: 'none',
+      animationOut: 'none',
+      animationLoop: 'none',
     },
   };
 }

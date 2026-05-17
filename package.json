@@ -35,6 +35,7 @@
     "docker:prod:build": "docker compose -f infra/compose/docker-compose.prod.single-node.yml build",
     "docker:prod:up:build": "docker compose -f infra/compose/docker-compose.prod.single-node.yml up -d --build",
     "layout:check": "node infra/scripts/layout-check.js",
+    "fonts:sync": "node scripts/sync-editor-fonts.mjs",
     "clean": "rm -rf node_modules **/*/node_modules **/*/dist **/*/build"
   },
   "keywords": [

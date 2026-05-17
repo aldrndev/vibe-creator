@@ -1,3 +1,11 @@
+import {
+  EDITOR_FONT_CATALOG,
+  type EditorFontCategory,
+  type EditorFontFamily,
+  getEditorFontCssFamily,
+  resolveEditorFontFamily,
+} from '@vibe-creator/shared';
+
 export const directorSubtitleFontTokenValues = [
   'F_INTER',
   'F_GROTESK',
@@ -12,57 +20,56 @@ export const directorSubtitleFontTokenValues = [
 export type DirectorSubtitleFontToken = (typeof directorSubtitleFontTokenValues)[number];
 
 export interface DirectorSubtitleFontOption {
-  readonly value: DirectorSubtitleFontToken;
+  readonly value: EditorFontFamily;
   readonly label: string;
+  readonly category: EditorFontCategory;
   readonly previewFamily: string;
 }
 
-export const directorSubtitleFontOptions = [
-  {
-    value: 'F_INTER',
-    label: 'Inter',
-    previewFamily: 'Inter, "Plus Jakarta Sans", sans-serif',
-  },
-  {
-    value: 'F_GROTESK',
-    label: 'Manrope',
-    previewFamily: 'Manrope, "Avenir Next", "Helvetica Neue", Arial, sans-serif',
-  },
-  {
-    value: 'F_MEME',
-    label: 'Cherry',
-    previewFamily: '"Cherry Bomb One", Impact, "Arial Black", "Bebas Neue", sans-serif',
-  },
-  {
-    value: 'F_DISPLAY',
-    label: 'League',
-    previewFamily: '"League Spartan", "Arial Black", sans-serif',
-  },
-  {
-    value: 'F_CONDENSED',
-    label: 'Condensed',
-    previewFamily: '"Arial Narrow", "Roboto Condensed", sans-serif',
-  },
-  {
-    value: 'F_ROUNDED',
-    label: 'Comfortaa',
-    previewFamily: 'Comfortaa, "Arial Rounded MT Bold", Nunito, sans-serif',
-  },
-  {
-    value: 'F_SERIF',
-    label: 'Serif',
-    previewFamily: 'Georgia, "Times New Roman", serif',
-  },
-  {
-    value: 'F_MONO',
-    label: 'Mono',
-    previewFamily: '"IBM Plex Mono", "Courier New", monospace',
-  },
-] as const satisfies readonly DirectorSubtitleFontOption[];
+export const directorSubtitleFontOptions = EDITOR_FONT_CATALOG.map((font) => ({
+  value: font.family as EditorFontFamily,
+  label: font.label,
+  category: font.category,
+  previewFamily: getEditorFontCssFamily(font.family),
+})) satisfies readonly DirectorSubtitleFontOption[];
 
-export function mapDirectorSubtitlePreviewFont(fontToken: string): string {
-  return (
-    directorSubtitleFontOptions.find((fontOption) => fontOption.value === fontToken)
-      ?.previewFamily ?? directorSubtitleFontOptions[0].previewFamily
-  );
+export function mapDirectorSubtitleTokenToFamily(fontToken?: string | null): EditorFontFamily {
+  switch (fontToken) {
+    case 'F_INTER':
+      return 'Inter';
+    case 'F_GROTESK':
+      return 'Manrope';
+    case 'F_MEME':
+      return 'Bangers';
+    case 'F_DISPLAY':
+      return 'League Spartan';
+    case 'F_CONDENSED':
+      return 'Roboto Condensed';
+    case 'F_ROUNDED':
+      return 'Fredoka';
+    case 'F_SERIF':
+      return 'Noto Sans';
+    case 'F_MONO':
+      return 'Sora';
+    default:
+      return 'Inter';
+  }
+}
+
+export function resolveDirectorSubtitleFontFamily(
+  fontFamily?: string | null,
+  fontToken?: string | null,
+): EditorFontFamily {
+  if (fontFamily) {
+    return resolveEditorFontFamily(fontFamily);
+  }
+
+  return mapDirectorSubtitleTokenToFamily(fontToken);
+}
+
+export function mapDirectorSubtitlePreviewFont(
+  fontFamily?: string | null,
+  fontToken?: string | null,
+): string {
+  return getEditorFontCssFamily(resolveDirectorSubtitleFontFamily(fontFamily, fontToken));
 }

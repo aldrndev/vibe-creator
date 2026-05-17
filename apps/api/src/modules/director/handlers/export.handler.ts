@@ -18,6 +18,10 @@ import type { Job } from 'bullmq';
 import { env } from '@/config/env';
 import { logger } from '@/lib/logger';
 import { prisma } from '@/lib/prisma';
+import {
+  getCompletedSessionExpiresAt,
+  getExportDownloadExpiresAt,
+} from '@/modules/workspace/workspace-lifecycle';
 import { directorProcessor } from '../director.processor';
 import type { DirectorExportJobData } from '../director.queue';
 import { type BuiltExportClip, buildExportClipFromSelectedClip } from '../export-clip-builder';
@@ -30,6 +34,7 @@ const subtitlePositionValues = ['top', 'center', 'bottom'] as const;
 const defaultViralPopSubtitleStyle = {
   stylePreset: 'viral-pop',
   fontToken: 'F_DISPLAY',
+  fontFamily: 'League Spartan',
   textColorToken: 'C_YELLOW',
   bgColorToken: 'BG_TRANSPARENT',
   fontSize: 52,
@@ -54,6 +59,7 @@ function resolveSubtitlePosition(position: string): SubtitleStyleOptions['positi
 function buildExportSubtitleStyle(
   style: {
     fontToken: string;
+    fontFamily?: string | null;
     stylePreset: string;
     textColorToken: string;
     bgColorToken: string;
@@ -69,6 +75,7 @@ function buildExportSubtitleStyle(
   const baseStyle = style
     ? {
         fontToken: style.fontToken,
+        fontFamily: style.fontFamily ?? undefined,
         stylePreset: style.stylePreset,
         textColorToken: style.textColorToken,
         bgColorToken: style.bgColorToken,
@@ -223,12 +230,26 @@ export async function processExportJob(job: Job<DirectorExportJobData>) {
     await job.updateProgress(100);
 
     const outputStorageKey = `director/exports/${finalFile}`;
-    await prisma.directorExportJob.update({
-      where: { id: exportJobId },
-      data: {
-        status: 'COMPLETED',
-        outputStorageKey,
-      },
+    const completedAt = new Date();
+    await prisma.$transaction(async (tx) => {
+      await tx.directorExportJob.update({
+        where: { id: exportJobId },
+        data: {
+          status: 'COMPLETED',
+          outputStorageKey,
+          completedAt,
+          downloadExpiresAt: getExportDownloadExpiresAt(completedAt),
+        },
+      });
+      await tx.directorSession.update({
+        where: { id: sessionId },
+        data: {
+          step: 'COMPLETED',
+          lifecycleStatus: 'COMPLETED',
+          completedAt,
+          expiresAt: getCompletedSessionExpiresAt(completedAt),
+        },
+      });
     });
 
     logger.info({ ...logCtx, finalFile }, 'Export job completed');

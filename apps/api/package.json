@@ -4,9 +4,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "pnpm db:deploy && tsx watch src/index.ts",
-    "build": "tsc && tsc-alias && rsync -avm --include='*/' --exclude='test_*.py' --include='*.py' --exclude='*' src/ dist/",
+    "dev": "pnpm db:generate && pnpm db:deploy && tsx watch src/index.ts",
+    "worker:export:dev": "pnpm db:generate && pnpm db:deploy && tsx watch src/workers/export.worker.ts",
+    "build": "tsc && tsc-alias && rsync -avm --include='*/' --exclude='test_*.py' --include='*.py' --include='*.mp3' --include='*.ogg' --include='*.txt' --include='*.ttf' --include='*.otf' --exclude='*' src/ dist/",
     "start": "node dist/index.js",
+    "start:export-worker": "node dist/workers/export.worker.js",
     "lint": "biome check src",
     "typecheck": "tsc --noEmit",
     "python:venv": "python3 -m venv venv",

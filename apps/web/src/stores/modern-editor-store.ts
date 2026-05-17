@@ -19,18 +19,28 @@ import {
 } from '@vibe-creator/shared';
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
+import {
+  calculateMovedLayerTiming,
+  calculateTrimmedLayerTiming,
+  collectTimelineSnapPoints,
+  MIN_LAYER_DURATION_MS,
+  type TimelineTrimEdge,
+} from '@/lib/modern-timeline-utils';
 import type { EditorAsset } from './editor-store';
 import {
   clamp,
   copyLayers,
+  createProjectTitleFromAssetName,
   createSnapshot,
+  DEFAULT_PROJECT_TITLE,
   generateId,
   getDefaultSettings,
   MAX_HISTORY_ENTRIES,
   type ModernEditorSnapshot,
+  mergeModernProjectSettings,
   normalizeLayerUpdates,
-  normalizeSettings,
   pushHistory,
+  resolveModernProjectSettings,
 } from './modern-editor-store-helpers';
 
 // -----------------------------------------------------------------------------
@@ -52,6 +62,7 @@ interface ModernEditorState {
 
   // Selection
   selectedLayerId: string | null;
+  selectedLayerIds: string[];
 
   // Playback
   currentTimeMs: number;
@@ -68,11 +79,16 @@ interface ModernEditorState {
   // Actions
   initProject: (id: string, title: string, settings?: Partial<ModernProjectSettings>) => void;
   resetProject: () => void;
+  loadProject: (project: ModernProject, assets?: EditorAsset[]) => void;
+  setProjectId: (id: string) => void;
+  setProjectTitle: (title: string) => void;
+  markProjectSaved: () => void;
   undo: () => void;
   redo: () => void;
 
   // Asset actions
   addAsset: (asset: EditorAsset) => void;
+  replaceAssets: (assets: EditorAsset[]) => void;
   removeAsset: (assetId: string) => void;
 
   // Layer actions
@@ -85,9 +101,16 @@ interface ModernEditorState {
   updateLayer: (layerId: string, updates: Partial<Layer>) => void;
   reorderLayer: (layerId: string, newZIndex: number) => void;
   duplicateLayer: (layerId: string) => string | null;
+  moveLayerTiming: (layerId: string, deltaMs: number) => void;
+  trimLayerTiming: (layerId: string, edge: TimelineTrimEdge, targetMs: number) => void;
+  splitLayerAtPlayhead: (layerId?: string) => string | null;
+  duplicateSelectedLayers: () => string[];
+  deleteSelectedLayers: () => void;
 
   // Selection
   selectLayer: (layerId: string | null) => void;
+  toggleLayerSelection: (layerId: string) => void;
+  clearLayerSelection: () => void;
 
   // Playback
   setCurrentTime: (timeMs: number) => void;
@@ -114,7 +137,7 @@ export const useModernEditorStore = create<ModernEditorState>()(
   subscribeWithSelector((set, get) => ({
     // Initial state
     projectId: '',
-    projectTitle: 'Untitled Project',
+    projectTitle: DEFAULT_PROJECT_TITLE,
     settings: getDefaultSettings(),
 
     layersById: {},
@@ -123,6 +146,7 @@ export const useModernEditorStore = create<ModernEditorState>()(
     assets: [],
 
     selectedLayerId: null,
+    selectedLayerIds: [],
 
     currentTimeMs: 0,
     isPlaying: false,
@@ -141,12 +165,13 @@ export const useModernEditorStore = create<ModernEditorState>()(
     initProject: (id, title, settings) => {
       set({
         projectId: id,
-        projectTitle: title,
-        settings: { ...getDefaultSettings(), ...settings },
+        projectTitle: title.trim() || DEFAULT_PROJECT_TITLE,
+        settings: resolveModernProjectSettings(settings),
         layersById: {},
         layerOrder: [],
         assets: [],
         selectedLayerId: null,
+        selectedLayerIds: [],
         currentTimeMs: 0,
         isPlaying: false,
         isDirty: false,
@@ -161,12 +186,13 @@ export const useModernEditorStore = create<ModernEditorState>()(
     resetProject: () => {
       set({
         projectId: '',
-        projectTitle: 'Untitled Project',
+        projectTitle: DEFAULT_PROJECT_TITLE,
         settings: getDefaultSettings(),
         layersById: {},
         layerOrder: [],
         assets: [],
         selectedLayerId: null,
+        selectedLayerIds: [],
         currentTimeMs: 0,
         isPlaying: false,
         isDirty: false,
@@ -176,6 +202,45 @@ export const useModernEditorStore = create<ModernEditorState>()(
         canUndo: false,
         canRedo: false,
       });
+    },
+
+    loadProject: (project, assets = []) => {
+      const layersById = Object.fromEntries(project.layers.map((layer) => [layer.id, layer]));
+      set({
+        projectId: project.id,
+        projectTitle: project.title,
+        settings: resolveModernProjectSettings(project.settings),
+        layersById,
+        layerOrder: project.layers.map((layer) => layer.id),
+        assets,
+        selectedLayerId: null,
+        selectedLayerIds: [],
+        currentTimeMs: 0,
+        isPlaying: false,
+        isDirty: false,
+        isExporting: false,
+        historyPast: [],
+        historyFuture: [],
+        canUndo: false,
+        canRedo: false,
+      });
+    },
+
+    setProjectId: (id) => {
+      set({ projectId: id });
+    },
+
+    setProjectTitle: (title) => {
+      const normalizedTitle = title.trim() || DEFAULT_PROJECT_TITLE;
+      set((state) => ({
+        ...pushHistory(state),
+        projectTitle: normalizedTitle,
+        isDirty: true,
+      }));
+    },
+
+    markProjectSaved: () => {
+      set({ isDirty: false });
     },
 
     undo: () => {
@@ -232,11 +297,23 @@ export const useModernEditorStore = create<ModernEditorState>()(
     // ---------------------------------------------------------------------
 
     addAsset: (asset) => {
-      set((state) => ({
-        ...pushHistory(state),
-        assets: [...state.assets, asset],
-        isDirty: true,
-      }));
+      set((state) => {
+        const shouldInferProjectTitle =
+          state.assets.length === 0 && state.projectTitle.trim() === DEFAULT_PROJECT_TITLE;
+
+        return {
+          ...pushHistory(state),
+          assets: [...state.assets, asset],
+          projectTitle: shouldInferProjectTitle
+            ? createProjectTitleFromAssetName(asset.name)
+            : state.projectTitle,
+          isDirty: true,
+        };
+      });
+    },
+
+    replaceAssets: (assets) => {
+      set({ assets });
     },
 
     removeAsset: (assetId) => {
@@ -251,6 +328,9 @@ export const useModernEditorStore = create<ModernEditorState>()(
           state.selectedLayerId && state.layersById[state.selectedLayerId]?.assetId === assetId
             ? null
             : state.selectedLayerId,
+        selectedLayerIds: state.selectedLayerIds.filter(
+          (id) => state.layersById[id]?.assetId !== assetId,
+        ),
         isDirty: true,
       }));
     },
@@ -276,6 +356,7 @@ export const useModernEditorStore = create<ModernEditorState>()(
         layersById: { ...s.layersById, [id]: layer },
         layerOrder: [...s.layerOrder, id],
         selectedLayerId: id,
+        selectedLayerIds: [id],
         isDirty: true,
       }));
 
@@ -298,6 +379,7 @@ export const useModernEditorStore = create<ModernEditorState>()(
         layersById: { ...s.layersById, [id]: layer },
         layerOrder: [...s.layerOrder, id],
         selectedLayerId: id,
+        selectedLayerIds: [id],
         isDirty: true,
       }));
 
@@ -317,6 +399,7 @@ export const useModernEditorStore = create<ModernEditorState>()(
         layersById: { ...s.layersById, [id]: layer },
         layerOrder: [...s.layerOrder, id],
         selectedLayerId: id,
+        selectedLayerIds: [id],
         isDirty: true,
       }));
 
@@ -340,6 +423,7 @@ export const useModernEditorStore = create<ModernEditorState>()(
         layersById: { ...s.layersById, [id]: layer },
         layerOrder: [...s.layerOrder, id],
         selectedLayerId: id,
+        selectedLayerIds: [id],
         isDirty: true,
       }));
 
@@ -378,6 +462,7 @@ export const useModernEditorStore = create<ModernEditorState>()(
         layersById: { ...s.layersById, [id]: layer },
         layerOrder: [...s.layerOrder, id],
         selectedLayerId: id,
+        selectedLayerIds: [id],
         isDirty: true,
       }));
 
@@ -394,6 +479,7 @@ export const useModernEditorStore = create<ModernEditorState>()(
           layersById: newLayersById,
           layerOrder: state.layerOrder.filter((id) => id !== layerId),
           selectedLayerId: state.selectedLayerId === layerId ? null : state.selectedLayerId,
+          selectedLayerIds: state.selectedLayerIds.filter((id) => id !== layerId),
           isDirty: true,
         };
       });
@@ -465,10 +551,183 @@ export const useModernEditorStore = create<ModernEditorState>()(
         layersById: { ...s.layersById, [newId]: newLayer },
         layerOrder: [...s.layerOrder, newId],
         selectedLayerId: newId,
+        selectedLayerIds: [newId],
         isDirty: true,
       }));
 
       return newId;
+    },
+
+    moveLayerTiming: (layerId, deltaMs) => {
+      set((state) => {
+        const layer = state.layersById[layerId];
+        if (!layer || layer.locked) return state;
+
+        const selectedIds = state.selectedLayerIds.includes(layerId)
+          ? state.selectedLayerIds
+          : [layerId];
+        const selectedSet = new Set(selectedIds);
+        const snapPoints = collectTimelineSnapPoints(
+          Object.values(state.layersById),
+          state.currentTimeMs,
+          selectedSet,
+        );
+        const anchorTiming = calculateMovedLayerTiming({ layer, deltaMs, snapPoints });
+        const appliedDeltaMs = anchorTiming.startMs - layer.startMs;
+        const layersById = { ...state.layersById };
+
+        selectedIds.forEach((id) => {
+          const selectedLayer = layersById[id];
+          if (!selectedLayer || selectedLayer.locked) return;
+          const moved = calculateMovedLayerTiming({
+            layer: selectedLayer,
+            deltaMs: appliedDeltaMs,
+            snapPoints: [],
+          });
+          layersById[id] = { ...selectedLayer, ...moved } as Layer;
+        });
+
+        return {
+          ...pushHistory(state),
+          layersById,
+          isDirty: true,
+        };
+      });
+    },
+
+    trimLayerTiming: (layerId, edge, targetMs) => {
+      set((state) => {
+        const layer = state.layersById[layerId];
+        if (!layer || layer.locked) return state;
+
+        const snapPoints = collectTimelineSnapPoints(
+          Object.values(state.layersById),
+          state.currentTimeMs,
+          new Set([layerId]),
+        );
+        const trimmed = calculateTrimmedLayerTiming({ layer, edge, targetMs, snapPoints });
+        const updates: Partial<Layer> = { ...trimmed };
+
+        if (edge === 'start' && (layer.type === 'video' || layer.type === 'audio')) {
+          const deltaMs = trimmed.startMs - layer.startMs;
+          updates.data = {
+            ...layer.data,
+            trimStartMs: Math.max(0, layer.data.trimStartMs + deltaMs),
+          } as Layer['data'];
+        }
+
+        if (edge === 'end' && (layer.type === 'video' || layer.type === 'audio')) {
+          const visibleDurationMs = trimmed.endMs - layer.startMs;
+          updates.data = {
+            ...layer.data,
+            trimEndMs: Math.max(layer.data.trimStartMs, layer.data.trimStartMs + visibleDurationMs),
+          } as Layer['data'];
+        }
+
+        return {
+          ...pushHistory(state),
+          layersById: {
+            ...state.layersById,
+            [layerId]: { ...layer, ...normalizeLayerUpdates(layer, updates) } as Layer,
+          },
+          selectedLayerId: layerId,
+          selectedLayerIds: [layerId],
+          isDirty: true,
+        };
+      });
+    },
+
+    splitLayerAtPlayhead: (layerId) => {
+      const state = get();
+      const targetLayerId = layerId ?? state.selectedLayerId;
+      if (!targetLayerId) return null;
+
+      const layer = state.layersById[targetLayerId];
+      if (!layer || layer.locked) return null;
+
+      const splitMs = state.currentTimeMs;
+      if (
+        splitMs <= layer.startMs + MIN_LAYER_DURATION_MS ||
+        splitMs >= layer.endMs - MIN_LAYER_DURATION_MS
+      ) {
+        return null;
+      }
+
+      const newId = `layer-${layer.type}-${generateId()}`;
+      const splitOffsetMs = splitMs - layer.startMs;
+      const firstLayer = { ...layer, endMs: splitMs } as Layer;
+      const secondLayer = {
+        ...layer,
+        id: newId,
+        startMs: splitMs,
+        zIndex: state.layerOrder.length,
+        x: layer.x + 3,
+        y: layer.y + 3,
+        data: { ...layer.data },
+      } as Layer;
+
+      if (layer.type === 'video' || layer.type === 'audio') {
+        firstLayer.data = {
+          ...layer.data,
+          trimEndMs: layer.data.trimStartMs + splitOffsetMs,
+        } as Layer['data'];
+        secondLayer.data = {
+          ...layer.data,
+          trimStartMs: layer.data.trimStartMs + splitOffsetMs,
+        } as Layer['data'];
+      }
+
+      set((s) => ({
+        ...pushHistory(s),
+        layersById: {
+          ...s.layersById,
+          [targetLayerId]: firstLayer,
+          [newId]: secondLayer,
+        },
+        layerOrder: [...s.layerOrder, newId],
+        selectedLayerId: newId,
+        selectedLayerIds: [newId],
+        isDirty: true,
+      }));
+
+      return newId;
+    },
+
+    duplicateSelectedLayers: () => {
+      const state = get();
+      const selectedIds = state.selectedLayerIds.length > 0 ? state.selectedLayerIds : [];
+      const duplicatedIds: string[] = [];
+
+      selectedIds.forEach((layerId) => {
+        const newId = get().duplicateLayer(layerId);
+        if (newId) {
+          duplicatedIds.push(newId);
+        }
+      });
+
+      if (duplicatedIds.length > 1) {
+        set({ selectedLayerId: duplicatedIds.at(-1) ?? null, selectedLayerIds: duplicatedIds });
+      }
+
+      return duplicatedIds;
+    },
+
+    deleteSelectedLayers: () => {
+      set((state) => {
+        const selectedSet = new Set(state.selectedLayerIds);
+        if (selectedSet.size === 0) return state;
+
+        return {
+          ...pushHistory(state),
+          layersById: Object.fromEntries(
+            Object.entries(state.layersById).filter(([id]) => !selectedSet.has(id)),
+          ),
+          layerOrder: state.layerOrder.filter((id) => !selectedSet.has(id)),
+          selectedLayerId: null,
+          selectedLayerIds: [],
+          isDirty: true,
+        };
+      });
     },
 
     // ---------------------------------------------------------------------
@@ -476,7 +735,25 @@ export const useModernEditorStore = create<ModernEditorState>()(
     // ---------------------------------------------------------------------
 
     selectLayer: (layerId) => {
-      set({ selectedLayerId: layerId });
+      set({ selectedLayerId: layerId, selectedLayerIds: layerId ? [layerId] : [] });
+    },
+
+    toggleLayerSelection: (layerId) => {
+      set((state) => {
+        const isSelected = state.selectedLayerIds.includes(layerId);
+        const selectedLayerIds = isSelected
+          ? state.selectedLayerIds.filter((id) => id !== layerId)
+          : [...state.selectedLayerIds, layerId];
+
+        return {
+          selectedLayerIds,
+          selectedLayerId: selectedLayerIds.at(-1) ?? null,
+        };
+      });
+    },
+
+    clearLayerSelection: () => {
+      set({ selectedLayerId: null, selectedLayerIds: [] });
     },
 
     // ---------------------------------------------------------------------
@@ -513,7 +790,7 @@ export const useModernEditorStore = create<ModernEditorState>()(
     updateSettings: (settings) => {
       set((state) => ({
         ...pushHistory(state),
-        settings: { ...state.settings, ...normalizeSettings(settings) },
+        settings: mergeModernProjectSettings(state.settings, settings),
         isDirty: true,
       }));
     },

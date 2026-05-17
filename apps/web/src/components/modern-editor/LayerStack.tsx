@@ -7,32 +7,53 @@
 
 import type { Layer } from '@vibe-creator/shared';
 import {
+  Clock3,
   Copy,
   Eye,
   EyeOff,
   GripVertical,
   Image as ImageIcon,
   Lock,
-  Music,
+  MoreHorizontal,
   Trash2,
   Type,
   Unlock,
   Video,
+  Volume2,
 } from 'lucide-react';
-import { Button, Card, CardBody } from '@/components/ui';
+import type { ReactNode } from 'react';
+import {
+  Button,
+  Card,
+  CardBody,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { useModernEditorStore } from '@/stores/modern-editor-store';
+import {
+  formatLayerTime,
+  getLayerDisplayName,
+  getLayerTypeLabel,
+  getTextLayerPreviewLabel,
+} from './layer-panel-utils';
 
 interface LayerStackProps {
   className?: string;
+  onMenuOpenChange?: (open: boolean) => void;
 }
 
-export function LayerStack({ className }: LayerStackProps) {
+export function LayerStack({ className, onMenuOpenChange }: LayerStackProps) {
   const {
     layerOrder,
     layersById,
     selectedLayerId,
+    selectedLayerIds,
     selectLayer,
+    toggleLayerSelection,
     updateLayer,
     removeLayer,
     duplicateLayer,
@@ -42,32 +63,6 @@ export function LayerStack({ className }: LayerStackProps) {
 
   // Reverse order for display (top layer first)
   const displayOrder = [...layerOrder].reverse();
-
-  const getLayerIcon = (type: Layer['type']) => {
-    switch (type) {
-      case 'video':
-        return <Video size={16} />;
-      case 'image':
-        return <ImageIcon size={16} />;
-      case 'text':
-        return <Type size={16} />;
-      case 'audio':
-        return <Music size={16} />;
-    }
-  };
-
-  const getLayerLabel = (layer: Layer) => {
-    if (layer.type === 'text') {
-      return layer.data.text.slice(0, 30) || 'Text Layer';
-    }
-
-    if ('assetId' in layer && layer.assetId) {
-      const asset = assets.find((a) => a.id === layer.assetId);
-      if (asset) return asset.name;
-    }
-
-    return `${layer.type.charAt(0).toUpperCase() + layer.type.slice(1)} Layer`;
-  };
 
   const handleDragStart = (e: React.DragEvent, layerId: string) => {
     e.dataTransfer.setData('layerId', layerId);
@@ -90,23 +85,31 @@ export function LayerStack({ className }: LayerStackProps) {
 
   if (displayOrder.length === 0) {
     return (
-      <Card className={cn('bg-card/70', className)}>
-        <CardBody className="p-4 text-center text-muted-foreground text-sm">
-          <p>Belum ada layer.</p>
-          <p className="text-xs mt-1">Tambahkan video, gambar, atau text.</p>
+      <Card className={cn('border-dashed border-border/50 bg-card/50', className)}>
+        <CardBody className="flex min-h-36 flex-col items-center justify-center gap-3 p-5 text-center">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 text-primary">
+            <ImageIcon size={20} />
+          </div>
+          <div>
+            <p className="text-sm font-black text-foreground">Canvas masih kosong</p>
+            <p className="mt-1 text-xs font-semibold text-muted-foreground">
+              Layer akan muncul di sini.
+            </p>
+          </div>
         </CardBody>
       </Card>
     );
   }
 
   return (
-    <Card className={cn('bg-card/70', className)}>
-      <CardBody className="p-2 space-y-1 max-h-[400px] overflow-y-auto scrollbar-hide">
+    <Card className={cn('border-border/35 bg-card/35 backdrop-blur-xl', className)}>
+      <CardBody className="max-h-[320px] space-y-1.5 overflow-y-auto p-1.5 scrollbar-hide">
         {displayOrder.map((layerId) => {
           const layer = layersById[layerId];
           if (!layer) return null;
 
-          const isSelected = selectedLayerId === layerId;
+          const isSelected = selectedLayerId === layerId || selectedLayerIds.includes(layerId);
+          const asset = layer.assetId ? assets.find((item) => item.id === layer.assetId) : null;
 
           return (
             <div
@@ -118,7 +121,13 @@ export function LayerStack({ className }: LayerStackProps) {
               onDragStart={(e) => handleDragStart(e, layerId)}
               onDragOver={handleDragOver}
               onDrop={(e) => handleDrop(e, layerId)}
-              onClick={() => selectLayer(layerId)}
+              onClick={(event) => {
+                if (event.metaKey || event.ctrlKey) {
+                  toggleLayerSelection(layerId);
+                } else {
+                  selectLayer(layerId);
+                }
+              }}
               onKeyDown={(event) => {
                 if (event.key === 'Enter' || event.key === ' ') {
                   event.preventDefault();
@@ -126,115 +135,243 @@ export function LayerStack({ className }: LayerStackProps) {
                 }
               }}
               className={cn(
-                'flex flex-col gap-2 p-3 rounded-xl cursor-pointer transition-all group relative border',
+                'group relative min-h-16 cursor-pointer overflow-hidden rounded-xl border px-2.5 py-2 transition-all',
                 isSelected
-                  ? 'bg-primary/15 border-primary z-10'
-                  : 'bg-card/50 border-transparent hover:bg-card/70 hover:border-border/60',
+                  ? 'z-10 border-primary/45 bg-primary/5 shadow-sm shadow-primary/5'
+                  : 'border-border/15 bg-background/20 hover:border-primary/25 hover:bg-background/35',
+                (!layer.visible || layer.locked) && 'opacity-80',
               )}
             >
-              {/* Top Row: Icon, Name/Time, and Status Flags */}
-              <div className="flex items-center gap-3">
-                {/* Drag handle */}
+              {isSelected && (
+                <div className="absolute left-0 top-3 bottom-3 w-1 rounded-r-full bg-primary" />
+              )}
+
+              <div className="flex items-center gap-2">
                 <div
                   className={cn(
-                    'opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0',
+                    'hidden w-4 shrink-0 text-muted-foreground/30 opacity-0 transition-opacity group-hover:opacity-100 md:flex',
                     isSelected && 'opacity-100',
                   )}
                 >
-                  <GripVertical size={14} className="text-muted-foreground/40" />
+                  <GripVertical size={14} />
                 </div>
 
-                {/* Type icon */}
-                <div
-                  className={cn(
-                    'w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 transition-colors bg-muted/60 text-primary',
-                    !layer.visible && 'text-muted-foreground/50 bg-muted/20',
-                  )}
-                >
-                  {getLayerIcon(layer.type)}
+                <LayerThumbnail layer={layer} assetUrl={asset?.thumbnailUrl ?? asset?.url} />
+
+                <div className="min-w-0 flex-1 pr-1">
+                  <LayerTitle title={getLayerDisplayName(layer, assets)} visible={layer.visible} />
+                  <LayerMeta layer={layer} />
                 </div>
 
-                {/* Info Container */}
-                <div className="flex-1 min-w-0 overflow-hidden">
-                  <p
-                    className={cn(
-                      'text-sm font-bold line-clamp-1 tracking-tight mb-1',
-                      !layer.visible && 'text-muted-foreground/60',
-                    )}
-                  >
-                    {getLayerLabel(layer)}
-                  </p>
-                  <div className="flex items-center gap-1.5">
-                    <p className="text-[10px] font-black font-mono text-muted-foreground/60 bg-muted/20 px-1.5 py-0.5 rounded">
-                      {(layer.startMs / 1000).toFixed(1)}s
-                    </p>
-                    <span className="text-[10px] text-muted-foreground/20">—</span>
-                    <p className="text-[10px] font-black font-mono text-muted-foreground/60 bg-muted/20 px-1.5 py-0.5 rounded">
-                      {(layer.endMs / 1000).toFixed(1)}s
-                    </p>
-                    {layer.locked && <Lock size={10} className="text-primary/60 ml-1" />}
-                    {!layer.visible && (
-                      <EyeOff size={10} className="text-muted-foreground/40 ml-1" />
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Bottom Row: Actions - Always visible */}
-              <div className="flex items-center gap-1 pt-2 border-t border-border/10">
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  aria-label={layer.visible ? 'Hide layer' : 'Show layer'}
-                  className="h-8 w-8 hover:bg-primary/20 hover:text-primary transition-colors"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    updateLayer(layerId, { visible: !layer.visible });
-                  }}
-                >
-                  {layer.visible ? <Eye size={14} /> : <EyeOff size={14} />}
-                </Button>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  aria-label={layer.locked ? 'Unlock layer' : 'Lock layer'}
-                  className="h-8 w-8 hover:bg-primary/20 hover:text-primary transition-colors"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    updateLayer(layerId, { locked: !layer.locked });
-                  }}
-                >
-                  {layer.locked ? <Lock size={14} /> : <Unlock size={14} />}
-                </Button>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  aria-label="Duplicate layer"
-                  className="h-8 w-8 hover:bg-muted-foreground/10"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    duplicateLayer(layerId);
-                  }}
-                >
-                  <Copy size={14} />
-                </Button>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  aria-label="Delete layer"
-                  className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive ml-auto"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    removeLayer(layerId);
-                  }}
-                >
-                  <Trash2 size={14} />
-                </Button>
+                <LayerActionsMenu
+                  isSelected={isSelected}
+                  layer={layer}
+                  onDelete={() => removeLayer(layerId)}
+                  onDuplicate={() => duplicateLayer(layerId)}
+                  onOpenChange={onMenuOpenChange}
+                  onToggleLock={() => updateLayer(layerId, { locked: !layer.locked })}
+                  onToggleVisibility={() => updateLayer(layerId, { visible: !layer.visible })}
+                />
               </div>
             </div>
           );
         })}
       </CardBody>
     </Card>
+  );
+}
+
+function LayerThumbnail({
+  assetUrl,
+  layer,
+}: Readonly<{
+  assetUrl?: string;
+  layer: Layer;
+}>) {
+  const canUseImage = layer.type === 'image' && assetUrl;
+
+  if (canUseImage) {
+    return (
+      <div className="h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-border/30 bg-muted/20">
+        <img src={assetUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
+      </div>
+    );
+  }
+
+  if (layer.type === 'video' && assetUrl) {
+    return (
+      <div className="h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-emerald-400/25 bg-emerald-400/10">
+        <video src={assetUrl} muted preload="metadata" className="h-full w-full object-cover" />
+      </div>
+    );
+  }
+
+  if (layer.type === 'audio') {
+    const barClasses = ['h-4', 'h-7', 'h-5', 'h-8', 'h-6'] as const;
+
+    return (
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center gap-0.5 rounded-lg border border-sky-400/20 bg-sky-400/10 text-sky-200">
+        {barClasses.map((className) => (
+          <span key={className} className={cn('w-1.5 rounded-full bg-current', className)} />
+        ))}
+      </div>
+    );
+  }
+
+  if (layer.type === 'text') {
+    return (
+      <div className="flex h-10 w-10 shrink-0 flex-col justify-center overflow-hidden rounded-lg border border-primary/25 bg-primary/10 px-1.5 text-primary">
+        <span className="text-xs font-black leading-none">Aa</span>
+        <span className="mt-1 line-clamp-2 max-w-full text-[7px] font-black leading-tight text-primary/70">
+          {getTextLayerPreviewLabel(layer)}
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-emerald-400/20 bg-emerald-400/10 text-emerald-200">
+      <Video size={18} />
+    </div>
+  );
+}
+
+function LayerTitle({ title, visible }: Readonly<{ title: string; visible: boolean }>) {
+  return (
+    <div className="min-w-0">
+      <p
+        className={cn(
+          'truncate text-xs font-black tracking-tight text-foreground',
+          !visible && 'text-muted-foreground/60',
+        )}
+      >
+        {title}
+      </p>
+    </div>
+  );
+}
+
+function LayerMeta({ layer }: Readonly<{ layer: Layer }>) {
+  return (
+    <div className="mt-1 flex min-w-0 items-center gap-1 text-[9px] font-black text-muted-foreground/65">
+      <LayerTypeIcon layer={layer} />
+      <span className="uppercase tracking-widest">{getLayerTypeLabel(layer.type)}</span>
+      <span className="text-muted-foreground/25">•</span>
+      <span className="flex min-w-0 items-center gap-1 font-mono">
+        <Clock3 size={11} className="shrink-0" />
+        <span className="truncate">
+          {formatLayerTime(layer.startMs)} - {formatLayerTime(layer.endMs)}
+        </span>
+      </span>
+      {layer.locked && <LayerStatusBadge>Locked</LayerStatusBadge>}
+      {!layer.visible && <LayerStatusBadge>Hidden</LayerStatusBadge>}
+    </div>
+  );
+}
+
+function LayerStatusBadge({ children }: Readonly<{ children: ReactNode }>) {
+  return (
+    <span className="rounded-full bg-background/45 px-1.5 py-0.5 uppercase tracking-widest text-muted-foreground">
+      {children}
+    </span>
+  );
+}
+
+function LayerTypeIcon({ layer }: Readonly<{ layer: Layer }>) {
+  if (layer.type === 'audio') {
+    return <Volume2 size={13} className="shrink-0 text-sky-200" />;
+  }
+
+  if (layer.type === 'text') {
+    return <Type size={13} className="shrink-0 text-primary" />;
+  }
+
+  if (layer.type === 'image') {
+    return <ImageIcon size={13} className="shrink-0 text-violet-200" />;
+  }
+
+  return <Video size={13} className="shrink-0 text-emerald-200" />;
+}
+
+function LayerActionsMenu({
+  isSelected,
+  layer,
+  onDelete,
+  onDuplicate,
+  onOpenChange,
+  onToggleLock,
+  onToggleVisibility,
+}: Readonly<{
+  isSelected: boolean;
+  layer: Layer;
+  onDelete: () => void;
+  onDuplicate: () => void;
+  onOpenChange?: (open: boolean) => void;
+  onToggleLock: () => void;
+  onToggleVisibility: () => void;
+}>) {
+  return (
+    <DropdownMenu onOpenChange={onOpenChange}>
+      <DropdownMenuTrigger asChild>
+        <Button
+          size="icon"
+          variant="ghost"
+          aria-label="Layer actions"
+          className={cn(
+            'h-8 w-8 shrink-0 rounded-lg text-muted-foreground transition-opacity hover:bg-primary/15 hover:text-primary',
+            isSelected
+              ? 'opacity-100'
+              : 'opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100',
+          )}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <MoreHorizontal size={16} />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="z-[80] w-44">
+        <LayerMenuItem onSelect={onToggleVisibility}>
+          {layer.visible ? <EyeOff size={15} /> : <Eye size={15} />}
+          {layer.visible ? 'Hide Layer' : 'Show Layer'}
+        </LayerMenuItem>
+        <LayerMenuItem onSelect={onToggleLock}>
+          {layer.locked ? <Unlock size={15} /> : <Lock size={15} />}
+          {layer.locked ? 'Unlock Layer' : 'Lock Layer'}
+        </LayerMenuItem>
+        <LayerMenuItem onSelect={onDuplicate}>
+          <Copy size={15} />
+          Duplicate
+        </LayerMenuItem>
+        <DropdownMenuSeparator />
+        <LayerMenuItem destructive onSelect={onDelete}>
+          <Trash2 size={15} />
+          Delete
+        </LayerMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function LayerMenuItem({
+  children,
+  destructive = false,
+  onSelect,
+}: Readonly<{
+  children: ReactNode;
+  destructive?: boolean;
+  onSelect: () => void;
+}>) {
+  return (
+    <DropdownMenuItem
+      className={cn(
+        'gap-2 text-xs font-bold',
+        destructive && 'text-destructive focus:text-destructive',
+      )}
+      onClick={(event) => {
+        event.stopPropagation();
+        onSelect();
+      }}
+    >
+      {children}
+    </DropdownMenuItem>
   );
 }

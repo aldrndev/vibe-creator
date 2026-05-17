@@ -102,6 +102,11 @@ const AiDirectorPage = lazy(() =>
     default: m.AiDirectorPage,
   })),
 );
+const WorkspaceHistoryPage = lazy(() =>
+  import('@/pages/dashboard/WorkspaceHistoryPage').then((m) => ({
+    default: m.WorkspaceHistoryPage,
+  })),
+);
 
 // Loading fallback component
 function PageLoader() {
@@ -367,6 +372,14 @@ export default function App() {
               element={
                 <Suspense fallback={<PageLoader />}>
                   <AiDirectorPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/dashboard/history"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <WorkspaceHistoryPage />
                 </Suspense>
               }
             />

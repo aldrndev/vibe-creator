@@ -7,6 +7,11 @@ import { validateInputPath, validateOutputPath } from '../ffmpeg-path-guard';
 import type { FFmpegCommand } from './basic.builder';
 
 const STANDARD_FLAGS = ['-nostdin', '-hide_banner', '-loglevel', 'error', '-progress', 'pipe:1'];
+const DEFAULT_TRANSITION_MS = 500;
+const MIN_TRANSITION_SEC = 0.1;
+const SLIDE_CANVAS_MULTIPLIER = 2;
+const MOTION_ZOOM_DELTA = 0.04;
+const TRANSITION_ZOOM_START = 0.92;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
@@ -37,10 +42,178 @@ export interface VideoEffectsOptions {
     volume: number;
     fadeIn: number;
     fadeOut: number;
+    transitionIn?: 'none' | 'fade' | 'slide-left' | 'slide-right' | 'zoom';
+    transitionOut?: 'none' | 'fade' | 'slide-left' | 'slide-right' | 'zoom';
+    motion?: 'none' | 'zoom-in' | 'zoom-out';
   };
   outputWidth: number;
   outputHeight: number;
   durationMs: number;
+  background?: {
+    mode: 'solid' | 'blur';
+    color?: string;
+    blurAmount?: number;
+    blurZoom?: number;
+    dim?: number;
+    saturation?: number;
+  };
+}
+
+function normalizePadColor(color: string | undefined): string {
+  const match = color?.match(/^#([0-9a-fA-F]{6})(?:[0-9a-fA-F]{2})?$/);
+  return match ? `0x${match[1]}` : 'black';
+}
+
+function buildBlurFillFilter(
+  outputWidth: number,
+  outputHeight: number,
+  options: {
+    blurAmount?: number;
+    blurZoom?: number;
+    dim?: number;
+    saturation?: number;
+  } = {},
+): string {
+  const blurAmount = clamp(options.blurAmount ?? 18, 0, 50);
+  const blurZoom = clamp(options.blurZoom ?? 1.08, 1, 1.5);
+  const dim = clamp(options.dim ?? 0.08, 0, 0.6);
+  const saturation = clamp(options.saturation ?? 1.05, 0, 2);
+  const scaledWidth = Math.ceil(outputWidth * blurZoom);
+  const scaledHeight = Math.ceil(outputHeight * blurZoom);
+
+  return [
+    'split=2[bgsrc][fgsrc]',
+    `[bgsrc]scale=${scaledWidth}:${scaledHeight}:force_original_aspect_ratio=increase,crop=${outputWidth}:${outputHeight},gblur=sigma=${blurAmount},eq=brightness=${-dim}:saturation=${saturation}[bg]`,
+    `[fgsrc]scale=${outputWidth}:${outputHeight}:force_original_aspect_ratio=decrease[fg]`,
+    '[bg][fg]overlay=(W-w)/2:(H-h)/2,format=yuv420p',
+  ].join(';');
+}
+
+function ffmpegMin(left: string | number, right: string | number): string {
+  return `min(${left}\\,${right})`;
+}
+
+function ffmpegMax(left: string | number, right: string | number): string {
+  return `max(${left}\\,${right})`;
+}
+
+function buildProgressExpression(startSec: number, durationSec: number): string {
+  const safeDurationSec = Math.max(MIN_TRANSITION_SEC, durationSec);
+  const elapsed = `(t-${startSec.toFixed(3)})/${safeDurationSec.toFixed(3)}`;
+  return ffmpegMin(1, ffmpegMax(0, elapsed));
+}
+
+function buildScaleToCanvasFilter(
+  outputWidth: number,
+  outputHeight: number,
+  scaleExpression: string,
+): string {
+  return [
+    `scale=w='trunc(iw*${scaleExpression}/2)*2':h='trunc(ih*${scaleExpression}/2)*2':eval=frame`,
+    `pad=w='${ffmpegMax('iw', outputWidth)}':h='${ffmpegMax(
+      'ih',
+      outputHeight,
+    )}':x=(ow-iw)/2:y=(oh-ih)/2:color=black`,
+    `crop=${outputWidth}:${outputHeight}`,
+  ].join(',');
+}
+
+function buildSlideTransitionFilter(
+  direction: 'slide-left' | 'slide-right',
+  phase: 'in' | 'out',
+  progressExpression: string,
+  outputWidth: number,
+  outputHeight: number,
+): string {
+  const paddedWidth = outputWidth * SLIDE_CANVAS_MULTIPLIER;
+  const contentX = direction === 'slide-left' ? 0 : outputWidth;
+  const cropX =
+    phase === 'in'
+      ? direction === 'slide-left'
+        ? `${outputWidth}*(1-${progressExpression})`
+        : `${outputWidth}*${progressExpression}`
+      : direction === 'slide-left'
+        ? `${outputWidth}*${progressExpression}`
+        : `${outputWidth}*(1-${progressExpression})`;
+
+  return [
+    `pad=${paddedWidth}:${outputHeight}:${contentX}:0:color=black`,
+    `crop=${outputWidth}:${outputHeight}:x='${cropX}':y=0`,
+  ].join(',');
+}
+
+function buildVisualTransitionFilters(
+  effects: VideoEffectsOptions['effects'] | undefined,
+  outputWidth: number,
+  outputHeight: number,
+  durationMs: number,
+): string[] {
+  if (!effects) return [];
+
+  const filters: string[] = [];
+  const durationSec = Math.max(MIN_TRANSITION_SEC, durationMs / 1000);
+  const transitionIn = effects.transitionIn ?? 'none';
+  const transitionOut = effects.transitionOut ?? 'none';
+
+  if (effects.motion === 'zoom-in' || effects.motion === 'zoom-out') {
+    const progress = ffmpegMin(1, ffmpegMax(0, `t/${durationSec.toFixed(3)}`));
+    const start = effects.motion === 'zoom-in' ? 1 : 1 + MOTION_ZOOM_DELTA;
+    const direction = effects.motion === 'zoom-in' ? 1 : -1;
+    const scaleExpression = `(${start}+(${direction * MOTION_ZOOM_DELTA})*${progress})`;
+    filters.push(buildScaleToCanvasFilter(outputWidth, outputHeight, scaleExpression));
+  }
+
+  if (transitionIn === 'slide-left' || transitionIn === 'slide-right') {
+    const transitionSec = Math.max(
+      MIN_TRANSITION_SEC,
+      (effects.fadeIn || DEFAULT_TRANSITION_MS) / 1000,
+    );
+    filters.push(
+      buildSlideTransitionFilter(
+        transitionIn,
+        'in',
+        buildProgressExpression(0, transitionSec),
+        outputWidth,
+        outputHeight,
+      ),
+    );
+  } else if (transitionIn === 'zoom') {
+    const transitionSec = Math.max(
+      MIN_TRANSITION_SEC,
+      (effects.fadeIn || DEFAULT_TRANSITION_MS) / 1000,
+    );
+    const progress = buildProgressExpression(0, transitionSec);
+    const scaleExpression = `(${TRANSITION_ZOOM_START}+(1-${TRANSITION_ZOOM_START})*${progress})`;
+    filters.push(buildScaleToCanvasFilter(outputWidth, outputHeight, scaleExpression));
+  }
+
+  if (transitionOut === 'slide-left' || transitionOut === 'slide-right') {
+    const transitionSec = Math.max(
+      MIN_TRANSITION_SEC,
+      (effects.fadeOut || DEFAULT_TRANSITION_MS) / 1000,
+    );
+    const transitionStartSec = Math.max(0, durationSec - transitionSec);
+    filters.push(
+      buildSlideTransitionFilter(
+        transitionOut,
+        'out',
+        buildProgressExpression(transitionStartSec, transitionSec),
+        outputWidth,
+        outputHeight,
+      ),
+    );
+  } else if (transitionOut === 'zoom') {
+    const transitionSec = Math.max(
+      MIN_TRANSITION_SEC,
+      (effects.fadeOut || DEFAULT_TRANSITION_MS) / 1000,
+    );
+    const transitionStartSec = Math.max(0, durationSec - transitionSec);
+    const progress = buildProgressExpression(transitionStartSec, transitionSec);
+    const scaleExpression = `(1-(1-${TRANSITION_ZOOM_START})*${progress})`;
+    filters.push(buildScaleToCanvasFilter(outputWidth, outputHeight, scaleExpression));
+  }
+
+  return filters;
 }
 
 /**
@@ -54,7 +227,7 @@ export function buildVideoEffectsCommand(
   const validInput = validateInputPath(input);
   const validOutput = validateOutputPath(output);
 
-  const { transforms, effects, outputWidth, outputHeight, durationMs } = options;
+  const { transforms, effects, outputWidth, outputHeight, durationMs, background } = options;
 
   const videoFilters: string[] = [];
   const audioFilters: string[] = [];
@@ -97,10 +270,23 @@ export function buildVideoEffectsCommand(
       )}:(oh-ih)/2+${Math.round(ty)}:color=black@0`,
     );
   } else {
-    videoFilters.push(
-      `scale=${outputWidth}:${outputHeight}:force_original_aspect_ratio=decrease`,
-      `pad=${outputWidth}:${outputHeight}:(ow-iw)/2:(oh-ih)/2`,
-    );
+    if (background?.mode === 'blur') {
+      videoFilters.push(
+        buildBlurFillFilter(outputWidth, outputHeight, {
+          blurAmount: background.blurAmount,
+          blurZoom: background.blurZoom,
+          dim: background.dim,
+          saturation: background.saturation,
+        }),
+      );
+    } else {
+      videoFilters.push(
+        `scale=${outputWidth}:${outputHeight}:force_original_aspect_ratio=decrease`,
+        `pad=${outputWidth}:${outputHeight}:(ow-iw)/2:(oh-ih)/2:color=${normalizePadColor(
+          background?.color,
+        )}`,
+      );
+    }
   }
 
   // 3. Apply color filter
@@ -116,7 +302,12 @@ export function buildVideoEffectsCommand(
     videoFilters.push(`format=rgba,colorchannelmixer=aa=${clampedOpacity}`);
   }
 
-  // 5. Video fade in/out
+  // 5. Visual transitions and motion
+  videoFilters.push(
+    ...buildVisualTransitionFilters(effects, outputWidth, outputHeight, durationMs),
+  );
+
+  // 6. Video fade in/out
   const fadeIn = effects?.fadeIn ?? 0;
   const fadeOut = effects?.fadeOut ?? 0;
   const durationSec = durationMs / 1000;
@@ -131,7 +322,7 @@ export function buildVideoEffectsCommand(
     audioFilters.push(`afade=t=out:st=${fadeOutStart.toFixed(3)}:d=${fadeOut / 1000}`);
   }
 
-  // 6. Volume
+  // 7. Volume
   const volume = effects?.volume ?? 1;
   if (volume !== 1) {
     const clampedVolume = clamp(volume, 0, 2);

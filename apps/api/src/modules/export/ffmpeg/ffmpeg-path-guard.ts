@@ -4,13 +4,18 @@
  */
 
 import { existsSync, mkdirSync, realpathSync } from 'node:fs';
-import { join, relative, resolve } from 'node:path';
+import { isAbsolute, join, relative, resolve } from 'node:path';
 import { logger } from '@/lib/logger';
 
 // Allowlisted base directories (must match export.service.ts)
 const MEDIA_INPUT_DIR = process.env.MEDIA_INPUT_DIR || join(process.cwd(), 'uploads');
-const MEDIA_TEMP_DIR = process.env.MEDIA_TEMP_DIR || join(process.cwd(), 'uploads', 'temp');
-const MEDIA_OUTPUT_DIR = process.env.MEDIA_OUTPUT_DIR || join(process.cwd(), 'uploads', 'exports');
+const MEDIA_TEMP_DIR = process.env.MEDIA_TEMP_DIR || join(MEDIA_INPUT_DIR, 'temp');
+const MEDIA_OUTPUT_DIR = process.env.MEDIA_OUTPUT_DIR || join(MEDIA_INPUT_DIR, 'exports');
+
+function isWithinBase(targetPath: string, basePath: string): boolean {
+  const relativePath = relative(basePath, targetPath);
+  return relativePath === '' || (!relativePath.startsWith('..') && !isAbsolute(relativePath));
+}
 
 /**
  * Check if path is within allowed directory
@@ -19,10 +24,7 @@ function isPathAllowed(targetPath: string, allowedBase: string): boolean {
   try {
     const resolvedTarget = realpathSync(targetPath);
     const resolvedBase = realpathSync(allowedBase);
-    const relativePath = relative(resolvedBase, resolvedTarget);
-
-    // Path is allowed if it doesn't start with '..' (parent directory)
-    return !relativePath.startsWith('..') && !resolve(relativePath).startsWith('..');
+    return isWithinBase(resolvedTarget, resolvedBase);
   } catch {
     return false;
   }
@@ -117,8 +119,8 @@ export function validateOutputPath(path: string): string {
     ? realpathSync(MEDIA_TEMP_DIR)
     : resolve(MEDIA_TEMP_DIR);
 
-  const allowedInOutput = absolutePath.startsWith(resolvedOutputDir);
-  const allowedInTemp = absolutePath.startsWith(resolvedTempDir);
+  const allowedInOutput = isWithinBase(absolutePath, resolvedOutputDir);
+  const allowedInTemp = isWithinBase(absolutePath, resolvedTempDir);
 
   if (!allowedInOutput && !allowedInTemp) {
     throw new Error('Output path outside allowed directories');

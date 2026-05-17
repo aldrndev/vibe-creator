@@ -1,8 +1,8 @@
-// Types
-
-export * from './constants/model-registry'; // [NEW] Export Model Registry
 // Constants
+export * from './constants/editor-fonts';
+export * from './constants/model-registry'; // [NEW] Export Model Registry
 export * from './constants/prompt-templates';
+// Types
 export * from './types/api';
 export * from './types/modern-editor.types';
 export * from './types/project';

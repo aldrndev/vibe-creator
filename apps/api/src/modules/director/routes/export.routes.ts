@@ -6,9 +6,14 @@ import { z } from 'zod';
 import { env } from '@/config/env';
 import {
   subtitleBackgroundColorTokenValues,
+  subtitleFontFamilyValues,
   subtitleFontTokenValues,
   subtitleTextColorTokenValues,
 } from '@/modules/director/subtitle-style-tokens';
+import {
+  assertDownloadAvailable,
+  WorkspaceLifecycleError,
+} from '@/modules/workspace/workspace-lifecycle';
 import { requireAuth } from '@/plugins/auth';
 import { contentModeValues } from '../content-mode';
 import { directorService } from '../director.service';
@@ -71,6 +76,7 @@ const previewSpeakerStyleSchema = z.object({
 const previewSubtitleStyleSchema = z.object({
   stylePreset: z.enum(subtitleStylePresetValues).optional(),
   fontToken: z.enum(subtitleFontTokenValues).optional(),
+  fontFamily: z.enum(subtitleFontFamilyValues).optional(),
   textColorToken: z.enum(subtitleTextColorTokenValues).optional(),
   bgColorToken: z.enum(subtitleBackgroundColorTokenValues).optional(),
   fontSize: z
@@ -124,6 +130,12 @@ export const exportRoutes: FastifyPluginAsync = async (fastify) => {
           });
         }
         const message = err instanceof Error ? err.message : 'Export failed';
+        if (err instanceof WorkspaceLifecycleError) {
+          return reply.status(err.statusCode).send({
+            success: false,
+            error: { code: err.code, message: err.message },
+          });
+        }
         return reply.status(400).send({
           success: false,
           error: { code: 'EXPORT_FAILED', message },
@@ -155,7 +167,13 @@ export const exportRoutes: FastifyPluginAsync = async (fastify) => {
           success: true,
           data: result,
         });
-      } catch {
+      } catch (error) {
+        if (error instanceof WorkspaceLifecycleError) {
+          return reply.status(error.statusCode).send({
+            success: false,
+            error: { code: error.code, message: error.message },
+          });
+        }
         return reply.status(404).send({
           success: false,
           error: { code: 'NOT_FOUND', message: 'Export not found' },
@@ -219,7 +237,13 @@ export const exportRoutes: FastifyPluginAsync = async (fastify) => {
           .header('Cache-Control', 'private, max-age=600')
           .header('X-Content-Type-Options', 'nosniff')
           .send(createReadStream(filePath));
-      } catch {
+      } catch (error) {
+        if (error instanceof WorkspaceLifecycleError) {
+          return reply.status(error.statusCode).send({
+            success: false,
+            error: { code: error.code, message: error.message },
+          });
+        }
         return reply.status(404).send({
           success: false,
           error: { code: 'NOT_FOUND', message: 'Preview not found' },
@@ -284,7 +308,13 @@ export const exportRoutes: FastifyPluginAsync = async (fastify) => {
           .header('Content-Length', fileStats.size)
           .header('X-Content-Type-Options', 'nosniff')
           .send(createReadStream(filePath));
-      } catch {
+      } catch (error) {
+        if (error instanceof WorkspaceLifecycleError) {
+          return reply.status(error.statusCode).send({
+            success: false,
+            error: { code: error.code, message: error.message },
+          });
+        }
         return reply.status(404).send({
           success: false,
           error: { code: 'NOT_FOUND', message: 'Preview not found' },
@@ -333,6 +363,12 @@ export const exportRoutes: FastifyPluginAsync = async (fastify) => {
             },
           });
         }
+        if (err instanceof WorkspaceLifecycleError) {
+          return reply.status(err.statusCode).send({
+            success: false,
+            error: { code: err.code, message: err.message },
+          });
+        }
         const message =
           err instanceof Error ? err.message : 'Failed to build export-accurate preview';
         return reply.status(400).send({
@@ -366,6 +402,7 @@ export const exportRoutes: FastifyPluginAsync = async (fastify) => {
             error: { code: 'NOT_FOUND', message: 'Export file not found' },
           });
         }
+        assertDownloadAvailable(exportJob.downloadExpiresAt, exportJob.outputDeletedAt);
 
         const fileName = basename(exportJob.outputStorageKey);
         const filePath = join(env.MEDIA_INPUT_DIR, 'director', 'exports', fileName);
@@ -386,7 +423,13 @@ export const exportRoutes: FastifyPluginAsync = async (fastify) => {
           .header('Content-Length', fileStats.size)
           .header('X-Content-Type-Options', 'nosniff')
           .send(createReadStream(filePath));
-      } catch {
+      } catch (error) {
+        if (error instanceof WorkspaceLifecycleError) {
+          return reply.status(error.statusCode).send({
+            success: false,
+            error: { code: error.code, message: error.message },
+          });
+        }
         return reply.status(404).send({
           success: false,
           error: { code: 'NOT_FOUND', message: 'Export not found' },

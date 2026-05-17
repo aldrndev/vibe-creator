@@ -1,3 +1,9 @@
+import {
+  EDITOR_FONT_CATALOG,
+  type EditorFontFamily,
+  resolveEditorFontFamily,
+} from '@vibe-creator/shared';
+
 export const subtitleFontTokenValues = [
   'F_INTER',
   'F_GROTESK',
@@ -10,6 +16,11 @@ export const subtitleFontTokenValues = [
 ] as const;
 
 export type SubtitleFontToken = (typeof subtitleFontTokenValues)[number];
+
+export const subtitleFontFamilyValues = EDITOR_FONT_CATALOG.map((font) => font.family) as [
+  EditorFontFamily,
+  ...EditorFontFamily[],
+];
 
 export const subtitleTextColorTokenValues = [
   'C_WHITE',
@@ -37,25 +48,36 @@ export const subtitleBackgroundColorTokenValues = [
 
 export type SubtitleBackgroundColorToken = (typeof subtitleBackgroundColorTokenValues)[number];
 
-export function mapSubtitleFontToken(fontToken?: string): string {
+export function mapSubtitleFontToken(fontToken?: string): EditorFontFamily {
   switch (fontToken) {
     case 'F_INTER':
       return 'Inter';
     case 'F_GROTESK':
       return 'Manrope';
     case 'F_MEME':
-      return 'Cherry Bomb One';
+      return 'Bangers';
     case 'F_DISPLAY':
       return 'League Spartan';
     case 'F_CONDENSED':
-      return 'Liberation Sans Narrow';
+      return 'Roboto Condensed';
     case 'F_ROUNDED':
-      return 'Comfortaa';
+      return 'Fredoka';
     case 'F_MONO':
-      return 'Liberation Mono';
+      return 'Sora';
     case 'F_SERIF':
-      return 'Liberation Serif';
+      return 'Noto Sans';
     default:
       return 'Inter';
   }
+}
+
+export function resolveSubtitleFontFamily(
+  fontFamily?: string | null,
+  fontToken?: string | null,
+): EditorFontFamily {
+  if (fontFamily) {
+    return resolveEditorFontFamily(fontFamily);
+  }
+
+  return mapSubtitleFontToken(fontToken ?? undefined);
 }

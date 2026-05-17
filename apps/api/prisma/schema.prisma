@@ -101,24 +101,32 @@ model Announcement {
 }
 
 model Project {
-  id          String           @id @default(cuid())
-  userId      String
-  title       String
-  description String?
-  status      ProjectStatus    @default(DRAFT)
-  settings    Json             @default("{}")
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
-  mode        ProjectMode      @default(TIMELINE)
-  storyData   Json?            @map("story_data")
-  exports     ExportHistory[]
-  jobs        Job[]
-  assets      ProjectAsset[]
-  versions    ProjectVersion[]
-  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  timeline    Timeline?
+  id              String           @id @default(cuid())
+  userId          String
+  title           String
+  description     String?
+  status          ProjectStatus    @default(DRAFT)
+  settings        Json             @default("{}")
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  mode            ProjectMode      @default(TIMELINE)
+  storyData       Json?            @map("story_data")
+  expiresAt       DateTime?        @map("expires_at")
+  completedAt     DateTime?        @map("completed_at")
+  lastOpenedAt    DateTime?        @map("last_opened_at")
+  deletedAt       DateTime?        @map("deleted_at")
+  lifecycleStatus LifecycleStatus  @default(ACTIVE) @map("lifecycle_status")
+  exports         ExportHistory[]
+  jobs            Job[]
+  assets          ProjectAsset[]
+  versions        ProjectVersion[]
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  timeline        Timeline?
 
   @@index([userId])
+  @@index([userId, updatedAt])
+  @@index([userId, expiresAt])
+  @@index([lifecycleStatus, expiresAt])
   @@map("projects")
 }
 
@@ -237,36 +245,42 @@ model PromptVersion {
 }
 
 model ExportHistory {
-  id             String           @id @default(cuid())
-  userId         String
-  projectId      String?
-  format         ExportFormat
-  resolution     ExportResolution
-  status         ExportStatus     @default(QUEUED)
-  r2Key          String?
-  fileSizeBytes  BigInt?
-  errorMessage   String?
-  expiresAt      DateTime?
-  createdAt      DateTime         @default(now())
-  completedAt    DateTime?
-  attempts       Int              @default(0)
-  downloadUrl    String?
-  idempotencyKey String?          @unique
-  localPath      String?
-  maxAttempts    Int              @default(3)
-  phase          String           @default("QUEUED")
-  phaseProgress  Int              @default(0)
-  progress       Int              @default(0)
-  startedAt      DateTime?
-  timelineData   Json?
-  urlExpiresAt   DateTime?
-  project        Project?         @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                    String           @id @default(cuid())
+  userId                String
+  projectId             String?
+  format                ExportFormat
+  resolution            ExportResolution
+  status                ExportStatus     @default(QUEUED)
+  r2Key                 String?
+  fileSizeBytes         BigInt?
+  errorMessage          String?
+  expiresAt             DateTime?
+  createdAt             DateTime         @default(now())
+  completedAt           DateTime?
+  attempts              Int              @default(0)
+  downloadUrl           String?
+  idempotencyKey        String?          @unique
+  localPath             String?
+  maxAttempts           Int              @default(3)
+  phase                 String           @default("QUEUED")
+  phaseProgress         Int              @default(0)
+  progress              Int              @default(0)
+  startedAt             DateTime?
+  timelineData          Json?
+  urlExpiresAt          DateTime?
+  exportFingerprint     String?
+  displayFilename       String?
+  reusedFromJobId       String?
+  addWatermark          Boolean          @default(true)
+  consumeQuotaOnSuccess Boolean          @default(false)
+  project               Project?         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user                  User             @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([projectId])
   @@index([status])
   @@index([idempotencyKey])
+  @@index([userId, exportFingerprint, status, urlExpiresAt])
   @@map("export_history")
 }
 
@@ -319,6 +333,11 @@ model DirectorSession {
   schemaVersion   Int                      @default(1)
   createdAt       DateTime                 @default(now())
   updatedAt       DateTime                 @updatedAt
+  expiresAt       DateTime?                @map("expires_at")
+  completedAt     DateTime?                @map("completed_at")
+  lastOpenedAt    DateTime?                @map("last_opened_at")
+  deletedAt       DateTime?                @map("deleted_at")
+  lifecycleStatus LifecycleStatus          @default(ACTIVE) @map("lifecycle_status")
   analysisJob     DirectorAnalysisJob?
   asset           DirectorAsset?
   clipTranscripts DirectorClipTranscript[]
@@ -329,6 +348,9 @@ model DirectorSession {
   transcribeJob   DirectorTranscribeJob?
 
   @@index([userId])
+  @@index([userId, updatedAt])
+  @@index([userId, expiresAt])
+  @@index([lifecycleStatus, expiresAt])
   @@map("director_sessions")
 }
 
@@ -423,6 +445,7 @@ model DirectorSubtitleStyle {
   id             String          @id @default(cuid())
   sessionId      String          @unique
   fontToken      String          @default("font-default")
+  fontFamily     String?
   textColorToken String          @default("text-white")
   bgColorToken   String          @default("bg-overlay")
   fontSize       Int             @default(32)
@@ -438,20 +461,24 @@ model DirectorSubtitleStyle {
 }
 
 model DirectorExportJob {
-  id               String            @id @default(cuid())
-  sessionId        String            @unique
-  bullmqJobId      String?
-  idempotencyKey   String            @unique
-  status           DirectorJobStatus @default(PENDING)
-  aspectRatio      String            @default("9:16")
-  quality          String            @default("1080p")
-  includeSubtitles Boolean           @default(true)
-  outputStorageKey String?
-  startedAt        DateTime?
-  completedAt      DateTime?
-  errorMessage     String?
-  session          DirectorSession   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  id                String            @id @default(cuid())
+  sessionId         String            @unique
+  bullmqJobId       String?
+  idempotencyKey    String            @unique
+  status            DirectorJobStatus @default(PENDING)
+  aspectRatio       String            @default("9:16")
+  quality           String            @default("1080p")
+  includeSubtitles  Boolean           @default(true)
+  outputStorageKey  String?
+  startedAt         DateTime?
+  completedAt       DateTime?
+  downloadExpiresAt DateTime?         @map("download_expires_at")
+  outputDeletedAt   DateTime?         @map("output_deleted_at")
+  errorMessage      String?
+  session           DirectorSession   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
+  @@index([downloadExpiresAt])
+  @@index([outputDeletedAt])
   @@map("director_export_jobs")
 }
 
@@ -586,10 +613,10 @@ model TrendingItem {
 }
 
 model TrendingPlatformStatus {
-  id            String   @id @default(dbgenerated("(gen_random_uuid())::text")) @db.VarChar
-  platform      String   @db.VarChar
-  region        String   @db.VarChar(2)
-  status        String   @db.VarChar
+  id            String    @id @default(dbgenerated("(gen_random_uuid())::text")) @db.VarChar
+  platform      String    @db.VarChar
+  region        String    @db.VarChar(2)
+  status        String    @db.VarChar
   lastSuccessAt DateTime? @map("last_success_at") @db.Timestamp(6)
   lastFailureAt DateTime? @map("last_failure_at") @db.Timestamp(6)
   errorMessage  String?   @map("error_message")
@@ -659,6 +686,13 @@ enum ProjectStatus {
   DRAFT
   PROCESSING
   COMPLETED
+}
+
+enum LifecycleStatus {
+  ACTIVE
+  COMPLETED
+  EXPIRED
+  DELETED
 }
 
 enum AssetType {

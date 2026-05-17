@@ -5,12 +5,12 @@
 
 import type { Prisma } from '@prisma/client';
 import { logger } from '@/lib/logger';
+import { assertWorkspaceActive } from '@/modules/workspace/workspace-lifecycle';
 import {
   preferCandidatesWithinTargetDurationRange,
   resolveClipDurationConfig,
   resolveHardMaxCandidateDurationMs,
 } from '../analysis-duration-config';
-import { cleanupDirectorAssetFileIfUnreferenced } from '../asset-file-cleanup';
 import { directorRepo } from '../director.repo';
 import { directorAnalysisReuseService } from './analysis-reuse.service';
 
@@ -64,6 +64,13 @@ export const directorSessionService = {
     if (!session) {
       throw new Error('Session not found or not authorized');
     }
+
+    assertWorkspaceActive(
+      session.lifecycleStatus,
+      session.expiresAt,
+      'Sesi AI Director sudah expired. Mulai sesi baru atau cek Riwayat.',
+    );
+    await directorRepo.markSessionOpened(sessionId, userId);
 
     if (
       session.analysisJob?.status === 'COMPLETED' &&
@@ -122,11 +129,7 @@ export const directorSessionService = {
       throw new Error('Session not found');
     }
 
-    const storageKey = session.asset?.storageKey ?? null;
     const deleted = await directorRepo.deleteSession(sessionId, userId);
-    if (deleted && storageKey) {
-      await cleanupDirectorAssetFileIfUnreferenced(storageKey);
-    }
 
     logger.info({ sessionId, userId, deleted }, 'Director session deleted');
     return { deleted };
@@ -141,6 +144,7 @@ export const directorSessionService = {
     updates: {
       stylePreset?: string;
       fontToken?: string;
+      fontFamily?: string;
       textColorToken?: string;
       bgColorToken?: string;
       fontSize?: number;
@@ -155,7 +159,14 @@ export const directorSessionService = {
       throw new Error('Session not found');
     }
 
+    const session = await directorRepo.findSession(sessionId, userId);
+    if (!session) {
+      throw new Error('Session not found');
+    }
+    assertWorkspaceActive(session.lifecycleStatus, session.expiresAt);
+
     const style = await directorRepo.upsertSubtitleStyle(sessionId, updates);
+    await directorRepo.touchSessionActivity(sessionId, userId);
     return style;
   },
 };

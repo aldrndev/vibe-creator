@@ -9,6 +9,7 @@ describe('AI Director subtitle presets', () => {
     expect(viralPop?.subtitleStyle).toMatchObject({
       stylePreset: 'viral-pop',
       fontToken: 'F_DISPLAY',
+      fontFamily: 'League Spartan',
       fontSize: 52,
       textColorToken: 'C_YELLOW',
       bgColorToken: 'BG_TRANSPARENT',
@@ -35,6 +36,7 @@ describe('AI Director subtitle presets', () => {
     expect(memePop?.subtitleStyle).toMatchObject({
       stylePreset: 'meme-pop',
       fontToken: 'F_MEME',
+      fontFamily: 'Bangers',
       fontSize: 52,
       textColorToken: 'C_GREEN',
       bgColorToken: 'BG_TRANSPARENT',
@@ -50,6 +52,7 @@ describe('AI Director subtitle presets', () => {
     expect(podcastDuo?.subtitleStyle).toMatchObject({
       stylePreset: 'podcast-duo',
       fontToken: 'F_GROTESK',
+      fontFamily: 'Manrope',
       textColorToken: 'C_WHITE',
       bgColorToken: 'BG_TRANSPARENT',
       position: 'bottom',

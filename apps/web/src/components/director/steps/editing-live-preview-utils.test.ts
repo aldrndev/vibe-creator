@@ -153,7 +153,7 @@ describe('deriveLivePreviewScene', () => {
       refineSettings,
     );
 
-    expect(scene.subtitleTextStyle.fontFamily).toContain('Cherry Bomb One');
+    expect(scene.subtitleTextStyle.fontFamily).toContain('Bangers');
     expect(scene.subtitleTextStyle.color).toBe('#22FF4B');
   });
 
@@ -574,7 +574,7 @@ describe('deriveLivePreviewScene positions', () => {
       undefined,
     );
 
-    expect(scene.subtitleTextStyle.fontFamily).toContain('Georgia');
+    expect(scene.subtitleTextStyle.fontFamily).toContain('Noto Sans');
     expect(scene.subtitleTextStyle.color).toBe('#FF8C1A');
     expect(scene.subtitleTextStyle.backgroundColor).toBe('rgba(0, 0, 0, 0)');
   });

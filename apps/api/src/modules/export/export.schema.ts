@@ -1,3 +1,4 @@
+import { resolveEditorFontFamily } from '@vibe-creator/shared';
 import { z } from 'zod';
 
 /**
@@ -177,7 +178,10 @@ export const textAnimationSchema = z.object({
  * Text overlay style schema
  */
 export const textStyleSchema = z.object({
-  fontFamily: z.string().default('Inter'),
+  fontFamily: z
+    .string()
+    .default('Inter')
+    .transform((fontFamily) => resolveEditorFontFamily(fontFamily)),
   fontSize: z.number().min(8).max(200).default(48),
   fontWeight: z.enum(['normal', 'bold']).default('normal'),
   color: z
@@ -237,6 +241,11 @@ export const timelineSettingsSchema = z.object({
     .string()
     .regex(/^#[0-9A-Fa-f]{6}$/)
     .default('#000000'),
+  backgroundMode: z.enum(['solid', 'blur']).default('solid'),
+  backgroundBlurAmount: z.number().min(0).max(50).optional().default(18),
+  backgroundBlurZoom: z.number().min(1).max(1.5).optional().default(1.08),
+  backgroundDim: z.number().min(0).max(0.6).optional().default(0.08),
+  backgroundSaturation: z.number().min(0).max(2).optional().default(1.05),
 });
 
 /**

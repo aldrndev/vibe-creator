@@ -2,8 +2,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { TooltipProvider } from '@/components/ui';
+import { registerEditorFontFaces } from '@/lib/editor-font-loader';
 import App from './App';
 import './index.css';
+
+registerEditorFontFaces();
 
 const queryClient = new QueryClient({
   defaultOptions: {

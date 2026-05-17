@@ -3,9 +3,11 @@ import { z } from 'zod';
 import { AuditAction, audit } from '@/lib/audit';
 import {
   subtitleBackgroundColorTokenValues,
+  subtitleFontFamilyValues,
   subtitleFontTokenValues,
   subtitleTextColorTokenValues,
 } from '@/modules/director/subtitle-style-tokens';
+import { WorkspaceLifecycleError } from '@/modules/workspace/workspace-lifecycle';
 import { directorService } from '../director.service';
 import {
   DIRECTOR_SUBTITLE_FONT_SIZE_MAX,
@@ -46,6 +48,7 @@ const subtitleSpeakerStyleSchema = z.object({
 export const updateSubtitleStyleSchema = z.object({
   stylePreset: z.enum(subtitleStylePresetValues).optional(),
   fontToken: z.enum(subtitleFontTokenValues).optional(),
+  fontFamily: z.enum(subtitleFontFamilyValues).optional(),
   textColorToken: z.enum(subtitleTextColorTokenValues).optional(),
   bgColorToken: z.enum(subtitleBackgroundColorTokenValues).optional(),
   fontSize: z
@@ -108,6 +111,12 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
           data: session,
         });
       } catch (err) {
+        if (err instanceof WorkspaceLifecycleError) {
+          return reply.status(err.statusCode).send({
+            success: false,
+            error: { code: err.code, message: err.message },
+          });
+        }
         const message = err instanceof Error ? err.message : 'Session not found';
         const code = message.includes('not found') ? 'NOT_FOUND' : 'FORBIDDEN';
         return reply.status(code === 'NOT_FOUND' ? 404 : 403).send({
@@ -190,6 +199,12 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
           });
         }
         const message = err instanceof Error ? err.message : 'Update failed';
+        if (err instanceof WorkspaceLifecycleError) {
+          return reply.status(err.statusCode).send({
+            success: false,
+            error: { code: err.code, message: err.message },
+          });
+        }
         return reply.status(400).send({
           success: false,
           error: { code: 'UPDATE_FAILED', message },

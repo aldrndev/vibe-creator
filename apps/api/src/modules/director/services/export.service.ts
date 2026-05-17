@@ -9,6 +9,7 @@ import { basename, join } from 'node:path';
 import { DirectorJobStatus, DirectorStep } from '@prisma/client';
 import { env } from '@/config/env';
 import { logger } from '@/lib/logger';
+import { assertWorkspaceActive } from '@/modules/workspace/workspace-lifecycle';
 import { directorProcessor } from '../director.processor';
 import { buildDirectorQueueJobId, directorQueue } from '../director.queue';
 import { directorRepo } from '../director.repo';
@@ -94,6 +95,7 @@ export const directorExportService = {
     if (!session) {
       throw new Error('Session not found');
     }
+    assertWorkspaceActive(session.lifecycleStatus, session.expiresAt);
 
     if (session.selectedClips.length === 0) {
       throw new Error('Tidak ada klip terpilih');
@@ -166,6 +168,7 @@ export const directorExportService = {
     if (!session) {
       throw new Error('Session not found');
     }
+    assertWorkspaceActive(session.lifecycleStatus, session.expiresAt);
 
     if (session.selectedClips.length === 0) {
       throw new Error('Tidak ada klip terpilih');

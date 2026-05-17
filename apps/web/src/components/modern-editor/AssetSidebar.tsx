@@ -5,20 +5,9 @@
  * Supports video, image, and audio files.
  */
 
-import {
-  Film,
-  Image as ImageIcon,
-  Music,
-  Plus,
-  Subtitles,
-  Trash2,
-  Type,
-  Upload,
-  Video,
-} from 'lucide-react';
+import { Film, Mic2, Music, Shapes, Type, Upload } from 'lucide-react';
 import { useCallback, useRef, useState } from 'react';
 import {
-  Badge,
   Button,
   Card,
   CardBody,
@@ -28,9 +17,22 @@ import {
   TabsContent,
   TabsList,
 } from '@/components/ui';
+import { useVideoStudioAssets } from '@/hooks/use-video-studio-assets';
+import {
+  buildTextQuickActionLayerUpdate,
+  type VideoStudioTextAction,
+  videoStudioOpeningClosingActionIds,
+  videoStudioTextTemplateActionIds,
+} from '@/lib/modern-editor-quick-actions';
 import { cn } from '@/lib/utils';
+import type { VideoStudioAsset } from '@/services/video-studio-assets-api';
 import type { EditorAsset } from '@/stores/editor-store';
 import { useModernEditorStore } from '@/stores/modern-editor-store';
+import { AssetLibrary, AssetList } from './asset-sidebar-media-library';
+import { QuickTextActions, TemplateActionGrid } from './asset-sidebar-quick-actions';
+import { StudioAudioAssetList } from './asset-sidebar-studio-audio';
+import { RecordVoiceDialog } from './record-voice-dialog';
+import { useModernMediaImport } from './use-modern-media-import';
 
 interface AssetSidebarProps {
   className?: string;
@@ -39,17 +41,26 @@ interface AssetSidebarProps {
 export function AssetSidebar({ className }: Readonly<AssetSidebarProps>) {
   const {
     assets,
-    addAsset,
     removeAsset,
     addAudioLayer,
+    addAsset,
     addImageLayer,
     addSubtitleLayer,
     addTextLayer,
     addVideoLayer,
+    updateLayer,
   } = useModernEditorStore();
 
   const [isDragging, setIsDragging] = useState(false);
+  const [isVoiceDialogOpen, setIsVoiceDialogOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { importFiles } = useModernMediaImport();
+  const {
+    audioAssets: studioAudioAssets,
+    elementActions,
+    isFallback,
+    textActions,
+  } = useVideoStudioAssets();
 
   const handleAddAssetToTimeline = useCallback(
     (asset: EditorAsset) => {
@@ -68,74 +79,61 @@ export function AssetSidebar({ className }: Readonly<AssetSidebarProps>) {
     [addAudioLayer, addImageLayer, addVideoLayer],
   );
 
-  const handleFiles = useCallback(
-    async (files: FileList) => {
-      for (const file of Array.from(files)) {
-        let type: EditorAsset['type'] | null = null;
-        if (file.type.startsWith('video')) type = 'VIDEO';
-        else if (file.type.startsWith('image')) type = 'IMAGE';
-        else if (file.type.startsWith('audio')) type = 'AUDIO';
+  const addStyledTextLayer = useCallback(
+    (action: VideoStudioTextAction) => {
+      const layerId = addTextLayer(action.text);
+      const layer = useModernEditorStore.getState().layersById[layerId];
 
-        if (!type) continue;
-
-        const url = URL.createObjectURL(file);
-
-        // Basic Metadata Extraction
-        let durationMs = 5000;
-        let width = 0;
-        let height = 0;
-
-        if (type === 'VIDEO' || type === 'AUDIO') {
-          const el = document.createElement(type === 'VIDEO' ? 'video' : 'audio');
-          el.src = url;
-          await new Promise<void>((resolve) => {
-            el.onloadedmetadata = () => {
-              durationMs = el.duration * 1000;
-              if (type === 'VIDEO') {
-                width = (el as HTMLVideoElement).videoWidth;
-                height = (el as HTMLVideoElement).videoHeight;
-              }
-              resolve();
-            };
-            el.onerror = () => resolve();
-          });
-        } else if (type === 'IMAGE') {
-          const img = new Image();
-          img.src = url;
-          await new Promise<void>((resolve) => {
-            img.onload = () => {
-              width = img.width;
-              height = img.height;
-              resolve();
-            };
-            img.onerror = () => resolve();
-          });
-        }
-
-        const asset: EditorAsset = {
-          id: crypto.randomUUID(),
-          name: file.name,
-          type,
-          url,
-          file,
-          durationMs,
-          width,
-          height,
-        };
-
-        addAsset(asset);
+      if (layer?.type === 'text') {
+        updateLayer(layerId, buildTextQuickActionLayerUpdate(layer, action));
       }
     },
-    [addAsset],
+    [addTextLayer, updateLayer],
+  );
+
+  const addStudioAudioAsset = useCallback(
+    (studioAsset: VideoStudioAsset) => {
+      const existingAsset = assets.find((asset) => asset.studioAssetId === studioAsset.id);
+      if (existingAsset) {
+        addAudioLayer(existingAsset.id);
+        return;
+      }
+
+      const asset = createEditorAudioAssetFromStudioAsset(studioAsset);
+      addAsset(asset);
+      addAudioLayer(asset.id);
+    },
+    [addAsset, addAudioLayer, assets],
+  );
+
+  const addVoiceRecording = useCallback(
+    ({ durationMs, file }: { durationMs: number; file: File }) => {
+      const assetId =
+        typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : `voice-${Date.now()}`;
+      const asset: EditorAsset = {
+        id: assetId,
+        name: file.name,
+        type: 'AUDIO',
+        url: URL.createObjectURL(file),
+        durationMs,
+        file,
+      };
+
+      addAsset(asset);
+      addAudioLayer(asset.id);
+    },
+    [addAsset, addAudioLayer],
   );
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
       setIsDragging(false);
-      handleFiles(e.dataTransfer.files);
+      void importFiles(e.dataTransfer.files);
     },
-    [handleFiles],
+    [importFiles],
   );
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -149,7 +147,7 @@ export function AssetSidebar({ className }: Readonly<AssetSidebarProps>) {
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      handleFiles(e.target.files);
+      void importFiles(e.target.files);
       e.target.value = '';
     }
   };
@@ -157,241 +155,244 @@ export function AssetSidebar({ className }: Readonly<AssetSidebarProps>) {
   const videoAssets = assets.filter((a) => a.type === 'VIDEO');
   const imageAssets = assets.filter((a) => a.type === 'IMAGE');
   const audioAssets = assets.filter((a) => a.type === 'AUDIO');
+  const primaryTextActions = textActions.filter((action) =>
+    videoStudioOpeningClosingActionIds.includes(action.id),
+  );
+  const textTemplateActions = textActions.filter((action) =>
+    videoStudioTextTemplateActionIds.includes(action.id),
+  );
 
   return (
-    <div className={cn('flex flex-col h-full overflow-hidden p-4', className)}>
-      {/* Upload Zone - More compact on mobile */}
-      <Card
-        className={cn(
-          'border-2 border-dashed transition-all mb-4 md:mb-6 rounded-2xl group/upload relative overflow-hidden shrink-0',
-          isDragging
-            ? 'border-primary bg-primary/10'
-            : 'border-border/60 bg-card/50 hover:border-primary/40 hover:bg-card/60',
-        )}
-        onDrop={handleDrop}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-      >
-        <CardBody className="p-4 md:p-8 text-center">
-          <input
-            ref={fileInputRef}
-            type="file"
-            id="file-upload"
-            className="hidden"
-            multiple
-            accept="video/*,image/*,audio/*"
-            onChange={handleFileInput}
+    <div className={cn('flex h-full flex-col overflow-hidden p-3', className)}>
+      <Tabs defaultValue="media" className="flex min-h-0 flex-1 flex-col">
+        <TabsList className="mb-3 grid h-10 shrink-0 grid-cols-4 gap-1 rounded-xl border border-border/40 bg-muted/20 p-1">
+          <SidebarTab value="media" label="Media" icon={<Film size={14} />} />
+          <SidebarTab value="text" label="Text" icon={<Type size={14} />} />
+          <SidebarTab value="audio" label="Audio" icon={<Music size={14} />} />
+          <SidebarTab value="elements" label="Elements" icon={<Shapes size={14} />} />
+        </TabsList>
+
+        <TabsContent
+          value="media"
+          className="min-h-0 flex-1 data-[state=active]:flex data-[state=active]:flex-col"
+        >
+          <UploadCard
+            fileInputRef={fileInputRef}
+            inputId="media-upload"
+            isDragging={isDragging}
+            onDragLeave={handleDragLeave}
+            onDragOver={handleDragOver}
+            onDrop={handleDrop}
+            onFileInput={handleFileInput}
           />
-          <label
-            htmlFor="file-upload"
-            className="cursor-pointer flex flex-col items-center gap-2 md:gap-4"
-          >
-            <div className="w-10 h-10 md:w-14 md:h-14 rounded-2xl bg-primary/10 flex items-center justify-center transition-transform group-hover/upload:scale-110 duration-300">
-              <Upload size={20} className="text-primary md:w-7 md:h-7" />
-            </div>
-            <div className="space-y-0.5 md:space-y-1">
-              <p className="text-xs md:text-sm font-bold tracking-tight">Upload Media</p>
-              <p className="hidden md:block text-[10px] uppercase font-black tracking-widest text-muted-foreground/60">
-                Video • Gambar • Audio
-              </p>
-            </div>
-          </label>
-        </CardBody>
-      </Card>
+          <AssetLibrary
+            allAssets={assets}
+            audioAssets={audioAssets}
+            imageAssets={imageAssets}
+            videoAssets={videoAssets}
+            onAdd={handleAddAssetToTimeline}
+            onRemove={removeAsset}
+          />
+        </TabsContent>
 
-      {/* Quick Add Buttons - Placeholder or connect to actual handlers later */}
-      <div className="flex gap-3 mb-4 md:mb-6 shrink-0">
-        <Button
-          size="sm"
-          className="flex-1 rounded-xl font-bold h-9 md:h-10 border-border/40 bg-card/50 hover:bg-card/70 backdrop-blur-sm"
-          variant="outline"
-          onClick={() => addTextLayer('Text layer')}
+        <TabsContent
+          value="text"
+          className="min-h-0 flex-1 overflow-hidden data-[state=active]:flex data-[state=active]:flex-col"
         >
-          <Type size={14} className="mr-2 text-primary md:w-4 md:h-4" />
-          Text
-        </Button>
-        <Button
-          size="sm"
-          className="flex-1 rounded-xl font-bold h-9 md:h-10 border-border/40 bg-card/50 hover:bg-card/70 backdrop-blur-sm"
-          variant="outline"
-          onClick={() => addSubtitleLayer('Subtitle text...')}
+          <ScrollArea className="min-h-0 flex-1 pr-1.5">
+            <QuickTextActions
+              primaryTextActions={primaryTextActions}
+              textTemplateActions={textTemplateActions}
+              isUsingFallback={isFallback}
+              onAddPlainText={addTextLayer}
+              onAddStyledText={addStyledTextLayer}
+              onAddSubtitle={addSubtitleLayer}
+            />
+          </ScrollArea>
+        </TabsContent>
+
+        <TabsContent
+          value="audio"
+          className="min-h-0 flex-1 overflow-hidden data-[state=active]:flex data-[state=active]:flex-col"
         >
-          <Subtitles size={14} className="mr-2 text-primary md:w-4 md:h-4" />
-          Subtitle
-        </Button>
-      </div>
+          <ScrollArea className="min-h-0 flex-1 pr-1.5">
+            <UploadCard
+              fileInputRef={fileInputRef}
+              inputId="audio-upload"
+              isDragging={isDragging}
+              onDragLeave={handleDragLeave}
+              onDragOver={handleDragOver}
+              onDrop={handleDrop}
+              onFileInput={handleFileInput}
+            />
+            <RecordVoiceCard onClick={() => setIsVoiceDialogOpen(true)} />
+            <div className="mb-4">
+              <AudioSectionTitle title="Audio Project" helper="Audio yang sudah masuk project." />
+              <AssetList
+                assets={audioAssets}
+                emptyLabel="Belum ada audio project"
+                onRemove={removeAsset}
+                onAdd={handleAddAssetToTimeline}
+                scrollable={false}
+              />
+            </div>
+            <StudioAudioAssetList assets={studioAudioAssets} onAdd={addStudioAudioAsset} />
+          </ScrollArea>
+        </TabsContent>
 
-      {/* Asset Library */}
-      <Card className="flex-1 overflow-hidden border-border/40 bg-card/70 rounded-2xl flex flex-col min-h-0">
-        <Tabs defaultValue="all" className="w-full flex-1 flex flex-col min-h-0">
-          <TabsList className="w-full justify-between gap-1 p-1 bg-muted/20 border-b border-border/40 h-12 shrink-0 overflow-x-auto scrollbar-hide">
-            <Tab
-              value="all"
-              className="px-4 py-1.5 rounded-xl transition-all data-[state=active]:bg-card data-[state=active]:text-primary text-xs font-bold flex items-center gap-2 shrink-0"
-            >
-              <Film size={14} />
-              All
-              <span className="opacity-40 text-[10px] ml-0.5">{assets.length}</span>
-            </Tab>
-            <Tab
-              value="video"
-              className="px-3 py-1.5 rounded-xl transition-all data-[state=active]:bg-card data-[state=active]:text-primary text-xs font-bold flex items-center gap-2 shrink-0"
-            >
-              <Video size={14} />
-              <span className="opacity-40 text-[10px]">{videoAssets.length}</span>
-            </Tab>
-            <Tab
-              value="image"
-              className="px-3 py-1.5 rounded-xl transition-all data-[state=active]:bg-card data-[state=active]:text-primary text-xs font-bold flex items-center gap-2 shrink-0"
-            >
-              <ImageIcon size={14} />
-              <span className="opacity-40 text-[10px]">{imageAssets.length}</span>
-            </Tab>
-            <Tab
-              value="audio"
-              className="px-3 py-1.5 rounded-xl transition-all data-[state=active]:bg-card data-[state=active]:text-primary text-xs font-bold flex items-center gap-2 shrink-0"
-            >
-              <Music size={14} />
-              <span className="opacity-40 text-[10px]">{audioAssets.length}</span>
-            </Tab>
-          </TabsList>
-
-          <TabsContent
-            value="all"
-            className="flex-1 min-h-0 data-[state=active]:flex data-[state=active]:flex-col"
-          >
-            <AssetList assets={assets} onRemove={removeAsset} onAdd={handleAddAssetToTimeline} />
-          </TabsContent>
-          <TabsContent
-            value="video"
-            className="flex-1 min-h-0 data-[state=active]:flex data-[state=active]:flex-col"
-          >
-            <AssetList
-              assets={videoAssets}
-              onRemove={removeAsset}
-              onAdd={handleAddAssetToTimeline}
+        <TabsContent
+          value="elements"
+          className="min-h-0 flex-1 overflow-hidden data-[state=active]:flex data-[state=active]:flex-col"
+        >
+          <ScrollArea className="min-h-0 flex-1 pr-1.5">
+            <TemplateActionGrid
+              title="Elemen Visual"
+              helper="Tambahkan highlight, penanda, atau strip latar ke video."
+              density="compact"
+              actions={elementActions}
+              onAdd={addStyledTextLayer}
             />
-          </TabsContent>
-          <TabsContent
-            value="image"
-            className="flex-1 min-h-0 data-[state=active]:flex data-[state=active]:flex-col"
-          >
-            <AssetList
-              assets={imageAssets}
-              onRemove={removeAsset}
-              onAdd={handleAddAssetToTimeline}
-            />
-          </TabsContent>
-          <TabsContent
-            value="audio"
-            className="flex-1 min-h-0 data-[state=active]:flex data-[state=active]:flex-col"
-          >
-            <AssetList
-              assets={audioAssets}
-              onRemove={removeAsset}
-              onAdd={handleAddAssetToTimeline}
-            />
-          </TabsContent>
-        </Tabs>
-      </Card>
+          </ScrollArea>
+        </TabsContent>
+      </Tabs>
+      <RecordVoiceDialog
+        open={isVoiceDialogOpen}
+        onOpenChange={setIsVoiceDialogOpen}
+        onSave={addVoiceRecording}
+      />
     </div>
   );
 }
 
-// Asset list component
-function AssetList({
-  assets,
-  onRemove,
-  onAdd,
-}: Readonly<{
-  assets: EditorAsset[];
-  onRemove: (id: string) => void;
-  onAdd: (asset: EditorAsset) => void;
-}>) {
-  const getIcon = (type: EditorAsset['type']) => {
-    switch (type) {
-      case 'VIDEO':
-        return <Video size={16} />;
-      case 'IMAGE':
-        return <ImageIcon size={16} />;
-      case 'AUDIO':
-        return <Music size={16} />;
-    }
-  };
-
-  const formatDuration = (ms?: number) => {
-    if (!ms) return '';
-    const seconds = Math.floor(ms / 1000);
-    const minutes = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${minutes}:${secs.toString().padStart(2, '0')}`;
-  };
-
+function SidebarTab({
+  icon,
+  label,
+  value,
+}: Readonly<{ icon: React.ReactNode; label: string; value: string }>) {
   return (
-    <ScrollArea className="flex-1 p-4">
-      <ul className="space-y-4">
-        {assets.length === 0 ? (
-          <div className="p-4 text-center text-muted-foreground text-sm">Belum ada asset</div>
-        ) : (
-          assets.map((asset) => (
-            <li key={asset.id} className="list-none">
-              <button
-                type="button"
-                onClick={() => onAdd(asset)}
-                className="group flex flex-col w-full text-left gap-3 p-4 rounded-2xl bg-card/50 border border-border/40 hover:bg-card/70 hover:border-primary/40 transition-all cursor-pointer relative overflow-hidden active:scale-[0.98]"
-              >
-                {/* Top row: Icon and text information */}
-                <div className="flex gap-4 items-start">
-                  <div className="w-12 h-12 rounded-xl bg-background/50 flex items-center justify-center text-primary group-hover:bg-primary/10 transition-colors shrink-0 border border-border/40">
-                    {getIcon(asset.type)}
-                  </div>
-                  <div className="flex-1 min-w-0 overflow-hidden">
-                    <p className="text-sm font-bold line-clamp-1 tracking-tight text-foreground transition-colors group-hover:text-primary mb-1.5 break-all">
-                      {asset.name}
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <Badge
-                        variant="outline"
-                        className="text-[10px] font-black uppercase tracking-widest px-2 h-5 border-primary/20 bg-primary/5 text-primary/80"
-                      >
-                        {asset.type}
-                      </Badge>
-                      {asset.durationMs && (
-                        <p className="text-[10px] font-bold text-muted-foreground/60 bg-muted/20 px-1.5 py-0.5 rounded">
-                          {formatDuration(asset.durationMs)}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </div>
+    <Tab
+      value={value}
+      className="flex items-center justify-center gap-1.5 rounded-lg px-1.5 py-1 text-[9px] font-black uppercase tracking-tight text-muted-foreground transition-all data-[state=active]:bg-card data-[state=active]:text-primary"
+    >
+      {icon}
+      <span className="hidden min-[420px]:inline">{label}</span>
+    </Tab>
+  );
+}
 
-                {/* Bottom row / Actions: Prominent buttons */}
-                <div className="flex items-center justify-between gap-3 pt-3 border-t border-border/10 opacity-60 group-hover:opacity-100 transition-opacity">
-                  <p className="text-[10px] font-bold text-muted-foreground/40 uppercase tracking-widest">
-                    Klik untuk tambah ke studio
-                  </p>
-                  <div className="flex items-center gap-1.5">
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="w-8 h-8 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-all"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onRemove(asset.id);
-                      }}
-                    >
-                      <Trash2 size={16} />
-                    </Button>
-                    <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center group-hover:bg-primary group-hover:text-white transition-all">
-                      <Plus size={16} />
-                    </div>
-                  </div>
-                </div>
-              </button>
-            </li>
-          ))
-        )}
-      </ul>
-    </ScrollArea>
+function createEditorAudioAssetFromStudioAsset(studioAsset: VideoStudioAsset): EditorAsset {
+  const assetId =
+    typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `studio-${studioAsset.id}-${Date.now()}`;
+
+  return {
+    id: assetId,
+    name: studioAsset.title,
+    type: 'AUDIO',
+    url: studioAsset.previewUrl ?? '',
+    durationMs: studioAsset.durationMs ?? undefined,
+    serverUrl: studioAsset.previewUrl ?? undefined,
+    studioAssetId: studioAsset.id,
+  };
+}
+
+function RecordVoiceCard({ onClick }: Readonly<{ onClick: () => void }>) {
+  return (
+    <Card className="mb-3 overflow-hidden rounded-xl border border-primary/20 bg-primary/5">
+      <CardBody className="p-3">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary">
+            <Mic2 size={19} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-bold tracking-tight">Record Voice</p>
+            <p className="mt-0.5 text-[10px] font-semibold text-muted-foreground/75">
+              Rekam dubbing langsung dari mic.
+            </p>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            className="h-9 shrink-0 rounded-xl px-3 text-xs font-black"
+            onClick={onClick}
+          >
+            Record
+          </Button>
+        </div>
+      </CardBody>
+    </Card>
+  );
+}
+
+function AudioSectionTitle({
+  helper,
+  title,
+}: Readonly<{
+  helper: string;
+  title: string;
+}>) {
+  return (
+    <div className="mb-2.5 px-1">
+      <p className="text-xs font-black tracking-tight text-foreground">{title}</p>
+      <p className="mt-0.5 text-[11px] font-semibold leading-snug text-muted-foreground/80">
+        {helper}
+      </p>
+    </div>
+  );
+}
+
+function UploadCard({
+  fileInputRef,
+  inputId,
+  isDragging,
+  onDragLeave,
+  onDragOver,
+  onDrop,
+  onFileInput,
+}: Readonly<{
+  fileInputRef: React.RefObject<HTMLInputElement | null>;
+  inputId: string;
+  isDragging: boolean;
+  onDragLeave: () => void;
+  onDragOver: (event: React.DragEvent) => void;
+  onDrop: (event: React.DragEvent) => void;
+  onFileInput: (event: React.ChangeEvent<HTMLInputElement>) => void;
+}>) {
+  return (
+    <Card
+      className={cn(
+        'group/upload relative mb-3 shrink-0 overflow-hidden rounded-xl border border-dashed transition-all',
+        isDragging
+          ? 'border-primary bg-primary/10'
+          : 'border-border/60 bg-card/50 hover:border-primary/40 hover:bg-card/60',
+      )}
+      onDrop={onDrop}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+    >
+      <CardBody className="p-3">
+        <input
+          ref={fileInputRef}
+          type="file"
+          id={inputId}
+          className="hidden"
+          multiple
+          accept="video/*,image/*,audio/*"
+          onChange={onFileInput}
+        />
+        <label htmlFor={inputId} className="flex cursor-pointer items-center gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 transition-transform duration-300 group-hover/upload:scale-105">
+            <Upload size={19} className="text-primary" />
+          </div>
+          <div className="min-w-0 text-left">
+            <p className="text-sm font-bold tracking-tight">Upload Media</p>
+            <p className="mt-0.5 text-[9px] font-black uppercase tracking-widest text-muted-foreground/60">
+              Klik atau drop file
+            </p>
+          </div>
+        </label>
+      </CardBody>
+    </Card>
   );
 }

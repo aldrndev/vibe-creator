@@ -9,7 +9,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Mock modules with vi.hoisted
-const { mockPrisma, mockLogger, mockFfmpegProcessor } = vi.hoisted(() => ({
+const { mockPrisma, mockLogger, mockFfmpegProcessor, mockQueue } = vi.hoisted(() => ({
   mockPrisma: {
     exportHistory: {
       create: vi.fn(),
@@ -18,6 +18,9 @@ const { mockPrisma, mockLogger, mockFfmpegProcessor } = vi.hoisted(() => ({
       findMany: vi.fn(),
       update: vi.fn(),
       count: vi.fn(),
+    },
+    project: {
+      findFirst: vi.fn(),
     },
   },
   mockLogger: {
@@ -31,6 +34,10 @@ const { mockPrisma, mockLogger, mockFfmpegProcessor } = vi.hoisted(() => ({
     concat: vi.fn(),
     addWatermark: vi.fn(),
   },
+  mockQueue: {
+    addExportJob: vi.fn(),
+    getExportQueueStats: vi.fn(),
+  },
 }));
 
 vi.mock('@/lib/prisma', () => ({
@@ -41,7 +48,12 @@ vi.mock('@/lib/logger', () => ({
   logger: mockLogger,
 }));
 
-vi.mock('./ffmpeg.processor', () => ({
+vi.mock('../export.queue', () => ({
+  addExportJob: mockQueue.addExportJob,
+  getExportQueueStats: mockQueue.getExportQueueStats,
+}));
+
+vi.mock('../ffmpeg.processor', () => ({
   ffmpegProcessor: mockFfmpegProcessor,
 }));
 
@@ -52,7 +64,7 @@ vi.mock('fs/promises', () => ({
   copyFile: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock('fs', () => ({
+vi.mock('node:fs', () => ({
   existsSync: vi.fn().mockReturnValue(true),
 }));
 
@@ -83,6 +95,16 @@ function createMockExportJob(overrides = {}) {
 describe('exportService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockPrisma.exportHistory.findFirst.mockResolvedValue(null);
+    mockPrisma.project.findFirst.mockResolvedValue({ title: 'Video Studio Draft' });
+    mockQueue.getExportQueueStats.mockResolvedValue({
+      waiting: 0,
+      active: 0,
+      completed: 0,
+      failed: 0,
+      delayed: 0,
+    });
+    mockQueue.addExportJob.mockResolvedValue('export-123');
   });
 
   // ============================================================================
@@ -103,10 +125,12 @@ describe('exportService', () => {
           clips: [{ localPath: '/tmp/video.mp4', startTime: 0, endTime: 5 }],
           settings: { width: 1920, height: 1080, fps: 30 },
         },
+        requestId: 'request-123',
       });
 
       // Assert
-      expect(result.id).toBe('export-123');
+      expect(result.job.id).toBe('export-123');
+      expect(result.cacheState).toBe('none');
       expect(mockPrisma.exportHistory.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
@@ -115,14 +139,21 @@ describe('exportService', () => {
             format: 'MP4',
             resolution: 'HD',
             status: 'QUEUED',
+            exportFingerprint: expect.any(String),
+            displayFilename: expect.stringMatching(/^video-studio-video-studio-draft-/),
           }),
         }),
       );
+      expect(mockQueue.addExportJob).toHaveBeenCalledWith({
+        jobId: 'export-123',
+        userId: 'user-123',
+        requestId: 'request-123',
+      });
     });
 
     it('should throw error when rate limit exceeded', async () => {
-      // Arrange - 3 pending jobs (limit)
-      mockPrisma.exportHistory.count.mockResolvedValue(3);
+      // Arrange - 1 pending job (default limit)
+      mockPrisma.exportHistory.count.mockResolvedValue(1);
 
       // Act & Assert
       await expect(
@@ -133,8 +164,9 @@ describe('exportService', () => {
             clips: [],
             settings: { width: 1920, height: 1080, fps: 30 },
           },
+          requestId: 'request-123',
         }),
-      ).rejects.toThrow('Too many pending export jobs');
+      ).rejects.toThrow('Kamu masih punya export yang sedang berjalan');
     });
 
     it('should allow custom format and resolution', async () => {
@@ -153,6 +185,7 @@ describe('exportService', () => {
         },
         format: 'WEBM',
         resolution: 'UHD',
+        requestId: 'request-123',
       });
 
       // Assert
@@ -164,6 +197,54 @@ describe('exportService', () => {
           }),
         }),
       );
+    });
+
+    it('should reuse an active export with the same fingerprint', async () => {
+      // Arrange
+      const activeJob = createMockExportJob({ status: 'PROCESSING', progress: 42 });
+      mockPrisma.exportHistory.findFirst.mockResolvedValueOnce(activeJob);
+
+      // Act
+      const result = await exportService.createJob({
+        userId: 'user-123',
+        projectId: 'project-123',
+        timelineData: {
+          clips: [{ localPath: '/tmp/video.mp4', startTime: 0, endTime: 5 }],
+          settings: { width: 1920, height: 1080, fps: 30 },
+        },
+        requestId: 'request-123',
+      });
+
+      // Assert
+      expect(result.reused).toBe(true);
+      expect(result.cacheState).toBe('active-job');
+      expect(mockPrisma.exportHistory.create).not.toHaveBeenCalled();
+      expect(mockQueue.addExportJob).not.toHaveBeenCalled();
+    });
+
+    it('should reject when global export queue is full', async () => {
+      // Arrange
+      mockPrisma.exportHistory.count.mockResolvedValue(0);
+      mockQueue.getExportQueueStats.mockResolvedValue({
+        waiting: 50,
+        active: 0,
+        completed: 0,
+        failed: 0,
+        delayed: 0,
+      });
+
+      // Act & Assert
+      await expect(
+        exportService.createJob({
+          userId: 'user-123',
+          projectId: 'project-123',
+          timelineData: {
+            clips: [{ localPath: '/tmp/video.mp4', startTime: 0, endTime: 5 }],
+            settings: { width: 1920, height: 1080, fps: 30 },
+          },
+          requestId: 'request-123',
+        }),
+      ).rejects.toThrow('Antrian export sedang penuh');
     });
   });
 

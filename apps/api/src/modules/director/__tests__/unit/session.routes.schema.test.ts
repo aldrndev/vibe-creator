@@ -84,10 +84,26 @@ describe('updateSubtitleStyleSchema', () => {
     expect(parsed.fontToken).toBe('F_DISPLAY');
   });
 
+  it('accepts Google editor subtitle font families', () => {
+    const parsed = updateSubtitleStyleSchema.parse({
+      fontFamily: 'Bangers',
+    });
+
+    expect(parsed.fontFamily).toBe('Bangers');
+  });
+
   it('rejects invalid subtitle font tokens', () => {
     expect(() =>
       updateSubtitleStyleSchema.parse({
         fontToken: 'F_COMIC',
+      }),
+    ).toThrow();
+  });
+
+  it('rejects unknown subtitle font families', () => {
+    expect(() =>
+      updateSubtitleStyleSchema.parse({
+        fontFamily: 'Comic Sans',
       }),
     ).toThrow();
   });

@@ -27,6 +27,27 @@ export const projectIdParamsSchema = z.object({
   id: z.string(),
 });
 
+export const projectAssetFileParamsSchema = z.object({
+  assetId: z.string(),
+});
+
+export const attachProjectAssetRequestSchema = z.object({
+  assetId: z.string().min(1),
+  uploadToken: z.string().min(1),
+  name: z.string().min(1).max(255),
+  type: z.enum(['VIDEO', 'AUDIO', 'IMAGE']),
+  mimeType: z.string().optional(),
+  size: z.number().nonnegative().optional(),
+  durationMs: z.number().nonnegative().optional(),
+  width: z.number().nonnegative().optional(),
+  height: z.number().nonnegative().optional(),
+});
+
+export const attachStudioAssetRequestSchema = z.object({
+  studioAssetId: z.string().min(1),
+  assetId: z.string().min(1).optional(),
+});
+
 export const listProjectsQuerySchema = z.object({
   page: z.coerce.number().optional(),
   limit: z.coerce.number().optional(),
@@ -39,10 +60,12 @@ export const listProjectsQuerySchema = z.object({
 
 const assetSchema = z.object({
   id: z.string(),
+  projectId: z.string().optional(),
   type: z.string(),
-  url: z.string().nullable(),
-  filename: z.string().nullable(),
-  mimeType: z.string().nullable(),
+  name: z.string().optional(),
+  sourceUrl: z.string().nullable().optional(),
+  r2Key: z.string().optional(),
+  metadata: z.unknown().optional(),
   createdAt: z.date(),
 });
 
@@ -52,6 +75,12 @@ const projectSchema = z.object({
   description: z.string().nullable(),
   mode: z.enum(['STORY', 'TIMELINE']),
   storyData: z.unknown().nullable(),
+  status: z.enum(['DRAFT', 'PROCESSING', 'COMPLETED']).optional(),
+  expiresAt: z.date().nullable().optional(),
+  completedAt: z.date().nullable().optional(),
+  lastOpenedAt: z.date().nullable().optional(),
+  deletedAt: z.date().nullable().optional(),
+  lifecycleStatus: z.enum(['ACTIVE', 'COMPLETED', 'EXPIRED', 'DELETED']).optional(),
   userId: z.string(),
   createdAt: z.date(),
   updatedAt: z.date(),
@@ -127,6 +156,7 @@ export const getProjectRouteSchema = {
   response: {
     200: projectResponseSchema,
     404: errorResponseSchema,
+    410: errorResponseSchema,
   },
 };
 
@@ -150,6 +180,7 @@ export const updateProjectRouteSchema = {
   response: {
     200: projectResponseSchema,
     404: errorResponseSchema,
+    410: errorResponseSchema,
   },
 };
 
