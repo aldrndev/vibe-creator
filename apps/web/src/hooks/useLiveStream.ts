@@ -1,221 +1,318 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { z } from 'zod';
 import { logger } from '@/lib/logger';
-import { authFetch } from '@/services/api';
+import {
+  createDefaultLiveStreamDocument,
+  createLiveStreamProject,
+  createLiveStreamProjectTitle,
+  getActiveStream,
+  getLiveStreamSourceInfo,
+  getStreamQuota,
+  getStreamStatus,
+  type LiveStreamProjectDocument,
+  type LiveStreamSourceInfo,
+  loadLiveStreamProject,
+  type StreamQuota,
+  saveLiveStreamProject,
+  startLiveStreamProject,
+  stopStream,
+  uploadLiveStreamSourceAsset,
+} from '@/services/live-stream-project-api';
 
 export type StreamPlatform = 'youtube' | 'tiktok' | 'twitch' | 'facebook' | 'instagram' | 'custom';
 
-export function useLiveStream() {
-  const [videoFile, setVideoFile] = useState<File | null>(null);
-  const [videoUrl, setVideoUrl] = useState<string>('');
+interface UseLiveStreamOptions {
+  readonly sessionId?: string | null;
+}
 
-  const [platform, setPlatform] = useState<StreamPlatform>('youtube');
+function createDocumentPatch(
+  document: LiveStreamProjectDocument,
+  patch: Partial<LiveStreamProjectDocument>,
+): LiveStreamProjectDocument {
+  return {
+    ...document,
+    ...patch,
+    savedAt: new Date().toISOString(),
+  };
+}
+
+const metadataNumberSchema = z.number().finite().nonnegative();
+
+export function useLiveStream(options: UseLiveStreamOptions = {}) {
+  const [projectId, setProjectId] = useState<string | null>(options.sessionId ?? null);
+  const [projectTitle, setProjectTitle] = useState('Live Stream Baru');
+  const [document, setDocument] = useState<LiveStreamProjectDocument>(() =>
+    createDefaultLiveStreamDocument(),
+  );
+  const [sourceInfo, setSourceInfo] = useState<LiveStreamSourceInfo | undefined>();
+  const [videoUrl, setVideoUrl] = useState('');
+  const [isHydrating, setIsHydrating] = useState(Boolean(options.sessionId));
+
   const [streamKey, setStreamKey] = useState('');
-  const [customRtmpUrl, setCustomRtmpUrl] = useState('');
-
+  const [isStreamKeyVisible, setIsStreamKeyVisible] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamId, setStreamId] = useState<string>('');
   const [streamStatus, setStreamStatus] = useState<string>('');
 
-  const [quality, setQuality] = useState<'720p' | '1080p'>('720p');
-  const [bitrate, setBitrate] = useState<number>(2500);
-  const [duration, setDuration] = useState<number>(60);
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [quotaRemaining, setQuotaRemaining] = useState<number | null>(null);
+  const [quota, setQuota] = useState<StreamQuota | null>(null);
   const [showTopup, setShowTopup] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const statusIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const lastUploadedFile = useRef<File | null>(null);
-  const lastUploadedToken = useRef<string | null>(null);
+  const videoUrlRef = useRef<string>('');
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearVideoObjectUrl = useCallback(() => {
+    if (videoUrlRef.current) {
+      URL.revokeObjectURL(videoUrlRef.current);
+      videoUrlRef.current = '';
+    }
+  }, []);
+
+  const saveDraft = useCallback(
+    (nextDocument: LiveStreamProjectDocument, nextTitle = projectTitle) => {
+      if (!projectId) return;
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+      saveTimeoutRef.current = setTimeout(() => {
+        saveLiveStreamProject(projectId, nextTitle, nextDocument).catch((error: Error) => {
+          logger.warn('Failed to autosave live stream project', { error: error.message });
+        });
+      }, 450);
+    },
+    [projectId, projectTitle],
+  );
+
+  const updateDocument = useCallback(
+    (patch: Partial<LiveStreamProjectDocument>) => {
+      setDocument((current) => {
+        const next = createDocumentPatch(current, patch);
+        saveDraft(next, patch.title ?? projectTitle);
+        return next;
+      });
+    },
+    [projectTitle, saveDraft],
+  );
 
   const pollStatus = useCallback((id: string) => {
     if (statusIntervalRef.current) clearInterval(statusIntervalRef.current);
     statusIntervalRef.current = setInterval(async () => {
       try {
-        const statusRes = await authFetch(`/api/v1/stream/${id}/status`);
-        const statusData = await statusRes.json();
-
-        if (statusData.data.status === 'ENDED' || statusData.data.status === 'FAILED') {
-          setIsStreaming(false);
-          setStreamStatus(statusData.data.status);
+        const status = await getStreamStatus(id);
+        setStreamStatus(status.status);
+        setIsStreaming(
+          Boolean(status.isActive) || ['STARTING', 'LIVE', 'STOPPING'].includes(status.status),
+        );
+        if (status.status === 'ENDED' || status.status === 'FAILED') {
           if (statusIntervalRef.current) clearInterval(statusIntervalRef.current);
-        } else {
-          setStreamStatus(statusData.data.status);
+          setQuota(await getStreamQuota().catch(() => null));
         }
       } catch {
-        // Polling error - silently ignore and try again on next interval
+        // Polling error is non-fatal; next interval can recover.
       }
     }, 5000);
   }, []);
 
-  // Restore Session on Mount
   useEffect(() => {
-    const checkActiveStream = async () => {
-      try {
-        const res = await authFetch('/api/v1/stream/active');
-        if (res.ok) {
-          const data = await res.json();
-          const active = data.data.streams[0]; // Take first active
-          if (active) {
-            setStreamId(active.id);
-            setPlatform(active.platform as StreamPlatform);
-            setIsStreaming(true);
-            setStreamStatus(active.status);
+    let cancelled = false;
 
-            // Start polling immediately
-            pollStatus(active.id);
-          }
-        }
-      } catch (e) {
-        // Log error silently - don't show to user
-        void e;
+    async function hydrate() {
+      if (!options.sessionId) {
+        setIsHydrating(false);
+        return;
       }
-    };
 
-    // Fetch Quota
-    const fetchQuota = async () => {
       try {
-        const res = await authFetch('/api/v1/billing/quota');
-        if (res.ok) {
-          const data = await res.json();
-          setQuotaRemaining(data.data.remaining);
+        const session = await loadLiveStreamProject(options.sessionId);
+        if (cancelled) return;
+        setProjectId(session.id);
+        setProjectTitle(session.title);
+        setDocument(session.document);
+        setSourceInfo(session.sourceInfo);
+        if (session.sourceVideoUrl) {
+          clearVideoObjectUrl();
+          videoUrlRef.current = session.sourceVideoUrl;
+          setVideoUrl(session.sourceVideoUrl);
         }
-      } catch {
-        // Quota fetch failed - ignore
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Gagal membuka draft Live Streaming.';
+        setErrorMessage(message);
+      } finally {
+        if (!cancelled) setIsHydrating(false);
       }
-    };
+    }
 
-    checkActiveStream();
-    fetchQuota();
+    hydrate();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [clearVideoObjectUrl, options.sessionId]);
+
+  useEffect(() => {
+    async function restoreRuntime() {
+      const [active, quotaData] = await Promise.all([
+        getActiveStream().catch(() => null),
+        getStreamQuota().catch(() => null),
+      ]);
+      if (active) {
+        setStreamId(active.id);
+        setStreamStatus(active.status);
+        setIsStreaming(
+          Boolean(active.isActive) || ['STARTING', 'LIVE', 'STOPPING'].includes(active.status),
+        );
+        pollStatus(active.id);
+      }
+      setQuota(quotaData);
+    }
+
+    restoreRuntime();
 
     return () => {
       if (statusIntervalRef.current) clearInterval(statusIntervalRef.current);
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+      clearVideoObjectUrl();
     };
-  }, [pollStatus]);
+  }, [clearVideoObjectUrl, pollStatus]);
 
-  const handleFileSelect = (file: File) => {
-    setVideoFile(file);
-    setVideoUrl(URL.createObjectURL(file));
-  };
+  const ensureProject = useCallback(
+    async (file: File) => {
+      if (projectId) {
+        return { id: projectId, title: projectTitle, document };
+      }
 
-  const handleStartStream = async () => {
-    if (!videoFile || !streamKey) return;
+      const title = createLiveStreamProjectTitle(file.name);
+      const session = await createLiveStreamProject(title);
+      const nextDocument = createDocumentPatch(document, { title });
+      await saveLiveStreamProject(session.id, title, nextDocument);
+      setProjectId(session.id);
+      setProjectTitle(session.title);
+      setDocument(nextDocument);
+      return { ...session, document: nextDocument };
+    },
+    [document, projectId, projectTitle],
+  );
+
+  const handleFileSelect = useCallback(
+    async (file: File) => {
+      setErrorMessage(null);
+      try {
+        const session = await ensureProject(file);
+        const assetId = await uploadLiveStreamSourceAsset(session.id, file);
+        const nextDocument = createDocumentPatch(session.document, {
+          sourceAssetId: assetId,
+          title: session.title,
+        });
+        setDocument(nextDocument);
+        await saveLiveStreamProject(session.id, session.title, nextDocument);
+
+        const nextInfo = await getLiveStreamSourceInfo(session.id);
+        setSourceInfo(nextInfo);
+        clearVideoObjectUrl();
+        const localUrl = URL.createObjectURL(file);
+        videoUrlRef.current = localUrl;
+        setVideoUrl(localUrl);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Gagal upload source video.';
+        setErrorMessage(message);
+        logger.error('Live stream source upload failed', error);
+      }
+    },
+    [clearVideoObjectUrl, ensureProject],
+  );
+
+  const handleStartStream = useCallback(async () => {
+    if (!projectId || !document.sourceAssetId || !streamKey) return;
+    setErrorMessage(null);
+    setStreamStatus('Starting');
 
     try {
-      setStreamStatus('Mengupload video...');
-
-      let inputPath = '';
-
-      // Check Cache
-      if (videoFile === lastUploadedFile.current && lastUploadedToken.current) {
-        logger.info('Using cached uploaded video token');
-        inputPath = lastUploadedToken.current;
-        setStreamStatus('Menggunakan video cache...');
-      } else {
-        const formData = new FormData();
-        formData.append('video', videoFile);
-
-        const uploadRes = await authFetch('/api/v1/upload/video', {
-          method: 'POST',
-          body: formData,
-        });
-
-        if (!uploadRes.ok) throw new Error('Upload failed');
-        const uploadData = await uploadRes.json();
-        inputPath = uploadData.data.uploadToken;
-
-        // Update Cache
-        lastUploadedFile.current = videoFile;
-        lastUploadedToken.current = inputPath;
-      }
-
-      setStreamStatus('Memulai streaming...');
-
-      const streamRes = await authFetch('/api/v1/stream/start', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          inputPath,
-          config: {
-            platform,
-            streamKey,
-            rtmpUrl: platform === 'custom' || showAdvanced ? customRtmpUrl : undefined,
-            quality,
-            bitrateKbps: bitrate,
-            durationMinutes: duration,
-          },
-        }),
+      const response = await startLiveStreamProject({
+        projectId,
+        streamKey,
+        customRtmpUrl: document.platform === 'custom' ? document.customRtmpUrl : undefined,
       });
-
-      const streamData = await streamRes.json();
-
-      if (!streamRes.ok) {
-        throw new Error(streamData.error?.message || 'Start stream failed');
-      }
-
-      setStreamId(streamData.data.streamId);
+      setStreamId(response.streamId);
       setIsStreaming(true);
-      setStreamStatus('LIVE');
-      pollStatus(streamData.data.streamId); // Use shared poller
-    } catch (err) {
-      logger.error('Stream start failed', err);
-      setStreamStatus(`Gagal: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      setStreamStatus(response.status);
+      setQuota((current) =>
+        current
+          ? {
+              ...current,
+              remaining: response.quotaRemainingAfterReservation ?? current.remaining,
+            }
+          : current,
+      );
+      pollStatus(response.streamId);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Gagal memulai live stream.';
+      setErrorMessage(message);
+      setStreamStatus('Failed');
       setIsStreaming(false);
+      logger.error('Stream start failed', error);
     }
-  };
+  }, [document, pollStatus, projectId, streamKey]);
 
-  const handleStopStream = async () => {
+  const handleStopStream = useCallback(async () => {
     if (!streamId) return;
 
     try {
-      setStreamStatus('Menghentikan stream...');
-
-      await authFetch('/api/v1/stream/stop', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ streamId }),
-      });
-
+      setStreamStatus('Stopping');
+      await stopStream(streamId);
       setIsStreaming(false);
-      setStreamStatus('Stream dihentikan');
-
+      setStreamStatus('Ended');
       if (statusIntervalRef.current) {
         clearInterval(statusIntervalRef.current);
       }
-    } catch (err) {
-      logger.error('Stream stop failed', err);
-      setStreamStatus(
-        `Gagal menghentikan: ${err instanceof Error ? err.message : 'Unknown error'}`,
-      );
+      setQuota(await getStreamQuota().catch(() => null));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Gagal menghentikan live stream.';
+      setErrorMessage(message);
+      logger.error('Stream stop failed', error);
     }
-  };
+  }, [streamId]);
+
+  const metadata = sourceInfo?.source ?? undefined;
+  const durationSeconds = metadataNumberSchema.safeParse(metadata?.durationMs).success
+    ? Math.round((metadata?.durationMs ?? 0) / 1000)
+    : null;
 
   return {
-    // State
-    videoFile,
+    projectId,
+    projectTitle,
+    document,
+    sourceInfo,
+    sourceMetadata: metadata,
+    durationSeconds,
+    isHydrating,
     videoUrl,
-    platform,
-    setPlatform,
+    platform: document.platform,
+    setPlatform: (platform: StreamPlatform) => updateDocument({ platform }),
     streamKey,
     setStreamKey,
-    customRtmpUrl,
-    setCustomRtmpUrl,
+    isStreamKeyVisible,
+    setIsStreamKeyVisible,
+    customRtmpUrl: document.customRtmpUrl ?? '',
+    setCustomRtmpUrl: (customRtmpUrl: string) => updateDocument({ customRtmpUrl }),
     isStreaming,
     streamStatus,
-    quality,
-    setQuality,
-    bitrate,
-    setBitrate,
-    duration,
-    setDuration,
-    showAdvanced,
-    setShowAdvanced,
-    quotaRemaining,
+    quality: document.quality,
+    setQuality: (quality: '720p' | '1080p') =>
+      updateDocument({ quality, bitrateKbps: quality === '1080p' ? 4500 : 2500 }),
+    bitrate: document.bitrateKbps,
+    setBitrate: (bitrateKbps: number) => updateDocument({ bitrateKbps }),
+    duration: document.durationMinutes,
+    setDuration: (durationMinutes: number) => updateDocument({ durationMinutes }),
+    quotaRemaining: quota?.remaining ?? null,
+    quota,
     showTopup,
     setShowTopup,
-
-    // Actions
+    errorMessage,
     handleFileSelect,
     handleStartStream,
     handleStopStream,
+    hasSourceVideo: Boolean(document.sourceAssetId && videoUrl),
   };
 }

@@ -71,6 +71,7 @@ const envSchema = z.object({
   // AI Keys
   AI_COPY_PROVIDER: z.enum(['auto', 'openai', 'ollama']).default('openai'),
   OPENAI_API_KEY: optionalNonEmptyStringSchema,
+  YOUTUBE_API_KEY: optionalNonEmptyStringSchema,
   OLLAMA_BASE_URL: optionalUrlSchema,
   OLLAMA_MODEL: z.string().min(1).default('qwen3:14b'),
   WHISPER_MODEL_SIZE: z

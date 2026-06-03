@@ -129,6 +129,30 @@ interface ModernEditorState {
   getMaxEndMs: () => number;
 }
 
+function resolveSettingsWithAvailableAssets(
+  settings: Partial<ModernProjectSettings>,
+  assets: readonly EditorAsset[],
+): ModernProjectSettings {
+  const resolved = resolveModernProjectSettings(settings);
+  if (resolved.backgroundMode !== 'image' || !resolved.backgroundImageAssetId) {
+    return resolved;
+  }
+
+  const backgroundAsset = assets.find(
+    (asset) => asset.id === resolved.backgroundImageAssetId && asset.type === 'IMAGE',
+  );
+  if (backgroundAsset) {
+    return resolved;
+  }
+
+  return {
+    ...resolved,
+    backgroundMode: 'solid',
+    backgroundColor: '#000000',
+    backgroundImageAssetId: null,
+  };
+}
+
 // -----------------------------------------------------------------------------
 // Store
 // -----------------------------------------------------------------------------
@@ -209,7 +233,7 @@ export const useModernEditorStore = create<ModernEditorState>()(
       set({
         projectId: project.id,
         projectTitle: project.title,
-        settings: resolveModernProjectSettings(project.settings),
+        settings: resolveSettingsWithAvailableAssets(project.settings, assets),
         layersById,
         layerOrder: project.layers.map((layer) => layer.id),
         assets,
@@ -313,26 +337,33 @@ export const useModernEditorStore = create<ModernEditorState>()(
     },
 
     replaceAssets: (assets) => {
-      set({ assets });
+      set((state) => ({
+        assets,
+        settings: resolveSettingsWithAvailableAssets(state.settings, assets),
+      }));
     },
 
     removeAsset: (assetId) => {
-      set((state) => ({
-        ...pushHistory(state),
-        assets: state.assets.filter((a) => a.id !== assetId),
-        layersById: Object.fromEntries(
-          Object.entries(state.layersById).filter(([, layer]) => layer.assetId !== assetId),
-        ),
-        layerOrder: state.layerOrder.filter((id) => state.layersById[id]?.assetId !== assetId),
-        selectedLayerId:
-          state.selectedLayerId && state.layersById[state.selectedLayerId]?.assetId === assetId
-            ? null
-            : state.selectedLayerId,
-        selectedLayerIds: state.selectedLayerIds.filter(
-          (id) => state.layersById[id]?.assetId !== assetId,
-        ),
-        isDirty: true,
-      }));
+      set((state) => {
+        const assets = state.assets.filter((a) => a.id !== assetId);
+        return {
+          ...pushHistory(state),
+          assets,
+          settings: resolveSettingsWithAvailableAssets(state.settings, assets),
+          layersById: Object.fromEntries(
+            Object.entries(state.layersById).filter(([, layer]) => layer.assetId !== assetId),
+          ),
+          layerOrder: state.layerOrder.filter((id) => state.layersById[id]?.assetId !== assetId),
+          selectedLayerId:
+            state.selectedLayerId && state.layersById[state.selectedLayerId]?.assetId === assetId
+              ? null
+              : state.selectedLayerId,
+          selectedLayerIds: state.selectedLayerIds.filter(
+            (id) => state.layersById[id]?.assetId !== assetId,
+          ),
+          isDirty: true,
+        };
+      });
     },
 
     // ---------------------------------------------------------------------

@@ -3,10 +3,13 @@ import { AlignCenter, AlignLeft, AlignRight, Bold, Italic, Type } from 'lucide-r
 import type { ReactNode } from 'react';
 import { EditorFontSelect } from '@/components/editor-font-select';
 import { Badge, Button, Card, CardBody, Slider, Textarea } from '@/components/ui';
-import { buildTextStylePresetUpdate, textStylePresets } from '@/lib/modern-editor-preset-catalog';
+import {
+  createTextBackgroundData,
+  resolveTextBackground,
+  TEXT_BACKGROUND_DEFAULT_OPACITY,
+  TEXT_BACKGROUND_OPACITY_PRESETS,
+} from '@/lib/modern-text-background';
 import { cn } from '@/lib/utils';
-import { PresetPreviewCard } from './preset-preview-card';
-import { QuickPresetGrid } from './quick-preset-grid';
 
 interface TextLayerPropertiesProps {
   readonly layer: TextLayer;
@@ -16,7 +19,7 @@ interface TextLayerPropertiesProps {
 const textColors = ['#ffffff', '#111827', '#ff4b1f', '#facc15', '#22c55e', '#38bdf8'] as const;
 const backgroundColors = [
   { label: 'None', value: undefined },
-  { label: 'Dark', value: 'rgba(0, 0, 0, 0.72)' },
+  { label: 'Dark', value: '#000000' },
   { label: 'Brand', value: '#ff4b1f' },
   { label: 'Teal', value: '#0f766e' },
 ] as const;
@@ -24,6 +27,16 @@ const backgroundColors = [
 export function TextLayerProperties({ layer, onUpdate }: Readonly<TextLayerPropertiesProps>) {
   const updateData = (dataUpdates: Partial<TextLayer['data']>) => {
     onUpdate({ data: { ...layer.data, ...dataUpdates } } as Partial<Layer>);
+  };
+  const resolvedBackground = resolveTextBackground(layer.data);
+  const hasBackground = Boolean(resolvedBackground.color);
+  const backgroundOpacity = resolvedBackground.opacity ?? TEXT_BACKGROUND_DEFAULT_OPACITY;
+  const updateBackgroundOpacity = (opacity: number) => {
+    if (!resolvedBackground.color) {
+      return;
+    }
+
+    updateData(createTextBackgroundData(resolvedBackground.color, opacity));
   };
 
   return (
@@ -38,19 +51,6 @@ export function TextLayerProperties({ layer, onUpdate }: Readonly<TextLayerPrope
             Text
           </Badge>
         </div>
-
-        <QuickPresetGrid label="Preset siap pakai">
-          {textStylePresets.map((preset) => (
-            <PresetPreviewCard
-              key={preset.id}
-              helper={preset.helper}
-              label={preset.label}
-              previewClassName={preset.previewClassName}
-              sample={preset.sample}
-              onClick={() => onUpdate(buildTextStylePresetUpdate(layer, preset))}
-            />
-          ))}
-        </QuickPresetGrid>
 
         <div className="space-y-2">
           <PanelLabel>Isi teks</PanelLabel>
@@ -123,12 +123,12 @@ export function TextLayerProperties({ layer, onUpdate }: Readonly<TextLayerPrope
                 variant="ghost"
                 className={cn(
                   'h-9 rounded-lg border px-2 text-xs font-black',
-                  layer.data.backgroundColor === option.value ||
+                  resolvedBackground.color === option.value ||
                     (!layer.data.backgroundColor && !option.value)
                     ? 'border-primary bg-primary/10 text-primary'
                     : 'border-border/30 bg-background/25 text-muted-foreground hover:border-primary/40 hover:text-foreground',
                 )}
-                onClick={() => updateData({ backgroundColor: option.value })}
+                onClick={() => updateData(createTextBackgroundData(option.value))}
               >
                 {option.label}
               </Button>
@@ -136,10 +136,59 @@ export function TextLayerProperties({ layer, onUpdate }: Readonly<TextLayerPrope
           </div>
           <ColorPickerButton
             label="Custom text background"
-            value={layer.data.backgroundColor ?? '#000000'}
-            onChange={(backgroundColor) => updateData({ backgroundColor })}
+            value={resolvedBackground.color ?? '#000000'}
+            onChange={(backgroundColor) =>
+              updateData(createTextBackgroundData(backgroundColor, backgroundOpacity))
+            }
           />
         </div>
+
+        {hasBackground && (
+          <div className="space-y-2 rounded-xl border border-border/25 bg-background/15 p-2.5">
+            <div className="flex items-center justify-between gap-3">
+              <PanelLabel>Opacity</PanelLabel>
+              <span className="font-mono text-[10px] font-black text-muted-foreground">
+                {Math.round(backgroundOpacity * 100)}%
+              </span>
+            </div>
+            <div className="space-y-4">
+              <Slider
+                min={0}
+                max={1}
+                step={0.01}
+                value={[backgroundOpacity]}
+                onValueChange={(value: number[]) =>
+                  updateBackgroundOpacity(value[0] ?? backgroundOpacity)
+                }
+              />
+              <div className="flex gap-1.5">
+                {TEXT_BACKGROUND_OPACITY_PRESETS.map((preset) => {
+                  const isActive = Math.abs(backgroundOpacity - preset.value) < 0.01;
+
+                  return (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      aria-pressed={isActive}
+                      className={cn(
+                        'h-8 flex-1 rounded-lg border px-1.5 text-[9px] font-black transition-all active:scale-95',
+                        isActive
+                          ? 'border-primary bg-primary/10 text-primary'
+                          : 'border-border/30 bg-background/25 text-muted-foreground hover:border-primary/40 hover:text-foreground',
+                      )}
+                      onClick={(event) => {
+                        event.preventDefault();
+                        updateBackgroundOpacity(preset.value);
+                      }}
+                    >
+                      {preset.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="space-y-2">
           <PanelLabel>Rata teks</PanelLabel>

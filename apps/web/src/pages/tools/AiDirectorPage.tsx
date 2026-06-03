@@ -1,5 +1,5 @@
 import { AlertCircle, Plus } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { StepIndicator } from '@/components/director/StepIndicator';
 import { AnalyzeStep } from '@/components/director/steps/AnalyzeStep';
@@ -7,6 +7,12 @@ import { EditingStep } from '@/components/director/steps/EditingStep';
 import { ImportStep } from '@/components/director/steps/ImportStep';
 import { PickingStep } from '@/components/director/steps/PickingStep';
 import { ContinueWorkspaceDialog } from '@/components/workspace/ContinueWorkspaceDialog';
+import {
+  clearDirectorInitialContextSearchParams,
+  DIRECTOR_INITIAL_CONTEXT_QUERY_KEYS,
+  resolveInitialSourceUrl,
+  resolveTrendingImportContext,
+} from '@/lib/ai-director-trending-context';
 import {
   DEFAULT_TRANSCRIBE_LANGUAGE,
   normalizeTranscribeLanguage,
@@ -195,11 +201,54 @@ export function AiDirectorPage() {
   } = useDirectorStore();
 
   const sessionParam = searchParams.get('session');
+  const topicParam = searchParams.get('topic');
+  const sourceUrlParam = searchParams.get('sourceUrl');
+  const sourceParam = searchParams.get('source');
+  const queryTrendingImportContext = useMemo(
+    () => resolveTrendingImportContext(searchParams),
+    [searchParams],
+  );
+  const [trendingContextSnapshot, setTrendingContextSnapshot] = useState(
+    queryTrendingImportContext,
+  );
   const pendingSessionHydrationRef = useRef<string | null>(null);
-  const [openedWithoutSession] = useState(!sessionParam);
+  const clearedStaleSessionRef = useRef(false);
+  const [openedWithoutSession] = useState(
+    !sessionParam &&
+      !topicParam &&
+      !sourceUrlParam &&
+      !sourceParam &&
+      !searchParams.get('thumbnailUrl') &&
+      !searchParams.get('region') &&
+      !searchParams.get('rank'),
+  );
   const [showContinuePrompt, setShowContinuePrompt] = useState(openedWithoutSession);
   const activeSessionId = activeSession?.id ?? null;
   const hasActiveSession = activeSession !== null;
+  const trendingImportContext =
+    step === 'IMPORT' ? (queryTrendingImportContext ?? trendingContextSnapshot) : null;
+  const initialTopic = !hasActiveSession ? (topicParam?.trim() ?? null) : null;
+  const initialSourceUrl = !hasActiveSession
+    ? resolveInitialSourceUrl(searchParams, queryTrendingImportContext)
+    : null;
+
+  useEffect(() => {
+    if (queryTrendingImportContext && !hasActiveSession) {
+      setTrendingContextSnapshot(queryTrendingImportContext);
+    }
+  }, [hasActiveSession, queryTrendingImportContext]);
+
+  useEffect(() => {
+    if (sessionParam || clearedStaleSessionRef.current || !activeSessionId) {
+      return;
+    }
+
+    if (openedWithoutSession || queryTrendingImportContext) {
+      clearedStaleSessionRef.current = true;
+      reset();
+      setShowContinuePrompt(openedWithoutSession);
+    }
+  }, [activeSessionId, openedWithoutSession, queryTrendingImportContext, reset, sessionParam]);
 
   useEffect(() => {
     if (sessionParam) {
@@ -247,7 +296,10 @@ export function AiDirectorPage() {
         });
       } catch (error) {
         if (!cancelled) {
-          setError(error instanceof Error ? error.message : 'Gagal memulihkan sesi AI Director');
+          const message =
+            error instanceof Error ? error.message : 'Gagal memulihkan sesi AI Director';
+          reset();
+          setError(message);
         }
       } finally {
         if (!cancelled) {
@@ -279,6 +331,7 @@ export function AiDirectorPage() {
     setSubtitleTargetLanguage,
     updateSubtitleStyle,
     setWaitingForAsset,
+    reset,
   ]);
 
   useEffect(() => {
@@ -290,7 +343,18 @@ export function AiDirectorPage() {
 
     if (activeSessionId && sessionParam !== activeSessionId) {
       nextSearchParams.set('session', activeSessionId);
-      setSearchParams(nextSearchParams, { replace: true });
+      setSearchParams(clearDirectorInitialContextSearchParams(nextSearchParams), {
+        replace: true,
+      });
+      return;
+    }
+
+    if (
+      activeSessionId &&
+      step !== 'IMPORT' &&
+      DIRECTOR_INITIAL_CONTEXT_QUERY_KEYS.some((key) => nextSearchParams.has(key))
+    ) {
+      setSearchParams(clearDirectorInitialContextSearchParams(nextSearchParams), { replace: true });
       return;
     }
 
@@ -298,7 +362,15 @@ export function AiDirectorPage() {
       nextSearchParams.delete('session');
       setSearchParams(nextSearchParams, { replace: true });
     }
-  }, [activeSessionId, hasActiveSession, isHydrating, searchParams, sessionParam, setSearchParams]);
+  }, [
+    activeSessionId,
+    hasActiveSession,
+    isHydrating,
+    searchParams,
+    sessionParam,
+    setSearchParams,
+    step,
+  ]);
 
   return (
     <div className="min-h-screen bg-background text-foreground p-4 md:p-8 font-sans pb-32">
@@ -349,7 +421,19 @@ export function AiDirectorPage() {
 
         {/* Content */}
         <div className="min-h-100 flex items-center justify-center">
-          {step === 'IMPORT' && <ImportStep />}
+          {step === 'IMPORT' && (
+            <ImportStep
+              initialTopic={initialTopic}
+              initialSourceUrl={initialSourceUrl}
+              trendingImportContext={trendingImportContext}
+              onClearInitialContext={() => {
+                setTrendingContextSnapshot(null);
+                setSearchParams(clearDirectorInitialContextSearchParams(searchParams), {
+                  replace: true,
+                });
+              }}
+            />
+          )}
           {step === 'ANALYZING' && <AnalyzeStep />}
           {step === 'PICKING' && <PickingStep />}
           {step === 'EDITING' && <EditingStep />}

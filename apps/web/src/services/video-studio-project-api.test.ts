@@ -92,6 +92,24 @@ describe('video studio project api', () => {
     ]);
   });
 
+  it('persists background-library metadata in the project payload', () => {
+    const backgroundAsset: EditorAsset = {
+      id: 'asset-background',
+      name: 'background.jpg',
+      type: 'IMAGE',
+      libraryPurpose: 'background',
+      url: 'blob:background',
+    };
+
+    const payload = buildVideoStudioProjectPayload(
+      createProject(),
+      [backgroundAsset],
+      '2026-05-09T07:00:00.000Z',
+    );
+
+    expect(payload.assets[0]?.libraryPurpose).toBe('background');
+  });
+
   it('normalizes backend project ID over the persisted document ID', () => {
     const parsed = parseVideoStudioProjectRecord(
       createProjectRecord('server-project', createProject('old-local-id')),

@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import type { CSSProperties } from 'react';
 import { useLayerInteraction } from '@/hooks/useLayerInteraction';
 import { getEditorFontPreviewFamily } from '@/lib/editor-font-loader';
+import { resolveTextBackground } from '@/lib/modern-text-background';
 import { LayerHandles } from './LayerHandles';
 import { TypewriterPreviewText } from './typewriter-preview';
 import { VideoLayerContent } from './VideoLayerContent';
@@ -129,8 +130,8 @@ export function LayerRenderer({
       transform: `rotate(${layer.rotation}deg)`,
       opacity: layer.opacity,
       cursor: layer.locked ? 'not-allowed' : 'move',
-      outline: isSelected && !isEditing ? '2px solid hsl(var(--primary))' : 'none',
-      outlineOffset: '2px',
+      outline: isSelected && !isEditing ? '1px solid hsl(var(--primary) / 0.82)' : 'none',
+      outlineOffset: '1px',
       zIndex: isEditing ? 100 : undefined,
     };
   };
@@ -214,6 +215,7 @@ export function LayerRenderer({
         const textLayer = layer as TextLayer;
         const animation = textLayer.data.animationIn ?? textLayer.data.animation;
         const loopAnimation = textLayer.data.animationLoop ?? 'none';
+        const resolvedBackground = resolveTextBackground(textLayer.data);
 
         const variants: {
           initial: { opacity: number; y: number; scale?: number };
@@ -277,7 +279,7 @@ export function LayerRenderer({
               fontWeight: textLayer.data.fontWeight,
               fontStyle: textLayer.data.fontStyle,
               color: textLayer.data.color,
-              backgroundColor: textLayer.data.backgroundColor,
+              backgroundColor: resolvedBackground.cssColor,
               textAlign: textLayer.data.textAlign,
               justifyContent: getTextJustifyContent(textLayer.data.textAlign),
               paddingInline: textLayer.width <= 12 ? 0 : 8 * scale,

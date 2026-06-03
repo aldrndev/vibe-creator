@@ -29,12 +29,18 @@ export async function applyTextOverlays({
 
   const drawtextFilters: string[] = [];
 
-  for (const overlay of textOverlays) {
+  for (const overlay of textOverlays.filter((item) => item.visible !== false)) {
     const fontFile = resolveEditorFontFile(overlay.fontFamily, overlay.fontWeight === 'bold');
     if (!fontFile) {
       logger.warn(
         { fontFamily: overlay.fontFamily },
         'Editor font file missing; FFmpeg will use its default font',
+      );
+    }
+    if (overlay.fontStyle === 'italic') {
+      logger.warn(
+        { fontFamily: overlay.fontFamily },
+        'Italic editor font variant is not available yet; FFmpeg will use regular font file',
       );
     }
 

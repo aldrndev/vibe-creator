@@ -10,7 +10,9 @@ import {
   PlatformStatusSchema,
   ScrapedItemSchema,
   TrendingItemSchema,
+  TrendingListResponseSchema,
   TrendingQuerySchema,
+  TrendingRegionCodeSchema,
   TrendingStatusSchema,
   TrendingTypeSchema,
 } from '../../trending.schema';
@@ -66,14 +68,46 @@ describe('trending schema contracts', () => {
       expect(result.cursor).toBe('abc123');
     });
 
-    it('should enforce region length', () => {
+    it('should enforce supported regions', () => {
+      expect(TrendingRegionCodeSchema.parse('ID')).toBe('ID');
+      expect(TrendingRegionCodeSchema.parse('GB')).toBe('GB');
       expect(() => TrendingQuerySchema.parse({ region: 'USA' })).toThrow();
       expect(() => TrendingQuerySchema.parse({ region: 'U' })).toThrow();
+      expect(() => TrendingQuerySchema.parse({ region: 'BR' })).toThrow();
     });
 
     it('should enforce limit bounds', () => {
       expect(() => TrendingQuerySchema.parse({ limit: '0' })).toThrow();
-      expect(() => TrendingQuerySchema.parse({ limit: '101' })).toThrow();
+      expect(() => TrendingQuerySchema.parse({ limit: '51' })).toThrow();
+    });
+  });
+
+  describe('TrendingListResponseSchema', () => {
+    it('should expose response metadata for Top 50 availability', () => {
+      const response = {
+        success: true,
+        data: {
+          items: [],
+          nextCursor: null,
+          status: {
+            platform: 'YOUTUBE',
+            region: 'ID',
+            status: 'ok',
+            lastSuccessAt: '2024-01-01T00:00:00.000Z',
+          },
+          metadata: {
+            maxResults: 50,
+            returnedCount: 49,
+            regionLabel: 'Indonesia',
+            lastUpdatedAt: '2024-01-01T00:00:00.000Z',
+          },
+        },
+      };
+
+      const result = TrendingListResponseSchema.parse(response);
+
+      expect(result.data.metadata.returnedCount).toBe(49);
+      expect(result.data.metadata.maxResults).toBe(50);
     });
   });
 

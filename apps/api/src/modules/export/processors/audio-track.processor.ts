@@ -17,6 +17,7 @@ export interface ExportAudioTrack {
   volume: number;
   fadeInMs: number;
   fadeOutMs: number;
+  loop?: boolean;
 }
 
 interface MixAudioTracksInput {
@@ -35,8 +36,9 @@ interface BuildAudioMixFilterInput {
 }
 
 interface TimelineDurationInput {
-  clips: ReadonlyArray<{ startTime: number; endTime: number }>;
+  clips: ReadonlyArray<{ startTime: number; endTime: number; timelineEndMs?: number }>;
   audioTracks?: ReadonlyArray<{ timelineEndMs: number }>;
+  textOverlays?: ReadonlyArray<{ endMs: number }>;
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -69,7 +71,11 @@ function isUsableAudioTrack(track: ExportAudioTrack): boolean {
 }
 
 export function getTimelineDurationMs(timelineData: TimelineDurationInput): number {
-  const visualDurationMs = timelineData.clips.reduce(
+  const modernVisualEndMs = Math.max(
+    0,
+    ...timelineData.clips.map((clip) => clip.timelineEndMs ?? 0),
+  );
+  const legacyVisualDurationMs = timelineData.clips.reduce(
     (total, clip) => total + Math.max(100, (clip.endTime - clip.startTime) * MS_PER_SECOND),
     0,
   );
@@ -77,8 +83,12 @@ export function getTimelineDurationMs(timelineData: TimelineDurationInput): numb
     0,
     ...(timelineData.audioTracks?.map((track) => track.timelineEndMs) ?? []),
   );
+  const textEndMs = Math.max(
+    0,
+    ...(timelineData.textOverlays?.map((overlay) => overlay.endMs) ?? []),
+  );
 
-  return Math.max(visualDurationMs, audioEndMs, 100);
+  return Math.max(modernVisualEndMs || legacyVisualDurationMs, audioEndMs, textEndMs, 100);
 }
 
 function buildAudioTrackFilter(
@@ -99,6 +109,14 @@ function buildAudioTrackFilter(
     )}`,
     'asetpts=PTS-STARTPTS',
   ];
+
+  if (track.loop) {
+    filters.push(
+      'aloop=loop=-1:size=2147483647',
+      `atrim=duration=${formatSeconds(durationSec)}`,
+      'asetpts=PTS-STARTPTS',
+    );
+  }
 
   if (fadeInSec > 0) {
     filters.push(`afade=t=in:st=0:d=${formatSeconds(fadeInSec)}`);

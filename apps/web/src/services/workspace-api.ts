@@ -1,8 +1,22 @@
 import { z } from 'zod';
 import { api } from '@/services/api';
 
-const workspaceKindSchema = z.enum(['ai-director', 'video-studio', 'export']);
-const workspaceToolSchema = z.enum(['ai-director', 'video-studio', 'exports']);
+const workspaceKindSchema = z.enum([
+  'ai-director',
+  'video-studio',
+  'loop-creator',
+  'reaction-video',
+  'live-stream',
+  'export',
+]);
+const workspaceToolSchema = z.enum([
+  'ai-director',
+  'video-studio',
+  'loop-creator',
+  'reaction-video',
+  'live-stream',
+  'exports',
+]);
 const lifecycleStatusSchema = z.enum([
   'ACTIVE',
   'COMPLETED',
@@ -25,6 +39,10 @@ export const workspaceItemSchema = z.object({
   lastOpenedAt: z.string().nullable(),
   downloadExpiresAt: z.string().nullable().optional(),
   sourceId: z.string().nullable().optional(),
+  sourceKind: z
+    .enum(['ai-director', 'video-studio', 'loop-creator', 'reaction-video', 'live-stream'])
+    .nullable()
+    .optional(),
 });
 
 const recentWorkspaceResponseSchema = z.object({
@@ -105,10 +123,6 @@ export async function duplicateWorkspace(item: WorkspaceItem): Promise<unknown> 
 }
 
 export async function deleteWorkspace(item: WorkspaceItem): Promise<void> {
-  if (item.kind === 'export') {
-    throw new Error('Export tidak bisa dihapus dari halaman ini.');
-  }
-
   const response = await api.delete<unknown>(`/workspaces/${item.kind}/${item.id}`);
   if (!response.success) {
     throw new Error(response.error.message || 'Gagal hapus workspace.');
@@ -124,7 +138,24 @@ export function getWorkspaceContinuePath(item: WorkspaceItem): string {
     return `/tools/video-studio?session=${item.id}`;
   }
 
+  if (item.kind === 'loop-creator') {
+    return `/tools/loop-creator?session=${item.id}`;
+  }
+
+  if (item.kind === 'reaction-video') {
+    return `/tools/reaction?session=${item.id}`;
+  }
+
+  if (item.kind === 'live-stream') {
+    return `/tools/live-stream?session=${item.id}`;
+  }
+
   return item.sourceId ? `/tools/ai-director?session=${item.sourceId}` : '/dashboard/history';
+}
+
+/** Builds the protected thumbnail endpoint for one history item. */
+export function getWorkspaceThumbnailPath(item: WorkspaceItem): string {
+  return `/api/v1/workspaces/${encodeURIComponent(item.kind)}/${encodeURIComponent(item.id)}/thumbnail`;
 }
 
 function normalizeTechnicalTitle(value: string): string {
@@ -192,21 +223,21 @@ export function getWorkspaceEditedLabel(item: WorkspaceItem): string {
 
 export function getWorkspaceExpiryLabel(item: WorkspaceItem, now = new Date()): string {
   if (item.lifecycleStatus === 'EXPIRED') {
-    return 'Expired';
+    return 'Berakhir';
   }
 
   if (item.lifecycleStatus === 'DOWNLOAD_EXPIRED') {
-    return 'Download expired';
+    return 'Download berakhir';
   }
 
   const target = item.downloadExpiresAt ?? item.expiresAt ?? getFallbackExpiryTarget(item);
   if (!target) {
-    return 'No expiry';
+    return 'Tanpa batas waktu';
   }
 
   const diffMs = new Date(target).getTime() - now.getTime();
   if (diffMs <= 0) {
-    return 'Expired';
+    return 'Berakhir';
   }
 
   const hours = Math.ceil(diffMs / (60 * 60 * 1000));
@@ -215,4 +246,51 @@ export function getWorkspaceExpiryLabel(item: WorkspaceItem, now = new Date()): 
   }
 
   return `${Math.ceil(hours / 24)} hari tersisa`;
+}
+
+export function getHistoryWorkspaceDisplayTitle(item: WorkspaceItem, sourceTitle?: string): string {
+  const title = item.title.trim();
+  const hasReadableTitle = title.length > 0 && !isTechnicalWorkspaceTitle(title, item.id);
+
+  if (item.kind === 'export') {
+    if (sourceTitle) {
+      return `Export - ${sourceTitle}`;
+    }
+
+    if (hasReadableTitle) {
+      const sourceName = title.replace(/\s+export$/i, '');
+      return `Export - ${sourceName}`;
+    }
+
+    return 'Hasil Export';
+  }
+
+  if (hasReadableTitle) {
+    return title;
+  }
+
+  if (item.kind === 'video-studio') return 'Draft Video Studio';
+  if (item.kind === 'loop-creator') return 'Draft Loop Creator';
+  if (item.kind === 'reaction-video') return 'Draft Reaction Creator';
+  return 'Sesi AI Director';
+}
+
+export function getWorkspaceExportDownloadPath(item: WorkspaceItem): string | null {
+  if (item.kind !== 'export' || item.lifecycleStatus !== 'COMPLETED') {
+    return null;
+  }
+
+  if (
+    item.sourceKind === 'video-studio' ||
+    item.sourceKind === 'loop-creator' ||
+    item.sourceKind === 'reaction-video'
+  ) {
+    return `/api/v1/export/${item.id}/download`;
+  }
+
+  if (item.sourceKind === 'ai-director' && item.sourceId) {
+    return `/api/v1/director/sessions/${item.sourceId}/export/download`;
+  }
+
+  return null;
 }

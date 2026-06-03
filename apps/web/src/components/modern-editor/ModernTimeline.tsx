@@ -1,14 +1,10 @@
-import type { Layer } from '@vibe-creator/shared';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   buildTimelineClipViewModels,
   buildTimelineRulerTicks,
-  calculateMovedLayerTiming,
-  calculateTrimmedLayerTiming,
   clampTimelineZoom,
-  collectTimelineSnapPoints,
+  getTimelineAutoScrollDelta,
   getTimelineDurationMs,
-  getTimelineReorderTargetLayerId,
   TIMELINE_DEFAULT_PX_PER_SECOND,
   timelineMsToPx,
   timelinePxToMs,
@@ -16,28 +12,13 @@ import {
 import { cn } from '@/lib/utils';
 import { useModernEditorStore } from '@/stores/modern-editor-store';
 import { CompactMobileTimeline } from './timeline/compact-mobile-timeline';
-import { TimelineLayerHeader } from './timeline/timeline-layer-header';
 import { TimelineLayerRows } from './timeline/timeline-layer-rows';
+import { TimelineNavigator } from './timeline/timeline-navigator';
 import { TimelineRuler } from './timeline/timeline-ruler';
 import { TimelineToolbar } from './timeline/timeline-toolbar';
-
-type TimelinePointerMode = 'move' | 'trim-start' | 'trim-end';
-
-interface TimelineDragTiming {
-  readonly startMs: number;
-  readonly endMs: number;
-}
-
-interface TimelineDragState {
-  readonly layerId: string;
-  readonly mode: TimelinePointerMode;
-  readonly pointerStartX: number;
-  readonly pointerStartY: number;
-  readonly originalByLayerId: Record<string, TimelineDragTiming>;
-  readonly previewByLayerId: Record<string, TimelineDragTiming>;
-  readonly snapGuideMs: number | null;
-  readonly reorderTargetLayerId: string | null;
-}
+import { useTimelineLayerInteractions } from './timeline/use-timeline-layer-interactions';
+import { useTimelineThumbnailBackfill } from './timeline/use-timeline-thumbnail-backfill';
+import { useTimelineViewport } from './timeline/use-timeline-viewport';
 
 interface ModernTimelineProps {
   readonly className?: string;
@@ -46,41 +27,23 @@ interface ModernTimelineProps {
 
 const TIMELINE_ROW_HEIGHT_PX = 48;
 const TIMELINE_RULER_HEIGHT_PX = 36;
-const TIMELINE_HEADER_WIDTH_CLASS = 'w-[124px]';
+const TIMELINE_HEADER_WIDTH_PX = 124;
 const TIMELINE_ZOOM_STEP = 8;
 
-function getLayerById(layers: readonly Layer[], layerId: string): Layer | null {
-  return layers.find((layer) => layer.id === layerId) ?? null;
-}
-
-function createOriginalTimings(layers: readonly Layer[], layerIds: readonly string[]) {
-  return Object.fromEntries(
-    layerIds.flatMap((layerId) => {
-      const layer = getLayerById(layers, layerId);
-      return layer ? [[layerId, { startMs: layer.startMs, endMs: layer.endMs }]] : [];
-    }),
-  );
-}
-
-function isTrimMode(mode: TimelinePointerMode): mode is 'trim-start' | 'trim-end' {
-  return mode === 'trim-start' || mode === 'trim-end';
-}
-
-function hasTimingChanged(original: TimelineDragTiming, preview: TimelineDragTiming): boolean {
-  return (
-    Math.abs(original.startMs - preview.startMs) >= 1 ||
-    Math.abs(original.endMs - preview.endMs) >= 1
-  );
-}
-
 export function ModernTimeline({ className, isFocusMode = false }: ModernTimelineProps) {
-  const timelineRowsRef = useRef<HTMLDivElement>(null);
+  const timelineWheelIdleTimerRef = useRef<number | null>(null);
+  const timelineScrollLeftValueRef = useRef(0);
+  const timelineEdgeAutoScrollRef = useRef<(clientX: number) => void>(() => {});
   const [pxPerSecond, setPxPerSecond] = useState(TIMELINE_DEFAULT_PX_PER_SECOND);
-  const [dragState, setDragState] = useState<TimelineDragState | null>(null);
-  const [reorderingLayerId, setReorderingLayerId] = useState<string | null>(null);
+  const [isTimelineInteracting, setIsTimelineInteracting] = useState(false);
+  const getTimelineScrollLeft = useCallback(() => timelineScrollLeftValueRef.current, []);
+  const handleTimelineEdgeAutoScroll = useCallback((clientX: number) => {
+    timelineEdgeAutoScrollRef.current(clientX);
+  }, []);
   const {
     layerOrder,
     currentTimeMs,
+    isPlaying,
     setCurrentTime,
     pause,
     getMaxEndMs,
@@ -107,12 +70,53 @@ export function ModernTimeline({ className, isFocusMode = false }: ModernTimelin
     () => new Map(displayLayerIds.map((layerId, index) => [layerId, index])),
     [displayLayerIds],
   );
+  const {
+    rowsRef: timelineRowsRef,
+    dragState,
+    reorderingLayerId,
+    isLayerInteracting,
+    handlePointerStart,
+    handleLayerDragStart,
+    handleLayerDragOver,
+    handleLayerDrop,
+    handleLayerDragEnd,
+  } = useTimelineLayerInteractions({
+    currentTimeMs,
+    displayLayerIds,
+    getTimelineScrollLeft,
+    layerOrder,
+    layers,
+    moveLayerTiming,
+    onTimelineEdgeAutoScroll: handleTimelineEdgeAutoScroll,
+    pxPerSecond,
+    reorderLayer,
+    rowHeightPx: TIMELINE_ROW_HEIGHT_PX,
+    selectedLayerIds,
+    selectLayer,
+    trimLayerTiming,
+  });
   const durationMs = getTimelineDurationMs(getMaxEndMs());
   const timelineWidthPx = Math.max(360, timelineMsToPx(durationMs, pxPerSecond));
   const currentTimeLeftPx = timelineMsToPx(currentTimeMs, pxPerSecond);
   const snapGuideLeftPx =
     dragState?.snapGuideMs != null ? timelineMsToPx(dragState.snapGuideMs, pxPerSecond) : null;
   const selectedCount = selectedLayerIds.length;
+  const isUserInteractingWithTimeline = isTimelineInteracting || isLayerInteracting;
+  const {
+    timelineScrollRef,
+    timelineScrollLeft,
+    timelineViewportWidth,
+    setTimelineScrollLeft,
+    handleTimelineScroll,
+    handleTimelineWheel,
+  } = useTimelineViewport({
+    headerWidthPx: TIMELINE_HEADER_WIDTH_PX,
+    timelineWidthPx,
+    currentTimeLeftPx,
+    isPlaying,
+    isUserInteracting: isUserInteractingWithTimeline,
+  });
+  timelineScrollLeftValueRef.current = timelineScrollRef.current?.scrollLeft ?? timelineScrollLeft;
 
   const ticks = useMemo(
     () => buildTimelineRulerTicks(durationMs, pxPerSecond),
@@ -133,133 +137,16 @@ export function ModernTimeline({ className, isFocusMode = false }: ModernTimelin
     [clipViewModels],
   );
 
-  useEffect(() => {
-    if (!dragState) return;
+  useTimelineThumbnailBackfill(assets);
 
-    const handlePointerMove = (event: PointerEvent) => {
-      event.preventDefault();
-
-      const anchorLayer = getLayerById(layers, dragState.layerId);
-      const anchorTiming = dragState.originalByLayerId[dragState.layerId];
-      if (!anchorLayer || !anchorTiming) return;
-
-      const deltaMs = timelinePxToMs(event.clientX - dragState.pointerStartX, pxPerSecond);
-      const selectedIds = Object.keys(dragState.originalByLayerId);
-      const selectedSet = new Set(selectedIds);
-      const snapPoints = collectTimelineSnapPoints(layers, currentTimeMs, selectedSet);
-
-      if (dragState.mode === 'move') {
-        const rowsElement = timelineRowsRef.current;
-        const reorderTargetLayerId = rowsElement
-          ? getTimelineReorderTargetLayerId({
-              clientY: event.clientY,
-              containerTopPx: rowsElement.getBoundingClientRect().top,
-              rowHeightPx: TIMELINE_ROW_HEIGHT_PX,
-              layerIds: displayLayerIds,
-              draggedLayerId: dragState.layerId,
-              pointerStartY: dragState.pointerStartY,
-            })
-          : null;
-        const anchorForCalculation = {
-          ...anchorLayer,
-          startMs: anchorTiming.startMs,
-          endMs: anchorTiming.endMs,
-        } as Layer;
-        const rawStartMs = anchorTiming.startMs + deltaMs;
-        const moved = calculateMovedLayerTiming({
-          layer: anchorForCalculation,
-          deltaMs,
-          snapPoints,
-        });
-        const appliedDeltaMs = moved.startMs - anchorTiming.startMs;
-        const previewByLayerId = Object.fromEntries(
-          selectedIds.flatMap((layerId) => {
-            const timing = dragState.originalByLayerId[layerId];
-            return timing
-              ? [
-                  [
-                    layerId,
-                    {
-                      startMs: Math.max(0, timing.startMs + appliedDeltaMs),
-                      endMs: Math.max(0, timing.endMs + appliedDeltaMs),
-                    },
-                  ],
-                ]
-              : [];
-          }),
-        );
-
-        setDragState({
-          ...dragState,
-          previewByLayerId,
-          snapGuideMs: moved.startMs !== rawStartMs ? moved.startMs : null,
-          reorderTargetLayerId,
-        });
-        return;
+  useEffect(
+    () => () => {
+      if (timelineWheelIdleTimerRef.current !== null) {
+        window.clearTimeout(timelineWheelIdleTimerRef.current);
       }
-
-      if (isTrimMode(dragState.mode)) {
-        const edge = dragState.mode === 'trim-start' ? 'start' : 'end';
-        const rawTargetMs =
-          edge === 'start' ? anchorTiming.startMs + deltaMs : anchorTiming.endMs + deltaMs;
-        const trimmed = calculateTrimmedLayerTiming({
-          layer: { ...anchorLayer, startMs: anchorTiming.startMs, endMs: anchorTiming.endMs },
-          edge,
-          targetMs: rawTargetMs,
-          snapPoints,
-        });
-        const snappedTargetMs = edge === 'start' ? trimmed.startMs : trimmed.endMs;
-
-        setDragState({
-          ...dragState,
-          previewByLayerId: { [dragState.layerId]: trimmed },
-          snapGuideMs: snappedTargetMs !== rawTargetMs ? snappedTargetMs : null,
-        });
-      }
-    };
-
-    const handlePointerUp = () => {
-      const anchorTiming = dragState.originalByLayerId[dragState.layerId];
-      const previewTiming = dragState.previewByLayerId[dragState.layerId];
-
-      if (anchorTiming && previewTiming && hasTimingChanged(anchorTiming, previewTiming)) {
-        if (dragState.mode === 'move') {
-          moveLayerTiming(dragState.layerId, previewTiming.startMs - anchorTiming.startMs);
-        } else if (dragState.mode === 'trim-start') {
-          trimLayerTiming(dragState.layerId, 'start', previewTiming.startMs);
-        } else {
-          trimLayerTiming(dragState.layerId, 'end', previewTiming.endMs);
-        }
-      }
-
-      if (dragState.mode === 'move' && dragState.reorderTargetLayerId) {
-        const targetIndex = layerOrder.indexOf(dragState.reorderTargetLayerId);
-        if (targetIndex !== -1) {
-          reorderLayer(dragState.layerId, targetIndex);
-        }
-      }
-
-      setDragState(null);
-    };
-
-    window.addEventListener('pointermove', handlePointerMove);
-    window.addEventListener('pointerup', handlePointerUp, { once: true });
-
-    return () => {
-      window.removeEventListener('pointermove', handlePointerMove);
-      window.removeEventListener('pointerup', handlePointerUp);
-    };
-  }, [
-    currentTimeMs,
-    displayLayerIds,
-    dragState,
-    layerOrder,
-    layers,
-    moveLayerTiming,
-    pxPerSecond,
-    reorderLayer,
-    trimLayerTiming,
-  ]);
+    },
+    [],
+  );
 
   const selectRangeToLayer = (layerId: string) => {
     if (!selectedLayerId) {
@@ -297,76 +184,101 @@ export function ModernTimeline({ className, isFocusMode = false }: ModernTimelin
     selectLayer(layerId);
   };
 
-  const handlePointerStart = (
-    event: React.PointerEvent<HTMLButtonElement>,
-    layer: Layer,
-    mode: TimelinePointerMode,
-  ) => {
-    event.preventDefault();
-    event.stopPropagation();
-    if (layer.locked) return;
-
-    const selectedIds = selectedLayerIds.includes(layer.id) ? selectedLayerIds : [layer.id];
-    if (!selectedLayerIds.includes(layer.id)) {
-      selectLayer(layer.id);
+  const scrollTimelineDuringScrub = (clientX: number) => {
+    const scrollElement = timelineScrollRef.current;
+    if (!scrollElement) {
+      return;
     }
 
-    const originalByLayerId = createOriginalTimings(layers, selectedIds);
-    setDragState({
-      layerId: layer.id,
-      mode,
-      pointerStartX: event.clientX,
-      pointerStartY: event.clientY,
-      originalByLayerId,
-      previewByLayerId: originalByLayerId,
-      snapGuideMs: null,
-      reorderTargetLayerId: null,
+    const scrollRect = scrollElement.getBoundingClientRect();
+    const scrollDeltaPx = getTimelineAutoScrollDelta({
+      pointerClientX: clientX,
+      viewportLeftPx: scrollRect.left + TIMELINE_HEADER_WIDTH_PX,
+      viewportRightPx: scrollRect.right,
     });
+
+    if (scrollDeltaPx !== 0) {
+      setTimelineScrollLeft(scrollElement.scrollLeft + scrollDeltaPx);
+      timelineScrollLeftValueRef.current = scrollElement.scrollLeft;
+    }
   };
+  timelineEdgeAutoScrollRef.current = scrollTimelineDuringScrub;
 
-  const handleLayerDragStart = (event: React.DragEvent<HTMLElement>, layerId: string) => {
-    event.dataTransfer.setData('layerId', layerId);
-    event.dataTransfer.effectAllowed = 'move';
-    setReorderingLayerId(layerId);
-    selectLayer(layerId);
-  };
+  const seekToClientX = (
+    clientX: number,
+    rulerElement: HTMLElement,
+    options: Readonly<{ autoScroll?: boolean }> = {},
+  ) => {
+    if (options.autoScroll) {
+      scrollTimelineDuringScrub(clientX);
+    }
 
-  const handleLayerDragOver = (event: React.DragEvent<HTMLElement>) => {
-    event.preventDefault();
-    event.dataTransfer.dropEffect = 'move';
-  };
-
-  const handleLayerDrop = (event: React.DragEvent<HTMLElement>, targetLayerId: string) => {
-    event.preventDefault();
-
-    const draggedLayerId = event.dataTransfer.getData('layerId') || reorderingLayerId;
-    setReorderingLayerId(null);
-
-    if (!draggedLayerId || draggedLayerId === targetLayerId) return;
-
-    const targetIndex = layerOrder.indexOf(targetLayerId);
-    if (targetIndex === -1) return;
-
-    reorderLayer(draggedLayerId, targetIndex);
-  };
-
-  const seekToClientX = (clientX: number, rulerElement: HTMLElement) => {
     const rect = rulerElement.getBoundingClientRect();
     const nextTimeMs = timelinePxToMs(clientX - rect.left, pxPerSecond);
     pause();
     setCurrentTime(Math.max(0, Math.min(durationMs, nextTimeMs)));
   };
 
-  const handleScrubStart = (event: React.PointerEvent<HTMLElement>) => {
-    const rulerElement = event.currentTarget;
-    seekToClientX(event.clientX, rulerElement);
+  const handleTrackBackgroundPointerDown = (
+    event: React.PointerEvent<HTMLElement>,
+    trackElement: HTMLElement,
+  ) => {
+    if (event.button !== 0) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    setIsTimelineInteracting(true);
+    seekToClientX(event.clientX, trackElement, { autoScroll: true });
 
     const handlePointerMove = (moveEvent: PointerEvent) => {
       moveEvent.preventDefault();
-      seekToClientX(moveEvent.clientX, rulerElement);
+      seekToClientX(moveEvent.clientX, trackElement, { autoScroll: true });
+    };
+
+    const handlePointerUp = () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      setIsTimelineInteracting(false);
+    };
+
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp, { once: true });
+  };
+
+  const handleTimelineViewportPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) {
+      return;
+    }
+
+    setIsTimelineInteracting(true);
+    window.addEventListener('pointerup', () => setIsTimelineInteracting(false), { once: true });
+  };
+
+  const handleTimelineViewportWheel = (event: React.WheelEvent<HTMLDivElement>) => {
+    setIsTimelineInteracting(true);
+    if (timelineWheelIdleTimerRef.current !== null) {
+      window.clearTimeout(timelineWheelIdleTimerRef.current);
+    }
+    timelineWheelIdleTimerRef.current = window.setTimeout(() => {
+      setIsTimelineInteracting(false);
+      timelineWheelIdleTimerRef.current = null;
+    }, 650);
+    handleTimelineWheel(event);
+  };
+
+  const handleScrubStart = (event: React.PointerEvent<HTMLElement>) => {
+    const rulerElement = event.currentTarget;
+    setIsTimelineInteracting(true);
+    seekToClientX(event.clientX, rulerElement, { autoScroll: true });
+
+    const handlePointerMove = (moveEvent: PointerEvent) => {
+      moveEvent.preventDefault();
+      seekToClientX(moveEvent.clientX, rulerElement, { autoScroll: true });
     };
     const handlePointerUp = () => {
       window.removeEventListener('pointermove', handlePointerMove);
+      setIsTimelineInteracting(false);
     };
 
     window.addEventListener('pointermove', handlePointerMove);
@@ -375,6 +287,17 @@ export function ModernTimeline({ className, isFocusMode = false }: ModernTimelin
 
   const changeZoom = (delta: number) => {
     setPxPerSecond((value) => clampTimelineZoom(value + delta));
+  };
+
+  const fitTimelineToViewport = () => {
+    const durationSeconds = Math.max(1, durationMs / 1000);
+    const fitPxPerSecond = timelineViewportWidth / durationSeconds;
+    setPxPerSecond(clampTimelineZoom(fitPxPerSecond));
+    setTimelineScrollLeft(0);
+  };
+
+  const resetTimelineZoom = () => {
+    setPxPerSecond(TIMELINE_DEFAULT_PX_PER_SECOND);
   };
 
   return (
@@ -391,6 +314,9 @@ export function ModernTimeline({ className, isFocusMode = false }: ModernTimelin
           layerCount={layers.length}
           selectedCount={selectedCount}
           pxPerSecond={pxPerSecond}
+          canFitTimeline={timelineViewportWidth > 0}
+          onFitTimeline={fitTimelineToViewport}
+          onResetZoom={resetTimelineZoom}
           onZoomOut={() => changeZoom(-TIMELINE_ZOOM_STEP)}
           onZoomIn={() => changeZoom(TIMELINE_ZOOM_STEP)}
           onSplit={() => splitLayerAtPlayhead()}
@@ -398,38 +324,41 @@ export function ModernTimeline({ className, isFocusMode = false }: ModernTimelin
           onDelete={() => deleteSelectedLayers()}
         />
 
-        <div className="flex min-h-0 flex-1 overflow-hidden">
-          <TimelineLayerHeader
-            layers={displayLayers}
-            selectedLayerIds={selectedLayerIds}
-            reorderingLayerId={reorderingLayerId}
-            rowHeightPx={TIMELINE_ROW_HEIGHT_PX}
-            rulerHeightPx={TIMELINE_RULER_HEIGHT_PX}
-            className={TIMELINE_HEADER_WIDTH_CLASS}
-            onSelectLayer={handleSelectLayer}
-            onDragStart={handleLayerDragStart}
-            onDragOver={handleLayerDragOver}
-            onDrop={handleLayerDrop}
-            onDragEnd={() => setReorderingLayerId(null)}
-          />
-
-          <div className="min-w-0 flex-1 overflow-auto bg-background/30">
+        <div className="min-h-0 flex-1 overflow-hidden">
+          <div
+            ref={timelineScrollRef}
+            className="scrollbar-hide h-full min-w-0 overflow-auto bg-background/30"
+            onScroll={handleTimelineScroll}
+            onPointerDown={handleTimelineViewportPointerDown}
+            onWheel={handleTimelineViewportWheel}
+          >
             <div
               className="relative min-h-full"
               style={{
-                width: timelineWidthPx,
+                width: TIMELINE_HEADER_WIDTH_PX + timelineWidthPx,
                 minHeight: TIMELINE_RULER_HEIGHT_PX + displayLayers.length * TIMELINE_ROW_HEIGHT_PX,
               }}
             >
-              <TimelineRuler
-                ticks={ticks}
-                widthPx={timelineWidthPx}
-                currentTimeLeftPx={currentTimeLeftPx}
-                onScrubStart={handleScrubStart}
-              />
+              <div className="sticky top-0 z-40 flex h-9">
+                <div
+                  className="sticky left-0 z-50 flex shrink-0 items-center border-r border-b border-border/50 bg-card/95 px-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 backdrop-blur"
+                  style={{ width: TIMELINE_HEADER_WIDTH_PX, height: TIMELINE_RULER_HEIGHT_PX }}
+                >
+                  Layer
+                </div>
+                <TimelineRuler
+                  ticks={ticks}
+                  widthPx={timelineWidthPx}
+                  currentTimeLeftPx={currentTimeLeftPx}
+                  onScrubStart={handleScrubStart}
+                />
+              </div>
 
               {layers.length === 0 ? (
-                <div className="m-3 rounded-xl border border-dashed border-border/40 bg-background/20 px-4 py-3 text-center text-xs font-bold text-muted-foreground">
+                <div
+                  className="m-3 rounded-xl border border-dashed border-border/40 bg-background/20 px-4 py-3 text-center text-xs font-bold text-muted-foreground"
+                  style={{ marginLeft: TIMELINE_HEADER_WIDTH_PX + 12 }}
+                >
                   Timeline siap. Tambahkan media atau template.
                 </div>
               ) : (
@@ -444,18 +373,36 @@ export function ModernTimeline({ className, isFocusMode = false }: ModernTimelin
                   reorderingLayerId={reorderingLayerId}
                   displayLayerIndexById={displayLayerIndexById}
                   currentTimeLeftPx={currentTimeLeftPx}
+                  headerWidthPx={TIMELINE_HEADER_WIDTH_PX}
                   timelineWidthPx={timelineWidthPx}
                   pxPerSecond={pxPerSecond}
                   rowHeightPx={TIMELINE_ROW_HEIGHT_PX}
                   rowsRef={timelineRowsRef}
-                  onSeekToClientX={seekToClientX}
+                  selectedLayerIds={selectedLayerIds}
+                  onTrackBackgroundPointerDown={handleTrackBackgroundPointerDown}
                   onSelectLayer={handleSelectLayer}
+                  onDragStart={handleLayerDragStart}
+                  onDragOver={handleLayerDragOver}
+                  onDrop={handleLayerDrop}
+                  onDragEnd={handleLayerDragEnd}
                   onPointerStart={handlePointerStart}
                 />
               )}
             </div>
           </div>
         </div>
+
+        <TimelineNavigator
+          currentTimeLeftPx={currentTimeLeftPx}
+          durationMs={durationMs}
+          pxPerSecond={pxPerSecond}
+          scrollLeftPx={timelineScrollLeft}
+          scrollWidthPx={timelineWidthPx}
+          viewportWidthPx={timelineViewportWidth}
+          onScrollLeftChange={setTimelineScrollLeft}
+          onInteractionStart={() => setIsTimelineInteracting(true)}
+          onInteractionEnd={() => setIsTimelineInteracting(false)}
+        />
       </div>
 
       <CompactMobileTimeline

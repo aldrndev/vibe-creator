@@ -113,3 +113,24 @@ export const refreshRateLimit = {
     },
   },
 };
+
+/**
+ * Rate limit configuration for password change endpoint.
+ * Limit: 5 attempts per hour per authenticated user.
+ */
+export const passwordChangeRateLimit = {
+  config: {
+    rateLimit: {
+      max: isRateLimitTestMode() ? TEST_RATE_LIMIT.max : 5,
+      timeWindow: isRateLimitTestMode() ? TEST_RATE_LIMIT.timeWindow : '1 hour',
+      keyGenerator: (request: RateLimitRequest) => buildRateLimitKey('change-password', request),
+      errorResponseBuilder: () => ({
+        success: false,
+        error: {
+          code: ERROR_CODES.RATE_LIMIT_EXCEEDED,
+          message: 'Terlalu banyak percobaan ubah password. Silakan coba lagi nanti.',
+        },
+      }),
+    },
+  },
+};

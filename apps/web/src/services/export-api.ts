@@ -19,6 +19,10 @@ export interface ExportJobResponse {
   downloadUrl?: string;
   filename?: string;
   urlExpiresAt?: string;
+  actualDurationMs?: number;
+  cycleCount?: number;
+  adjustedToTier?: boolean;
+  sourceHasAudio?: boolean;
 }
 
 export interface ExportStatusResponse {
@@ -59,9 +63,16 @@ export type ExportEvent =
 interface TimelineData {
   clips: Array<{
     localPath: string;
+    layerId?: string;
     mediaType?: 'video' | 'image';
     startTime: number;
     endTime: number;
+    timelineStartMs?: number;
+    timelineEndMs?: number;
+    zIndex?: number;
+    fit?: 'contain' | 'cover';
+    visible?: boolean;
+    loop?: boolean;
     transforms?: {
       x: number;
       y: number;
@@ -90,8 +101,15 @@ interface TimelineData {
     fontSize: number;
     fontFamily: string;
     fontWeight?: string;
+    fontStyle?: string;
     color: string;
     backgroundColor?: string;
+    backgroundOpacity?: number;
+    zIndex?: number;
+    opacity?: number;
+    rotation?: number;
+    textAlign?: 'left' | 'center' | 'right';
+    visible?: boolean;
     animation?: 'none' | 'fade' | 'slide-up' | 'slide-down' | 'typewriter';
     animationIn?: string;
     animationOut?: string;
@@ -106,17 +124,29 @@ interface TimelineData {
     volume: number;
     fadeInMs: number;
     fadeOutMs: number;
+    loop?: boolean;
   }>;
   settings: {
     width: number;
     height: number;
     fps: number;
     backgroundColor?: string;
-    backgroundMode?: 'solid' | 'blur';
+    backgroundMode?: 'solid' | 'blur' | 'gradient' | 'image';
+    backgroundOpacity?: number;
     backgroundBlurAmount?: number;
     backgroundBlurZoom?: number;
     backgroundDim?: number;
     backgroundSaturation?: number;
+    backgroundGradientFrom?: string;
+    backgroundGradientTo?: string;
+    backgroundGradientAngle?: number;
+    backgroundImagePath?: string;
+    backgroundImageFit?: 'contain' | 'cover';
+    backgroundImageBlurAmount?: number;
+    backgroundImageDim?: number;
+    backgroundImagePositionX?: number;
+    backgroundImagePositionY?: number;
+    backgroundImageScale?: number;
   };
 }
 
@@ -195,6 +225,34 @@ export const exportApi = {
       throw new Error(data.error?.message || 'Create export failed');
     }
     return data.data;
+  },
+
+  /**
+   * Render a saved Loop Creator project through the shared export worker.
+   */
+  async createLoopRenderJob(projectId: string): Promise<ExportJobResponse> {
+    const response = await authFetch(`${API_BASE}/loop/projects/${projectId}/render`, {
+      method: 'POST',
+    });
+    const data = await response.json();
+    if (!data.success) {
+      throw new Error(data.error?.message || 'Render loop gagal dibuat');
+    }
+    return data.data as ExportJobResponse;
+  },
+
+  /**
+   * Render a saved Reaction Creator project through the shared export worker.
+   */
+  async createReactionRenderJob(projectId: string): Promise<ExportJobResponse> {
+    const response = await authFetch(`${API_BASE}/reaction/projects/${projectId}/render`, {
+      method: 'POST',
+    });
+    const data = await response.json();
+    if (!data.success) {
+      throw new Error(data.error?.message || 'Render reaction gagal dibuat');
+    }
+    return data.data as ExportJobResponse;
   },
 
   /**

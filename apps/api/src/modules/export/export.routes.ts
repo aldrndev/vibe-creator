@@ -9,7 +9,11 @@ import { prisma } from '@/lib/prisma';
 import { requireRateLimitReady } from '@/lib/rate-limit';
 import { paymentService } from '@/modules/payment/payment.service';
 import { materializeStudioAudioAsset } from '@/modules/video-studio/video-studio-assets.service';
-import { assertWorkspaceActive } from '@/modules/workspace/workspace-lifecycle';
+import {
+  ASSET_EXPIRED_CODE,
+  assertWorkspaceActive,
+  WorkspaceLifecycleError,
+} from '@/modules/workspace/workspace-lifecycle';
 import { isTempUploadToken, resolveTempUploadToken } from '@/utils/temp-upload';
 import { ExportServiceError, exportService, getPendingExportLimit } from './export.service';
 import {
@@ -52,9 +56,16 @@ const createExportSchema = z.object({
     clips: z.array(
       z.object({
         localPath: z.string(),
+        layerId: z.string().optional(),
         mediaType: z.enum(['video', 'image']).optional().default('video'),
         startTime: z.number(),
         endTime: z.number(),
+        timelineStartMs: z.number().optional(),
+        timelineEndMs: z.number().optional(),
+        zIndex: z.number().optional(),
+        fit: z.enum(['contain', 'cover']).optional(),
+        visible: z.boolean().optional().default(true),
+        loop: z.boolean().optional().default(false),
         transforms: z
           .object({
             x: z.number(),
@@ -90,8 +101,15 @@ const createExportSchema = z.object({
           fontSize: z.number(),
           fontFamily: z.string().transform((fontFamily) => resolveEditorFontFamily(fontFamily)),
           fontWeight: z.string().optional(),
+          fontStyle: z.enum(['normal', 'italic']).optional().default('normal'),
           color: z.string(),
           backgroundColor: z.string().optional(),
+          backgroundOpacity: z.number().min(0).max(1).optional(),
+          zIndex: z.number().optional(),
+          opacity: z.number().min(0).max(1).optional().default(1),
+          rotation: z.number().optional().default(0),
+          textAlign: z.enum(['left', 'center', 'right']).optional().default('center'),
+          visible: z.boolean().optional().default(true),
           animation: modernTextAnimationSchema.optional().default('none'),
           animationIn: modernTextAnimationInSchema.optional(),
           animationOut: modernTextAnimationOutSchema.optional(),
@@ -110,6 +128,7 @@ const createExportSchema = z.object({
           volume: z.number(),
           fadeInMs: z.number(),
           fadeOutMs: z.number(),
+          loop: z.boolean().optional().default(false),
         }),
       )
       .optional(),
@@ -118,11 +137,30 @@ const createExportSchema = z.object({
       height: z.number().default(1080),
       fps: z.number().default(30),
       backgroundColor: z.string().default('#000000'),
-      backgroundMode: z.enum(['solid', 'blur']).default('solid'),
+      backgroundMode: z.enum(['solid', 'blur', 'gradient', 'image']).default('solid'),
+      backgroundOpacity: z.number().min(0).max(1).optional().default(1),
       backgroundBlurAmount: z.number().min(0).max(50).optional().default(18),
       backgroundBlurZoom: z.number().min(1).max(1.5).optional().default(1.08),
       backgroundDim: z.number().min(0).max(0.6).optional().default(0.08),
       backgroundSaturation: z.number().min(0).max(2).optional().default(1.05),
+      backgroundGradientFrom: z
+        .string()
+        .regex(/^#[0-9A-Fa-f]{6}$/)
+        .optional()
+        .default('#111827'),
+      backgroundGradientTo: z
+        .string()
+        .regex(/^#[0-9A-Fa-f]{6}$/)
+        .optional()
+        .default('#ff4b1f'),
+      backgroundGradientAngle: z.number().min(0).max(360).optional().default(135),
+      backgroundImagePath: z.string().optional(),
+      backgroundImageFit: z.enum(['contain', 'cover']).optional().default('cover'),
+      backgroundImageBlurAmount: z.number().min(0).max(40).optional().default(0),
+      backgroundImageDim: z.number().min(0).max(0.6).optional().default(0),
+      backgroundImagePositionX: z.number().min(0).max(100).optional().default(50),
+      backgroundImagePositionY: z.number().min(0).max(100).optional().default(50),
+      backgroundImageScale: z.number().min(1).max(2).optional().default(1),
     }),
   }),
   format: z.enum(['MP4', 'WEBM', 'MOV']).optional().default('MP4'),
@@ -161,7 +199,10 @@ async function resolveExportInputPath(
   });
 
   if (!asset) {
-    throw new Error('Project asset not found');
+    throw new WorkspaceLifecycleError(
+      ASSET_EXPIRED_CODE,
+      'Media project sudah tidak tersedia untuk export.',
+    );
   }
 
   assertWorkspaceActive(asset.project.lifecycleStatus, asset.project.expiresAt);
@@ -223,6 +264,18 @@ export const exportRoutes: FastifyPluginAsync = async (fastify) => {
 
       try {
         const body = createExportSchema.parse(request.body);
+        if (
+          body.timelineData.settings.backgroundMode === 'image' &&
+          !body.timelineData.settings.backgroundImagePath
+        ) {
+          return reply.status(400).send({
+            success: false,
+            error: {
+              code: 'VALIDATION_ERROR',
+              message: 'Background image is required for image background mode.',
+            },
+          });
+        }
 
         // Admin bypass - no quota check, no watermark, full resolution
         const isAdmin = user.role === 'ADMIN';
@@ -269,6 +322,16 @@ export const exportRoutes: FastifyPluginAsync = async (fastify) => {
                 })),
               )
             : undefined,
+          settings: {
+            ...body.timelineData.settings,
+            backgroundImagePath: body.timelineData.settings.backgroundImagePath
+              ? await resolveExportInputPath(
+                  body.timelineData.settings.backgroundImagePath,
+                  user.id,
+                  body.projectId,
+                )
+              : undefined,
+          },
         };
 
         const job = await exportService.createJob({
@@ -331,6 +394,12 @@ export const exportRoutes: FastifyPluginAsync = async (fastify) => {
 
         const message = err instanceof Error ? err.message : 'Export failed';
         if (err instanceof ExportServiceError) {
+          return reply.status(err.statusCode).send({
+            success: false,
+            error: { code: err.code, message },
+          });
+        }
+        if (err instanceof WorkspaceLifecycleError) {
           return reply.status(err.statusCode).send({
             success: false,
             error: { code: err.code, message },

@@ -7,7 +7,7 @@ export type StreamPlatform = 'youtube' | 'tiktok' | 'twitch' | 'facebook' | 'ins
 
 export interface StreamConfig {
   platform: StreamPlatform;
-  rtmpUrl: string;
+  rtmpUrl?: string;
   streamKey: string;
   quality: '720p' | '1080p';
   bitrateKbps?: number;
@@ -18,8 +18,8 @@ export interface StreamConfig {
  * Quality settings for streaming
  */
 export const QualitySettings = {
-  '720p': { w: -2, h: 720, minK: 1500, maxK: 4500, defK: 2500, bufK: 5000 },
-  '1080p': { w: -2, h: 1080, minK: 3000, maxK: 8000, defK: 4500, bufK: 9000 },
+  '720p': { w: 1280, h: 720, minK: 1500, maxK: 4500, defK: 2500, bufK: 5000 },
+  '1080p': { w: 1920, h: 1080, minK: 3000, maxK: 8000, defK: 4500, bufK: 9000 },
 };
 
 /**
@@ -43,7 +43,7 @@ export function getRtmpUrl(
   customUrl?: string,
 ): string {
   const baseUrl = platform === 'custom' ? customUrl || '' : RTMP_SERVERS[platform];
-  return `${baseUrl}/${streamKey}`;
+  return `${baseUrl.replace(/\/+$/, '')}/${streamKey}`;
 }
 
 /**
@@ -53,6 +53,7 @@ export function buildStreamArgs(
   inputPath: string,
   config: StreamConfig,
   rtmpUrl: string,
+  sourceHasAudio: boolean,
 ): string[] {
   const settings = QualitySettings[config.quality || '720p'];
 
@@ -64,14 +65,19 @@ export function buildStreamArgs(
   const maxRate = Math.round(videoBitrate * 1.5);
   const bufSize = Math.round(videoBitrate * 2);
 
-  return [
-    '-re',
-    '-stream_loop',
-    '-1',
-    '-i',
-    inputPath,
+  const args = ['-re', '-stream_loop', '-1', '-i', inputPath];
+
+  if (!sourceHasAudio) {
+    args.push('-f', 'lavfi', '-i', 'anullsrc=channel_layout=stereo:sample_rate=44100');
+  }
+
+  args.push(
     '-vf',
-    `scale=${settings.w}:${settings.h}`,
+    `scale=${settings.w}:${settings.h}:force_original_aspect_ratio=decrease,pad=${settings.w}:${settings.h}:(ow-iw)/2:(oh-ih)/2,setsar=1`,
+    '-map',
+    '0:v:0',
+    '-map',
+    sourceHasAudio ? '0:a:0' : '1:a:0',
     '-c:v',
     'libx264',
     '-preset',
@@ -101,5 +107,7 @@ export function buildStreamArgs(
     '-f',
     'flv',
     rtmpUrl,
-  ];
+  );
+
+  return args;
 }

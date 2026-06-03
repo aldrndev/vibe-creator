@@ -10,6 +10,40 @@ import { prisma } from '@/lib/prisma';
 import { DATA_EXPIRY_HOURS, RETENTION_CONFIG } from './trending.constants';
 import type { ScrapedItem } from './trending.schema';
 
+interface TrendingPaginationCursor {
+  readonly fetchedAt: Date;
+  readonly id: string;
+  readonly rank: number | null;
+}
+
+/**
+ * Build a stable cursor filter for items ordered by rank ASC, id ASC inside one fetched batch.
+ */
+export function buildTrendingCursorWhere(
+  cursor?: TrendingPaginationCursor,
+): Prisma.TrendingItemWhereInput | undefined {
+  if (!cursor) {
+    return undefined;
+  }
+
+  if (cursor.rank === null) {
+    return {
+      rank: null,
+      id: { gt: cursor.id },
+    };
+  }
+
+  return {
+    OR: [
+      { rank: { gt: cursor.rank } },
+      {
+        rank: cursor.rank,
+        id: { gt: cursor.id },
+      },
+    ],
+  };
+}
+
 // ============================================================================
 // HASH UTILITY
 // ============================================================================
@@ -111,29 +145,40 @@ export const trendingRepository = {
     category?: string;
     region: string;
     limit: number;
-    cursor?: { fetchedAt: Date; id: string };
+    cursor?: TrendingPaginationCursor;
   }) {
     const { type, category, region, limit, cursor } = params;
 
-    const where = {
+    const baseWhere: Prisma.TrendingItemWhereInput = {
       region,
       expiresAt: { gt: new Date() },
       ...(type && { type }),
       ...(category && { category }), // Support category filtering
-      ...(cursor && {
-        OR: [
-          { fetchedAt: { lt: cursor.fetchedAt } },
-          {
-            fetchedAt: cursor.fetchedAt,
-            id: { lt: cursor.id },
-          },
-        ],
-      }),
+    };
+
+    const latestBatch = await prisma.trendingItem.findFirst({
+      where: baseWhere,
+      orderBy: [{ fetchedAt: 'desc' }],
+      select: { fetchedAt: true },
+    });
+
+    if (!latestBatch) {
+      return { items: [], nextCursor: null };
+    }
+
+    const cursorWhere =
+      cursor && cursor.fetchedAt.getTime() === latestBatch.fetchedAt.getTime()
+        ? buildTrendingCursorWhere(cursor)
+        : undefined;
+    const where: Prisma.TrendingItemWhereInput = {
+      ...baseWhere,
+      fetchedAt: latestBatch.fetchedAt,
+      ...(cursorWhere ?? {}),
     };
 
     const items = await prisma.trendingItem.findMany({
       where,
-      orderBy: [{ fetchedAt: 'desc' }, { rank: 'asc' }], // Sort by Rank ASC within the batch
+      orderBy: [{ rank: 'asc' }, { id: 'asc' }],
       take: limit + 1, // Fetch one extra to check if there's a next page
     });
 
@@ -145,6 +190,7 @@ export const trendingRepository = {
       hasNextPage && lastItem
         ? {
             fetchedAt: lastItem.fetchedAt.toISOString(),
+            rank: lastItem.rank ?? null,
             id: lastItem.id,
           }
         : null;

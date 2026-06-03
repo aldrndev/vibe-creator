@@ -8,7 +8,6 @@ import {
   Move,
   Music,
   SlidersHorizontal,
-  Sparkles,
   Timer,
   Trash2,
   Type,
@@ -17,20 +16,16 @@ import {
 } from 'lucide-react';
 import type { ChangeEvent, ReactNode } from 'react';
 import { Badge, Button, Card, CardBody, Input, Slider, TabsTrigger } from '@/components/ui';
-import {
-  buildTextAnimationUpdate,
-  buildVisualAnimationUpdate,
-  editorAnimationCatalog,
-  resolveTextAnimationIn,
-} from '@/lib/modern-editor-animation-catalog';
 import { cn } from '@/lib/utils';
 import { formatLayerDuration, formatLayerTime, getLayerTypeLabel } from '../layer-panel-utils';
-import { AnimationPreview } from './animation-preview';
 import { AudioLayerProperties } from './audio-layer-properties';
 import { ImageLayerProperties } from './image-layer-properties';
-import { PresetPreviewCard } from './preset-preview-card';
-import { parseFiniteNumber } from './property-number';
-import { QuickPresetGrid } from './quick-preset-grid';
+import {
+  formatPropertyNumber,
+  formatPropertyPercent,
+  parseFiniteNumber,
+  roundPropertyNumber,
+} from './property-number';
 import { TextLayerProperties } from './text-layer-properties';
 import { VideoLayerProperties } from './video-layer-properties';
 
@@ -39,6 +34,7 @@ export type PropertiesTab = 'style' | 'animate' | 'timing' | 'advanced';
 interface LayerUpdateProps {
   readonly layer: Layer;
   readonly onUpdate: (updates: Partial<Layer>) => void;
+  readonly settings?: ModernProjectSettings;
   readonly onUpdateSettings?: (updates: Partial<ModernProjectSettings>) => void;
 }
 
@@ -113,7 +109,12 @@ export function SelectedLayerHeader({
   );
 }
 
-export function LayerTypeProperties({ layer, onUpdate, onUpdateSettings }: LayerUpdateProps) {
+export function LayerTypeProperties({
+  layer,
+  onUpdate,
+  onUpdateSettings,
+  settings,
+}: LayerUpdateProps) {
   if (layer.type === 'text') {
     return <TextLayerProperties layer={layer} onUpdate={onUpdate} />;
   }
@@ -126,104 +127,16 @@ export function LayerTypeProperties({ layer, onUpdate, onUpdateSettings }: Layer
 
   if (layer.type === 'video') {
     return (
-      <VideoLayerProperties layer={layer} onUpdate={onUpdate} onUpdateSettings={onUpdateSettings} />
+      <VideoLayerProperties
+        layer={layer}
+        settings={settings}
+        onUpdate={onUpdate}
+        onUpdateSettings={onUpdateSettings}
+      />
     );
   }
 
   return <AudioLayerProperties layer={layer} onUpdate={onUpdate} />;
-}
-
-export function LayerAnimationProperties({ layer, onUpdate }: LayerUpdateProps) {
-  if (layer.type === 'audio') {
-    return (
-      <Card className="overflow-hidden rounded-2xl border-border/40 bg-card/70 backdrop-blur-xl">
-        <CardBody className="space-y-2 p-3">
-          <SectionTitle icon={<Sparkles size={15} />}>Animate</SectionTitle>
-          <p className="text-xs font-semibold leading-relaxed text-muted-foreground">
-            Audio tidak memakai animasi visual. Pakai tab Timing untuk fade, loop, dan trim.
-          </p>
-        </CardBody>
-      </Card>
-    );
-  }
-
-  if (layer.type === 'text') {
-    const presets = editorAnimationCatalog.filter((preset) => preset.layerTypes.includes('text'));
-    const grouped = groupAnimationPresets(presets);
-    const animationIn = resolveTextAnimationIn(layer);
-    const animationOut = layer.data.animationOut ?? 'none';
-    const animationLoop = layer.data.animationLoop ?? 'none';
-
-    return (
-      <Card className="overflow-hidden rounded-2xl border-border/40 bg-card/70 backdrop-blur-xl">
-        <CardBody className="space-y-4 p-3">
-          <SectionTitle icon={<Sparkles size={15} />}>Animate text</SectionTitle>
-          {grouped.map((group) => (
-            <QuickPresetGrid key={group.category} label={group.category} columns="two">
-              {group.presets.map((preset) => (
-                <PresetPreviewCard
-                  key={preset.id}
-                  active={
-                    ('textIn' in preset.payload && preset.payload.textIn === animationIn) ||
-                    ('textOut' in preset.payload && preset.payload.textOut === animationOut) ||
-                    ('textLoop' in preset.payload && preset.payload.textLoop === animationLoop)
-                  }
-                  helper={`${(preset.durationMs / 1000).toFixed(1)}s`}
-                  label={preset.label}
-                  onClick={() => onUpdate(buildTextAnimationUpdate(layer, preset))}
-                >
-                  <AnimationPreview preset={preset} text="Aa" />
-                </PresetPreviewCard>
-              ))}
-            </QuickPresetGrid>
-          ))}
-        </CardBody>
-      </Card>
-    );
-  }
-
-  const presets = editorAnimationCatalog.filter((preset) => preset.layerTypes.includes('visual'));
-  const grouped = groupAnimationPresets(presets);
-  const effects = layer.data.effects;
-
-  return (
-    <Card className="overflow-hidden rounded-2xl border-border/40 bg-card/70 backdrop-blur-xl">
-      <CardBody className="space-y-4 p-3">
-        <SectionTitle icon={<Sparkles size={15} />}>Animate visual</SectionTitle>
-        {grouped.map((group) => (
-          <QuickPresetGrid key={group.category} label={group.category} columns="two">
-            {group.presets.map((preset) => (
-              <PresetPreviewCard
-                key={preset.id}
-                active={
-                  ('visualTransition' in preset.payload &&
-                    ((preset.slot === 'out' &&
-                      preset.payload.visualTransition === effects.transitionOut) ||
-                      (preset.slot !== 'out' &&
-                        preset.payload.visualTransition === effects.transitionIn))) ||
-                  ('visualMotion' in preset.payload &&
-                    preset.payload.visualMotion === effects.motion)
-                }
-                helper={`${(preset.durationMs / 1000).toFixed(1)}s`}
-                label={preset.label}
-                onClick={() =>
-                  onUpdate(
-                    buildVisualAnimationUpdate(
-                      layer,
-                      preset,
-                      preset.slot as 'in' | 'out' | 'motion',
-                    ),
-                  )
-                }
-              >
-                <AnimationPreview preset={preset} text="Vid" />
-              </PresetPreviewCard>
-            ))}
-          </QuickPresetGrid>
-        ))}
-      </CardBody>
-    </Card>
-  );
 }
 
 export function TransformProperties({ layer, onUpdate }: LayerUpdateProps) {
@@ -250,26 +163,26 @@ export function TransformProperties({ layer, onUpdate }: LayerUpdateProps) {
         </div>
 
         <SliderRow
-          label={`Geser kanan ${layer.x}%`}
+          label={`Geser kanan ${formatPropertyNumber(layer.x)}%`}
           value={layer.x}
           onChange={(x) => onUpdate({ x })}
         />
         <SliderRow
-          label={`Geser bawah ${layer.y}%`}
+          label={`Geser bawah ${formatPropertyNumber(layer.y)}%`}
           value={layer.y}
           onChange={(y) => onUpdate({ y })}
         />
 
         <div className="grid grid-cols-2 gap-2.5">
           <SliderRow
-            label={`Lebar ${layer.width}%`}
+            label={`Lebar ${formatPropertyNumber(layer.width)}%`}
             min={1}
             max={200}
             value={layer.width}
             onChange={(width) => onUpdate({ width })}
           />
           <SliderRow
-            label={`Tinggi ${layer.height}%`}
+            label={`Tinggi ${formatPropertyNumber(layer.height)}%`}
             min={1}
             max={200}
             value={layer.height}
@@ -278,14 +191,14 @@ export function TransformProperties({ layer, onUpdate }: LayerUpdateProps) {
         </div>
 
         <SliderRow
-          label={`Rotasi ${layer.rotation}°`}
+          label={`Rotasi ${formatPropertyNumber(layer.rotation)}°`}
           min={-180}
           max={180}
           value={layer.rotation}
           onChange={(rotation) => onUpdate({ rotation })}
         />
         <SliderRow
-          label={`Opacity ${Math.round(layer.opacity * 100)}%`}
+          label={`Opacity ${formatPropertyPercent(layer.opacity)}`}
           min={0}
           max={1}
           step={0.05}
@@ -377,8 +290,8 @@ export function AdvancedLayerProperties({ layer, onUpdate }: LayerUpdateProps) {
           />
           <NumberField
             label="Opacity"
-            value={Math.round(layer.opacity * 100)}
-            onChange={(opacity) => onUpdate({ opacity: opacity / 100 })}
+            value={layer.opacity * 100}
+            onChange={(opacity) => onUpdate({ opacity: roundPropertyNumber(opacity / 100) })}
           />
         </div>
       </CardBody>
@@ -469,7 +382,9 @@ function SliderRow({
         max={max}
         step={step}
         value={[value]}
-        onValueChange={(nextValue: number[]) => onChange(nextValue[0] ?? value)}
+        onValueChange={(nextValue: number[]) =>
+          onChange(roundPropertyNumber(nextValue[0] ?? value, value))
+        }
       />
     </div>
   );
@@ -489,10 +404,10 @@ function NumberField({
       <PanelLabel>{label}</PanelLabel>
       <Input
         type="number"
-        value={value.toString()}
+        value={formatPropertyNumber(value)}
         className="h-9 rounded-lg border-border/40 bg-background/40 text-center text-xs font-bold uppercase tracking-tight"
         onChange={(event: ChangeEvent<HTMLInputElement>) =>
-          onChange(parseFiniteNumber(event.target.value, value))
+          onChange(roundPropertyNumber(parseFiniteNumber(event.target.value, value), value))
         }
       />
     </div>
@@ -585,21 +500,6 @@ function TrimSlider({
       />
     </div>
   );
-}
-
-function groupAnimationPresets(presets: (typeof editorAnimationCatalog)[number][]) {
-  return presets.reduce<
-    Array<{ category: string; presets: (typeof editorAnimationCatalog)[number][] }>
-  >((groups, preset) => {
-    const existingGroup = groups.find((group) => group.category === preset.category);
-    if (existingGroup) {
-      existingGroup.presets.push(preset);
-      return groups;
-    }
-
-    groups.push({ category: preset.category, presets: [preset] });
-    return groups;
-  }, []);
 }
 
 function getLayerIcon(type: Layer['type']): ReactNode {

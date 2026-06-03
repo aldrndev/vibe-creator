@@ -1,6 +1,6 @@
-import type { ModernProjectSettings } from '@vibe-creator/shared';
-import { Image, Palette } from 'lucide-react';
+import type { CanvasBackgroundMode, ModernProjectSettings } from '@vibe-creator/shared';
 import type { ChangeEvent, ReactNode } from 'react';
+import { useState } from 'react';
 import {
   Badge,
   Card,
@@ -13,15 +13,26 @@ import {
   SelectValue,
   Slider,
 } from '@/components/ui';
-import { canvasBackgroundPresets, canvasFormatPresets } from '@/lib/modern-editor-preset-catalog';
+import { getImageBackgroundActivation } from '@/lib/modern-editor-asset-library';
+import {
+  type CanvasBackgroundPreset,
+  canvasBackgroundPresets,
+  canvasFormatPresets,
+} from '@/lib/modern-editor-preset-catalog';
 import { cn } from '@/lib/utils';
+import type { EditorAsset } from '@/stores/editor-store';
 import { resolveModernProjectSettings } from '@/stores/modern-editor-store-helpers';
 import { AdvancedDisclosure } from './advanced-disclosure';
+import { BackgroundImagePickerDialog } from './background-image-picker-dialog';
+import { BackgroundModeControl } from './background-mode-control';
+import { CanvasBackgroundImageControls } from './canvas-background-image-controls';
 import { parseFiniteNumber } from './property-number';
 
 interface CanvasSettingsPanelProps {
   readonly className?: string;
   readonly compactEmpty: boolean;
+  readonly assets: readonly EditorAsset[];
+  readonly onRemoveAsset: (assetId: string) => void;
   readonly onUpdateSettings: (settings: Partial<ModernProjectSettings>) => void;
   readonly settings: ModernProjectSettings;
 }
@@ -29,13 +40,57 @@ interface CanvasSettingsPanelProps {
 export function CanvasSettingsPanel({
   className,
   compactEmpty,
+  assets,
+  onRemoveAsset,
   onUpdateSettings,
   settings,
 }: CanvasSettingsPanelProps) {
+  const [isImagePickerOpen, setIsImagePickerOpen] = useState(false);
+  const [backgroundNotice, setBackgroundNotice] = useState<string | null>(null);
   const canvasSettings = resolveModernProjectSettings(settings);
   const selectedPreset = canvasFormatPresets.find(
     (option) => option.width === canvasSettings.width && option.height === canvasSettings.height,
   );
+  const activeBackgroundAsset = assets.find(
+    (asset) => asset.id === canvasSettings.backgroundImageAssetId && asset.type === 'IMAGE',
+  );
+  const colorPresets = canvasBackgroundPresets.filter(
+    (preset) => preset.settings.backgroundMode === 'solid',
+  );
+  const gradientPresets = canvasBackgroundPresets.filter(
+    (preset) => preset.settings.backgroundMode === 'gradient',
+  );
+
+  const changeBackgroundMode = (mode: CanvasBackgroundMode) => {
+    setBackgroundNotice(null);
+    if (mode !== 'image') {
+      onUpdateSettings({ backgroundMode: mode });
+      return;
+    }
+
+    const activation = getImageBackgroundActivation(activeBackgroundAsset);
+    if (activation) {
+      onUpdateSettings(activation);
+      return;
+    }
+
+    setIsImagePickerOpen(true);
+  };
+
+  const useBackgroundImage = (asset: EditorAsset) => {
+    onUpdateSettings({ backgroundMode: 'image', backgroundImageAssetId: asset.id });
+    setBackgroundNotice(null);
+    setIsImagePickerOpen(false);
+  };
+
+  const removeActiveBackground = () => {
+    onUpdateSettings({
+      backgroundMode: 'solid',
+      backgroundColor: '#000000',
+      backgroundImageAssetId: null,
+    });
+    setBackgroundNotice('Background dilepas. Gambar tetap tersimpan untuk dipakai kembali.');
+  };
 
   return (
     <div className={cn('space-y-5', className)}>
@@ -63,24 +118,37 @@ export function CanvasSettingsPanel({
                   <button
                     key={preset.id}
                     type="button"
+                    aria-pressed={isSelected}
                     className={cn(
-                      'rounded-2xl border bg-background/25 p-2 text-left transition-all active:scale-[0.99]',
+                      'relative rounded-xl border bg-background/20 p-2.5 text-left transition-all active:scale-[0.99]',
                       isSelected
-                        ? 'border-primary bg-primary/10 text-primary'
+                        ? 'border-primary/80 bg-primary/[0.07]'
                         : 'border-border/35 text-muted-foreground hover:border-primary/45 hover:text-foreground',
                     )}
                     onClick={() => onUpdateSettings({ width: preset.width, height: preset.height })}
                   >
-                    <div className="flex h-16 items-center justify-center rounded-xl border border-border/25 bg-card/45">
+                    <div className="flex h-11 items-center justify-center rounded-lg bg-card/45">
                       <span
                         className={cn(
-                          'block max-h-12 w-8 rounded-md border border-current bg-current/20',
+                          'block max-h-9 w-7 rounded border border-muted-foreground/70 bg-muted-foreground/15',
                           preset.previewClassName,
                         )}
                       />
                     </div>
-                    <p className="mt-2 text-xs font-black text-foreground">{preset.label}</p>
-                    <p className="text-[10px] font-bold text-muted-foreground">{preset.helper}</p>
+                    <div className="mt-2 pr-2">
+                      <p className="whitespace-nowrap text-xs font-black text-foreground">
+                        {preset.label}
+                      </p>
+                      <p className="mt-0.5 text-[10px] font-bold text-muted-foreground">
+                        {preset.helper}
+                      </p>
+                    </div>
+                    {isSelected && (
+                      <span
+                        aria-hidden="true"
+                        className="absolute right-2.5 top-2.5 h-1.5 w-1.5 rounded-full bg-primary"
+                      />
+                    )}
                   </button>
                 );
               })}
@@ -89,48 +157,36 @@ export function CanvasSettingsPanel({
 
           <div className="space-y-2">
             <PanelLabel>Background</PanelLabel>
-            <div className="grid grid-cols-2 gap-2">
-              {canvasBackgroundPresets.map((preset) => {
-                const isSelected =
-                  preset.settings.backgroundMode === canvasSettings.backgroundMode &&
-                  (preset.settings.backgroundMode === 'blur' ||
-                    preset.settings.backgroundColor === canvasSettings.backgroundColor);
-                return (
-                  <button
-                    key={preset.id}
-                    type="button"
-                    className={cn(
-                      'rounded-2xl border bg-background/25 p-2 text-left transition-all active:scale-[0.99]',
-                      isSelected
-                        ? 'border-primary bg-primary/10'
-                        : 'border-border/35 hover:border-primary/45 hover:bg-primary/5',
-                    )}
-                    onClick={() => onUpdateSettings(preset.settings)}
-                  >
-                    <div
-                      className={cn(
-                        'flex h-14 items-center justify-center rounded-xl border border-white/10',
-                        preset.previewClassName,
-                      )}
-                    >
-                      {preset.settings.backgroundMode === 'blur' ? (
-                        <Image size={17} className="text-white drop-shadow" />
-                      ) : (
-                        <Palette size={17} className="text-white drop-shadow" />
-                      )}
-                    </div>
-                    <p className="mt-2 text-xs font-black text-foreground">{preset.label}</p>
-                    <p className="line-clamp-2 text-[10px] font-semibold leading-snug text-muted-foreground/75">
-                      {preset.helper}
-                    </p>
-                  </button>
-                );
-              })}
-            </div>
+            <BackgroundModeControl
+              value={canvasSettings.backgroundMode}
+              onChange={changeBackgroundMode}
+            />
+            {backgroundNotice && (
+              <p className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-[11px] font-semibold text-muted-foreground">
+                {backgroundNotice}
+              </p>
+            )}
           </div>
 
-          {canvasSettings.backgroundMode === 'blur' ? (
+          {canvasSettings.backgroundMode === 'image' ? (
+            <CanvasBackgroundImageControls
+              activeAsset={activeBackgroundAsset}
+              settings={canvasSettings}
+              onOpenPicker={() => setIsImagePickerOpen(true)}
+              onRemove={removeActiveBackground}
+              onUpdateSettings={onUpdateSettings}
+            />
+          ) : canvasSettings.backgroundMode === 'blur' ? (
             <div className="space-y-3 rounded-2xl border border-border/30 bg-background/20 p-3">
+              <SliderRow
+                label="Opacity"
+                max={1}
+                min={0}
+                step={0.01}
+                value={canvasSettings.backgroundOpacity ?? 1}
+                valueLabel={`${Math.round((canvasSettings.backgroundOpacity ?? 1) * 100)}%`}
+                onChange={(backgroundOpacity) => onUpdateSettings({ backgroundOpacity })}
+              />
               <SliderRow
                 label="Blur"
                 max={40}
@@ -166,21 +222,43 @@ export function CanvasSettingsPanel({
                 onChange={(backgroundSaturation) => onUpdateSettings({ backgroundSaturation })}
               />
             </div>
-          ) : (
-            <div className="flex h-11 items-center gap-2 rounded-xl border border-border/30 bg-background/30 px-2">
-              <input
-                aria-label="Custom background color"
-                type="color"
-                value={canvasSettings.backgroundColor}
-                onChange={(event) => onUpdateSettings({ backgroundColor: event.target.value })}
-                className="h-8 w-8 cursor-pointer rounded-lg border-none bg-transparent"
+          ) : canvasSettings.backgroundMode === 'gradient' ? (
+            <div className="space-y-3 rounded-2xl border border-border/30 bg-background/20 p-3">
+              <BackgroundPresetGrid
+                presets={gradientPresets}
+                settings={canvasSettings}
+                onSelect={onUpdateSettings}
               />
-              <Input
+              <SliderRow
+                label="Opacity"
+                max={1}
+                min={0}
+                step={0.01}
+                value={canvasSettings.backgroundOpacity ?? 1}
+                valueLabel={`${Math.round((canvasSettings.backgroundOpacity ?? 1) * 100)}%`}
+                onChange={(backgroundOpacity) => onUpdateSettings({ backgroundOpacity })}
+              />
+            </div>
+          ) : (
+            <div className="space-y-3 rounded-2xl border border-border/30 bg-background/20 p-3">
+              <BackgroundPresetGrid
+                presets={colorPresets}
+                settings={canvasSettings}
+                onSelect={onUpdateSettings}
+              />
+              <ColorField
+                label="Custom background color"
                 value={canvasSettings.backgroundColor}
-                className="h-8 border-none bg-transparent font-mono text-xs font-bold focus:ring-0"
-                onChange={(event: ChangeEvent<HTMLInputElement>) =>
-                  onUpdateSettings({ backgroundColor: event.target.value })
-                }
+                onChange={(backgroundColor) => onUpdateSettings({ backgroundColor })}
+              />
+              <SliderRow
+                label="Opacity"
+                max={1}
+                min={0}
+                step={0.01}
+                value={canvasSettings.backgroundOpacity ?? 1}
+                valueLabel={`${Math.round((canvasSettings.backgroundOpacity ?? 1) * 100)}%`}
+                onChange={(backgroundOpacity) => onUpdateSettings({ backgroundOpacity })}
               />
             </div>
           )}
@@ -218,11 +296,148 @@ export function CanvasSettingsPanel({
                 </SelectContent>
               </Select>
             </div>
+            {canvasSettings.backgroundMode === 'gradient' && (
+              <div className="space-y-3">
+                <PanelLabel>Custom Gradient</PanelLabel>
+                <div className="grid grid-cols-2 gap-3">
+                  <ColorField
+                    label="Gradient from"
+                    value={canvasSettings.backgroundGradientFrom ?? '#111827'}
+                    onChange={(backgroundGradientFrom) =>
+                      onUpdateSettings({ backgroundGradientFrom })
+                    }
+                  />
+                  <ColorField
+                    label="Gradient to"
+                    value={canvasSettings.backgroundGradientTo ?? '#ff4b1f'}
+                    onChange={(backgroundGradientTo) => onUpdateSettings({ backgroundGradientTo })}
+                  />
+                </div>
+                <SliderRow
+                  label="Angle"
+                  max={360}
+                  min={0}
+                  value={canvasSettings.backgroundGradientAngle ?? 135}
+                  valueLabel={`${Math.round(canvasSettings.backgroundGradientAngle ?? 135)}°`}
+                  onChange={(backgroundGradientAngle) =>
+                    onUpdateSettings({ backgroundGradientAngle })
+                  }
+                />
+              </div>
+            )}
+            {canvasSettings.backgroundMode === 'image' && (
+              <div className="space-y-3">
+                <PanelLabel>Image Background</PanelLabel>
+                <ColorField
+                  label="Fallback background color"
+                  value={canvasSettings.backgroundColor}
+                  onChange={(backgroundColor) => onUpdateSettings({ backgroundColor })}
+                />
+                <SliderRow
+                  label="Position X"
+                  max={100}
+                  min={0}
+                  value={canvasSettings.backgroundImagePositionX ?? 50}
+                  valueLabel={`${Math.round(canvasSettings.backgroundImagePositionX ?? 50)}%`}
+                  onChange={(backgroundImagePositionX) =>
+                    onUpdateSettings({ backgroundImagePositionX })
+                  }
+                />
+                <SliderRow
+                  label="Position Y"
+                  max={100}
+                  min={0}
+                  value={canvasSettings.backgroundImagePositionY ?? 50}
+                  valueLabel={`${Math.round(canvasSettings.backgroundImagePositionY ?? 50)}%`}
+                  onChange={(backgroundImagePositionY) =>
+                    onUpdateSettings({ backgroundImagePositionY })
+                  }
+                />
+                <SliderRow
+                  label="Scale"
+                  max={2}
+                  min={1}
+                  step={0.01}
+                  value={canvasSettings.backgroundImageScale ?? 1}
+                  valueLabel={`${Math.round((canvasSettings.backgroundImageScale ?? 1) * 100)}%`}
+                  onChange={(backgroundImageScale) => onUpdateSettings({ backgroundImageScale })}
+                />
+              </div>
+            )}
           </AdvancedDisclosure>
         </CardBody>
       </Card>
+      <BackgroundImagePickerDialog
+        activeAssetId={canvasSettings.backgroundImageAssetId}
+        assets={assets}
+        open={isImagePickerOpen}
+        onOpenChange={setIsImagePickerOpen}
+        onUseAsset={useBackgroundImage}
+        onRemoveAsset={onRemoveAsset}
+        onActiveAssetDeleted={() => {
+          setBackgroundNotice('Background dilepas karena gambar yang dipakai telah dihapus.');
+        }}
+      />
     </div>
   );
+}
+
+function BackgroundPresetGrid({
+  onSelect,
+  presets,
+  settings,
+}: Readonly<{
+  onSelect: (settings: Partial<ModernProjectSettings>) => void;
+  presets: readonly CanvasBackgroundPreset[];
+  settings: ModernProjectSettings;
+}>) {
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      {presets.map((preset) => (
+        <button
+          key={preset.id}
+          type="button"
+          className={cn(
+            'rounded-xl border p-1.5 text-left transition-colors',
+            isBackgroundPresetSelected(preset, settings)
+              ? 'border-primary bg-primary/10'
+              : 'border-border/35 hover:border-primary/45 hover:bg-primary/5',
+          )}
+          onClick={() => onSelect(preset.settings)}
+        >
+          <span
+            className={cn('block h-9 rounded-lg border border-white/10', preset.previewClassName)}
+          />
+          <span className="mt-1.5 block truncate px-1 text-[11px] font-bold text-foreground">
+            {preset.label}
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function isBackgroundPresetSelected(
+  preset: CanvasBackgroundPreset,
+  settings: ModernProjectSettings,
+): boolean {
+  if (preset.settings.backgroundMode !== settings.backgroundMode) {
+    return false;
+  }
+
+  if (preset.settings.backgroundMode === 'solid') {
+    return preset.settings.backgroundColor === settings.backgroundColor;
+  }
+
+  if (preset.settings.backgroundMode === 'gradient') {
+    return (
+      preset.settings.backgroundGradientFrom === settings.backgroundGradientFrom &&
+      preset.settings.backgroundGradientTo === settings.backgroundGradientTo &&
+      preset.settings.backgroundGradientAngle === settings.backgroundGradientAngle
+    );
+  }
+
+  return true;
 }
 
 function SliderRow({
@@ -259,6 +474,37 @@ function SliderRow({
       />
     </div>
   );
+}
+
+function ColorField({
+  label,
+  onChange,
+  value,
+}: Readonly<{
+  label: string;
+  onChange: (value: string) => void;
+  value: string;
+}>) {
+  return (
+    <div className="flex h-11 items-center gap-2 rounded-xl border border-border/30 bg-background/30 px-2">
+      <input
+        aria-label={label}
+        type="color"
+        value={getColorInputValue(value)}
+        onChange={(event) => onChange(event.target.value)}
+        className="h-8 w-8 cursor-pointer rounded-lg border-none bg-transparent"
+      />
+      <Input
+        value={value}
+        className="h-8 border-none bg-transparent font-mono text-xs font-bold focus:ring-0"
+        onChange={(event: ChangeEvent<HTMLInputElement>) => onChange(event.target.value)}
+      />
+    </div>
+  );
+}
+
+function getColorInputValue(value: string): string {
+  return /^#[0-9a-f]{6}$/i.test(value) ? value : '#000000';
 }
 
 function PanelLabel({ children }: Readonly<{ children: ReactNode }>) {

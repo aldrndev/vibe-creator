@@ -88,6 +88,39 @@ describe('modern editor store', () => {
     expect(useModernEditorStore.getState().layerOrder).not.toContain(layerId);
   });
 
+  it('sets an uploaded image as canvas background without creating a layer', () => {
+    initProject();
+
+    useModernEditorStore.getState().addAsset(imageAsset);
+    useModernEditorStore.getState().updateSettings({
+      backgroundMode: 'image',
+      backgroundImageAssetId: imageAsset.id,
+    });
+
+    expect(useModernEditorStore.getState().getLayersSorted()).toHaveLength(0);
+    expect(useModernEditorStore.getState().settings).toMatchObject({
+      backgroundMode: 'image',
+      backgroundImageAssetId: imageAsset.id,
+    });
+  });
+
+  it('detaches an active image background when its asset is removed', () => {
+    initProject();
+
+    useModernEditorStore.getState().addAsset(imageAsset);
+    useModernEditorStore.getState().updateSettings({
+      backgroundMode: 'image',
+      backgroundImageAssetId: imageAsset.id,
+    });
+    useModernEditorStore.getState().removeAsset(imageAsset.id);
+
+    expect(useModernEditorStore.getState().settings).toMatchObject({
+      backgroundMode: 'solid',
+      backgroundColor: '#000000',
+      backgroundImageAssetId: null,
+    });
+  });
+
   it('keeps locked layers from changing transform values until unlocked', () => {
     initProject();
 
@@ -235,5 +268,24 @@ describe('modern editor store', () => {
 
     expect(useModernEditorStore.getState().settings.width).toBe(1080);
     expect(useModernEditorStore.getState().settings.height).toBe(1920);
+  });
+
+  it('falls back to a safe solid background when a loaded image background is missing', () => {
+    const project = createDefaultModernProject('project-missing-background', 'Missing Background');
+
+    useModernEditorStore.getState().loadProject({
+      ...project,
+      settings: {
+        ...project.settings,
+        backgroundMode: 'image',
+        backgroundImageAssetId: 'missing-asset',
+      },
+    });
+
+    expect(useModernEditorStore.getState().settings).toMatchObject({
+      backgroundMode: 'solid',
+      backgroundColor: '#000000',
+      backgroundImageAssetId: null,
+    });
   });
 });

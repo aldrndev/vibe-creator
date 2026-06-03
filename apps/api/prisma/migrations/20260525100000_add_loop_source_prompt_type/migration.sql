@@ -1,0 +1,1 @@
+ALTER TYPE "PromptType" ADD VALUE 'LOOP_SOURCE';

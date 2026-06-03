@@ -1,6 +1,13 @@
-import { ArrowRight, Megaphone, MessageCircle, Send, Sparkles, Users } from 'lucide-react';
+import {
+  ArrowRight,
+  Megaphone,
+  MessageCircle,
+  RefreshCw,
+  Send,
+  Sparkles,
+  Users,
+} from 'lucide-react';
 import { Badge, Button, Card, CardBody, Divider } from '@/components/ui';
-import { EmptyState } from '@/components/ui/EmptyState';
 import {
   HoverCard,
   PageTransition,
@@ -9,10 +16,13 @@ import {
 } from '@/components/ui/PageTransition';
 import { SkeletonCard } from '@/components/ui/SkeletonLoader';
 import { useAnnouncements } from '@/hooks/use-announcements';
+import { type ResolvedCommunityLink, resolveCommunityLink } from '@/lib/community-links';
 
-const TELEGRAM_URL = import.meta.env.VITE_TELEGRAM_URL || 'https://t.me/vibecreator_id';
-const WHATSAPP_URL =
-  import.meta.env.VITE_WHATSAPP_URL || 'https://chat.whatsapp.com/your-group-link';
+const TELEGRAM_LINK = resolveCommunityLink(
+  import.meta.env.VITE_TELEGRAM_URL,
+  'https://t.me/vibecreator_id',
+);
+const WHATSAPP_LINK = resolveCommunityLink(import.meta.env.VITE_WHATSAPP_URL);
 
 const communities = [
   {
@@ -20,7 +30,7 @@ const communities = [
     name: 'Telegram Group',
     description: 'Diskusi, tips, dan support dari komunitas creator terbaik di Indonesia.',
     icon: Send,
-    link: TELEGRAM_URL,
+    link: TELEGRAM_LINK,
     members: '500+',
     color: 'blue',
   },
@@ -29,30 +39,31 @@ const communities = [
     name: 'WhatsApp Group',
     description: 'Grup whatsapp eksklusif untuk sharing, networking, dan info terupdate.',
     icon: MessageCircle,
-    link: WHATSAPP_URL,
+    link: WHATSAPP_LINK,
     members: '200+',
     color: 'green',
   },
 ];
 
 export function CommunityPage() {
-  const { data: announcements = [], isLoading } = useAnnouncements();
+  const { data: announcements = [], isError, isFetching, isLoading, refetch } = useAnnouncements();
 
   const isNew = (dateStr: string) => {
     const date = new Date(dateStr);
+    if (Number.isNaN(date.getTime())) return false;
     const now = new Date();
     const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
     return diffDays <= 7;
   };
 
   return (
-    <PageTransition className="pb-20 lg:pb-10 space-y-12">
+    <PageTransition className="space-y-8 pb-24 lg:pb-10">
       {/* Header Section */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-border/30 pb-10">
-        <div className="space-y-4">
+      <div className="flex flex-col justify-between gap-6 border-b border-border/30 pb-8 md:flex-row md:items-end">
+        <div className="space-y-3">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary via-orange-500 to-rose-600 flex items-center justify-center">
-              <Users className="text-white w-7 h-7" />
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-primary via-orange-500 to-rose-600">
+              <Users className="h-7 w-7 text-white" />
             </div>
             <h1 className="text-4xl font-black tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-primary via-orange-500 to-rose-600">
               Komunitas
@@ -67,59 +78,44 @@ export function CommunityPage() {
       {/* Join Community Section */}
       <StaggerContainer className="space-y-6">
         <div className="flex items-center gap-3">
-          <div className="w-1.5 h-6 bg-primary rounded-full" />
+          <div className="h-6 w-1.5 rounded-full bg-primary" />
           <h3 className="text-sm font-black uppercase tracking-[0.2em] text-foreground">
             Gabung Komunitas
           </h3>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
           {communities.map((community) => (
             <StaggerItem key={community.id} className="h-full">
               <HoverCard className="h-full">
-                <Card className="bg-card/70 backdrop-blur-xl border-border/50 group overflow-hidden h-full">
-                  <CardBody className="p-8">
-                    <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
+                <Card className="group h-full overflow-hidden border-border/50 bg-card/70 backdrop-blur-xl">
+                  <CardBody className="p-6">
+                    <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-start">
                       <div
-                        className={`w-16 h-16 rounded-3xl ${
+                        className={`flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl ${
                           community.color === 'blue' ? 'bg-blue-500/10' : 'bg-green-500/10'
-                        } flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-110 duration-500`}
+                        } transition-transform duration-500 group-hover:scale-105`}
                       >
                         <community.icon
-                          size={32}
+                          size={28}
                           className={
                             community.color === 'blue' ? 'text-blue-500' : 'text-green-500'
                           }
                         />
                       </div>
-                      <div className="flex-1 min-w-0 text-center sm:text-left space-y-4">
+                      <div className="min-w-0 flex-1 space-y-4 text-center sm:text-left">
                         <div className="space-y-2">
-                          <div className="flex flex-col sm:flex-row items-center gap-3">
+                          <div className="flex flex-col items-center gap-2 sm:flex-row">
                             <h3 className="text-xl font-black tracking-tight">{community.name}</h3>
                             <Badge className="bg-muted/30 text-muted-foreground border-border/50 font-black uppercase text-[9px] tracking-widest px-3">
                               {community.members} Members
                             </Badge>
                           </div>
-                          <p className="text-sm text-muted-foreground font-medium leading-relaxed">
+                          <p className="min-h-[2.9rem] max-w-[34ch] text-sm font-medium leading-relaxed text-muted-foreground line-clamp-2">
                             {community.description}
                           </p>
                         </div>
-                        <Button
-                          asChild
-                          className={`w-full sm:w-auto h-12 rounded-2xl font-black uppercase tracking-widest text-[10px] ${
-                            community.color === 'blue'
-                              ? 'bg-blue-600 hover:bg-blue-700'
-                              : 'bg-green-600 hover:bg-green-700'
-                          } border-none`}
-                        >
-                          <a href={community.link} target="_blank" rel="noopener noreferrer">
-                            Gabung Sekarang
-                            <ArrowRight
-                              size={14}
-                              className="ml-2 group-hover:translate-x-1 transition-transform"
-                            />
-                          </a>
-                        </Button>
+                        <CommunityJoinButton link={community.link} color={community.color} />
                       </div>
                     </div>
                   </CardBody>
@@ -135,7 +131,7 @@ export function CommunityPage() {
       {/* Announcements Section */}
       <StaggerContainer className="space-y-6">
         <div className="flex items-center gap-3">
-          <div className="w-1.5 h-6 bg-orange-500 rounded-full" />
+          <div className="h-6 w-1.5 rounded-full bg-orange-500" />
           <h3 className="text-sm font-black uppercase tracking-[0.2em] text-foreground">
             Pengumuman Terbaru
           </h3>
@@ -149,14 +145,46 @@ export function CommunityPage() {
           />
         )}
 
-        {!isLoading && announcements.length === 0 && (
-          <EmptyState
-            type="announcements"
-            description="Belum ada pengumuman terbaru untuk saat ini."
-          />
+        {!isLoading && isError && (
+          <Card className="border-border/50 bg-card/70 backdrop-blur-xl">
+            <CardBody className="flex flex-col items-center gap-4 p-8 text-center sm:flex-row sm:text-left">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-destructive/20 bg-destructive/10">
+                <Megaphone size={22} className="text-destructive" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="font-black tracking-tight">Gagal memuat pengumuman</h3>
+                <p className="mt-1 text-sm font-medium text-muted-foreground">
+                  Coba muat ulang. Kalau masih gagal, pengumuman bisa dicek langsung di grup.
+                </p>
+              </div>
+              <Button
+                variant="secondary"
+                className="h-10 rounded-xl font-black"
+                onClick={() => void refetch()}
+                disabled={isFetching}
+              >
+                <RefreshCw size={16} className={isFetching ? 'animate-spin' : undefined} />
+                Coba Lagi
+              </Button>
+            </CardBody>
+          </Card>
         )}
 
-        {!isLoading && announcements.length > 0 && (
+        {!isLoading && !isError && announcements.length === 0 && (
+          <Card className="border-border/50 bg-card/60">
+            <CardBody className="flex flex-col items-center justify-center px-6 py-10 text-center">
+              <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-border/50 bg-muted/30">
+                <Megaphone size={24} className="text-muted-foreground" />
+              </div>
+              <h3 className="font-black tracking-tight">Belum ada pengumuman</h3>
+              <p className="mt-1 max-w-md text-sm font-medium text-muted-foreground">
+                Update penting dari tim akan muncul di sini.
+              </p>
+            </CardBody>
+          </Card>
+        )}
+
+        {!isLoading && !isError && announcements.length > 0 && (
           <div className="grid gap-4">
             {announcements.map((announcement) => (
               <StaggerItem key={announcement.id}>
@@ -204,43 +232,54 @@ export function CommunityPage() {
         )}
       </StaggerContainer>
 
-      {/* Footer CTA */}
-      <Card className="bg-card/70 backdrop-blur-xl border-border/50 group overflow-hidden">
-        <CardBody className="p-10 text-center relative z-10 space-y-6">
-          <div className="w-16 h-16 rounded-2xl backdrop-blur-md border border-white/20 flex items-center justify-center mx-auto mb-6">
-            <Sparkles className="text-primary w-8 h-8" />
+      <Card className="overflow-hidden border-border/50 bg-card/60">
+        <CardBody className="flex flex-col items-center justify-between gap-4 p-5 text-center sm:flex-row sm:text-left">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10">
+            <Sparkles className="h-5 w-5 text-primary" />
           </div>
-          <div className="max-w-xl mx-auto space-y-3">
-            <h3 className="text-2xl font-black tracking-tighter">Bantuan Selalu Tersedia</h3>
-            <p className="text-muted-foreground font-medium">
-              Ada pertanyaan atau butuh bantuan teknis? Langsung tanya di grup kami. Tim support dan
-              member lain siap membantu 24/7!
+          <div className="min-w-0 flex-1">
+            <h3 className="font-black tracking-tight">Butuh bantuan cepat?</h3>
+            <p className="mt-1 text-sm font-medium text-muted-foreground">
+              Pilih Telegram atau WhatsApp di atas. Tim support dan member lain siap membantu.
             </p>
-          </div>
-          <div className="flex flex-col sm:flex-row justify-center gap-4 pt-4">
-            <Button
-              asChild
-              size="lg"
-              className="h-14 rounded-2xl font-black uppercase tracking-widest text-[11px] bg-blue-600 hover:bg-blue-700 border-none px-10"
-            >
-              <a href={TELEGRAM_URL} target="_blank" rel="noopener noreferrer">
-                <Send size={18} className="mr-3" />
-                Telegram Group
-              </a>
-            </Button>
-            <Button
-              asChild
-              size="lg"
-              className="h-14 rounded-2xl font-black uppercase tracking-widest text-[11px] bg-green-600 hover:bg-green-700 border-none px-10"
-            >
-              <a href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer">
-                <MessageCircle size={18} className="mr-3" />
-                WhatsApp Group
-              </a>
-            </Button>
           </div>
         </CardBody>
       </Card>
     </PageTransition>
+  );
+}
+
+function CommunityJoinButton({
+  color,
+  link,
+}: {
+  readonly color: string;
+  readonly link: ResolvedCommunityLink;
+}) {
+  const baseClassName =
+    'h-11 w-full rounded-xl border-none text-[10px] font-black uppercase tracking-widest sm:w-auto';
+  const colorClassName =
+    color === 'blue' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-green-600 hover:bg-green-700';
+
+  if (!link.isAvailable || !link.href) {
+    return (
+      <div className="space-y-2">
+        <Button disabled className={`${baseClassName} opacity-60`}>
+          Belum Tersedia
+        </Button>
+        <p className="text-xs font-medium text-muted-foreground">
+          {link.unavailableReason ?? 'Link komunitas belum tersedia.'}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <Button asChild className={`${baseClassName} ${colorClassName}`}>
+      <a href={link.href} target="_blank" rel="noopener noreferrer">
+        Gabung Sekarang
+        <ArrowRight size={14} className="ml-2 transition-transform group-hover:translate-x-1" />
+      </a>
+    </Button>
   );
 }

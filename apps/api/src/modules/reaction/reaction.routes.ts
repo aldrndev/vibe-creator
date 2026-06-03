@@ -3,8 +3,18 @@ import path from 'node:path';
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { env } from '@/config/env';
+import { AuditAction, audit } from '@/lib/audit';
+import { ExportServiceError } from '@/modules/export/export.service';
+import { WorkspaceLifecycleError } from '@/modules/workspace/workspace-lifecycle';
+import { requireAuth } from '@/plugins/auth';
 import { resolveTempUploadReference } from '@/utils/temp-upload';
+import {
+  reactionProjectParamsSchema,
+  reactionRenderResponseSchema,
+  reactionSourceInfoResponseSchema,
+} from './reaction.schemas';
 import { reactionService } from './reaction.service';
+import { ReactionRenderServiceError, reactionRenderService } from './reaction-render.service';
 
 const createReactionSchema = z.object({
   mainVideoPath: z.string(),
@@ -35,6 +45,32 @@ const createReactionMixedSchema = createReactionSchema.extend({
   circular: z.boolean().default(false),
 });
 
+function projectRouteError(error: unknown): {
+  readonly statusCode: number;
+  readonly code: string;
+  readonly message: string;
+} {
+  if (error instanceof z.ZodError) {
+    return {
+      statusCode: 400,
+      code: 'VALIDATION_ERROR',
+      message: error.issues[0]?.message ?? 'Invalid request',
+    };
+  }
+  if (
+    error instanceof ReactionRenderServiceError ||
+    error instanceof ExportServiceError ||
+    error instanceof WorkspaceLifecycleError
+  ) {
+    return { statusCode: error.statusCode, code: error.code, message: error.message };
+  }
+  return {
+    statusCode: 500,
+    code: 'REACTION_RENDER_FAILED',
+    message: 'Render reaction gagal diproses. Coba lagi atau cek video yang digunakan.',
+  };
+}
+
 export const reactionRoutes: FastifyPluginAsync = async (fastify) => {
   // --- JANITOR: Auto Cleanup ---
   // Run every 30 minutes, delete files older than 1 hour.
@@ -51,6 +87,71 @@ export const reactionRoutes: FastifyPluginAsync = async (fastify) => {
     clearInterval(cleanupInterval);
     done();
   });
+
+  fastify.get('/projects/:id/source', { preHandler: [requireAuth] }, async (request, reply) => {
+    const userId = request.user?.id;
+    if (!userId) {
+      return reply.status(401).send({
+        success: false,
+        error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+      });
+    }
+
+    try {
+      const params = reactionProjectParamsSchema.parse(request.params);
+      const data = reactionSourceInfoResponseSchema.parse(
+        await reactionRenderService.getSourceInfo(params.id, userId),
+      );
+      return reply.send({ success: true, data });
+    } catch (error) {
+      const response = projectRouteError(error);
+      return reply
+        .status(response.statusCode)
+        .send({ success: false, error: { code: response.code, message: response.message } });
+    }
+  });
+
+  fastify.post('/projects/:id/render', { preHandler: [requireAuth] }, async (request, reply) => {
+    const user = request.user;
+    if (!user) {
+      return reply.status(401).send({
+        success: false,
+        error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+      });
+    }
+
+    try {
+      const params = reactionProjectParamsSchema.parse(request.params);
+      const data = reactionRenderResponseSchema.parse(
+        await reactionRenderService.createRender({
+          projectId: params.id,
+          userId: user.id,
+          isAdmin: user.role === 'ADMIN',
+          requestId: request.id,
+        }),
+      );
+
+      void audit({
+        requestId: request.id,
+        userId: user.id,
+        tenantId: user.id,
+        action: AuditAction.EXPORT_CREATED,
+        resourceType: 'reaction-creator-export',
+        resourceId: data.jobId,
+        ipAddress: request.ip,
+        userAgent: request.headers['user-agent'] ?? undefined,
+        metadata: { projectId: params.id, cacheState: data.cacheState },
+      });
+
+      return reply.status(201).send({ success: true, data });
+    } catch (error) {
+      const response = projectRouteError(error);
+      return reply
+        .status(response.statusCode)
+        .send({ success: false, error: { code: response.code, message: response.message } });
+    }
+  });
+
   /**
    * Create reaction video with PiP overlay
    */

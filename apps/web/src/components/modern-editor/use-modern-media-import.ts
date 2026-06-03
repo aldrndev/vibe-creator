@@ -1,9 +1,11 @@
 import { useCallback } from 'react';
+import { generateEditorAssetThumbnailSet } from '@/lib/modern-media-thumbnails';
 import type { EditorAsset } from '@/stores/editor-store';
 import { useModernEditorStore } from '@/stores/modern-editor-store';
 
 interface UseModernMediaImportOptions {
   readonly autoAddToCanvas?: boolean;
+  readonly libraryPurpose?: EditorAsset['libraryPurpose'];
 }
 
 function resolveEditorAssetType(file: File): EditorAsset['type'] | null {
@@ -67,7 +69,10 @@ function readImageMetadata(
   });
 }
 
-async function createEditorAssetFromFile(file: File): Promise<EditorAsset | null> {
+async function createEditorAssetFromFile(
+  file: File,
+  libraryPurpose: EditorAsset['libraryPurpose'],
+): Promise<EditorAsset | null> {
   const type = resolveEditorAssetType(file);
   if (!type) {
     return null;
@@ -76,13 +81,17 @@ async function createEditorAssetFromFile(file: File): Promise<EditorAsset | null
   const url = URL.createObjectURL(file);
   const metadata =
     type === 'IMAGE' ? await readImageMetadata(url) : await readTimedMediaMetadata(url, type);
+  const thumbnailSet = await generateEditorAssetThumbnailSet(type, url);
 
   return {
     id: crypto.randomUUID(),
     name: file.name,
     type,
+    libraryPurpose,
     url,
     file,
+    ...(thumbnailSet.thumbnailUrl ? { thumbnailUrl: thumbnailSet.thumbnailUrl } : {}),
+    ...(thumbnailSet.thumbnails.length > 0 ? { thumbnails: thumbnailSet.thumbnails } : {}),
     ...metadata,
   };
 }
@@ -106,13 +115,14 @@ function addAssetLayer(asset: EditorAsset): void {
 export function useModernMediaImport(options: UseModernMediaImportOptions = {}) {
   const addAsset = useModernEditorStore((state) => state.addAsset);
   const shouldAutoAdd = options.autoAddToCanvas === true;
+  const libraryPurpose = options.libraryPurpose ?? 'media';
 
   const importFiles = useCallback(
     async (files: FileList | File[]) => {
       const importedAssets: EditorAsset[] = [];
 
       for (const file of Array.from(files)) {
-        const asset = await createEditorAssetFromFile(file);
+        const asset = await createEditorAssetFromFile(file, libraryPurpose);
         if (!asset) {
           continue;
         }
@@ -127,7 +137,7 @@ export function useModernMediaImport(options: UseModernMediaImportOptions = {}) 
 
       return importedAssets;
     },
-    [addAsset, shouldAutoAdd],
+    [addAsset, libraryPurpose, shouldAutoAdd],
   );
 
   return { importFiles };

@@ -7,6 +7,7 @@ import type {
   VideoGenPromptInput,
   VoicePromptInput,
 } from '../types/prompt';
+import { generateLoopSourcePrompt } from './loop-source-prompts';
 import { AIModel } from './model-registry';
 
 /**
@@ -430,4 +431,5 @@ export const PROMPT_GENERATORS = {
   RELAXING: generateRelaxingPrompt,
   CREATIVE_SCAN: generateCreativeScanPrompt,
   TIMELAPSE: generateTimelapsePrompt,
+  LOOP_SOURCE: generateLoopSourcePrompt,
 } as const;

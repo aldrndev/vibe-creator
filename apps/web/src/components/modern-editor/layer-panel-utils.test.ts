@@ -5,6 +5,7 @@ import {
   formatLayerDuration,
   formatLayerTime,
   getLayerDisplayName,
+  getLayerStackTitle,
   getLayerTypeLabel,
   getTextLayerFallbackLabel,
   getTextLayerPreviewLabel,
@@ -34,6 +35,16 @@ describe('layer panel utils', () => {
     expect(getTextLayerFallbackLabel(subtitleLayer)).toBe('Subtitle');
     expect(getLayerDisplayName(textLayer, [])).toBe('Text');
     expect(getLayerDisplayName(subtitleLayer, [])).toBe('Subtitle');
+  });
+
+  it('separates text layer stack titles from editable copy', () => {
+    const textLayer = createTextLayer('layer-text-title', 'Hook pembuka yang panjang', 0, 0, 2000);
+    const emptyTextLayer = createTextLayer('layer-text-empty', '   ', 0, 0, 2000);
+    const videoLayer = createVideoLayer('video-layer', asset.id, 1, 0, 5000);
+
+    expect(getLayerStackTitle(textLayer, [])).toBe('Text');
+    expect(getLayerStackTitle(emptyTextLayer, [])).toBe('Text');
+    expect(getLayerStackTitle(videoLayer, [asset])).toBe('opening-shot.mp4');
   });
 
   it('hides default editor placeholder copy in layer labels', () => {

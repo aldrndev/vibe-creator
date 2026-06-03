@@ -316,6 +316,14 @@ export default function App() {
               }
             />
             <Route
+              path="/tools/reaction"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <ReactionCreatorPage />
+                </Suspense>
+              }
+            />
+            <Route
               path="/tools/reaction-creator"
               element={
                 <Suspense fallback={<PageLoader />}>

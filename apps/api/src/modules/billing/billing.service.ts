@@ -14,10 +14,10 @@ function getInvoiceClient() {
 }
 
 export const STREAM_PACKAGES = [
-  { id: '1h', minutes: 60, price: 10000, name: '1 Jam Stream' },
-  { id: '3h', minutes: 180, price: 25000, name: '3 Jam Stream (Hemat)' },
-  { id: '10h', minutes: 600, price: 75000, name: '10 Jam Stream (Pro)' },
-  { id: '24h', minutes: 1440, price: 150000, name: '24 Jam Stream (Ultra)' },
+  { id: '1h', minutes: 60, price: 10000, name: '1 Jam Stream', currency: 'IDR' },
+  { id: '3h', minutes: 180, price: 25000, name: '3 Jam Stream (Hemat)', currency: 'IDR' },
+  { id: '10h', minutes: 600, price: 75000, name: '10 Jam Stream (Pro)', currency: 'IDR' },
+  { id: '24h', minutes: 1440, price: 150000, name: '24 Jam Stream (Ultra)', currency: 'IDR' },
 ];
 
 export const billingService = {
@@ -84,6 +84,7 @@ export const billingService = {
 
     return {
       purchaseId,
+      invoiceId: invoice.id,
       invoiceUrl: invoice.invoiceUrl,
       expiryDate: invoice.expiryDate,
     };

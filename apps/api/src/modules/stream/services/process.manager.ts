@@ -7,11 +7,23 @@ import { type ChildProcess, spawn } from 'node:child_process';
 import { logger } from '@/lib/logger';
 import { prisma } from '@/lib/prisma';
 
+export interface StreamProcessExit {
+  readonly code: number | null;
+  readonly signal: NodeJS.Signals | null;
+  readonly errorMessage?: string;
+}
+
+type StreamProcessExitHandler = (exit: StreamProcessExit) => Promise<void>;
+
+const STREAM_STOP_GRACE_MS = 5000;
+
 // Store active streams by streamId
 const activeStreams = new Map<string, ChildProcess>();
 
 // Store active streams by userId for concurrency control
 const activeUserStreams = new Map<string, { process: ChildProcess; streamId: string }>();
+const activeExitHandlers = new Map<string, StreamProcessExitHandler>();
+const forceKillTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 /**
  * Check if user has active stream
@@ -35,40 +47,31 @@ export function isStreamActive(streamId: string): boolean {
 }
 
 /**
- * Kill user's existing stream
+ * Request graceful termination for a user's existing runtime stream.
  */
-export async function killUserStream(userId: string): Promise<void> {
+export function requestUserStreamStop(userId: string): string | null {
   const existing = activeUserStreams.get(userId);
-  if (!existing) return;
+  if (!existing) return null;
 
-  existing.process.kill('SIGTERM');
-  activeUserStreams.delete(userId);
-  activeStreams.delete(existing.streamId);
-
-  await prisma.streamSession
-    .update({
-      where: { id: existing.streamId },
-      data: {
-        status: 'ENDED',
-        endedAt: new Date(),
-        errorMessage: 'Interrupted by new session',
-      },
-    })
-    .catch((err: Error) => logger.warn({ err }, 'Failed to update interrupted stream status'));
-
-  // Small delay to release resources
-  await new Promise((r) => setTimeout(r, 1000));
+  requestStreamProcessStop(existing.streamId, userId);
+  return existing.streamId;
 }
 
 /**
  * Start FFmpeg streaming process
  */
-export function startStreamProcess(streamId: string, userId: string, args: string[]): ChildProcess {
+export function startStreamProcess(
+  streamId: string,
+  userId: string,
+  args: string[],
+  onExit: StreamProcessExitHandler,
+): ChildProcess {
   const process = spawn('ffmpeg', args);
 
   // Store process references
   activeStreams.set(streamId, process);
   activeUserStreams.set(userId, { process, streamId });
+  activeExitHandlers.set(streamId, onExit);
 
   // Handle stderr (logging)
   process.stderr.on('data', (data) => {
@@ -80,16 +83,23 @@ export function startStreamProcess(streamId: string, userId: string, args: strin
 
   // Handle process close
   process.on('close', async (code) => {
+    const timer = forceKillTimers.get(streamId);
+    if (timer) {
+      clearTimeout(timer);
+      forceKillTimers.delete(streamId);
+    }
     activeStreams.delete(streamId);
-    activeUserStreams.delete(userId);
+    if (activeUserStreams.get(userId)?.streamId === streamId) {
+      activeUserStreams.delete(userId);
+    }
+    const exitHandler = activeExitHandlers.get(streamId);
+    activeExitHandlers.delete(streamId);
 
-    await prisma.streamSession.update({
-      where: { id: streamId },
-      data: {
-        status: code === 0 ? 'ENDED' : 'FAILED',
-        endedAt: new Date(),
-      },
-    });
+    if (exitHandler) {
+      await exitHandler({ code, signal: null }).catch((error: Error) =>
+        logger.error({ streamId, error: error.message }, 'Stream exit handler failed'),
+      );
+    }
 
     logger.info({ streamId, code }, 'Stream ended');
   });
@@ -97,16 +107,18 @@ export function startStreamProcess(streamId: string, userId: string, args: strin
   // Handle process error
   process.on('error', async (err) => {
     activeStreams.delete(streamId);
-    activeUserStreams.delete(userId);
+    if (activeUserStreams.get(userId)?.streamId === streamId) {
+      activeUserStreams.delete(userId);
+    }
+    const exitHandler = activeExitHandlers.get(streamId);
+    activeExitHandlers.delete(streamId);
 
-    await prisma.streamSession.update({
-      where: { id: streamId },
-      data: {
-        status: 'FAILED',
-        endedAt: new Date(),
-        errorMessage: err.message,
-      },
-    });
+    if (exitHandler) {
+      await exitHandler({ code: null, signal: null, errorMessage: err.message }).catch(
+        (error: Error) =>
+          logger.error({ streamId, error: error.message }, 'Stream error handler failed'),
+      );
+    }
 
     logger.error({ streamId, error: err.message }, 'Stream error');
   });
@@ -117,13 +129,32 @@ export function startStreamProcess(streamId: string, userId: string, args: strin
 /**
  * Stop stream process
  */
-export function stopStreamProcess(streamId: string, userId: string): void {
+export function requestStreamProcessStop(streamId: string, userId: string): boolean {
   const process = activeStreams.get(streamId);
-  if (process) {
-    process.kill('SIGTERM');
-    activeStreams.delete(streamId);
-    activeUserStreams.delete(userId);
+  if (!process) {
+    if (activeUserStreams.get(userId)?.streamId === streamId) {
+      activeUserStreams.delete(userId);
+    }
+    return false;
   }
+
+  process.kill('SIGTERM');
+
+  const existingTimer = forceKillTimers.get(streamId);
+  if (existingTimer) {
+    clearTimeout(existingTimer);
+  }
+
+  const timer = setTimeout(() => {
+    const activeProcess = activeStreams.get(streamId);
+    if (activeProcess) {
+      logger.warn({ streamId }, 'Force killing stream process after grace period');
+      activeProcess.kill('SIGKILL');
+    }
+  }, STREAM_STOP_GRACE_MS);
+
+  forceKillTimers.set(streamId, timer);
+  return true;
 }
 
 /**
@@ -132,8 +163,12 @@ export function stopStreamProcess(streamId: string, userId: string): void {
 export function scheduleStreamLive(streamId: string, delayMs = 3000): void {
   setTimeout(async () => {
     if (activeStreams.has(streamId)) {
-      await prisma.streamSession.update({
-        where: { id: streamId },
+      await prisma.streamSession.updateMany({
+        where: {
+          id: streamId,
+          status: 'STARTING',
+          durationMinutesBilled: null,
+        },
         data: { status: 'LIVE' },
       });
     }

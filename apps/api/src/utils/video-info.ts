@@ -96,3 +96,25 @@ export async function getVideoResolution(
 
   return { width, height };
 }
+
+/**
+ * Detect whether the source video carries an audio stream before building FFmpeg filters.
+ */
+export async function hasVideoAudioStream(inputPath: string): Promise<boolean> {
+  const stdout = await runFfprobe(
+    [
+      '-v',
+      'error',
+      '-select_streams',
+      'a:0',
+      '-show_entries',
+      'stream=index',
+      '-of',
+      'csv=p=0',
+      inputPath,
+    ],
+    'Failed to inspect video audio stream',
+  );
+
+  return stdout.length > 0;
+}

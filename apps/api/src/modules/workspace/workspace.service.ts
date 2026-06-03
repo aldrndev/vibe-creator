@@ -1,6 +1,21 @@
-import { DirectorStep, LifecycleStatus, type Prisma, ProjectStatus } from '@prisma/client';
+import { randomUUID } from 'node:crypto';
+import { copyFile, mkdir } from 'node:fs/promises';
+import { basename, join } from 'node:path';
+import {
+  type AssetType,
+  DirectorStep,
+  LifecycleStatus,
+  type Prisma,
+  ProjectStatus,
+} from '@prisma/client';
+import { env } from '@/config/env';
 import { prisma } from '@/lib/prisma';
-import type { RecentWorkspacesQuery, WorkspaceKind, WorkspaceTool } from './workspace.schemas';
+import type {
+  RecentWorkspacesQuery,
+  WorkspaceDeleteKind,
+  WorkspaceKind,
+  WorkspaceTool,
+} from './workspace.schemas';
 import {
   assertWorkspaceActive,
   getActiveDraftExpiresAt,
@@ -10,6 +25,9 @@ import {
 } from './workspace-lifecycle';
 
 const VIDEO_STUDIO_PROJECT_KIND = 'video-studio-modern-project';
+const LOOP_CREATOR_PROJECT_KIND = 'loop-creator-project';
+const REACTION_CREATOR_PROJECT_KIND = 'reaction-creator-project';
+const LIVE_STREAM_PROJECT_KIND = 'live-stream-project';
 const DEFAULT_RECENT_LIMIT = 20;
 
 export interface WorkspaceRecentItem {
@@ -26,6 +44,7 @@ export interface WorkspaceRecentItem {
   readonly lastOpenedAt: Date | null;
   readonly downloadExpiresAt?: Date | null;
   readonly sourceId?: string | null;
+  readonly sourceKind?: WorkspaceKind | null;
 }
 
 function asJsonRecord(value: Prisma.JsonValue | null | undefined): Record<string, unknown> | null {
@@ -46,6 +65,18 @@ function toInputJson(value: Prisma.JsonValue | null): Prisma.InputJsonValue | un
 
 function isVideoStudioProjectStoryData(value: Prisma.JsonValue | null | undefined): boolean {
   return asJsonRecord(value)?.kind === VIDEO_STUDIO_PROJECT_KIND;
+}
+
+function isLoopCreatorProjectStoryData(value: Prisma.JsonValue | null | undefined): boolean {
+  return asJsonRecord(value)?.kind === LOOP_CREATOR_PROJECT_KIND;
+}
+
+function isReactionCreatorProjectStoryData(value: Prisma.JsonValue | null | undefined): boolean {
+  return asJsonRecord(value)?.kind === REACTION_CREATOR_PROJECT_KIND;
+}
+
+function isLiveStreamProjectStoryData(value: Prisma.JsonValue | null | undefined): boolean {
+  return asJsonRecord(value)?.kind === LIVE_STREAM_PROJECT_KIND;
 }
 
 function readNestedString(value: unknown, keys: readonly string[]): string | null {
@@ -105,6 +136,13 @@ function itemMatchesStatus(
     return true;
   }
 
+  if (status === 'EXPIRED') {
+    return (
+      item.lifecycleStatus === LifecycleStatus.EXPIRED ||
+      item.lifecycleStatus === 'DOWNLOAD_EXPIRED'
+    );
+  }
+
   return item.lifecycleStatus === status;
 }
 
@@ -120,7 +158,13 @@ export const workspaceService = {
     const take = limit * 3;
     const items: WorkspaceRecentItem[] = [];
 
-    if (!query.tool || query.tool === 'video-studio') {
+    if (
+      !query.tool ||
+      query.tool === 'video-studio' ||
+      query.tool === 'loop-creator' ||
+      query.tool === 'reaction-video' ||
+      query.tool === 'live-stream'
+    ) {
       const projects = await prisma.project.findMany({
         where: {
           userId,
@@ -132,7 +176,16 @@ export const workspaceService = {
       });
 
       for (const project of projects) {
-        if (!isVideoStudioProjectStoryData(project.storyData)) {
+        const kind = isVideoStudioProjectStoryData(project.storyData)
+          ? 'video-studio'
+          : isLoopCreatorProjectStoryData(project.storyData)
+            ? 'loop-creator'
+            : isReactionCreatorProjectStoryData(project.storyData)
+              ? 'reaction-video'
+              : isLiveStreamProjectStoryData(project.storyData)
+                ? 'live-stream'
+                : null;
+        if (!kind || (query.tool && query.tool !== kind)) {
           continue;
         }
 
@@ -143,9 +196,9 @@ export const workspaceService = {
 
         const item: WorkspaceRecentItem = {
           id: project.id,
-          kind: 'video-studio',
-          tool: 'video-studio',
-          title: getVideoStudioTitle(project),
+          kind,
+          tool: kind,
+          title: kind === 'video-studio' ? getVideoStudioTitle(project) : project.title,
           status: project.status,
           lifecycleStatus,
           updatedAt: project.updatedAt,
@@ -245,6 +298,7 @@ export const workspaceService = {
           lastOpenedAt: exportJob.session.lastOpenedAt,
           downloadExpiresAt: exportJob.downloadExpiresAt,
           sourceId: exportJob.sessionId,
+          sourceKind: 'ai-director',
         };
 
         if (itemMatchesStatus(item, query.status)) {
@@ -272,6 +326,13 @@ export const workspaceService = {
           lastOpenedAt: null,
           downloadExpiresAt: exportJob.urlExpiresAt,
           sourceId: exportJob.projectId,
+          sourceKind: isLoopCreatorProjectStoryData(exportJob.project?.storyData)
+            ? 'loop-creator'
+            : isReactionCreatorProjectStoryData(exportJob.project?.storyData)
+              ? 'reaction-video'
+              : isLiveStreamProjectStoryData(exportJob.project?.storyData)
+                ? 'live-stream'
+                : 'video-studio',
         };
 
         if (itemMatchesStatus(item, query.status)) {
@@ -291,7 +352,12 @@ export const workspaceService = {
   async getLastActive(userId: string, tool: Exclude<WorkspaceTool, 'exports'>) {
     const now = new Date();
 
-    if (tool === 'video-studio') {
+    if (
+      tool === 'video-studio' ||
+      tool === 'loop-creator' ||
+      tool === 'reaction-video' ||
+      tool === 'live-stream'
+    ) {
       const projects = await prisma.project.findMany({
         where: {
           userId,
@@ -304,7 +370,15 @@ export const workspaceService = {
       });
 
       for (const project of projects) {
-        if (!isVideoStudioProjectStoryData(project.storyData)) {
+        const matchesTool =
+          tool === 'video-studio'
+            ? isVideoStudioProjectStoryData(project.storyData)
+            : tool === 'loop-creator'
+              ? isLoopCreatorProjectStoryData(project.storyData)
+              : tool === 'reaction-video'
+                ? isReactionCreatorProjectStoryData(project.storyData)
+                : isLiveStreamProjectStoryData(project.storyData);
+        if (!matchesTool) {
           continue;
         }
 
@@ -315,9 +389,9 @@ export const workspaceService = {
 
         return {
           id: project.id,
-          kind: 'video-studio' as const,
-          tool: 'video-studio' as const,
-          title: getVideoStudioTitle(project),
+          kind: tool,
+          tool,
+          title: tool === 'video-studio' ? getVideoStudioTitle(project) : project.title,
           status: project.status,
           lifecycleStatus: project.lifecycleStatus,
           updatedAt: project.updatedAt,
@@ -371,7 +445,12 @@ export const workspaceService = {
     const now = new Date();
     const expiresAt = getCompletedSessionExpiresAt(now);
 
-    if (kind === 'video-studio') {
+    if (
+      kind === 'video-studio' ||
+      kind === 'loop-creator' ||
+      kind === 'reaction-video' ||
+      kind === 'live-stream'
+    ) {
       const existing = await prisma.project.findFirst({ where: { id, userId, deletedAt: null } });
       if (!existing) {
         return null;
@@ -412,16 +491,35 @@ export const workspaceService = {
     const now = new Date();
     const expiresAt = getActiveDraftExpiresAt(now);
 
-    if (kind === 'video-studio') {
+    if (
+      kind === 'video-studio' ||
+      kind === 'loop-creator' ||
+      kind === 'reaction-video' ||
+      kind === 'live-stream'
+    ) {
       const source = await prisma.project.findFirst({
         where: { id, userId, deletedAt: null },
         include: { assets: true },
       });
-      if (!source || !isVideoStudioProjectStoryData(source.storyData)) {
+      const validStory =
+        kind === 'video-studio'
+          ? isVideoStudioProjectStoryData(source?.storyData)
+          : kind === 'loop-creator'
+            ? isLoopCreatorProjectStoryData(source?.storyData)
+            : kind === 'reaction-video'
+              ? isReactionCreatorProjectStoryData(source?.storyData)
+              : isLiveStreamProjectStoryData(source?.storyData);
+      if (!source || !validStory) {
         return null;
       }
 
       const title = source.title.startsWith('Copy of ') ? source.title : `Copy of ${source.title}`;
+      if (kind === 'loop-creator') {
+        return duplicateLoopCreatorProject(source, userId, title, expiresAt);
+      }
+      if (kind === 'reaction-video') {
+        return duplicateReactionCreatorProject(source, userId, title, expiresAt);
+      }
       const project = await prisma.project.create({
         data: {
           userId,
@@ -498,10 +596,15 @@ export const workspaceService = {
     });
   },
 
-  async softDeleteWorkspace(userId: string, kind: WorkspaceKind, id: string) {
+  async softDeleteWorkspace(userId: string, kind: WorkspaceDeleteKind, id: string) {
     const now = new Date();
 
-    if (kind === 'video-studio') {
+    if (
+      kind === 'video-studio' ||
+      kind === 'loop-creator' ||
+      kind === 'reaction-video' ||
+      kind === 'live-stream'
+    ) {
       const result = await prisma.project.updateMany({
         where: { id, userId, deletedAt: null },
         data: {
@@ -510,6 +613,26 @@ export const workspaceService = {
         },
       });
       return result.count > 0;
+    }
+
+    if (kind === 'export') {
+      const [genericExport, directorExport] = await Promise.all([
+        prisma.exportHistory.deleteMany({
+          where: {
+            id,
+            userId,
+            OR: [{ urlExpiresAt: { lte: now } }, { expiresAt: { lte: now } }],
+          },
+        }),
+        prisma.directorExportJob.deleteMany({
+          where: {
+            id,
+            session: { userId },
+            OR: [{ downloadExpiresAt: { lte: now } }, { outputDeletedAt: { not: null } }],
+          },
+        }),
+      ]);
+      return genericExport.count + directorExport.count > 0;
     }
 
     const result = await prisma.directorSession.updateMany({
@@ -522,3 +645,165 @@ export const workspaceService = {
     return result.count > 0;
   },
 };
+
+async function duplicateLoopCreatorProject(
+  source: {
+    id: string;
+    title: string;
+    description: string | null;
+    mode: 'STORY' | 'TIMELINE';
+    settings: Prisma.JsonValue | null;
+    storyData: Prisma.JsonValue | null;
+    assets: Array<{
+      id: string;
+      type: AssetType;
+      name: string;
+      sourceUrl: string | null;
+      r2Key: string;
+      metadata: Prisma.JsonValue;
+    }>;
+  },
+  userId: string,
+  title: string,
+  expiresAt: Date,
+) {
+  const project = await prisma.project.create({
+    data: {
+      userId,
+      title,
+      description: source.description,
+      mode: source.mode,
+      settings: toInputJson(source.settings),
+      status: ProjectStatus.DRAFT,
+      storyData: toInputJson(source.storyData),
+      lifecycleStatus: LifecycleStatus.ACTIVE,
+      expiresAt,
+    },
+  });
+  const idMapping = new Map<string, string>();
+  const destinationDir = join(env.MEDIA_INPUT_DIR, 'projects', project.id);
+  await mkdir(destinationDir, { recursive: true });
+
+  for (const asset of source.assets) {
+    const nextAssetId = randomUUID();
+    const fileName = `${nextAssetId}-${basename(asset.r2Key)}`;
+    const sourcePath = join(env.MEDIA_INPUT_DIR, 'projects', source.id, basename(asset.r2Key));
+    const destinationPath = join(destinationDir, fileName);
+    await copyFile(sourcePath, destinationPath);
+    await prisma.projectAsset.create({
+      data: {
+        id: nextAssetId,
+        projectId: project.id,
+        type: asset.type,
+        name: asset.name,
+        sourceUrl: `/api/v1/projects/assets/${nextAssetId}/file`,
+        r2Key: `uploads/projects/${project.id}/${fileName}`,
+        metadata: toInputJson(asset.metadata),
+      },
+    });
+    idMapping.set(asset.id, nextAssetId);
+  }
+
+  const storyData = asJsonRecord(source.storyData);
+  const sourceAssetId =
+    typeof storyData?.sourceAssetId === 'string'
+      ? idMapping.get(storyData.sourceAssetId)
+      : undefined;
+  if (storyData && sourceAssetId) {
+    await prisma.project.update({
+      where: { id: project.id },
+      data: {
+        storyData: {
+          ...storyData,
+          sourceAssetId,
+          savedAt: new Date().toISOString(),
+        } as Prisma.InputJsonValue,
+      },
+    });
+  }
+
+  return project;
+}
+
+async function duplicateReactionCreatorProject(
+  source: {
+    id: string;
+    title: string;
+    description: string | null;
+    mode: 'STORY' | 'TIMELINE';
+    settings: Prisma.JsonValue | null;
+    storyData: Prisma.JsonValue | null;
+    assets: Array<{
+      id: string;
+      type: AssetType;
+      name: string;
+      sourceUrl: string | null;
+      r2Key: string;
+      metadata: Prisma.JsonValue;
+    }>;
+  },
+  userId: string,
+  title: string,
+  expiresAt: Date,
+) {
+  const project = await prisma.project.create({
+    data: {
+      userId,
+      title,
+      description: source.description,
+      mode: source.mode,
+      settings: toInputJson(source.settings),
+      status: ProjectStatus.DRAFT,
+      storyData: toInputJson(source.storyData),
+      lifecycleStatus: LifecycleStatus.ACTIVE,
+      expiresAt,
+    },
+  });
+  const idMapping = new Map<string, string>();
+  const destinationDir = join(env.MEDIA_INPUT_DIR, 'projects', project.id);
+  await mkdir(destinationDir, { recursive: true });
+
+  for (const asset of source.assets) {
+    const nextAssetId = randomUUID();
+    const fileName = `${nextAssetId}-${basename(asset.r2Key)}`;
+    const sourcePath = join(env.MEDIA_INPUT_DIR, 'projects', source.id, basename(asset.r2Key));
+    const destinationPath = join(destinationDir, fileName);
+    await copyFile(sourcePath, destinationPath);
+    await prisma.projectAsset.create({
+      data: {
+        id: nextAssetId,
+        projectId: project.id,
+        type: asset.type,
+        name: asset.name,
+        sourceUrl: `/api/v1/projects/assets/${nextAssetId}/file`,
+        r2Key: `uploads/projects/${project.id}/${fileName}`,
+        metadata: toInputJson(asset.metadata),
+      },
+    });
+    idMapping.set(asset.id, nextAssetId);
+  }
+
+  const storyData = asJsonRecord(source.storyData);
+  if (storyData) {
+    const mainAssetId =
+      typeof storyData.mainAssetId === 'string' ? idMapping.get(storyData.mainAssetId) : undefined;
+    const reactionAssetId =
+      typeof storyData.reactionAssetId === 'string'
+        ? idMapping.get(storyData.reactionAssetId)
+        : undefined;
+
+    await prisma.project.update({
+      where: { id: project.id },
+      data: {
+        storyData: {
+          ...storyData,
+          ...(mainAssetId ? { mainAssetId } : {}),
+          ...(reactionAssetId ? { reactionAssetId } : {}),
+          savedAt: new Date().toISOString(),
+        } as Prisma.InputJsonValue,
+      },
+    });
+  }
+
+  return project;
+}

@@ -12,15 +12,19 @@ import { cn } from '@/lib/utils';
 import { useModernEditorStore } from '@/stores/modern-editor-store';
 import { getLayerDisplayName } from './layer-panel-utils';
 import { CanvasSettingsPanel } from './properties/canvas-settings-panel';
+import { LayerAnimationProperties } from './properties/layer-animation-properties';
 import {
   AdvancedLayerProperties,
-  LayerAnimationProperties,
   LayerTypeProperties,
   PanelTab,
   SelectedLayerHeader,
   TimingProperties,
   TransformProperties,
 } from './properties/layer-property-sections';
+import {
+  getPropertiesPanelTabGridClass,
+  getPropertiesPanelTabs,
+} from './properties/properties-panel-tabs';
 
 interface PropertiesPanelProps {
   readonly className?: string;
@@ -38,6 +42,7 @@ export function PropertiesPanel({
     duplicateLayer,
     getMaxEndMs,
     layersById,
+    removeAsset,
     removeLayer,
     selectedLayerId,
     selectLayer,
@@ -63,9 +68,11 @@ export function PropertiesPanel({
   if (!selectedLayer && showCanvasSettings) {
     return (
       <CanvasSettingsPanel
+        assets={assets}
         className={className}
         compactEmpty={compactEmpty}
         settings={settings}
+        onRemoveAsset={removeAsset}
         onUpdateSettings={updateSettings}
       />
     );
@@ -76,6 +83,8 @@ export function PropertiesPanel({
   }
 
   const maxDuration = Math.max(getMaxEndMs(), 60000);
+  const tabs = getPropertiesPanelTabs(selectedLayer.type);
+  const hasTab = (value: (typeof tabs)[number]['id']) => tabs.some((tab) => tab.id === value);
 
   return (
     <div
@@ -97,37 +106,50 @@ export function PropertiesPanel({
       />
 
       <Tabs key={selectedLayer.id} defaultValue="style">
-        <TabsList className="grid h-10 w-full grid-cols-4 rounded-xl border border-border/20 bg-muted/15 p-1">
-          <PanelTab value="style">Style</PanelTab>
-          <PanelTab value="animate">Animate</PanelTab>
-          <PanelTab value="timing">Timing</PanelTab>
-          <PanelTab value="advanced">Advanced</PanelTab>
+        <TabsList
+          className={cn(
+            'grid h-10 w-full rounded-xl border border-border/20 bg-muted/15 p-1',
+            getPropertiesPanelTabGridClass(tabs.length),
+          )}
+        >
+          {tabs.map((tab) => (
+            <PanelTab key={tab.id} value={tab.id}>
+              {tab.label}
+            </PanelTab>
+          ))}
         </TabsList>
 
         <TabsContent value="style" className="mt-3.5 space-y-3.5">
           <LayerTypeProperties
             layer={selectedLayer}
+            settings={settings}
             onUpdate={handleUpdate}
             onUpdateSettings={updateSettings}
           />
         </TabsContent>
 
-        <TabsContent value="animate" className="mt-3.5">
-          <LayerAnimationProperties layer={selectedLayer} onUpdate={handleUpdate} />
-        </TabsContent>
+        {hasTab('animate') && (
+          <TabsContent value="animate" className="mt-3.5">
+            <LayerAnimationProperties layer={selectedLayer} onUpdate={handleUpdate} />
+          </TabsContent>
+        )}
 
-        <TabsContent value="timing" className="mt-3.5">
-          <TimingProperties
-            layer={selectedLayer}
-            maxDuration={maxDuration}
-            onUpdate={handleUpdate}
-          />
-        </TabsContent>
+        {hasTab('timing') && (
+          <TabsContent value="timing" className="mt-3.5">
+            <TimingProperties
+              layer={selectedLayer}
+              maxDuration={maxDuration}
+              onUpdate={handleUpdate}
+            />
+          </TabsContent>
+        )}
 
-        <TabsContent value="advanced" className="mt-3.5 space-y-3.5">
-          <TransformProperties layer={selectedLayer} onUpdate={handleUpdate} />
-          <AdvancedLayerProperties layer={selectedLayer} onUpdate={handleUpdate} />
-        </TabsContent>
+        {hasTab('advanced') && (
+          <TabsContent value="advanced" className="mt-3.5 space-y-3.5">
+            <TransformProperties layer={selectedLayer} onUpdate={handleUpdate} />
+            <AdvancedLayerProperties layer={selectedLayer} onUpdate={handleUpdate} />
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );

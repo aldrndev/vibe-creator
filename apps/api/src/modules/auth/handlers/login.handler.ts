@@ -41,6 +41,10 @@ export async function loginHandler(request: FastifyRequest, reply: FastifyReply)
     return sendError(reply, ERROR_CODES.INVALID_CREDENTIALS, 'Email atau password salah', 401);
   }
 
+  if (user.status !== 'ACTIVE') {
+    return sendError(reply, ERROR_CODES.INVALID_CREDENTIALS, 'Email atau password salah', 401);
+  }
+
   const isValidPassword = await verifyPassword(body.password, user.password);
 
   if (!isValidPassword) {

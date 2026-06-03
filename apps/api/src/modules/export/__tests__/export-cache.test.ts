@@ -106,4 +106,57 @@ describe('export cache utilities', () => {
 
     expect(filename).toBe('video-studio-20260517-0203.mp4');
   });
+
+  it('creates Loop Creator filenames with a readable product prefix', () => {
+    expect(
+      createExportDisplayFilename({
+        prefix: 'loop-creator',
+        projectTitle: 'Ocean Waves Loop',
+        createdAt: new Date('2026-05-17T02:03:00.000Z'),
+      }),
+    ).toBe('loop-creator-ocean-waves-loop-20260517-0203.mp4');
+  });
+
+  it('includes loop render settings in the cache fingerprint', () => {
+    const repeat = createExportFingerprint({
+      projectId: 'project-1',
+      format: 'MP4',
+      resolution: 'HD',
+      addWatermark: false,
+      timelineData: { ...baseTimeline, renderKind: 'timeline' },
+    });
+    const loop = createExportFingerprint({
+      projectId: 'project-1',
+      format: 'MP4',
+      resolution: 'HD',
+      addWatermark: false,
+      timelineData: {
+        ...baseTimeline,
+        renderKind: 'loop-creator',
+        loopSpec: {
+          kind: 'loop-creator-render',
+          schemaVersion: 1,
+          projectId: 'project-1',
+          sourceAssetPath: 'project-asset:asset-video',
+          sourceDurationMs: 5000,
+          sourceHasAudio: true,
+          trimStartMs: 0,
+          trimEndMs: 5000,
+          selectedSegmentDurationMs: 5000,
+          audioMuted: false,
+          transitionMode: 'repeat',
+          transitionDurationMs: 0,
+          cycleDurationMs: 5000,
+          cycleCount: 60,
+          targetDurationMs: 300_000,
+          actualDurationMs: 300_000,
+          aspectRatio: 'original',
+          outputWidth: 1080,
+          outputHeight: 1920,
+        },
+      },
+    });
+
+    expect(loop).not.toBe(repeat);
+  });
 });

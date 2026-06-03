@@ -6,70 +6,7 @@ import { prisma } from '@/lib/prisma';
 import { addExportJob, getExportQueueStats } from './export.queue';
 import { createExportDisplayFilename, createExportFingerprint } from './export-cache';
 import { cancelExportJob } from './export-cancel';
-
-interface TimelineData {
-  clips: Array<{
-    localPath: string;
-    mediaType?: 'video' | 'image';
-    startTime: number;
-    endTime: number;
-    transforms?: {
-      x: number;
-      y: number;
-      scale: number;
-      rotation: number;
-      opacity: number;
-    };
-    effects?: {
-      filters: string[];
-      speed: number;
-      volume: number;
-      fadeIn: number;
-      fadeOut: number;
-      transitionIn?: 'none' | 'fade' | 'slide-left' | 'slide-right' | 'zoom';
-      transitionOut?: 'none' | 'fade' | 'slide-left' | 'slide-right' | 'zoom';
-      motion?: 'none' | 'zoom-in' | 'zoom-out';
-    };
-  }>;
-  textOverlays?: Array<{
-    id: string;
-    content: string;
-    startMs: number;
-    endMs: number;
-    x: number;
-    y: number;
-    fontSize: number;
-    fontFamily: string;
-    fontWeight?: string;
-    color: string;
-    backgroundColor?: string;
-    animation?: 'none' | 'fade' | 'slide-up' | 'slide-down' | 'typewriter';
-    animationIn?: 'none' | 'fade' | 'slide-up' | 'slide-down' | 'pop' | 'zoom' | 'typewriter';
-    animationOut?: 'none' | 'fade-out' | 'slide-out' | 'shrink';
-    animationLoop?: 'none' | 'pulse' | 'shake' | 'glow';
-  }>;
-  audioTracks?: Array<{
-    localPath: string;
-    startTime: number;
-    endTime: number;
-    timelineStartMs: number;
-    timelineEndMs: number;
-    volume: number;
-    fadeInMs: number;
-    fadeOutMs: number;
-  }>;
-  settings: {
-    width: number;
-    height: number;
-    fps: number;
-    backgroundColor?: string;
-    backgroundMode?: 'solid' | 'blur';
-    backgroundBlurAmount?: number;
-    backgroundBlurZoom?: number;
-    backgroundDim?: number;
-    backgroundSaturation?: number;
-  };
-}
+import type { TimelineData } from './processors/export-processor.types';
 
 interface CreateExportJobInput {
   userId: string;
@@ -83,6 +20,7 @@ interface CreateExportJobInput {
   pendingLimit?: number;
   requestId: string;
   quotaAllowed?: boolean;
+  displayFilenamePrefix?: 'video-studio' | 'loop-creator' | 'reaction';
 }
 
 type ExportCacheState = 'none' | 'active-job' | 'completed-result';
@@ -124,6 +62,7 @@ export const exportService = {
       pendingLimit = DEFAULT_PENDING_LIMIT,
       requestId,
       quotaAllowed = true,
+      displayFilenamePrefix = 'video-studio',
     } = input;
     const persistedProjectId = projectId && projectId !== 'default' ? projectId : undefined;
     const exportFingerprint = createExportFingerprint({
@@ -199,7 +138,12 @@ export const exportService = {
     }
 
     const now = new Date();
-    const displayFilename = await createDisplayFilenameForProject(userId, persistedProjectId, now);
+    const displayFilename = await createDisplayFilenameForProject(
+      userId,
+      persistedProjectId,
+      now,
+      displayFilenamePrefix,
+    );
 
     const job = await prisma.exportHistory.create({
       data: {
@@ -370,9 +314,10 @@ async function createDisplayFilenameForProject(
   userId: string,
   projectId: string | undefined,
   createdAt: Date,
+  prefix: 'video-studio' | 'loop-creator' | 'reaction',
 ): Promise<string> {
   if (!projectId) {
-    return createExportDisplayFilename({ createdAt });
+    return createExportDisplayFilename({ createdAt, prefix });
   }
 
   const project = await prisma.project.findFirst({
@@ -383,5 +328,6 @@ async function createDisplayFilenameForProject(
   return createExportDisplayFilename({
     projectTitle: project?.title,
     createdAt,
+    prefix,
   });
 }

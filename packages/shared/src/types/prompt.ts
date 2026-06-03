@@ -5,7 +5,8 @@ export type PromptType =
   | 'IMAGE'
   | 'RELAXING'
   | 'CREATIVE_SCAN'
-  | 'TIMELAPSE';
+  | 'TIMELAPSE'
+  | 'LOOP_SOURCE';
 
 export interface Prompt {
   id: string;
@@ -35,7 +36,8 @@ export type PromptInputData =
   | ImagePromptInput
   | RelaxingPromptInput
   | CreativeScanPromptInput
-  | TimelapsePromptInput;
+  | TimelapsePromptInput
+  | LoopSourcePromptInput;
 
 export interface ScriptPromptInput {
   type: 'SCRIPT';
@@ -188,6 +190,58 @@ export interface TimelapsePromptInput {
   aspectRatio: '16:9' | '9:16' | '1:1' | '4:3';
   lighting: TimelapseLighting;
   additionalDetails?: string; // 0-1000 chars
+}
+
+export type LoopMood =
+  | 'natural-calm'
+  | 'cozy-warm'
+  | 'cinematic-peaceful'
+  | 'meditative'
+  | 'sleep-ambience';
+
+export type LoopLightingOption =
+  | 'morning-soft-light'
+  | 'golden-hour'
+  | 'evening-warm-light'
+  | 'night-ambient-light'
+  | 'overcast-calm';
+
+export type LoopVisualStyle =
+  | 'photorealistic'
+  | 'cinematic-natural'
+  | 'ultra-realistic'
+  | 'soft-cozy'
+  | 'ambient-documentary';
+
+export type LoopSceneId =
+  | 'cozy-fireplace'
+  | 'forest-river'
+  | 'rainy-window'
+  | 'ocean-shore'
+  | 'night-campfire'
+  | 'waterfall-retreat'
+  | 'mountain-stream'
+  | 'cozy-cafe-rain'
+  | 'aquarium-calm'
+  | 'custom';
+
+export interface LoopSourceCustomScene {
+  environment: string;
+  focalPoint: string;
+  continuousMotion: string;
+  nativeAudio: string;
+}
+
+export interface LoopSourcePromptInput {
+  type: 'LOOP_SOURCE';
+  sceneId: LoopSceneId;
+  customScene?: LoopSourceCustomScene;
+  mood: LoopMood;
+  lighting: LoopLightingOption;
+  aspectRatio: '16:9' | '9:16' | '1:1' | '4:5';
+  durationSeconds: 8 | 10 | 15;
+  visualStyle: LoopVisualStyle;
+  additionalDetail?: string;
 }
 
 export interface CreatePromptInput {

@@ -50,6 +50,7 @@ export interface EditorAsset {
   id: string;
   name: string;
   type: 'VIDEO' | 'AUDIO' | 'IMAGE';
+  libraryPurpose?: 'media' | 'background';
   url: string; // Blob URL or presigned URL
   file?: File; // Original file for FFmpeg processing
   durationMs?: number;
@@ -74,6 +75,11 @@ export interface EditorTrack extends Omit<TimelineTrack, 'timelineId'> {
 
 export interface EditorClip extends Omit<TimelineClip, 'trackId'> {
   asset?: EditorAsset;
+  layerId?: string;
+  zIndex?: number;
+  fit?: 'contain' | 'cover';
+  loop?: boolean;
+  visible?: boolean;
 }
 
 export interface ExportSettings {

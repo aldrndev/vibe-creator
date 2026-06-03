@@ -106,6 +106,20 @@ export function PromptBuilderPage() {
     RELAXING: <RelaxingForm data={relaxingForm} onChange={setRelaxingForm} />,
     CREATIVE_SCAN: <CreativeScanForm data={creativeScanForm} onChange={setCreativeScanForm} />,
     TIMELAPSE: <TimelapseForm data={timelapseForm} onChange={setTimelapseForm} />,
+    LOOP_SOURCE: (
+      <Card className="border-border/50 bg-card/70">
+        <CardBody className="space-y-4 p-8 text-center">
+          <h2 className="text-xl font-black">Loop Source tersedia di Loop Creator</h2>
+          <p className="text-sm font-medium text-muted-foreground">
+            Composer khusus memastikan scene, gerakan kontinu, dan audio ambience tetap cocok untuk
+            video loop.
+          </p>
+          <Button className="rounded-xl" onClick={() => navigate('/tools/loop-creator')}>
+            Buka Loop Creator
+          </Button>
+        </CardBody>
+      </Card>
+    ),
   };
 
   return (

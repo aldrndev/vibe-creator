@@ -24,6 +24,7 @@ export const MAX_HISTORY_ENTRIES = 50;
 export const DEFAULT_PROJECT_TITLE = 'Untitled Project';
 const MIN_CANVAS_SIZE = 320;
 const MAX_CANVAS_SIZE = 4096;
+const LAYER_TRANSFORM_DECIMAL_FACTOR = 100;
 const FILE_EXTENSION_PATTERN = /\.[^./\\]+$/;
 const READABLE_FILENAME_SEPARATOR_PATTERN = /[_-]+/g;
 const COLLAPSED_WHITESPACE_PATTERN = /\s+/g;
@@ -41,10 +42,21 @@ export function getDefaultSettings(): ModernProjectSettings {
     durationMs: 0,
     backgroundColor: '#000000',
     backgroundMode: 'blur',
+    backgroundOpacity: 1,
     backgroundBlurAmount: 18,
     backgroundBlurZoom: 1.08,
     backgroundDim: 0.08,
     backgroundSaturation: 1.05,
+    backgroundGradientFrom: '#111827',
+    backgroundGradientTo: '#ff4b1f',
+    backgroundGradientAngle: 135,
+    backgroundImageAssetId: null,
+    backgroundImageFit: 'cover',
+    backgroundImageBlurAmount: 0,
+    backgroundImageDim: 0,
+    backgroundImagePositionX: 50,
+    backgroundImagePositionY: 50,
+    backgroundImageScale: 1,
   };
 }
 
@@ -71,6 +83,7 @@ export function mergeModernProjectSettings(
     durationMs: normalizedUpdates.durationMs ?? baseSettings.durationMs,
     backgroundColor: normalizedUpdates.backgroundColor?.trim() || baseSettings.backgroundColor,
     backgroundMode: normalizedUpdates.backgroundMode ?? baseSettings.backgroundMode,
+    backgroundOpacity: normalizedUpdates.backgroundOpacity ?? baseSettings.backgroundOpacity ?? 1,
     backgroundBlurAmount:
       normalizedUpdates.backgroundBlurAmount ?? baseSettings.backgroundBlurAmount ?? 18,
     backgroundBlurZoom:
@@ -78,6 +91,32 @@ export function mergeModernProjectSettings(
     backgroundDim: normalizedUpdates.backgroundDim ?? baseSettings.backgroundDim ?? 0.08,
     backgroundSaturation:
       normalizedUpdates.backgroundSaturation ?? baseSettings.backgroundSaturation ?? 1.05,
+    backgroundGradientFrom:
+      normalizedUpdates.backgroundGradientFrom?.trim() ||
+      baseSettings.backgroundGradientFrom ||
+      '#111827',
+    backgroundGradientTo:
+      normalizedUpdates.backgroundGradientTo?.trim() ||
+      baseSettings.backgroundGradientTo ||
+      '#ff4b1f',
+    backgroundGradientAngle:
+      normalizedUpdates.backgroundGradientAngle ?? baseSettings.backgroundGradientAngle ?? 135,
+    backgroundImageAssetId:
+      normalizedUpdates.backgroundImageAssetId !== undefined
+        ? normalizedUpdates.backgroundImageAssetId
+        : (baseSettings.backgroundImageAssetId ?? null),
+    backgroundImageFit:
+      normalizedUpdates.backgroundImageFit ?? baseSettings.backgroundImageFit ?? 'cover',
+    backgroundImageBlurAmount:
+      normalizedUpdates.backgroundImageBlurAmount ?? baseSettings.backgroundImageBlurAmount ?? 0,
+    backgroundImageDim:
+      normalizedUpdates.backgroundImageDim ?? baseSettings.backgroundImageDim ?? 0,
+    backgroundImagePositionX:
+      normalizedUpdates.backgroundImagePositionX ?? baseSettings.backgroundImagePositionX ?? 50,
+    backgroundImagePositionY:
+      normalizedUpdates.backgroundImagePositionY ?? baseSettings.backgroundImagePositionY ?? 50,
+    backgroundImageScale:
+      normalizedUpdates.backgroundImageScale ?? baseSettings.backgroundImageScale ?? 1,
   };
 }
 
@@ -142,6 +181,10 @@ export function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
+function roundLayerTransformNumber(value: number): number {
+  return Math.round(value * LAYER_TRANSFORM_DECIMAL_FACTOR) / LAYER_TRANSFORM_DECIMAL_FACTOR;
+}
+
 export function normalizeSettings(
   settings: Partial<ModernProjectSettings>,
 ): Partial<ModernProjectSettings> {
@@ -159,6 +202,10 @@ export function normalizeSettings(
       settings.durationMs === undefined
         ? undefined
         : clamp(settings.durationMs, 0, MODERN_LIMITS.MAX_DURATION_MS),
+    backgroundOpacity:
+      settings.backgroundOpacity === undefined
+        ? undefined
+        : clamp(settings.backgroundOpacity, 0, 1),
     backgroundBlurAmount:
       settings.backgroundBlurAmount === undefined
         ? undefined
@@ -173,18 +220,54 @@ export function normalizeSettings(
       settings.backgroundSaturation === undefined
         ? undefined
         : clamp(settings.backgroundSaturation, 0, 2),
+    backgroundGradientAngle:
+      settings.backgroundGradientAngle === undefined
+        ? undefined
+        : clamp(settings.backgroundGradientAngle, 0, 360),
+    backgroundImageBlurAmount:
+      settings.backgroundImageBlurAmount === undefined
+        ? undefined
+        : clamp(settings.backgroundImageBlurAmount, 0, 40),
+    backgroundImageDim:
+      settings.backgroundImageDim === undefined
+        ? undefined
+        : clamp(settings.backgroundImageDim, 0, 0.6),
+    backgroundImagePositionX:
+      settings.backgroundImagePositionX === undefined
+        ? undefined
+        : clamp(settings.backgroundImagePositionX, 0, 100),
+    backgroundImagePositionY:
+      settings.backgroundImagePositionY === undefined
+        ? undefined
+        : clamp(settings.backgroundImagePositionY, 0, 100),
+    backgroundImageScale:
+      settings.backgroundImageScale === undefined
+        ? undefined
+        : clamp(settings.backgroundImageScale, 1, 2),
   };
 }
 
 export function normalizeLayerUpdates(layer: Layer, updates: Partial<Layer>): Partial<Layer> {
   const normalized: Partial<Layer> = { ...updates };
 
-  if (updates.x !== undefined) normalized.x = clamp(updates.x, -100, 200);
-  if (updates.y !== undefined) normalized.y = clamp(updates.y, -100, 200);
-  if (updates.width !== undefined) normalized.width = clamp(updates.width, 1, 200);
-  if (updates.height !== undefined) normalized.height = clamp(updates.height, 1, 200);
-  if (updates.rotation !== undefined) normalized.rotation = clamp(updates.rotation, -360, 360);
-  if (updates.opacity !== undefined) normalized.opacity = clamp(updates.opacity, 0, 1);
+  if (updates.x !== undefined) {
+    normalized.x = roundLayerTransformNumber(clamp(updates.x, -100, 200));
+  }
+  if (updates.y !== undefined) {
+    normalized.y = roundLayerTransformNumber(clamp(updates.y, -100, 200));
+  }
+  if (updates.width !== undefined) {
+    normalized.width = roundLayerTransformNumber(clamp(updates.width, 1, 200));
+  }
+  if (updates.height !== undefined) {
+    normalized.height = roundLayerTransformNumber(clamp(updates.height, 1, 200));
+  }
+  if (updates.rotation !== undefined) {
+    normalized.rotation = roundLayerTransformNumber(clamp(updates.rotation, -360, 360));
+  }
+  if (updates.opacity !== undefined) {
+    normalized.opacity = roundLayerTransformNumber(clamp(updates.opacity, 0, 1));
+  }
 
   const startMs = normalized.startMs ?? layer.startMs;
   const endMs = normalized.endMs ?? layer.endMs;

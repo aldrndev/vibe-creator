@@ -1,6 +1,11 @@
 import type { Layer } from '@vibe-creator/shared';
+import { GripVertical } from 'lucide-react';
 import type { RefObject } from 'react';
-import { type TimelineClipViewModel, timelineMsToPx } from '@/lib/modern-timeline-utils';
+import {
+  getTimelineLayerLabel,
+  type TimelineClipViewModel,
+  timelineMsToPx,
+} from '@/lib/modern-timeline-utils';
 import { cn } from '@/lib/utils';
 import { TimelineClip } from './timeline-clip';
 
@@ -22,12 +27,21 @@ interface TimelineLayerRowsProps {
   readonly reorderingLayerId: string | null;
   readonly displayLayerIndexById: ReadonlyMap<string, number>;
   readonly currentTimeLeftPx: number;
+  readonly headerWidthPx: number;
   readonly timelineWidthPx: number;
   readonly pxPerSecond: number;
   readonly rowHeightPx: number;
   readonly rowsRef: RefObject<HTMLDivElement | null>;
-  readonly onSeekToClientX: (clientX: number, element: HTMLElement) => void;
+  readonly selectedLayerIds: readonly string[];
+  readonly onTrackBackgroundPointerDown: (
+    event: React.PointerEvent<HTMLElement>,
+    element: HTMLElement,
+  ) => void;
   readonly onSelectLayer: (event: React.MouseEvent<HTMLButtonElement>, layerId: string) => void;
+  readonly onDragStart: (event: React.DragEvent<HTMLElement>, layerId: string) => void;
+  readonly onDragOver: (event: React.DragEvent<HTMLElement>) => void;
+  readonly onDrop: (event: React.DragEvent<HTMLElement>, targetLayerId: string) => void;
+  readonly onDragEnd: () => void;
   readonly onPointerStart: (
     event: React.PointerEvent<HTMLButtonElement>,
     layer: Layer,
@@ -46,24 +60,30 @@ export function TimelineLayerRows({
   reorderingLayerId,
   displayLayerIndexById,
   currentTimeLeftPx,
+  headerWidthPx,
   timelineWidthPx,
   pxPerSecond,
   rowHeightPx,
   rowsRef,
-  onSeekToClientX,
+  selectedLayerIds,
+  onTrackBackgroundPointerDown,
   onSelectLayer,
+  onDragStart,
+  onDragOver,
+  onDrop,
+  onDragEnd,
   onPointerStart,
 }: TimelineLayerRowsProps) {
   return (
     <div ref={rowsRef} className="relative">
       <div
         className="pointer-events-none absolute top-0 bottom-0 z-30 w-px bg-primary"
-        style={{ left: currentTimeLeftPx, height: layers.length * rowHeightPx }}
+        style={{ left: headerWidthPx + currentTimeLeftPx, height: layers.length * rowHeightPx }}
       />
       {snapGuideLeftPx !== null && (
         <div
           className="pointer-events-none absolute top-0 bottom-0 z-20 w-px bg-primary/60"
-          style={{ left: snapGuideLeftPx, height: layers.length * rowHeightPx }}
+          style={{ left: headerWidthPx + snapGuideLeftPx, height: layers.length * rowHeightPx }}
         />
       )}
       {layers.map((layer) => {
@@ -87,32 +107,63 @@ export function TimelineLayerRows({
         return (
           <div
             key={layer.id}
-            className={cn(
-              'relative border-t border-border/30 bg-background/20 hover:bg-muted/10',
-              isReorderTarget &&
-                'bg-primary/10 outline outline-1 -outline-offset-1 outline-primary/45',
-              reorderingLayerId &&
-                reorderingLayerId !== layer.id &&
-                'outline outline-1 -outline-offset-1 outline-primary/20',
-            )}
-            style={{ height: rowHeightPx, width: timelineWidthPx }}
-            onPointerDown={(event) => {
-              if (event.target === event.currentTarget) {
-                onSeekToClientX(event.clientX, event.currentTarget);
-              }
-            }}
+            className="relative isolate flex"
+            style={{ height: rowHeightPx, width: headerWidthPx + timelineWidthPx }}
           >
-            <TimelineClip
-              layer={layer}
-              viewModel={viewModel}
-              previewLeftPx={preview ? timelineMsToPx(preview.startMs, pxPerSecond) : null}
-              previewWidthPx={
-                preview ? timelineMsToPx(preview.endMs - preview.startMs, pxPerSecond) : null
-              }
-              previewTranslateYPx={previewTranslateYPx}
-              onSelect={(event) => onSelectLayer(event, layer.id)}
-              onPointerStart={(event, mode) => onPointerStart(event, layer, mode)}
-            />
+            <button
+              type="button"
+              draggable
+              className={cn(
+                'sticky left-0 z-[70] flex shrink-0 items-center gap-2 overflow-hidden border-r border-t border-border/30 bg-card/95 px-2.5 text-left text-[11px] font-black shadow-[8px_0_18px_rgba(0,0,0,0.18)] backdrop-blur transition-colors',
+                selectedLayerIds.includes(layer.id)
+                  ? 'text-primary'
+                  : 'text-muted-foreground hover:bg-muted/30 hover:text-foreground',
+                reorderingLayerId === layer.id && 'opacity-55',
+              )}
+              style={{ width: headerWidthPx, height: rowHeightPx }}
+              onClick={(event) => onSelectLayer(event, layer.id)}
+              onDragStart={(event) => onDragStart(event, layer.id)}
+              onDragOver={onDragOver}
+              onDrop={(event) => onDrop(event, layer.id)}
+              onDragEnd={onDragEnd}
+              aria-label={`Geser urutan layer ${getTimelineLayerLabel(layer)}`}
+            >
+              <GripVertical
+                size={14}
+                className="shrink-0 text-muted-foreground/35 transition-colors"
+                aria-hidden="true"
+              />
+              <span className="min-w-0 flex-1 truncate">{getTimelineLayerLabel(layer)}</span>
+            </button>
+
+            <div
+              className={cn(
+                'relative z-0 cursor-ew-resize overflow-hidden border-t border-border/30 bg-background/20 hover:bg-muted/10',
+                isReorderTarget &&
+                  'bg-primary/10 outline outline-1 -outline-offset-1 outline-primary/45',
+                reorderingLayerId &&
+                  reorderingLayerId !== layer.id &&
+                  'outline outline-1 -outline-offset-1 outline-primary/20',
+              )}
+              style={{ height: rowHeightPx, width: timelineWidthPx }}
+              onPointerDown={(event) => {
+                if (event.target === event.currentTarget) {
+                  onTrackBackgroundPointerDown(event, event.currentTarget);
+                }
+              }}
+            >
+              <TimelineClip
+                layer={layer}
+                viewModel={viewModel}
+                previewLeftPx={preview ? timelineMsToPx(preview.startMs, pxPerSecond) : null}
+                previewWidthPx={
+                  preview ? timelineMsToPx(preview.endMs - preview.startMs, pxPerSecond) : null
+                }
+                previewTranslateYPx={previewTranslateYPx}
+                onSelect={(event) => onSelectLayer(event, layer.id)}
+                onPointerStart={(event, mode) => onPointerStart(event, layer, mode)}
+              />
+            </div>
           </div>
         );
       })}

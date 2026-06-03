@@ -12,29 +12,8 @@ import {
   sendPaginated,
   sendSuccess,
 } from '@/utils/response';
+import { createPromptSchema, createVersionSchema, promptTypeSchema } from './prompt.schemas';
 import { promptService } from './prompt.service';
-
-// Validation schemas
-const promptTypeSchema = z.enum([
-  'SCRIPT',
-  'VOICE',
-  'VIDEO_GEN',
-  'IMAGE',
-  'RELAXING',
-  'CREATIVE_SCAN',
-  'TIMELAPSE',
-]);
-
-const createPromptSchema = z.object({
-  type: promptTypeSchema,
-  title: z.string().min(1, 'Judul diperlukan').max(200),
-  inputData: z.record(z.string(), z.unknown()),
-});
-
-const createVersionSchema = z.object({
-  inputData: z.record(z.string(), z.unknown()),
-  userNotes: z.string().optional(),
-});
 
 const listQuerySchema = z.object({
   page: z.coerce.number().min(1).default(DEFAULT_PAGE),

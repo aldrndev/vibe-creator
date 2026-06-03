@@ -37,7 +37,7 @@ export function LiveStreamPlatformSelector({
                 className={cn(
                   'flex flex-col items-center justify-center gap-3 p-4 rounded-2xl border transition-all duration-300 relative group overflow-hidden active:scale-95 w-full h-full',
                   isActive
-                    ? 'bg-primary/10 border-primary'
+                    ? 'border-primary/35 bg-muted/25'
                     : 'bg-card/20 backdrop-blur-xl border-border/50 hover:border-primary/30 hover:bg-muted/20',
                   isStreaming && !isActive ? 'opacity-40 grayscale' : '',
                 )}
@@ -46,25 +46,18 @@ export function LiveStreamPlatformSelector({
                   className={cn(
                     'w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-300',
                     isActive
-                      ? 'bg-primary text-white scale-110'
+                      ? 'bg-muted text-primary scale-105'
                       : 'bg-muted text-muted-foreground group-hover:scale-110 group-hover:bg-primary/10 group-hover:text-primary',
                   )}
                 >
                   {config.icon}
                 </div>
                 <div className="text-center">
-                  <p
-                    className={cn(
-                      'text-xs font-black tracking-tight',
-                      isActive ? 'text-primary' : 'text-foreground',
-                    )}
-                  >
-                    {config.name}
-                  </p>
+                  <p className="text-xs font-black tracking-tight text-foreground">{config.name}</p>
                 </div>
 
                 {isActive && (
-                  <div className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                  <div className="absolute top-2 right-2 h-1.5 w-1.5 rounded-full bg-primary/70" />
                 )}
               </button>
             </HoverCard>

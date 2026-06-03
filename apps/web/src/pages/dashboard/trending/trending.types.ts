@@ -20,8 +20,16 @@ export interface TrendingStatus {
   lastSuccessAt: string | null;
 }
 
+export interface TrendingMetadata {
+  maxResults: number;
+  returnedCount: number;
+  regionLabel: string;
+  lastUpdatedAt: string | null;
+}
+
 export interface TrendingResponse {
   items: TrendingItem[];
   nextCursor: string | null;
   status: TrendingStatus;
+  metadata: TrendingMetadata;
 }

@@ -3,18 +3,13 @@ import { env } from '@/config/env';
 import { createCircuitBreaker } from '@/lib/circuit-breaker';
 import { logger } from '@/lib/logger';
 import { prisma } from '@/lib/prisma';
+import { getExportLimitForTier } from '@/lib/subscription-limits';
 
 // Pricing in IDR
 const TIER_PRICES: Record<string, number> = {
   FREE: 0,
   CREATOR: 99000,
   PRO: 199000,
-};
-
-const TIER_EXPORTS: Record<string, number> = {
-  FREE: 5,
-  CREATOR: 50,
-  PRO: -1, // Unlimited
 };
 
 interface CreateInvoiceInput {
@@ -123,8 +118,8 @@ export const paymentService = {
         payer_email: userEmail,
         description: `Vibe Creator - ${tier} Subscription`,
         invoice_duration: 86400, // 24 hours
-        success_redirect_url: `${env.FRONTEND_URL}/dashboard/settings?payment=success`,
-        failure_redirect_url: `${env.FRONTEND_URL}/dashboard/settings?payment=failed`,
+        success_redirect_url: `${env.FRONTEND_URL}/dashboard/pricing?payment=success`,
+        failure_redirect_url: `${env.FRONTEND_URL}/dashboard/pricing?payment=failed`,
       }),
     });
 
@@ -215,7 +210,7 @@ export const paymentService = {
    * Upgrade user subscription
    */
   async upgradeSubscription(userId: string, tier: SubscriptionTier): Promise<void> {
-    const exportsLimit = TIER_EXPORTS[tier];
+    const exportsLimit = getExportLimitForTier(tier);
     const validUntil = new Date();
     validUntil.setMonth(validUntil.getMonth() + 1); // 1 month subscription
 
@@ -226,14 +221,14 @@ export const paymentService = {
         tier,
         status: 'ACTIVE',
         exportsUsed: 0,
-        exportsLimit: exportsLimit === -1 ? 999999 : exportsLimit,
+        exportsLimit,
         validUntil,
       },
       update: {
         tier,
         status: 'ACTIVE',
         exportsUsed: 0,
-        exportsLimit: exportsLimit === -1 ? 999999 : exportsLimit,
+        exportsLimit,
         validUntil,
       },
     });
@@ -296,7 +291,7 @@ export const paymentService = {
           tier: 'FREE',
           status: 'ACTIVE',
           exportsUsed: 0,
-          exportsLimit: TIER_EXPORTS.FREE,
+          exportsLimit: getExportLimitForTier('FREE'),
         },
       });
     }
@@ -309,7 +304,7 @@ export const paymentService = {
           tier: 'FREE',
           status: 'EXPIRED',
           exportsUsed: 0,
-          exportsLimit: TIER_EXPORTS.FREE,
+          exportsLimit: getExportLimitForTier('FREE'),
           validUntil: null,
         },
       });

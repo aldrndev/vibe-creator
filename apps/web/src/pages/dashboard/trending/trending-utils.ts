@@ -137,7 +137,7 @@ export function getSourceLabel(item: TrendingItem): string {
     return 'YouTube';
   }
 
-  return 'Google Trends';
+  return 'Legacy Trend';
 }
 
 export function getFreshnessLabel(timestamp: string): string {

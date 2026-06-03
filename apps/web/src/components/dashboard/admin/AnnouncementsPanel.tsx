@@ -1,22 +1,33 @@
-import { Megaphone, Plus, Trash2 } from 'lucide-react';
+import { Check, Edit3, Megaphone, Plus, Trash2, X } from 'lucide-react';
+import { useMemo, useState } from 'react';
 import { Badge, Button, Card, CardBody, Switch } from '@/components/ui';
 import type { Announcement } from '@/hooks/useAdminData';
 
 interface AnnouncementsPanelProps {
   announcements: Announcement[];
   isLoading: boolean;
+  isMutating: boolean;
   onOpenCreate: () => void;
-  onUpdate: (id: string, data: Partial<Announcement>) => void;
-  onDelete: (id: string) => void;
+  onOpenEdit: (announcement: Announcement) => void;
+  onUpdate: (id: string, data: Partial<Announcement>) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
 }
 
 export function AnnouncementsPanel({
   announcements,
   isLoading,
+  isMutating,
   onOpenCreate,
+  onOpenEdit,
   onUpdate,
   onDelete,
 }: AnnouncementsPanelProps) {
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const activeCount = useMemo(
+    () => announcements.filter((announcement) => announcement.isActive).length,
+    [announcements],
+  );
+
   return (
     <Card className="bg-card/70 border border-border/40 shadow-none rounded-xl overflow-hidden h-full">
       <div className="p-5 border-b border-border/40 flex justify-between gap-x-4 items-center bg-muted/5">
@@ -27,7 +38,7 @@ export function AnnouncementsPanel({
           <div>
             <h2 className="text-lg font-bold tracking-tight">Announcements</h2>
             <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mt-0.5 block">
-              {announcements.length} Active
+              {activeCount} Active
             </span>
           </div>
         </div>
@@ -83,25 +94,65 @@ export function AnnouncementsPanel({
                     </span>
                   </div>
                 </div>
-                <div className="flex items-center gap-4 pt-1">
+                <div className="flex flex-col items-end gap-3 pt-1">
                   <div className="flex items-center gap-2">
                     <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
                       Visibility
                     </span>
                     <Switch
                       checked={a.isActive}
+                      disabled={isMutating}
                       onCheckedChange={(checked: boolean) => onUpdate(a.id, { isActive: checked })}
                       className="scale-90"
                     />
                   </div>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-8 w-8 rounded-lg text-destructive/70 hover:text-destructive hover:bg-destructive/5 transition-colors"
-                    onClick={() => onDelete(a.id)}
-                  >
-                    <Trash2 size={14} />
-                  </Button>
+                  {pendingDeleteId === a.id ? (
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 rounded-lg px-2 text-muted-foreground"
+                        onClick={() => setPendingDeleteId(null)}
+                      >
+                        <X size={14} />
+                        Batal
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        className="h-8 rounded-lg px-2 text-[10px] font-black uppercase tracking-widest"
+                        disabled={isMutating}
+                        onClick={async () => {
+                          await onDelete(a.id);
+                          setPendingDeleteId(null);
+                        }}
+                      >
+                        <Check size={14} />
+                        Hapus
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8 rounded-lg text-muted-foreground hover:bg-primary/5 hover:text-primary"
+                        onClick={() => onOpenEdit(a)}
+                        aria-label="Edit announcement"
+                      >
+                        <Edit3 size={14} />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8 rounded-lg text-destructive/70 transition-colors hover:bg-destructive/5 hover:text-destructive"
+                        onClick={() => setPendingDeleteId(a.id)}
+                        aria-label="Delete announcement"
+                      >
+                        <Trash2 size={14} />
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}

@@ -1,19 +1,46 @@
-import { Repeat } from 'lucide-react';
+import { Repeat2 } from 'lucide-react';
+import { Input } from '@/components/ui';
 
-export function LoopHeader() {
+interface LoopHeaderProps {
+  readonly title: string;
+  readonly onTitleChange: (title: string) => void;
+  readonly isSaving: boolean;
+  readonly hasProject: boolean;
+}
+
+export function LoopHeader({ title, onTitleChange, isSaving, hasProject }: LoopHeaderProps) {
   return (
-    <div className="flex flex-col gap-2 mb-8">
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-linear-to-br from-primary via-orange-500 to-rose-600 flex items-center justify-center">
-          <Repeat className="text-white w-6 h-6" />
+    <header className="mb-7 flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
+      <div className="space-y-2">
+        <div className="flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+            <Repeat2 size={23} />
+          </div>
+          <h1 className="text-3xl font-black tracking-tight text-foreground">Loop Creator</h1>
         </div>
-        <h1 className="text-3xl font-black tracking-tighter bg-clip-text text-transparent bg-linear-to-r from-primary via-orange-500 to-rose-600">
-          Loop Creator
-        </h1>
+        <p className="ml-14 max-w-xl text-sm font-medium text-muted-foreground">
+          Perpanjang satu video siap pakai menjadi video loop panjang yang halus.
+        </p>
       </div>
-      <p className="text-muted-foreground font-medium text-sm ml-13">
-        Buat video loop yang seamless, boomerang, atau GIF berkualitas tinggi dalam hitungan detik.
-      </p>
-    </div>
+      {hasProject ? (
+        <div className="w-full space-y-1 md:w-72">
+          <label
+            className="text-[11px] font-black uppercase text-muted-foreground"
+            htmlFor="loop-title"
+          >
+            Nama project
+          </label>
+          <Input
+            id="loop-title"
+            value={title}
+            onChange={(event) => onTitleChange(event.target.value)}
+            className="h-11 rounded-xl"
+          />
+          <p className="text-right text-[11px] font-semibold text-muted-foreground">
+            {isSaving ? 'Menyimpan...' : 'Auto-saved'}
+          </p>
+        </div>
+      ) : null}
+    </header>
   );
 }

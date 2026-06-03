@@ -6,7 +6,11 @@
  */
 
 import { describe, expect, it, vi } from 'vitest';
-import { generateExternalUrlHash, sanitizeText } from '../../trending.repository';
+import {
+  buildTrendingCursorWhere,
+  generateExternalUrlHash,
+  sanitizeText,
+} from '../../trending.repository';
 
 // Mock dependencies
 vi.mock('@/lib/logger', () => ({
@@ -102,6 +106,39 @@ describe('trending repository utilities', () => {
 
       expect(result).toBe('alert("xss")Safe content');
       expect(result).not.toContain('<script>');
+    });
+  });
+
+  describe('buildTrendingCursorWhere', () => {
+    it('builds a stable rank-first cursor for ranked items', () => {
+      const result = buildTrendingCursorWhere({
+        fetchedAt: new Date('2026-03-27T12:00:00.000Z'),
+        id: 'rank-30-id',
+        rank: 30,
+      });
+
+      expect(result).toEqual({
+        OR: [
+          { rank: { gt: 30 } },
+          {
+            rank: 30,
+            id: { gt: 'rank-30-id' },
+          },
+        ],
+      });
+    });
+
+    it('keeps null-rank pagination within the null-rank group', () => {
+      const result = buildTrendingCursorWhere({
+        fetchedAt: new Date('2026-03-27T12:00:00.000Z'),
+        id: 'unranked-id',
+        rank: null,
+      });
+
+      expect(result).toEqual({
+        rank: null,
+        id: { gt: 'unranked-id' },
+      });
     });
   });
 });

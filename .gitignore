@@ -59,6 +59,9 @@ __pycache__/
 .env.docker.*
 infra/compose/.env.docker.infra
 infra/compose/apps/**/.env.docker
+!.env.docker.example
+!infra/compose/apps/**/.env.docker.example
+!infra/compose/.env.docker.infra.example
 
 # Test artifacts
 test-temp-ffmpeg/

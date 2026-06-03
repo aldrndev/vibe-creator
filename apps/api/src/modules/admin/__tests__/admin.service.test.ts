@@ -1,24 +1,19 @@
-/**
- * Admin Service Unit Tests
- *
- * ✅ Happy path
- * ❌ Negative/error cases
- * 🔄 Edge cases
- */
-
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-// Use vi.hoisted to create mocks that can be used in vi.mock factory
 const { mockPrisma, mockLogger } = vi.hoisted(() => ({
   mockPrisma: {
+    $transaction: vi.fn(),
     user: {
       findUnique: vi.fn(),
       findMany: vi.fn(),
       count: vi.fn(),
-      delete: vi.fn(),
+      update: vi.fn(),
+    },
+    userSession: {
+      deleteMany: vi.fn(),
     },
     subscription: {
-      count: vi.fn(),
+      findUnique: vi.fn(),
       upsert: vi.fn(),
     },
     project: {
@@ -30,6 +25,7 @@ const { mockPrisma, mockLogger } = vi.hoisted(() => ({
     },
     paymentHistory: {
       count: vi.fn(),
+      aggregate: vi.fn(),
       findMany: vi.fn(),
     },
     announcement: {
@@ -55,28 +51,46 @@ vi.mock('@/lib/logger', () => ({
   logger: mockLogger,
 }));
 
-// Import service AFTER mocks
-import { adminService } from '../admin.service';
+import { AdminServiceError, adminService } from '../admin.service';
 
-// Test data factories
-function createMockUser(overrides = {}) {
+interface MockUser {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  status: string;
+  createdAt: Date;
+}
+
+interface MockSubscription {
+  id: string;
+  userId: string;
+  tier: string;
+  status: string;
+  exportsUsed: number;
+  exportsLimit: number;
+  validUntil: Date | null;
+}
+
+function createMockUser(overrides: Partial<MockUser> = {}): MockUser {
   return {
     id: 'user-123',
     email: 'test@example.com',
     name: 'Test User',
     role: 'USER',
+    status: 'ACTIVE',
     createdAt: new Date('2024-01-01'),
     ...overrides,
   };
 }
 
-function createMockSubscription(overrides = {}) {
+function createMockSubscription(overrides: Partial<MockSubscription> = {}): MockSubscription {
   return {
     id: 'sub-123',
     userId: 'user-123',
     tier: 'FREE',
     status: 'ACTIVE',
-    exportsUsed: 0,
+    exportsUsed: 7,
     exportsLimit: 5,
     validUntil: null,
     ...overrides,
@@ -86,145 +100,104 @@ function createMockSubscription(overrides = {}) {
 describe('adminService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockPrisma.$transaction.mockImplementation(async (operations: Promise<unknown>[]) =>
+      Promise.all(operations),
+    );
   });
 
-  // ============================================================================
-  // getStats
-  // ============================================================================
   describe('getStats', () => {
-    it('should return dashboard statistics', async () => {
-      // Arrange
-      mockPrisma.user.count.mockResolvedValue(100);
+    it('counts active, suspended, deleted, and free users correctly', async () => {
+      mockPrisma.user.count
+        .mockResolvedValueOnce(100)
+        .mockResolvedValueOnce(5)
+        .mockResolvedValueOnce(2)
+        .mockResolvedValueOnce(20)
+        .mockResolvedValueOnce(10)
+        .mockResolvedValueOnce(8);
       mockPrisma.project.count.mockResolvedValue(50);
-      mockPrisma.exportHistory.count.mockResolvedValue(200);
+      mockPrisma.exportHistory.count.mockResolvedValueOnce(200).mockResolvedValueOnce(12);
       mockPrisma.paymentHistory.count.mockResolvedValue(30);
-      mockPrisma.subscription.count
-        .mockResolvedValueOnce(70) // FREE
-        .mockResolvedValueOnce(20) // CREATOR
-        .mockResolvedValueOnce(10); // PRO
-      mockPrisma.paymentHistory.findMany.mockResolvedValue([
-        { amount: 100000 },
-        { amount: 200000 },
-      ]);
+      mockPrisma.paymentHistory.aggregate.mockResolvedValue({ _sum: { amount: 300_000 } });
 
-      // Act
       const result = await adminService.getStats();
 
-      // Assert
       expect(result.users.total).toBe(100);
-      expect(result.projects).toBe(50);
-      expect(result.exports.total).toBe(200);
-      expect(result.revenue.total).toBe(300000);
-      expect(result.revenue.payments).toBe(30);
-      expect(result.users.byTier.free).toBe(70);
+      expect(result.users.byStatus).toEqual({ active: 100, suspended: 5, deleted: 2 });
+      expect(result.users.byTier).toEqual({ free: 70, creator: 20, pro: 10 });
+      expect(result.revenue.total).toBe(300_000);
+      expect(mockPrisma.paymentHistory.aggregate).toHaveBeenCalledWith({
+        where: { status: 'PAID' },
+        _sum: { amount: true },
+      });
     });
 
-    it('should return zero revenue when no payments', async () => {
-      // Arrange
+    it('returns zero revenue when aggregate sum is empty', async () => {
       mockPrisma.user.count.mockResolvedValue(0);
       mockPrisma.project.count.mockResolvedValue(0);
       mockPrisma.exportHistory.count.mockResolvedValue(0);
       mockPrisma.paymentHistory.count.mockResolvedValue(0);
-      mockPrisma.subscription.count.mockResolvedValue(0);
-      mockPrisma.paymentHistory.findMany.mockResolvedValue([]);
+      mockPrisma.paymentHistory.aggregate.mockResolvedValue({ _sum: { amount: null } });
 
-      // Act
       const result = await adminService.getStats();
 
-      // Assert
       expect(result.revenue.total).toBe(0);
-    });
-
-    it('should handle database error gracefully', async () => {
-      // Arrange
-      mockPrisma.user.count.mockRejectedValue(new Error('DB connection failed'));
-
-      // Act & Assert
-      await expect(adminService.getStats()).rejects.toThrow('DB connection failed');
     });
   });
 
-  // ============================================================================
-  // getUsers
-  // ============================================================================
   describe('getUsers', () => {
-    it('should return paginated users list', async () => {
-      // Arrange
-      const mockUsers = [
-        createMockUser({ id: '1', email: 'user1@test.com' }),
-        createMockUser({ id: '2', email: 'user2@test.com' }),
-      ];
-      mockPrisma.user.findMany.mockResolvedValue(mockUsers);
-      mockPrisma.user.count.mockResolvedValue(2);
+    it('returns server-side pagination metadata', async () => {
+      mockPrisma.user.findMany.mockResolvedValue([
+        createMockUser({ id: '1' }),
+        createMockUser({ id: '2' }),
+      ]);
+      mockPrisma.user.count.mockResolvedValue(42);
 
-      // Act
-      const result = await adminService.getUsers(1, 20);
+      const result = await adminService.getUsers({
+        page: 3,
+        limit: 20,
+        search: undefined,
+        status: 'ACTIVE',
+        tier: 'ALL',
+        sortBy: 'createdAt',
+        sortOrder: 'desc',
+      });
 
-      // Assert
-      expect(result.users).toHaveLength(2);
-      expect(result.pagination.total).toBe(2);
-      expect(result.pagination.page).toBe(1);
-      expect(result.pagination.limit).toBe(20);
-    });
-
-    it('should filter users by search query', async () => {
-      // Arrange
-      const searchUser = createMockUser({ email: 'searched@test.com' });
-      mockPrisma.user.findMany.mockResolvedValue([searchUser]);
-      mockPrisma.user.count.mockResolvedValue(1);
-
-      // Act
-      const result = await adminService.getUsers(1, 20, 'searched');
-
-      // Assert
+      expect(result.pagination).toEqual({ page: 3, limit: 20, total: 42, pages: 3 });
       expect(mockPrisma.user.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: expect.objectContaining({
-            OR: expect.any(Array),
-          }),
-        }),
+        expect.objectContaining({ skip: 40, take: 20 }),
       );
-      expect(result.users).toHaveLength(1);
     });
 
-    it('should return empty list when no users match', async () => {
-      // Arrange
+    it('combines search and free-tier filters without leaking unrelated users', async () => {
       mockPrisma.user.findMany.mockResolvedValue([]);
       mockPrisma.user.count.mockResolvedValue(0);
 
-      // Act
-      const result = await adminService.getUsers(1, 20, 'nonexistent');
+      await adminService.getUsers({
+        page: 1,
+        limit: 20,
+        search: 'creator',
+        status: 'ACTIVE',
+        tier: 'FREE',
+        sortBy: 'name',
+        sortOrder: 'asc',
+      });
 
-      // Assert
-      expect(result.users).toHaveLength(0);
-      expect(result.pagination.total).toBe(0);
-    });
-
-    it('should calculate correct pagination for large datasets', async () => {
-      // Arrange
-      mockPrisma.user.findMany.mockResolvedValue([]);
-      mockPrisma.user.count.mockResolvedValue(100);
-
-      // Act
-      const result = await adminService.getUsers(3, 20);
-
-      // Assert
-      expect(result.pagination.pages).toBe(5);
       expect(mockPrisma.user.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          skip: 40,
-          take: 20,
+          where: expect.objectContaining({
+            status: 'ACTIVE',
+            AND: expect.arrayContaining([
+              expect.objectContaining({ OR: expect.any(Array) }),
+              expect.objectContaining({ OR: expect.any(Array) }),
+            ]),
+          }),
         }),
       );
     });
   });
 
-  // ============================================================================
-  // getUserDetails
-  // ============================================================================
   describe('getUserDetails', () => {
-    it('should return user with related data', async () => {
-      // Arrange
+    it('returns user details with related data', async () => {
       const mockUser = {
         ...createMockUser(),
         subscription: createMockSubscription(),
@@ -234,107 +207,154 @@ describe('adminService', () => {
       };
       mockPrisma.user.findUnique.mockResolvedValue(mockUser);
 
-      // Act
       const result = await adminService.getUserDetails('user-123');
 
-      // Assert
-      expect(result).toBeDefined();
       expect(result.id).toBe('user-123');
       expect(mockPrisma.user.findUnique).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { id: 'user-123' },
-        }),
+        expect.objectContaining({ where: { id: 'user-123' } }),
       );
     });
 
-    it('should throw error when user not found', async () => {
-      // Arrange
+    it('throws a typed error when user is missing', async () => {
       mockPrisma.user.findUnique.mockResolvedValue(null);
 
-      // Act & Assert
-      await expect(adminService.getUserDetails('nonexistent')).rejects.toThrow('User not found');
+      await expect(adminService.getUserDetails('missing')).rejects.toBeInstanceOf(
+        AdminServiceError,
+      );
     });
   });
 
-  // ============================================================================
-  // updateUserSubscription
-  // ============================================================================
   describe('updateUserSubscription', () => {
-    it('should update user subscription to CREATOR tier', async () => {
-      // Arrange
-      const updatedSub = createMockSubscription({ tier: 'CREATOR', exportsLimit: 50 });
-      mockPrisma.subscription.upsert.mockResolvedValue(updatedSub);
+    it('preserves export usage by default', async () => {
+      const previous = createMockSubscription({ exportsUsed: 9 });
+      const updated = createMockSubscription({
+        tier: 'CREATOR',
+        exportsUsed: 9,
+        exportsLimit: 50,
+      });
+      mockPrisma.user.findUnique.mockResolvedValue({ id: 'user-123' });
+      mockPrisma.subscription.findUnique.mockResolvedValue(previous);
+      mockPrisma.subscription.upsert.mockResolvedValue(updated);
 
-      // Act
-      const result = await adminService.updateUserSubscription('user-123', 'CREATOR');
+      const result = await adminService.updateUserSubscription('user-123', {
+        tier: 'CREATOR',
+        validDays: 30,
+        resetUsage: false,
+      });
 
-      // Assert
-      expect(result.tier).toBe('CREATOR');
+      expect(result.subscription.exportsUsed).toBe(9);
       expect(mockPrisma.subscription.upsert).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { userId: 'user-123' },
-          create: expect.objectContaining({ tier: 'CREATOR' }),
-          update: expect.objectContaining({ tier: 'CREATOR' }),
+          update: expect.not.objectContaining({ exportsUsed: 0 }),
         }),
       );
     });
 
-    it('should set unlimited exports for PRO tier', async () => {
-      // Arrange
-      const proSub = createMockSubscription({ tier: 'PRO', exportsLimit: 999999 });
-      mockPrisma.subscription.upsert.mockResolvedValue(proSub);
+    it('resets usage only when admin explicitly requests it', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ id: 'user-123' });
+      mockPrisma.subscription.findUnique.mockResolvedValue(createMockSubscription());
+      mockPrisma.subscription.upsert.mockResolvedValue(
+        createMockSubscription({ tier: 'PRO', exportsUsed: 0, exportsLimit: 999_999 }),
+      );
 
-      // Act
-      await adminService.updateUserSubscription('user-123', 'PRO');
+      await adminService.updateUserSubscription('user-123', {
+        tier: 'PRO',
+        validDays: 60,
+        resetUsage: true,
+      });
 
-      // Assert
       expect(mockPrisma.subscription.upsert).toHaveBeenCalledWith(
         expect.objectContaining({
-          create: expect.objectContaining({ exportsLimit: 999999 }),
+          update: expect.objectContaining({ exportsUsed: 0, exportsLimit: 999_999 }),
         }),
       );
     });
 
-    it('should set validUntil to null for FREE tier', async () => {
-      // Arrange
-      const freeSub = createMockSubscription({ tier: 'FREE', validUntil: null });
-      mockPrisma.subscription.upsert.mockResolvedValue(freeSub);
+    it('throws a typed error when the target user is missing', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(null);
 
-      // Act
-      await adminService.updateUserSubscription('user-123', 'FREE');
-
-      // Assert
-      expect(mockPrisma.subscription.upsert).toHaveBeenCalledWith(
-        expect.objectContaining({
-          create: expect.objectContaining({ validUntil: null }),
+      await expect(
+        adminService.updateUserSubscription('missing', {
+          tier: 'FREE',
+          validDays: 30,
+          resetUsage: false,
         }),
-      );
+      ).rejects.toBeInstanceOf(AdminServiceError);
     });
   });
 
-  // ============================================================================
-  // deleteUser
-  // ============================================================================
-  describe('deleteUser', () => {
-    it('should delete user by id', async () => {
-      // Arrange
-      mockPrisma.user.delete.mockResolvedValue(createMockUser());
-
-      // Act
-      await adminService.deleteUser('user-123');
-
-      // Assert
-      expect(mockPrisma.user.delete).toHaveBeenCalledWith({
-        where: { id: 'user-123' },
-      });
+  describe('updateUserStatus', () => {
+    it('rejects self suspend or delete', async () => {
+      await expect(
+        adminService.updateUserStatus('admin-1', 'admin-1', {
+          status: 'SUSPENDED',
+          reason: 'test',
+        }),
+      ).rejects.toMatchObject({ code: 'SELF_ACTION_FORBIDDEN' });
     });
 
-    it('should throw when user does not exist', async () => {
-      // Arrange
-      mockPrisma.user.delete.mockRejectedValue(new Error('Record not found'));
+    it('suspends a user and revokes sessions', async () => {
+      const suspendedUser = createMockUser({ status: 'SUSPENDED' });
+      mockPrisma.user.findUnique.mockResolvedValue({ id: 'user-123' });
+      mockPrisma.user.update.mockResolvedValue(suspendedUser);
+      mockPrisma.userSession.deleteMany.mockResolvedValue({ count: 3 });
 
-      // Act & Assert
-      await expect(adminService.deleteUser('nonexistent')).rejects.toThrow('Record not found');
+      const result = await adminService.updateUserStatus('admin-1', 'user-123', {
+        status: 'SUSPENDED',
+        reason: 'abuse',
+      });
+
+      expect(result.status).toBe('SUSPENDED');
+      expect(mockPrisma.userSession.deleteMany).toHaveBeenCalledWith({
+        where: { userId: 'user-123' },
+      });
+      expect(mockPrisma.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            status: 'SUSPENDED',
+            suspensionReason: 'abuse',
+            deletedAt: null,
+          }),
+        }),
+      );
+    });
+
+    it('soft deletes without physically deleting user data', async () => {
+      const deletedUser = createMockUser({ status: 'DELETED' });
+      mockPrisma.user.findUnique.mockResolvedValue({ id: 'user-123' });
+      mockPrisma.user.update.mockResolvedValue(deletedUser);
+      mockPrisma.userSession.deleteMany.mockResolvedValue({ count: 1 });
+
+      const result = await adminService.softDeleteUser('admin-1', 'user-123');
+
+      expect(result.status).toBe('DELETED');
+      expect(mockPrisma.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            status: 'DELETED',
+            deletedAt: expect.any(Date),
+          }),
+        }),
+      );
+    });
+
+    it('restores a user back to active and clears restriction fields', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ id: 'user-123' });
+      mockPrisma.user.update.mockResolvedValue(createMockUser({ status: 'ACTIVE' }));
+      mockPrisma.userSession.deleteMany.mockResolvedValue({ count: 0 });
+
+      await adminService.updateUserStatus('admin-1', 'user-123', { status: 'ACTIVE' });
+
+      expect(mockPrisma.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            status: 'ACTIVE',
+            deletedAt: null,
+            suspendedAt: null,
+            suspensionReason: null,
+          }),
+        }),
+      );
     });
   });
 });

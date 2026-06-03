@@ -21,7 +21,9 @@ import { join } from 'node:path';
 import { env } from '@/config/env';
 import { logger } from '@/lib/logger';
 import { prisma } from '@/lib/prisma';
+import { renderLoopVideo } from '@/modules/loop/processors/loop-render.processor';
 import { paymentService } from '@/modules/payment/payment.service';
+import { renderReactionVideo } from '@/modules/reaction/processors/reaction-render.processor';
 import { publishExportEvent } from '../export-events';
 import { ffmpegProcessor } from '../ffmpeg.processor';
 import { getTimelineDurationMs, mixAudioTracks } from './audio-track.processor';
@@ -34,6 +36,11 @@ import {
   mapSubProgressToOverall,
 } from './export-progress';
 import { createImageClip } from './image-clip.processor';
+import {
+  composeModernTimeline,
+  hasVisibleTimedContent,
+  shouldUseModernCompositor,
+} from './modern-compositor.processor';
 import { applyTextOverlays } from './text-overlay.processor';
 
 /** Directory for temporary processing files */
@@ -139,155 +146,212 @@ export async function processExportJob(jobId: string): Promise<void> {
     const tempFiles: string[] = [];
     const outputId = randomUUID();
 
-    if (timelineData.clips.length === 0) {
-      throw new Error('Export requires at least one video or image clip');
+    if (!hasVisibleTimedContent(timelineData)) {
+      throw new Error('Export requires at least one timed content layer');
     }
 
     await reportProgress(EXPORT_PROGRESS_RANGES.validating.end);
     await assertExportNotCancelled(jobId);
 
-    // Step 1: Trim and apply effects to each clip
-    logger.info({ jobId }, 'Starting clip trimming and effects');
-    for (let i = 0; i < timelineData.clips.length; i++) {
-      await assertExportNotCancelled(jobId);
-      const clip = timelineData.clips[i];
-      if (!clip) continue;
-      const mediaType = clip.mediaType ?? 'video';
-      const backgroundMode = timelineData.settings.backgroundMode ?? 'solid';
-      const backgroundColor = timelineData.settings.backgroundColor ?? '#000000';
-      const backgroundBlurAmount = timelineData.settings.backgroundBlurAmount ?? 18;
-      const backgroundBlurZoom = timelineData.settings.backgroundBlurZoom ?? 1.08;
-      const backgroundDim = timelineData.settings.backgroundDim ?? 0.08;
-      const backgroundSaturation = timelineData.settings.backgroundSaturation ?? 1.05;
-      const clipRange = getClipProgressRange(i, timelineData.clips.length);
-      const hasTransforms =
-        clip.transforms &&
-        (clip.transforms.x !== 0 ||
-          clip.transforms.y !== 0 ||
-          clip.transforms.scale !== 1 ||
-          clip.transforms.rotation !== 0 ||
-          clip.transforms.opacity !== 1);
-      const hasEffects =
-        clip.effects &&
-        (clip.effects.speed !== 1 ||
-          clip.effects.volume !== 1 ||
-          clip.effects.fadeIn > 0 ||
-          clip.effects.fadeOut > 0 ||
-          (clip.effects.transitionIn && clip.effects.transitionIn !== 'none') ||
-          (clip.effects.transitionOut && clip.effects.transitionOut !== 'none') ||
-          (clip.effects.motion && clip.effects.motion !== 'none') ||
-          (clip.effects.filters && clip.effects.filters.length > 0));
-      const needsCanvasBackground = mediaType === 'video' && backgroundMode === 'blur';
-      const needsEffectsPass = Boolean(hasTransforms || hasEffects || needsCanvasBackground);
-
-      const trimmedPath = join(TEMP_DIR, `${outputId}_trimmed_${i}.mp4`);
-      if (mediaType === 'image') {
-        await createImageClip({
-          inputPath: clip.localPath,
-          outputPath: trimmedPath,
-          durationSec: Math.max(0.1, clip.endTime - clip.startTime),
-          width: timelineData.settings.width,
-          height: timelineData.settings.height,
-          fps: timelineData.settings.fps,
-          backgroundColor,
-          backgroundMode,
-          backgroundBlurAmount,
-          backgroundBlurZoom,
-          backgroundDim,
-          backgroundSaturation,
-          onProgress: (percent) => {
-            void reportProgress(mapSubProgressToOverall(clipRange, percent));
-          },
-        });
-      } else {
-        const sourceRange = needsEffectsPass
-          ? {
-              start: clipRange.start,
-              end: clipRange.start + (clipRange.end - clipRange.start) * 0.5,
-            }
-          : clipRange;
-
-        await ffmpegProcessor.trim({
-          inputPath: clip.localPath,
-          outputPath: trimmedPath,
-          startTime: clip.startTime,
-          endTime: clip.endTime,
-          onProgress: (percent) => {
-            void reportProgress(mapSubProgressToOverall(sourceRange, percent));
-          },
-        });
-      }
-
-      if (needsEffectsPass) {
-        const effectsPath = join(TEMP_DIR, `${outputId}_effects_${i}.mp4`);
-        const clipDurationMs = (clip.endTime - clip.startTime) * 1000;
-
-        await ffmpegProcessor.applyEffects({
-          inputPath: trimmedPath,
-          outputPath: effectsPath,
-          transforms: clip.transforms,
-          effects: clip.effects,
-          outputWidth: timelineData.settings.width,
-          outputHeight: timelineData.settings.height,
-          durationMs: clipDurationMs,
-          background: {
-            mode: backgroundMode,
-            color: backgroundColor,
-            blurAmount: backgroundBlurAmount,
-            blurZoom: backgroundBlurZoom,
-            dim: backgroundDim,
-            saturation: backgroundSaturation,
-          },
-          onProgress: (percent) => {
-            void reportProgress(mapClipSubPhaseProgress(clipRange, 'effects', percent));
-          },
-        });
-
-        await unlink(trimmedPath);
-        tempFiles.push(effectsPath);
-      } else {
-        tempFiles.push(trimmedPath);
-      }
-
-      await reportProgress(clipRange.end);
-    }
-    await assertExportNotCancelled(jobId);
-
-    // Step 2: Concatenate clips
-    logger.info({ jobId }, 'Starting concatenation');
     let outputPath = join(TEMP_DIR, `${outputId}_concat.mp4`);
-    await reportProgress(EXPORT_PROGRESS_RANGES.concat.start);
+    const useModernCompositor = shouldUseModernCompositor(timelineData);
 
-    if (tempFiles.length > 1) {
-      await ffmpegProcessor.concat({
-        inputPaths: tempFiles,
+    if (timelineData.renderKind === 'loop-creator' && timelineData.loopSpec) {
+      logger.info({ jobId }, 'Starting long-loop renderer');
+      outputPath = await renderLoopVideo({
+        spec: timelineData.loopSpec,
         outputPath,
         onProgress: (percent) => {
-          void reportProgress(mapSubProgressToOverall(EXPORT_PROGRESS_RANGES.concat, percent));
+          void reportProgress(
+            mapSubProgressToOverall(
+              { start: EXPORT_PROGRESS_RANGES.clips.start, end: EXPORT_PROGRESS_RANGES.audio.end },
+              percent,
+            ),
+          );
         },
       });
-    } else if (tempFiles.length === 1 && tempFiles[0]) {
-      outputPath = tempFiles[0];
-    }
-
-    await reportProgress(EXPORT_PROGRESS_RANGES.concat.end);
-    await assertExportNotCancelled(jobId);
-
-    // Step 2.5: Apply text overlays if any
-    if (timelineData.textOverlays && timelineData.textOverlays.length > 0) {
-      outputPath = await applyTextOverlays({
-        inputPath: outputPath,
-        textOverlays: timelineData.textOverlays,
-        outputId,
-        tempFiles,
+      tempFiles.push(outputPath);
+      await reportProgress(EXPORT_PROGRESS_RANGES.audio.end);
+      await assertExportNotCancelled(jobId);
+    } else if (timelineData.renderKind === 'reaction-creator' && timelineData.reactionSpec) {
+      logger.info({ jobId }, 'Starting reaction renderer');
+      outputPath = await renderReactionVideo({
+        spec: timelineData.reactionSpec,
+        outputPath,
         onProgress: (percent) => {
-          void reportProgress(mapSubProgressToOverall(EXPORT_PROGRESS_RANGES.text, percent));
+          void reportProgress(
+            mapSubProgressToOverall(
+              { start: EXPORT_PROGRESS_RANGES.clips.start, end: EXPORT_PROGRESS_RANGES.audio.end },
+              percent,
+            ),
+          );
         },
       });
-    }
+      tempFiles.push(outputPath);
+      await reportProgress(EXPORT_PROGRESS_RANGES.audio.end);
+      await assertExportNotCancelled(jobId);
+    } else if (useModernCompositor) {
+      logger.info({ jobId }, 'Starting modern timeline compositor');
+      outputPath = await composeModernTimeline({
+        timelineData,
+        outputPath,
+        onProgress: (percent) => {
+          void reportProgress(
+            mapSubProgressToOverall(
+              { start: EXPORT_PROGRESS_RANGES.clips.start, end: EXPORT_PROGRESS_RANGES.text.end },
+              percent,
+            ),
+          );
+        },
+      });
+      tempFiles.push(outputPath);
+      await reportProgress(EXPORT_PROGRESS_RANGES.text.end);
+      await assertExportNotCancelled(jobId);
+    } else {
+      // Step 1: Trim and apply effects to each clip
+      logger.info({ jobId }, 'Starting clip trimming and effects');
+      for (let i = 0; i < timelineData.clips.length; i++) {
+        await assertExportNotCancelled(jobId);
+        const clip = timelineData.clips[i];
+        if (!clip || clip.visible === false) continue;
+        const mediaType = clip.mediaType ?? 'video';
+        const backgroundMode = timelineData.settings.backgroundMode ?? 'solid';
+        const legacyBackgroundMode =
+          backgroundMode === 'gradient' || backgroundMode === 'image' ? 'solid' : backgroundMode;
+        const backgroundColor = timelineData.settings.backgroundColor ?? '#000000';
+        const backgroundBlurAmount = timelineData.settings.backgroundBlurAmount ?? 18;
+        const backgroundBlurZoom = timelineData.settings.backgroundBlurZoom ?? 1.08;
+        const backgroundDim = timelineData.settings.backgroundDim ?? 0.08;
+        const backgroundSaturation = timelineData.settings.backgroundSaturation ?? 1.05;
+        const clipRange = getClipProgressRange(i, timelineData.clips.length);
+        const hasTransforms =
+          clip.transforms &&
+          (clip.transforms.x !== 0 ||
+            clip.transforms.y !== 0 ||
+            clip.transforms.scale !== 1 ||
+            clip.transforms.rotation !== 0 ||
+            clip.transforms.opacity !== 1);
+        const hasEffects =
+          clip.effects &&
+          (clip.effects.speed !== 1 ||
+            clip.effects.volume !== 1 ||
+            clip.effects.fadeIn > 0 ||
+            clip.effects.fadeOut > 0 ||
+            (clip.effects.transitionIn && clip.effects.transitionIn !== 'none') ||
+            (clip.effects.transitionOut && clip.effects.transitionOut !== 'none') ||
+            (clip.effects.motion && clip.effects.motion !== 'none') ||
+            (clip.effects.filters && clip.effects.filters.length > 0));
+        const needsCanvasBackground = mediaType === 'video' && legacyBackgroundMode === 'blur';
+        const needsEffectsPass = Boolean(hasTransforms || hasEffects || needsCanvasBackground);
 
-    await reportProgress(EXPORT_PROGRESS_RANGES.text.end);
-    await assertExportNotCancelled(jobId);
+        const trimmedPath = join(TEMP_DIR, `${outputId}_trimmed_${i}.mp4`);
+        if (mediaType === 'image') {
+          await createImageClip({
+            inputPath: clip.localPath,
+            outputPath: trimmedPath,
+            durationSec: Math.max(0.1, clip.endTime - clip.startTime),
+            width: timelineData.settings.width,
+            height: timelineData.settings.height,
+            fps: timelineData.settings.fps,
+            backgroundColor,
+            backgroundMode: legacyBackgroundMode,
+            backgroundBlurAmount,
+            backgroundBlurZoom,
+            backgroundDim,
+            backgroundSaturation,
+            onProgress: (percent) => {
+              void reportProgress(mapSubProgressToOverall(clipRange, percent));
+            },
+          });
+        } else {
+          const sourceRange = needsEffectsPass
+            ? {
+                start: clipRange.start,
+                end: clipRange.start + (clipRange.end - clipRange.start) * 0.5,
+              }
+            : clipRange;
+
+          await ffmpegProcessor.trim({
+            inputPath: clip.localPath,
+            outputPath: trimmedPath,
+            startTime: clip.startTime,
+            endTime: clip.endTime,
+            onProgress: (percent) => {
+              void reportProgress(mapSubProgressToOverall(sourceRange, percent));
+            },
+          });
+        }
+
+        if (needsEffectsPass) {
+          const effectsPath = join(TEMP_DIR, `${outputId}_effects_${i}.mp4`);
+          const clipDurationMs = (clip.endTime - clip.startTime) * 1000;
+
+          await ffmpegProcessor.applyEffects({
+            inputPath: trimmedPath,
+            outputPath: effectsPath,
+            transforms: clip.transforms,
+            effects: clip.effects,
+            outputWidth: timelineData.settings.width,
+            outputHeight: timelineData.settings.height,
+            durationMs: clipDurationMs,
+            background: {
+              mode: legacyBackgroundMode,
+              color: backgroundColor,
+              blurAmount: backgroundBlurAmount,
+              blurZoom: backgroundBlurZoom,
+              dim: backgroundDim,
+              saturation: backgroundSaturation,
+            },
+            onProgress: (percent) => {
+              void reportProgress(mapClipSubPhaseProgress(clipRange, 'effects', percent));
+            },
+          });
+
+          await unlink(trimmedPath);
+          tempFiles.push(effectsPath);
+        } else {
+          tempFiles.push(trimmedPath);
+        }
+
+        await reportProgress(clipRange.end);
+      }
+      await assertExportNotCancelled(jobId);
+
+      // Step 2: Concatenate clips
+      logger.info({ jobId }, 'Starting concatenation');
+      await reportProgress(EXPORT_PROGRESS_RANGES.concat.start);
+
+      if (tempFiles.length > 1) {
+        await ffmpegProcessor.concat({
+          inputPaths: tempFiles,
+          outputPath,
+          onProgress: (percent) => {
+            void reportProgress(mapSubProgressToOverall(EXPORT_PROGRESS_RANGES.concat, percent));
+          },
+        });
+      } else if (tempFiles.length === 1 && tempFiles[0]) {
+        outputPath = tempFiles[0];
+      }
+
+      await reportProgress(EXPORT_PROGRESS_RANGES.concat.end);
+      await assertExportNotCancelled(jobId);
+
+      // Step 2.5: Apply text overlays if any
+      if (timelineData.textOverlays && timelineData.textOverlays.length > 0) {
+        outputPath = await applyTextOverlays({
+          inputPath: outputPath,
+          textOverlays: timelineData.textOverlays,
+          outputId,
+          tempFiles,
+          onProgress: (percent) => {
+            void reportProgress(mapSubProgressToOverall(EXPORT_PROGRESS_RANGES.text, percent));
+          },
+        });
+      }
+
+      await reportProgress(EXPORT_PROGRESS_RANGES.text.end);
+      await assertExportNotCancelled(jobId);
+    }
 
     if (timelineData.audioTracks && timelineData.audioTracks.length > 0) {
       logger.info(
@@ -387,7 +451,7 @@ export async function processExportJob(jobId: string): Promise<void> {
 
     logger.info({ jobId, outputPath: finalPath }, 'Export completed');
   } catch (err) {
-    const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+    const errorMessage = getExportErrorMessage(err);
     logger.error({ err, jobId }, 'Export processing failed');
     await prisma.exportHistory.update({
       where: { id: jobId },
@@ -407,6 +471,21 @@ export async function processExportJob(jobId: string): Promise<void> {
     }
     throw err;
   }
+}
+
+function getExportErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message.trim()) {
+    return error.message;
+  }
+
+  if (error && typeof error === 'object' && 'message' in error) {
+    const message = error.message;
+    if (typeof message === 'string' && message.trim()) {
+      return message;
+    }
+  }
+
+  return 'Render failed. Please try again or check the media used.';
 }
 
 async function assertExportNotCancelled(jobId: string): Promise<void> {

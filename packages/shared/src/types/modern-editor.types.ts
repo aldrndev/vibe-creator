@@ -42,7 +42,7 @@ export type AnchorPoint = 'center' | 'topLeft';
 
 export type FitMode = 'cover' | 'contain';
 
-export type CanvasBackgroundMode = 'solid' | 'blur';
+export type CanvasBackgroundMode = 'solid' | 'blur' | 'gradient' | 'image';
 
 export type VisualFilterId = 'none' | 'grayscale' | 'warm' | 'cold' | 'vivid';
 
@@ -137,6 +137,7 @@ export interface TextLayerData {
   fontStyle: 'normal' | 'italic';
   color: string;
   backgroundColor?: string;
+  backgroundOpacity?: number;
   textAlign: 'left' | 'center' | 'right';
   /** Legacy single animation value. Keep for older drafts/projects. */
   animation: Extract<TextAnimationInId, 'none' | 'fade' | 'slide-up' | 'slide-down' | 'typewriter'>;
@@ -182,10 +183,21 @@ export interface ModernProjectSettings {
   durationMs: number;
   backgroundColor: string;
   backgroundMode: CanvasBackgroundMode;
+  backgroundOpacity?: number;
   backgroundBlurAmount?: number;
   backgroundBlurZoom?: number;
   backgroundDim?: number;
   backgroundSaturation?: number;
+  backgroundGradientFrom?: string;
+  backgroundGradientTo?: string;
+  backgroundGradientAngle?: number;
+  backgroundImageAssetId?: string | null;
+  backgroundImageFit?: FitMode;
+  backgroundImageBlurAmount?: number;
+  backgroundImageDim?: number;
+  backgroundImagePositionX?: number;
+  backgroundImagePositionY?: number;
+  backgroundImageScale?: number;
 }
 
 /**
@@ -247,10 +259,21 @@ export function createDefaultModernProject(id: string, title: string): ModernPro
       durationMs: 0,
       backgroundColor: '#000000',
       backgroundMode: 'blur',
+      backgroundOpacity: 1,
       backgroundBlurAmount: 18,
       backgroundBlurZoom: 1.08,
       backgroundDim: 0.08,
       backgroundSaturation: 1.05,
+      backgroundGradientFrom: '#111827',
+      backgroundGradientTo: '#ff4b1f',
+      backgroundGradientAngle: 135,
+      backgroundImageAssetId: null,
+      backgroundImageFit: 'cover',
+      backgroundImageBlurAmount: 0,
+      backgroundImageDim: 0,
+      backgroundImagePositionX: 50,
+      backgroundImagePositionY: 50,
+      backgroundImageScale: 1,
     },
     layers: [],
   };

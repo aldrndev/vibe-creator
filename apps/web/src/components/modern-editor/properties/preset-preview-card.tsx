@@ -1,4 +1,4 @@
-import { Plus } from 'lucide-react';
+import { Check, Plus } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 
@@ -61,7 +61,7 @@ export function PresetPreviewCard({
               : 'border-border/30 bg-muted/20 text-muted-foreground group-hover:border-primary/45 group-hover:text-primary',
           )}
         >
-          <Plus size={16} />
+          {active ? <Check size={16} /> : <Plus size={16} />}
         </span>
       </div>
     </button>

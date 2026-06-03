@@ -1,11 +1,16 @@
 /**
  * Trending Module Constants
  * ============================================================================
- * Configuration constants for YouTube/Google Trends scraping
+ * Configuration constants for YouTube-first trending scraping
  */
 
 /** Domain allowlist for SSRF protection */
-export const ALLOWED_DOMAINS = ['trends.google.com', 'www.google.com'] as const;
+export const ALLOWED_DOMAINS = [
+  'www.googleapis.com',
+  'youtube.googleapis.com',
+  'www.youtube.com',
+  'i.ytimg.com',
+] as const;
 
 /** Private/metadata IP ranges to block */
 export const BLOCKED_IP_RANGES = [
@@ -45,7 +50,16 @@ export const CACHE_CONFIG = {
 } as const;
 
 /** Refresh cooldown in seconds */
-export const REFRESH_COOLDOWN_SECONDS = 60;
+export const REFRESH_COOLDOWN_SECONDS = 15 * 60;
+
+/** Server-side source refresh cadence for all active regions. */
+export const TRENDING_REFRESH_INTERVAL_MS = 6 * 60 * 60 * 1000;
+
+/** Delay before startup refresh begins, so Redis/API boot can settle first. */
+export const TRENDING_STARTUP_REFRESH_DELAY_MS = 5000;
+
+/** Small spacing between startup region refresh jobs to avoid a burst. */
+export const TRENDING_STARTUP_REFRESH_SPACING_MS = 30_000;
 
 /** Retention configuration */
 export const RETENTION_CONFIG = {
@@ -58,7 +72,7 @@ export const RETENTION_CONFIG = {
 /** Default pagination */
 export const PAGINATION = {
   DEFAULT_LIMIT: 20,
-  MAX_LIMIT: 100,
+  MAX_LIMIT: 50,
 } as const;
 
 /** Status window for degradable service */

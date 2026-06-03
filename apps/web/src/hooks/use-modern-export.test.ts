@@ -9,8 +9,11 @@ import {
 describe('modern export errors', () => {
   it('maps raw export failures to user-friendly messages', () => {
     expect(
-      getModernExportErrorMessage(new Error('Export requires at least one video or image layer.')),
-    ).toBe('Tambahkan minimal satu video atau gambar sebelum export.');
+      getModernExportErrorMessage(new Error('Export requires at least one timed content layer.')),
+    ).toBe('Tambahkan minimal satu layer text, audio, video, atau gambar sebelum export.');
+    expect(getModernExportErrorMessage(new Error('Background image asset is unavailable.'))).toBe(
+      'Gambar background sudah tidak tersedia. Pilih background image kembali.',
+    );
     expect(getModernExportErrorMessage(new Error('Compilation failed: asset missing'))).toBe(
       'Project belum siap diexport. Cek lagi asset, timing, dan layer yang masih kosong.',
     );

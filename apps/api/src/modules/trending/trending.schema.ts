@@ -4,6 +4,11 @@
  * Zod schemas for API validation
  */
 
+import {
+  DEFAULT_TRENDING_REGION,
+  TRENDING_MAX_RESULTS,
+  TRENDING_REGION_CODES,
+} from '@vibe-creator/shared';
 import { z } from 'zod';
 
 // ============================================================================
@@ -12,6 +17,7 @@ import { z } from 'zod';
 
 export const TrendingTypeSchema = z.enum(['HASHTAG', 'TOPIC', 'SEARCH', 'VIDEO']);
 export const PlatformStatusSchema = z.enum(['ok', 'degraded', 'down']);
+export const TrendingRegionCodeSchema = z.enum(TRENDING_REGION_CODES);
 
 // ============================================================================
 // QUERY PARAMS
@@ -20,8 +26,8 @@ export const PlatformStatusSchema = z.enum(['ok', 'degraded', 'down']);
 export const TrendingQuerySchema = z.object({
   type: TrendingTypeSchema.optional(),
   category: z.string().optional(),
-  region: z.string().length(2).default('ID'),
-  limit: z.coerce.number().int().min(1).max(100).default(20),
+  region: TrendingRegionCodeSchema.default(DEFAULT_TRENDING_REGION),
+  limit: z.coerce.number().int().min(1).max(TRENDING_MAX_RESULTS).default(20),
   cursor: z.string().optional(),
 });
 
@@ -34,6 +40,7 @@ export type TrendingQuery = z.infer<typeof TrendingQuerySchema>;
 export const CursorSchema = z.object({
   fetchedAt: z.string().datetime(),
   id: z.string(),
+  rank: z.number().int().nullable().optional(),
 });
 
 export type Cursor = z.infer<typeof CursorSchema>;
@@ -53,7 +60,7 @@ export const TrendingItemSchema = z.object({
   rank: z.number().nullable(),
   metrics: z.record(z.string(), z.unknown()),
   category: z.string().nullable(),
-  region: z.string(),
+  region: TrendingRegionCodeSchema,
   fetchedAt: z.string().datetime(),
 });
 
@@ -61,7 +68,7 @@ export type TrendingItem = z.infer<typeof TrendingItemSchema>;
 
 export const TrendingStatusSchema = z.object({
   platform: z.string(),
-  region: z.string(),
+  region: TrendingRegionCodeSchema,
   status: PlatformStatusSchema,
   lastSuccessAt: z.string().datetime().nullable(),
 });
@@ -78,6 +85,12 @@ export const TrendingListResponseSchema = z.object({
     items: z.array(TrendingItemSchema),
     nextCursor: z.string().nullable(),
     status: TrendingStatusSchema,
+    metadata: z.object({
+      maxResults: z.literal(TRENDING_MAX_RESULTS),
+      returnedCount: z.number().int().min(0).max(TRENDING_MAX_RESULTS),
+      regionLabel: z.string(),
+      lastUpdatedAt: z.string().datetime().nullable(),
+    }),
   }),
 });
 

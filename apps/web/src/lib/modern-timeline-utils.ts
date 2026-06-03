@@ -1,4 +1,8 @@
 import type { Layer } from '@vibe-creator/shared';
+import {
+  buildEditorMediaWaveformBars,
+  resolveEditorAssetPreviewUrl,
+} from '@/lib/modern-editor-media-preview';
 import type { EditorAsset } from '@/stores/editor-store';
 
 export const MIN_LAYER_DURATION_MS = 100;
@@ -10,6 +14,9 @@ export const TIMELINE_MAX_PX_PER_SECOND = 120;
 export const TIMELINE_MIN_DURATION_MS = 15_000;
 export const TIMELINE_TAIL_PADDING_MS = 1_000;
 export const TIMELINE_MIN_CLIP_WIDTH_PX = 14;
+export const TIMELINE_MIN_LABEL_WIDTH_PX = 74;
+export const TIMELINE_MIN_TEXT_LABEL_WIDTH_PX = 54;
+const TEXT_PLACEHOLDER_LABELS = new Set(['Text layer', 'Subtitle text...']);
 
 export type TimelineTrimEdge = 'start' | 'end';
 
@@ -31,6 +38,8 @@ export interface TimelineClipViewModel {
   readonly visualWidthPx: number;
   readonly selected: boolean;
   readonly assetPreviewUrl: string | null;
+  readonly assetSourceUrl: string | null;
+  readonly thumbnailStripUrls: readonly string[];
   readonly waveformBars: readonly TimelineWaveformBar[];
 }
 
@@ -78,6 +87,36 @@ export interface TimelineReorderTargetInput {
   readonly activationDistancePx?: number;
 }
 
+export interface TimelineNavigatorThumbMetrics {
+  readonly scrollable: boolean;
+  readonly thumbLeftPx: number;
+  readonly thumbWidthPx: number;
+}
+
+export interface TimelineNavigatorInput {
+  readonly scrollLeftPx: number;
+  readonly scrollWidthPx: number;
+  readonly viewportWidthPx: number;
+  readonly trackWidthPx: number;
+  readonly minThumbWidthPx?: number;
+}
+
+export interface TimelineAutoScrollInput {
+  readonly pointerClientX: number;
+  readonly viewportLeftPx: number;
+  readonly viewportRightPx: number;
+  readonly edgePaddingPx?: number;
+  readonly maxStepPx?: number;
+}
+
+export interface TimelineEnsureVisibleInput {
+  readonly timeLeftPx: number;
+  readonly scrollLeftPx: number;
+  readonly scrollWidthPx: number;
+  readonly viewportWidthPx: number;
+  readonly paddingPx?: number;
+}
+
 function clamp(value: number, min: number, max: number): number {
   if (!Number.isFinite(value)) {
     return min;
@@ -96,6 +135,174 @@ export function timelineMsToPx(ms: number, pxPerSecond: number): number {
 
 export function timelinePxToMs(px: number, pxPerSecond: number): number {
   return (px / clampTimelineZoom(pxPerSecond)) * 1000;
+}
+
+export function getTimelineMaxScrollLeft(scrollWidthPx: number, viewportWidthPx: number): number {
+  return Math.max(0, scrollWidthPx - viewportWidthPx);
+}
+
+export function clampTimelineScrollLeft(
+  scrollLeftPx: number,
+  scrollWidthPx: number,
+  viewportWidthPx: number,
+): number {
+  return clamp(scrollLeftPx, 0, getTimelineMaxScrollLeft(scrollWidthPx, viewportWidthPx));
+}
+
+export function getTimelineNavigatorThumbMetrics({
+  minThumbWidthPx = 36,
+  scrollLeftPx,
+  scrollWidthPx,
+  trackWidthPx,
+  viewportWidthPx,
+}: TimelineNavigatorInput): TimelineNavigatorThumbMetrics {
+  if (trackWidthPx <= 0 || scrollWidthPx <= viewportWidthPx || viewportWidthPx <= 0) {
+    return {
+      scrollable: false,
+      thumbLeftPx: 0,
+      thumbWidthPx: Math.max(0, trackWidthPx),
+    };
+  }
+
+  const maxScrollLeftPx = getTimelineMaxScrollLeft(scrollWidthPx, viewportWidthPx);
+  const thumbWidthPx = clamp(
+    (viewportWidthPx / scrollWidthPx) * trackWidthPx,
+    Math.min(minThumbWidthPx, trackWidthPx),
+    trackWidthPx,
+  );
+  const travelWidthPx = Math.max(1, trackWidthPx - thumbWidthPx);
+  const thumbLeftPx =
+    (clampTimelineScrollLeft(scrollLeftPx, scrollWidthPx, viewportWidthPx) / maxScrollLeftPx) *
+    travelWidthPx;
+
+  return {
+    scrollable: true,
+    thumbLeftPx,
+    thumbWidthPx,
+  };
+}
+
+export function getTimelineScrollLeftFromNavigatorPoint({
+  minThumbWidthPx,
+  pointerX,
+  scrollWidthPx,
+  trackLeftPx,
+  trackWidthPx,
+  viewportWidthPx,
+}: Readonly<
+  Omit<TimelineNavigatorInput, 'scrollLeftPx'> & {
+    readonly pointerX: number;
+    readonly trackLeftPx: number;
+  }
+>): number {
+  const maxScrollLeftPx = getTimelineMaxScrollLeft(scrollWidthPx, viewportWidthPx);
+  if (maxScrollLeftPx <= 0 || trackWidthPx <= 0) {
+    return 0;
+  }
+
+  const { thumbWidthPx } = getTimelineNavigatorThumbMetrics({
+    scrollLeftPx: 0,
+    scrollWidthPx,
+    viewportWidthPx,
+    trackWidthPx,
+    minThumbWidthPx,
+  });
+  const travelWidthPx = Math.max(1, trackWidthPx - thumbWidthPx);
+  const targetThumbLeftPx = clamp(pointerX - trackLeftPx - thumbWidthPx / 2, 0, travelWidthPx);
+
+  return clampTimelineScrollLeft(
+    (targetThumbLeftPx / travelWidthPx) * maxScrollLeftPx,
+    scrollWidthPx,
+    viewportWidthPx,
+  );
+}
+
+export function getTimelineScrollLeftFromNavigatorThumbDrag({
+  deltaX,
+  minThumbWidthPx,
+  scrollWidthPx,
+  startScrollLeftPx,
+  trackWidthPx,
+  viewportWidthPx,
+}: Readonly<
+  Omit<TimelineNavigatorInput, 'scrollLeftPx'> & {
+    readonly deltaX: number;
+    readonly startScrollLeftPx: number;
+  }
+>): number {
+  const maxScrollLeftPx = getTimelineMaxScrollLeft(scrollWidthPx, viewportWidthPx);
+  if (maxScrollLeftPx <= 0 || trackWidthPx <= 0) {
+    return 0;
+  }
+
+  const { thumbWidthPx } = getTimelineNavigatorThumbMetrics({
+    scrollLeftPx: startScrollLeftPx,
+    scrollWidthPx,
+    viewportWidthPx,
+    trackWidthPx,
+    minThumbWidthPx,
+  });
+  const travelWidthPx = Math.max(1, trackWidthPx - thumbWidthPx);
+
+  return clampTimelineScrollLeft(
+    startScrollLeftPx + (deltaX / travelWidthPx) * maxScrollLeftPx,
+    scrollWidthPx,
+    viewportWidthPx,
+  );
+}
+
+export function getTimelineAutoScrollDelta({
+  edgePaddingPx = 56,
+  maxStepPx = 28,
+  pointerClientX,
+  viewportLeftPx,
+  viewportRightPx,
+}: TimelineAutoScrollInput): number {
+  if (viewportRightPx <= viewportLeftPx || edgePaddingPx <= 0 || maxStepPx <= 0) {
+    return 0;
+  }
+
+  if (pointerClientX < viewportLeftPx + edgePaddingPx) {
+    const intensity = (viewportLeftPx + edgePaddingPx - pointerClientX) / edgePaddingPx;
+    return -Math.ceil(clamp(intensity, 0, 1) * maxStepPx);
+  }
+
+  if (pointerClientX > viewportRightPx - edgePaddingPx) {
+    const intensity = (pointerClientX - (viewportRightPx - edgePaddingPx)) / edgePaddingPx;
+    return Math.ceil(clamp(intensity, 0, 1) * maxStepPx);
+  }
+
+  return 0;
+}
+
+export function getTimelineScrollLeftToShowTime({
+  paddingPx = 80,
+  scrollLeftPx,
+  scrollWidthPx,
+  timeLeftPx,
+  viewportWidthPx,
+}: TimelineEnsureVisibleInput): number {
+  if (viewportWidthPx <= 0) {
+    return clampTimelineScrollLeft(scrollLeftPx, scrollWidthPx, viewportWidthPx);
+  }
+
+  const clampedPaddingPx = Math.min(Math.max(0, paddingPx), viewportWidthPx / 2);
+  const leftBoundaryPx = scrollLeftPx + clampedPaddingPx;
+  const rightBoundaryPx = scrollLeftPx + viewportWidthPx - clampedPaddingPx;
+
+  if (timeLeftPx < leftBoundaryPx) {
+    return clampTimelineScrollLeft(timeLeftPx - clampedPaddingPx, scrollWidthPx, viewportWidthPx);
+  }
+
+  if (timeLeftPx > rightBoundaryPx) {
+    return clampTimelineScrollLeft(
+      timeLeftPx - viewportWidthPx + clampedPaddingPx,
+      scrollWidthPx,
+      viewportWidthPx,
+    );
+  }
+
+  return clampTimelineScrollLeft(scrollLeftPx, scrollWidthPx, viewportWidthPx);
 }
 
 export function formatTimelineTime(ms: number): string {
@@ -220,45 +427,82 @@ export function getTimelineLayerLabel(layer: Layer): TimelineLayerLabel {
 
 export function getTimelineClipLabel(layer: Layer, asset?: EditorAsset): string {
   if (layer.type === 'text') {
-    return layer.data.text.trim() || getTimelineLayerLabel(layer);
+    const text = layer.data.text.trim();
+    if (!text || TEXT_PLACEHOLDER_LABELS.has(text)) {
+      return getTimelineLayerLabel(layer);
+    }
+
+    return text;
   }
 
-  return asset?.name ?? getTimelineLayerLabel(layer);
+  return asset?.name ? getCompactTimelineAssetName(asset.name) : getTimelineLayerLabel(layer);
 }
 
 export function getTimelineAssetPreviewUrl(layer: Layer, asset?: EditorAsset): string | null {
-  if (!asset) {
+  if (!asset || layer.type === 'audio') {
     return null;
   }
 
-  if (asset.thumbnailUrl) {
-    return asset.thumbnailUrl;
+  return resolveEditorAssetPreviewUrl(asset);
+}
+
+export function getTimelineAssetSourceUrl(layer: Layer, asset?: EditorAsset): string | null {
+  if (!asset || (layer.type !== 'video' && layer.type !== 'image')) {
+    return null;
   }
 
-  if (asset.thumbnails?.[0]) {
-    return asset.thumbnails[0];
+  return asset.url;
+}
+
+export function getTimelineThumbnailStripUrls(layer: Layer, asset?: EditorAsset): string[] {
+  if (!asset || (layer.type !== 'video' && layer.type !== 'image')) {
+    return [];
   }
 
-  if (layer.type === 'image') {
-    return asset.url;
+  if (asset.thumbnails?.length) {
+    return asset.thumbnails;
   }
 
-  return null;
+  const previewUrl = getTimelineAssetPreviewUrl(layer, asset);
+  return previewUrl ? [previewUrl] : [];
 }
 
 export function buildTimelineWaveformBars(seed: string, count = 24): TimelineWaveformBar[] {
-  let hash = 0;
-  for (const char of seed) {
-    hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  return buildEditorMediaWaveformBars(seed, count);
+}
+
+export function getCompactTimelineAssetName(name: string): string {
+  const baseName = name
+    .replace(/\.[a-z0-9]{1,8}$/i, '')
+    .replace(/^export[-_]/i, '')
+    .replace(/[_]+/g, '-')
+    .trim();
+
+  if (baseName.length <= 34) {
+    return baseName || name;
   }
 
-  return Array.from({ length: count }, (_, index) => {
-    const shifted = (hash >>> (index % 16)) ^ (index * 2_654_435_761);
-    return {
-      id: `${seed}-${index.toString(36)}-${shifted.toString(36)}`,
-      height: 24 + (shifted % 68),
-    };
-  });
+  return `${baseName.slice(0, 16)}…${baseName.slice(-10)}`;
+}
+
+export function getTimelineThumbnailTileCount(widthPx: number): number {
+  if (widthPx <= 0) {
+    return 1;
+  }
+
+  return clamp(Math.ceil(widthPx / 78), 1, 18);
+}
+
+export function shouldShowTimelineClipLabel({
+  lane,
+  widthPx,
+}: Readonly<{ lane: TimelineLayerLabel; widthPx: number }>): boolean {
+  const minWidth =
+    lane === 'Text' || lane === 'Subtitle'
+      ? TIMELINE_MIN_TEXT_LABEL_WIDTH_PX
+      : TIMELINE_MIN_LABEL_WIDTH_PX;
+
+  return widthPx >= minWidth;
 }
 
 export function buildTimelineClipViewModels({
@@ -293,6 +537,8 @@ export function buildTimelineClipViewModels({
       visualWidthPx: Math.max(TIMELINE_MIN_CLIP_WIDTH_PX, widthPx),
       selected: selectedSet.has(layer.id),
       assetPreviewUrl: getTimelineAssetPreviewUrl(layer, asset),
+      assetSourceUrl: getTimelineAssetSourceUrl(layer, asset),
+      thumbnailStripUrls: getTimelineThumbnailStripUrls(layer, asset),
       waveformBars: layer.type === 'audio' ? buildTimelineWaveformBars(layer.id) : [],
     };
   });

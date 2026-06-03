@@ -8,8 +8,10 @@ import type {
   VisualFilterId,
   VisualMotionId,
 } from '@vibe-creator/shared';
+import { createDefaultVisualLayerEffects } from '@vibe-creator/shared';
 
 type VisualLayer = ImageLayer | VideoLayer;
+export type VisualStylePresetGroup = 'frame' | 'look' | 'motion';
 
 export interface TextStylePreset {
   readonly id: string;
@@ -25,6 +27,7 @@ export interface VisualStylePreset {
   readonly id: string;
   readonly label: string;
   readonly helper: string;
+  readonly group: VisualStylePresetGroup;
   readonly previewClassName: string;
   readonly fit?: FitMode;
   readonly filter?: VisualFilterId;
@@ -204,13 +207,16 @@ export const visualStylePresets: readonly VisualStylePreset[] = [
     id: 'fit',
     label: 'Fit',
     helper: 'Utuh tanpa crop.',
+    group: 'frame',
     previewClassName: 'bg-gradient-to-br from-zinc-950 to-slate-700',
     fit: 'contain',
+    canvasSettings: { backgroundMode: 'solid' },
   },
   {
     id: 'fill',
     label: 'Fill',
     helper: 'Penuhi canvas.',
+    group: 'frame',
     previewClassName: 'bg-gradient-to-br from-primary/80 to-zinc-950',
     fit: 'cover',
   },
@@ -218,6 +224,7 @@ export const visualStylePresets: readonly VisualStylePreset[] = [
     id: 'blur-bg',
     label: 'Blur BG',
     helper: 'Background ikut konten.',
+    group: 'frame',
     previewClassName: 'bg-gradient-to-br from-sky-900 via-orange-500/40 to-zinc-950 blur-[0.2px]',
     fit: 'contain',
     canvasSettings: {
@@ -229,16 +236,35 @@ export const visualStylePresets: readonly VisualStylePreset[] = [
     },
   },
   {
+    id: 'normal',
+    label: 'Normal',
+    helper: 'Warna asli.',
+    group: 'look',
+    previewClassName: 'bg-gradient-to-br from-slate-800 via-zinc-700 to-slate-950',
+    filter: 'none',
+  },
+  {
+    id: 'bw',
+    label: 'B&W',
+    helper: 'Hitam putih.',
+    group: 'look',
+    previewClassName: 'bg-gradient-to-br from-zinc-950 via-zinc-400 to-white',
+    filter: 'grayscale',
+  },
+  {
     id: 'cinematic',
     label: 'Cinematic',
-    helper: 'Lebih kalem.',
+    helper: 'Kalem + push-in.',
+    group: 'look',
     previewClassName: 'bg-gradient-to-br from-zinc-950 via-slate-800 to-amber-900',
     filter: 'warm',
+    motion: 'zoom-in',
   },
   {
     id: 'vivid',
     label: 'Vivid',
     helper: 'Warna lebih pop.',
+    group: 'look',
     previewClassName: 'bg-gradient-to-br from-fuchsia-500 via-primary to-emerald-400',
     filter: 'vivid',
   },
@@ -246,13 +272,31 @@ export const visualStylePresets: readonly VisualStylePreset[] = [
     id: 'warm',
     label: 'Warm',
     helper: 'Tone hangat.',
+    group: 'look',
     previewClassName: 'bg-gradient-to-br from-orange-300 via-primary/80 to-rose-950',
     filter: 'warm',
+  },
+  {
+    id: 'cold',
+    label: 'Cold',
+    helper: 'Tone dingin.',
+    group: 'look',
+    previewClassName: 'bg-gradient-to-br from-sky-300 via-blue-700 to-slate-950',
+    filter: 'cold',
+  },
+  {
+    id: 'still',
+    label: 'Still',
+    helper: 'Tanpa gerak.',
+    group: 'motion',
+    previewClassName: 'bg-gradient-to-br from-zinc-950 via-slate-800 to-zinc-700',
+    motion: 'none',
   },
   {
     id: 'zoom-in',
     label: 'Zoom In',
     helper: 'Gerak masuk halus.',
+    group: 'motion',
     previewClassName: 'bg-gradient-to-br from-slate-950 via-sky-800 to-primary/50',
     motion: 'zoom-in',
   },
@@ -260,10 +304,15 @@ export const visualStylePresets: readonly VisualStylePreset[] = [
     id: 'zoom-out',
     label: 'Zoom Out',
     helper: 'Gerak keluar halus.',
+    group: 'motion',
     previewClassName: 'bg-gradient-to-br from-teal-800 via-slate-950 to-zinc-800',
     motion: 'zoom-out',
   },
 ] as const;
+
+export const visualFramePresets = visualStylePresets.filter((preset) => preset.group === 'frame');
+export const visualLookPresets = visualStylePresets.filter((preset) => preset.group === 'look');
+export const visualMotionPresets = visualStylePresets.filter((preset) => preset.group === 'motion');
 
 export const canvasFormatPresets: readonly CanvasFormatPreset[] = [
   {
@@ -308,6 +357,7 @@ export const canvasBackgroundPresets: readonly CanvasBackgroundPreset[] = [
     previewClassName: 'bg-gradient-to-br from-slate-950 via-orange-500/55 to-sky-900',
     settings: {
       backgroundMode: 'blur',
+      backgroundOpacity: 1,
       backgroundBlurAmount: 18,
       backgroundBlurZoom: 1.08,
       backgroundDim: 0.08,
@@ -319,35 +369,113 @@ export const canvasBackgroundPresets: readonly CanvasBackgroundPreset[] = [
     label: 'Auto Color',
     helper: 'Warna gelap netral.',
     previewClassName: 'bg-gradient-to-br from-zinc-950 via-slate-900 to-zinc-800',
-    settings: { backgroundMode: 'solid', backgroundColor: '#111827' },
+    settings: { backgroundMode: 'solid', backgroundColor: '#111827', backgroundOpacity: 1 },
   },
   {
     id: 'dark',
     label: 'Dark',
     helper: 'Hitam bersih.',
     previewClassName: 'bg-zinc-950',
-    settings: { backgroundMode: 'solid', backgroundColor: '#000000' },
+    settings: { backgroundMode: 'solid', backgroundColor: '#000000', backgroundOpacity: 1 },
   },
   {
     id: 'light',
     label: 'Light',
     helper: 'Putih lembut.',
     previewClassName: 'bg-slate-100',
-    settings: { backgroundMode: 'solid', backgroundColor: '#f8fafc' },
+    settings: { backgroundMode: 'solid', backgroundColor: '#f8fafc', backgroundOpacity: 1 },
   },
   {
     id: 'brand',
     label: 'Brand',
     helper: 'Orange Vibe.',
     previewClassName: 'bg-primary',
-    settings: { backgroundMode: 'solid', backgroundColor: '#ff4b1f' },
+    settings: { backgroundMode: 'solid', backgroundColor: '#ff4b1f', backgroundOpacity: 1 },
   },
   {
     id: 'clean',
     label: 'Clean',
     helper: 'Teal modern.',
     previewClassName: 'bg-teal-700',
-    settings: { backgroundMode: 'solid', backgroundColor: '#0f766e' },
+    settings: { backgroundMode: 'solid', backgroundColor: '#0f766e', backgroundOpacity: 1 },
+  },
+  {
+    id: 'gradient-dark-fade',
+    label: 'Dark Fade',
+    helper: 'Gradient gelap editorial.',
+    previewClassName: 'bg-gradient-to-br from-slate-950 to-slate-700',
+    settings: {
+      backgroundMode: 'gradient',
+      backgroundOpacity: 1,
+      backgroundGradientFrom: '#020617',
+      backgroundGradientTo: '#334155',
+      backgroundGradientAngle: 135,
+    },
+  },
+  {
+    id: 'gradient-warm-glow',
+    label: 'Warm Glow',
+    helper: 'Hangat untuk hook.',
+    previewClassName: 'bg-gradient-to-br from-[#26110b] to-primary',
+    settings: {
+      backgroundMode: 'gradient',
+      backgroundOpacity: 1,
+      backgroundGradientFrom: '#26110b',
+      backgroundGradientTo: '#ff4b1f',
+      backgroundGradientAngle: 135,
+    },
+  },
+  {
+    id: 'gradient-brand-orange',
+    label: 'Brand Orange',
+    helper: 'Orange Vibe premium.',
+    previewClassName: 'bg-gradient-to-br from-[#3b1608] to-primary',
+    settings: {
+      backgroundMode: 'gradient',
+      backgroundOpacity: 1,
+      backgroundGradientFrom: '#3b1608',
+      backgroundGradientTo: '#ff4b1f',
+      backgroundGradientAngle: 120,
+    },
+  },
+  {
+    id: 'gradient-blue-night',
+    label: 'Blue Night',
+    helper: 'Biru gelap modern.',
+    previewClassName: 'bg-gradient-to-br from-slate-950 to-blue-600',
+    settings: {
+      backgroundMode: 'gradient',
+      backgroundOpacity: 1,
+      backgroundGradientFrom: '#020617',
+      backgroundGradientTo: '#2563eb',
+      backgroundGradientAngle: 135,
+    },
+  },
+  {
+    id: 'gradient-clean-light',
+    label: 'Clean Light',
+    helper: 'Terang minimal.',
+    previewClassName: 'bg-gradient-to-br from-slate-50 to-slate-300',
+    settings: {
+      backgroundMode: 'gradient',
+      backgroundOpacity: 1,
+      backgroundGradientFrom: '#f8fafc',
+      backgroundGradientTo: '#cbd5e1',
+      backgroundGradientAngle: 135,
+    },
+  },
+  {
+    id: 'gradient-teal-pop',
+    label: 'Teal Pop',
+    helper: 'Teal creator.',
+    previewClassName: 'bg-gradient-to-br from-[#042f2e] to-teal-700',
+    settings: {
+      backgroundMode: 'gradient',
+      backgroundOpacity: 1,
+      backgroundGradientFrom: '#042f2e',
+      backgroundGradientTo: '#0f766e',
+      backgroundGradientAngle: 135,
+    },
   },
 ] as const;
 
@@ -368,15 +496,68 @@ export function buildVisualStylePresetUpdate(
   layer: VisualLayer,
   preset: VisualStylePreset,
 ): Partial<Layer> {
+  const effects = layer.data.effects ?? createDefaultVisualLayerEffects();
+
   return {
     data: {
       ...layer.data,
       fit: preset.fit ?? layer.data.fit,
       effects: {
-        ...layer.data.effects,
-        filter: preset.filter ?? layer.data.effects.filter,
-        motion: preset.motion ?? layer.data.effects.motion,
+        ...effects,
+        filter: preset.filter ?? effects.filter,
+        motion: preset.motion ?? effects.motion,
       },
     },
   } as Partial<Layer>;
+}
+
+export function isVisualStylePresetActive(
+  layer: VisualLayer,
+  preset: VisualStylePreset,
+  settings?: ModernProjectSettings,
+): boolean {
+  const effects = layer.data.effects ?? createDefaultVisualLayerEffects();
+
+  if (preset.canvasSettings?.backgroundMode !== undefined) {
+    if (preset.group === 'frame' && preset.canvasSettings.backgroundMode !== 'blur') {
+      return layer.data.fit === preset.fit && settings?.backgroundMode !== 'blur';
+    }
+
+    return (
+      layer.data.fit === preset.fit &&
+      settings?.backgroundMode === preset.canvasSettings.backgroundMode
+    );
+  }
+
+  if (preset.group === 'frame') {
+    return preset.fit !== undefined && layer.data.fit === preset.fit;
+  }
+
+  if (preset.group === 'look') {
+    if (preset.filter === undefined) {
+      return false;
+    }
+
+    if (preset.motion !== undefined) {
+      return effects.filter === preset.filter && effects.motion === preset.motion;
+    }
+
+    const compositeLookActive = visualStylePresets.some(
+      (otherPreset) =>
+        otherPreset.group === 'look' &&
+        otherPreset.id !== preset.id &&
+        otherPreset.filter === preset.filter &&
+        otherPreset.motion !== undefined &&
+        effects.filter === otherPreset.filter &&
+        effects.motion === otherPreset.motion,
+    );
+
+    return effects.filter === preset.filter && !compositeLookActive;
+  }
+
+  if (preset.group === 'motion') {
+    return preset.motion !== undefined && effects.motion === preset.motion;
+  }
+
+  return false;
 }

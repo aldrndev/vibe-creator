@@ -18,7 +18,7 @@ export function TimelineRuler({
     <button
       type="button"
       aria-label="Scrub timeline"
-      className="sticky top-0 z-20 block h-9 min-w-full border-b border-border/50 bg-card/95 text-left backdrop-blur"
+      className="relative block h-9 min-w-full border-b border-border/50 bg-card/95 text-left backdrop-blur"
       style={{ width: widthPx }}
       onPointerDown={onScrubStart}
     >

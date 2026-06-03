@@ -13,11 +13,16 @@ model User {
   name                 String
   avatarUrl            String?
   role                 UserRole              @default(USER)
+  status               UserStatus            @default(ACTIVE)
+  deletedAt            DateTime?             @map("deleted_at")
+  suspendedAt          DateTime?             @map("suspended_at")
+  suspensionReason     String?               @map("suspension_reason")
   createdAt            DateTime              @default(now())
   updatedAt            DateTime              @updatedAt
   billingSubscription  BillingSubscription?
   directorSessions     DirectorSession[]
   exports              ExportHistory[]
+  loopPreviews         LoopPreview[]
   jobs                 Job[]
   payments             PaymentHistory[]
   projects             Project[]
@@ -26,9 +31,11 @@ model User {
   streamSessions       StreamSession[]
   streamTopupPurchases StreamTopupPurchase[]
   subscription         Subscription?
+  preferences          UserPreference?
   sessions             UserSession[]
 
   @@map("users")
+  @@index([status])
 }
 
 model UserSession {
@@ -70,6 +77,17 @@ model Subscription {
   @@map("subscriptions")
 }
 
+model UserPreference {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  notifications Json     @default("{\"email\":true,\"push\":false,\"marketing\":false}")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_preferences")
+}
+
 model PaymentHistory {
   id              String           @id @default(cuid())
   userId          String
@@ -100,6 +118,15 @@ model Announcement {
   @@map("announcements")
 }
 
+model AppSetting {
+  key       String   @id
+  value     Json     @default("{}")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("app_settings")
+}
+
 model Project {
   id              String           @id @default(cuid())
   userId          String
@@ -117,6 +144,7 @@ model Project {
   deletedAt       DateTime?        @map("deleted_at")
   lifecycleStatus LifecycleStatus  @default(ACTIVE) @map("lifecycle_status")
   exports         ExportHistory[]
+  loopPreviews    LoopPreview[]
   jobs            Job[]
   assets          ProjectAsset[]
   versions        ProjectVersion[]
@@ -282,6 +310,30 @@ model ExportHistory {
   @@index([idempotencyKey])
   @@index([userId, exportFingerprint, status, urlExpiresAt])
   @@map("export_history")
+}
+
+model LoopPreview {
+  id           String            @id @default(cuid())
+  userId       String
+  projectId    String
+  fingerprint  String
+  status       LoopPreviewStatus @default(QUEUED)
+  progress     Int               @default(0)
+  phase        String            @default("QUEUED")
+  renderSpec   Json              @map("render_spec")
+  localPath    String?           @map("local_path")
+  errorMessage String?           @map("error_message")
+  expiresAt    DateTime          @map("expires_at")
+  createdAt    DateTime          @default(now()) @map("created_at")
+  updatedAt    DateTime          @updatedAt @map("updated_at")
+  completedAt  DateTime?         @map("completed_at")
+  project      Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, fingerprint, status, expiresAt])
+  @@index([projectId])
+  @@index([status, expiresAt])
+  @@map("loop_previews")
 }
 
 model DownloadJob {
@@ -485,6 +537,8 @@ model DirectorExportJob {
 model StreamSession {
   id                    String            @id @default(cuid())
   userId                String
+  projectId             String?
+  sourceAssetId         String?
   platform              String
   status                StreamStatus      @default(STARTING)
   startedAt             DateTime          @default(now())
@@ -499,6 +553,8 @@ model StreamSession {
   user                  User              @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, status])
+  @@index([projectId])
+  @@index([sourceAssetId])
   @@index([autoStopAt, status])
   @@map("stream_sessions")
 }
@@ -658,6 +714,12 @@ enum UserRole {
   ADMIN
 }
 
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  DELETED
+}
+
 enum SubscriptionTier {
   FREE
   CREATOR
@@ -717,6 +779,7 @@ enum PromptType {
   RELAXING
   CREATIVE_SCAN
   TIMELAPSE
+  LOOP_SOURCE
 }
 
 enum ExportFormat {
@@ -736,6 +799,14 @@ enum ExportStatus {
   PROCESSING
   COMPLETED
   FAILED
+}
+
+enum LoopPreviewStatus {
+  QUEUED
+  PROCESSING
+  COMPLETED
+  FAILED
+  EXPIRED
 }
 
 enum DownloadStatus {
@@ -806,4 +877,6 @@ enum StreamStopReason {
   ADMIN
   SERVER_RESTART
   QUOTA_EXHAUSTED
+  REPLACED_BY_NEW_STREAM
+  PROCESS_LOST
 }

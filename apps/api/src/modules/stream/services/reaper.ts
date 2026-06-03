@@ -7,7 +7,13 @@ import { logger } from '@/lib/logger';
 import { prisma } from '@/lib/prisma';
 
 // Stop reason type - matches stream.service.ts stopStream signature
-type StopReason = 'USER_REQUEST' | 'AUTO_STOP' | 'ADMIN' | 'ERROR';
+type StopReason =
+  | 'USER_REQUEST'
+  | 'AUTO_STOP'
+  | 'ADMIN'
+  | 'ERROR'
+  | 'REPLACED_BY_NEW_STREAM'
+  | 'PROCESS_LOST';
 
 // Forward declaration - will be set by stream.service.ts
 let stopStreamFn: (streamId: string, userId: string, reason: StopReason) => Promise<void>;
@@ -46,19 +52,6 @@ export function startStreamReaper(): void {
           if (stopStreamFn) {
             await stopStreamFn(s.id, s.userId, 'AUTO_STOP').catch((err) => {
               logger.error({ err, streamId: s.id }, 'Reaper failed to stop stream');
-
-              // Force DB update if process kill failed
-              prisma.streamSession
-                .update({
-                  where: { id: s.id },
-                  data: {
-                    status: 'ENDED',
-                    endedAt: now,
-                    stopReason: 'AUTO_STOP',
-                    durationMinutesBilled: 0,
-                  },
-                })
-                .catch(() => {});
             });
           }
         }

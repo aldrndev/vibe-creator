@@ -34,12 +34,8 @@ import {
 } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { useModernEditorStore } from '@/stores/modern-editor-store';
-import {
-  formatLayerTime,
-  getLayerDisplayName,
-  getLayerTypeLabel,
-  getTextLayerPreviewLabel,
-} from './layer-panel-utils';
+import { formatLayerTime, getLayerStackTitle, getLayerTypeLabel } from './layer-panel-utils';
+import { MediaAssetThumbnail } from './media-asset-thumbnail';
 
 interface LayerStackProps {
   className?: string;
@@ -103,7 +99,11 @@ export function LayerStack({ className, onMenuOpenChange }: LayerStackProps) {
 
   return (
     <Card className={cn('border-border/35 bg-card/35 backdrop-blur-xl', className)}>
-      <CardBody className="max-h-[320px] space-y-1.5 overflow-y-auto p-1.5 scrollbar-hide">
+      <CardBody
+        role="listbox"
+        aria-label="Layer stack"
+        className="max-h-60 space-y-1.5 overflow-y-auto p-1.5 pr-2"
+      >
         {displayOrder.map((layerId) => {
           const layer = layersById[layerId];
           if (!layer) return null;
@@ -135,7 +135,7 @@ export function LayerStack({ className, onMenuOpenChange }: LayerStackProps) {
                 }
               }}
               className={cn(
-                'group relative min-h-16 cursor-pointer overflow-hidden rounded-xl border px-2.5 py-2 transition-all',
+                'group relative min-h-12 cursor-pointer overflow-hidden rounded-xl border px-2 py-1.5 transition-all',
                 isSelected
                   ? 'z-10 border-primary/45 bg-primary/5 shadow-sm shadow-primary/5'
                   : 'border-border/15 bg-background/20 hover:border-primary/25 hover:bg-background/35',
@@ -143,7 +143,7 @@ export function LayerStack({ className, onMenuOpenChange }: LayerStackProps) {
               )}
             >
               {isSelected && (
-                <div className="absolute left-0 top-3 bottom-3 w-1 rounded-r-full bg-primary" />
+                <div className="absolute top-2.5 bottom-2.5 left-0 w-1 rounded-r-full bg-primary" />
               )}
 
               <div className="flex items-center gap-2">
@@ -156,10 +156,15 @@ export function LayerStack({ className, onMenuOpenChange }: LayerStackProps) {
                   <GripVertical size={14} />
                 </div>
 
-                <LayerThumbnail layer={layer} assetUrl={asset?.thumbnailUrl ?? asset?.url} />
+                <MediaAssetThumbnail
+                  asset={asset}
+                  className="h-8 w-8 rounded-lg"
+                  layer={layer}
+                  variant="layer"
+                />
 
                 <div className="min-w-0 flex-1 pr-1">
-                  <LayerTitle title={getLayerDisplayName(layer, assets)} visible={layer.visible} />
+                  <LayerTitle title={getLayerStackTitle(layer, assets)} visible={layer.visible} />
                   <LayerMeta layer={layer} />
                 </div>
 
@@ -181,61 +186,6 @@ export function LayerStack({ className, onMenuOpenChange }: LayerStackProps) {
   );
 }
 
-function LayerThumbnail({
-  assetUrl,
-  layer,
-}: Readonly<{
-  assetUrl?: string;
-  layer: Layer;
-}>) {
-  const canUseImage = layer.type === 'image' && assetUrl;
-
-  if (canUseImage) {
-    return (
-      <div className="h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-border/30 bg-muted/20">
-        <img src={assetUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
-      </div>
-    );
-  }
-
-  if (layer.type === 'video' && assetUrl) {
-    return (
-      <div className="h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-emerald-400/25 bg-emerald-400/10">
-        <video src={assetUrl} muted preload="metadata" className="h-full w-full object-cover" />
-      </div>
-    );
-  }
-
-  if (layer.type === 'audio') {
-    const barClasses = ['h-4', 'h-7', 'h-5', 'h-8', 'h-6'] as const;
-
-    return (
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center gap-0.5 rounded-lg border border-sky-400/20 bg-sky-400/10 text-sky-200">
-        {barClasses.map((className) => (
-          <span key={className} className={cn('w-1.5 rounded-full bg-current', className)} />
-        ))}
-      </div>
-    );
-  }
-
-  if (layer.type === 'text') {
-    return (
-      <div className="flex h-10 w-10 shrink-0 flex-col justify-center overflow-hidden rounded-lg border border-primary/25 bg-primary/10 px-1.5 text-primary">
-        <span className="text-xs font-black leading-none">Aa</span>
-        <span className="mt-1 line-clamp-2 max-w-full text-[7px] font-black leading-tight text-primary/70">
-          {getTextLayerPreviewLabel(layer)}
-        </span>
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-emerald-400/20 bg-emerald-400/10 text-emerald-200">
-      <Video size={18} />
-    </div>
-  );
-}
-
 function LayerTitle({ title, visible }: Readonly<{ title: string; visible: boolean }>) {
   return (
     <div className="min-w-0">
@@ -253,7 +203,7 @@ function LayerTitle({ title, visible }: Readonly<{ title: string; visible: boole
 
 function LayerMeta({ layer }: Readonly<{ layer: Layer }>) {
   return (
-    <div className="mt-1 flex min-w-0 items-center gap-1 text-[9px] font-black text-muted-foreground/65">
+    <div className="mt-0.5 flex min-w-0 items-center gap-1 text-[9px] font-black text-muted-foreground/65">
       <LayerTypeIcon layer={layer} />
       <span className="uppercase tracking-widest">{getLayerTypeLabel(layer.type)}</span>
       <span className="text-muted-foreground/25">•</span>

@@ -36,6 +36,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get('/users', userHandlers.getUsers);
   fastify.get('/users/:userId', userHandlers.getUserDetails);
   fastify.patch('/users/:userId/subscription', userHandlers.updateSubscription);
+  fastify.patch('/users/:userId/status', userHandlers.updateStatus);
   fastify.delete('/users/:userId', userHandlers.deleteUser);
 
   // ============================================================================

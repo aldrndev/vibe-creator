@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-interface User {
+export interface User {
   id: string;
   email: string;
   name: string;
@@ -8,7 +8,7 @@ interface User {
   role: 'USER' | 'ADMIN';
 }
 
-interface Subscription {
+export interface Subscription {
   tier: 'FREE' | 'CREATOR' | 'PRO';
   status: 'ACTIVE' | 'EXPIRED' | 'CANCELLED';
   exportsUsed: number;
@@ -16,7 +16,7 @@ interface Subscription {
   validUntil: string | null;
 }
 
-interface AuthResponse {
+export interface AuthResponse {
   user: User;
   subscription: Subscription | null;
   accessToken: string;

@@ -1,355 +1,288 @@
-import { Download, Settings2 } from 'lucide-react';
-import {
-  Button,
-  Card,
-  CardBody,
-  CardHeader,
-  Divider,
-  Input,
-  Progress,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-  Slider,
-} from '@/components/ui';
-import type { LoopMode } from '@/hooks/useLoopCreator';
+import { Film, Info, Settings2, VolumeX } from 'lucide-react';
+import { Button, Card, CardBody, CardHeader, Switch } from '@/components/ui';
 import { cn } from '@/lib/utils';
-import { loopModes } from './constants';
+import type {
+  LoopCreatorProjectDocument,
+  LoopSourceInfo,
+} from '@/services/loop-creator-project-api';
 
 interface LoopSettingsPanelProps {
-  loopMode: LoopMode;
-  setLoopMode: (mode: LoopMode) => void;
-  aspectRatio: string;
-  setAspectRatio: (ratio: string) => void;
-  startMs: number;
-  setStartMs: (ms: number) => void;
-  endMs: number;
-  setEndMs: (ms: number) => void;
-  maxDuration: number;
-  loopCount: number;
-  setLoopCount: (count: number) => void;
-  useDurationMode: boolean;
-  setUseDurationMode: (use: boolean) => void;
-  targetMinutes: number;
-  setTargetMinutes: (min: number) => void;
-  isProcessing: boolean;
-  processingStatus: string;
-  onProcess: () => void;
-  resultUrl?: string;
-  hasVideo: boolean;
+  readonly document: LoopCreatorProjectDocument;
+  readonly sourceInfo?: LoopSourceInfo;
+  readonly tier: 'FREE' | 'CREATOR' | 'PRO';
+  readonly disabled: boolean;
+  readonly summary: {
+    actualDurationMs: number;
+    cycleCount: number;
+    adjustedToTier: boolean;
+  } | null;
+  readonly onChange: (document: LoopCreatorProjectDocument) => void;
+  readonly onRender: () => void;
 }
 
-const formatDuration = (seconds: number) => {
-  if (seconds < 60) return `${seconds.toFixed(1)}s`;
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  return `${m}m ${s}s`;
-};
+const DURATION_PRESETS = [
+  { milliseconds: 5 * 60 * 1000, label: '5 menit', minTier: 'FREE' },
+  { milliseconds: 15 * 60 * 1000, label: '15 menit', minTier: 'FREE' },
+  { milliseconds: 30 * 60 * 1000, label: '30 menit', minTier: 'CREATOR' },
+  { milliseconds: 60 * 60 * 1000, label: '60 menit', minTier: 'CREATOR' },
+  { milliseconds: 2 * 60 * 60 * 1000, label: '2 jam', minTier: 'PRO' },
+  { milliseconds: 3 * 60 * 60 * 1000, label: '3 jam', minTier: 'PRO' },
+] as const;
+const TIER_LEVEL = { FREE: 0, CREATOR: 1, PRO: 2 } as const;
+const TIER_MAX_DURATION_MS = {
+  FREE: 15 * 60 * 1000,
+  CREATOR: 60 * 60 * 1000,
+  PRO: 3 * 60 * 60 * 1000,
+} as const;
+const RATIOS = [
+  { value: 'original', label: 'Original' },
+  { value: '16:9', label: 'Landscape' },
+  { value: '9:16', label: 'Portrait' },
+  { value: '1:1', label: 'Square' },
+  { value: '4:5', label: 'Feed' },
+] as const;
 
 export function LoopSettingsPanel({
-  loopMode,
-  setLoopMode,
-  aspectRatio,
-  setAspectRatio,
-  startMs,
-  setStartMs,
-  endMs,
-  setEndMs,
-  maxDuration,
-  loopCount,
-  setLoopCount,
-  useDurationMode,
-  setUseDurationMode,
-  targetMinutes,
-  setTargetMinutes,
-  isProcessing,
-  processingStatus,
-  onProcess,
-  resultUrl,
-  hasVideo,
+  document,
+  sourceInfo,
+  tier,
+  disabled,
+  summary,
+  onChange,
+  onRender,
 }: LoopSettingsPanelProps) {
-  const fallbackModeConfig = loopModes[0];
-  if (!fallbackModeConfig) {
-    throw new Error('Loop modes are not configured');
-  }
+  const durationMs = sourceInfo?.durationMs ?? 0;
+  const startMs = document.trim.enabled ? document.trim.startMs : 0;
+  const endMs = document.trim.enabled ? (document.trim.endMs ?? durationMs) : durationMs;
+  const segmentMs = Math.max(0, endMs - startMs);
+  const smooth = document.transition.mode === 'smooth';
+  const transitionMs = smooth ? resolveAutomaticTransitionDurationMs(segmentMs) : 0;
+  const cycleMs = Math.max(1, segmentMs - transitionMs);
+  const requestedCycles = segmentMs ? Math.ceil(document.output.targetDurationMs / cycleMs) : 0;
+  const maximumCycles = segmentMs ? Math.floor(TIER_MAX_DURATION_MS[tier] / cycleMs) : 0;
+  const estimateCycles = Math.min(requestedCycles, maximumCycles);
+  const estimatedDurationMs = estimateCycles * cycleMs;
+  const estimateAdjustedToTier = requestedCycles > maximumCycles;
 
-  const currentModeConfig = loopModes.find((m) => m.id === loopMode) ?? fallbackModeConfig;
+  const patch = (value: Partial<LoopCreatorProjectDocument>) => onChange({ ...document, ...value });
 
   return (
-    <Card className="bg-card/70 backdrop-blur-xl border-border/50 h-full">
+    <Card className="border-border/60 bg-card/70">
       <CardHeader className="flex flex-row items-center gap-3 border-b border-border/50 pb-4">
-        <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center border border-primary/20">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-primary/20 bg-primary/10">
           <Settings2 size={20} className="text-primary" />
         </div>
         <div>
-          <h2 className="text-lg font-black tracking-tight">Konfigurasi</h2>
-          <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">
-            Sesuaikan Hasil
+          <h2 className="text-lg font-black tracking-tight">Pengaturan Loop</h2>
+          <p className="text-[10px] font-bold uppercase text-muted-foreground">
+            Cepat dan sederhana
           </p>
         </div>
       </CardHeader>
-      <CardBody className="p-6 space-y-8">
-        {/* Loop Mode Selection */}
-        <div className="space-y-4">
-          <div className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">
-            Pilih Mode
-          </div>
-          <div className="grid grid-cols-3 gap-3">
-            {loopModes.map((mode) => {
-              const isActive = loopMode === mode.id;
+      <CardBody className="space-y-6 p-5">
+        <section className="space-y-3">
+          <SectionTitle icon={Film} title="Durasi hasil" />
+          <div className="grid grid-cols-2 gap-2">
+            {DURATION_PRESETS.map((preset) => {
+              const available = TIER_LEVEL[tier] >= TIER_LEVEL[preset.minTier];
               return (
                 <button
+                  key={preset.milliseconds}
                   type="button"
-                  key={mode.id}
-                  onClick={() => setLoopMode(mode.id)}
+                  disabled={!available}
+                  onClick={() =>
+                    patch({ output: { ...document.output, targetDurationMs: preset.milliseconds } })
+                  }
                   className={cn(
-                    'flex flex-col items-center gap-3 p-4 rounded-2xl border transition-all duration-300 group relative overflow-hidden',
-                    isActive
-                      ? 'bg-primary/10 border-primary'
-                      : 'bg-muted/10 border-border/50 hover:border-primary/30 hover:bg-muted/20',
+                    'h-12 rounded-xl border text-sm font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-35',
+                    document.output.targetDurationMs === preset.milliseconds
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : 'border-border/60 bg-muted/10 hover:bg-muted/20',
                   )}
                 >
-                  <div
-                    className={cn(
-                      'w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-300',
-                      isActive
-                        ? 'bg-primary text-white scale-110'
-                        : 'bg-muted text-muted-foreground group-hover:scale-110',
-                    )}
-                  >
-                    <mode.icon size={22} />
-                  </div>
-                  <div className="text-center">
-                    <p
-                      className={cn(
-                        'text-xs font-black tracking-tight',
-                        isActive ? 'text-primary' : 'text-foreground',
-                      )}
-                    >
-                      {mode.name}
-                    </p>
-                  </div>
+                  {preset.label}
                 </button>
               );
             })}
           </div>
-        </div>
-
-        <Divider className="opacity-40" />
-
-        {/* Format & Trim Section */}
-        <div className="space-y-6">
-          <div className="space-y-3">
-            <div className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">
-              Rasio Video
+          {segmentMs > 0 ? (
+            <div className="flex items-center justify-between rounded-xl bg-muted/15 px-3 py-2.5 text-xs font-semibold">
+              <span className="text-muted-foreground">Hasil aktual</span>
+              <span>
+                {formatDuration(summary?.actualDurationMs ?? estimatedDurationMs)} -{' '}
+                {summary?.cycleCount ?? estimateCycles} putaran
+              </span>
             </div>
-            <Select value={aspectRatio} onValueChange={setAspectRatio}>
-              <SelectTrigger className="h-12 rounded-xl bg-muted/20 border-border/50">
-                <SelectValue placeholder="Original" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="original">Original (Asli)</SelectItem>
-                <SelectItem value="16:9">16:9 Landscape</SelectItem>
-                <SelectItem value="9:16">9:16 Portrait (TikTok/Reels)</SelectItem>
-                <SelectItem value="1:1">1:1 Square</SelectItem>
-                <SelectItem value="4:5">4:5 Portrait</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-5">
-            <div className="flex justify-between items-end px-1">
-              <div className="text-xs font-black uppercase tracking-widest text-muted-foreground">
-                Rentang Waktu
-              </div>
-              <div className="text-[10px] font-black tracking-widest bg-primary/10 text-primary px-3 py-1 rounded-full border border-primary/20">
-                {((endMs - startMs) / 1000).toFixed(1)} DETIK
-              </div>
-            </div>
-
-            <div className="space-y-6 bg-muted/10 p-5 rounded-3xl border border-border/40">
-              <div className="space-y-4">
-                <div className="flex justify-between items-center text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-                  <span>Start: {(startMs / 1000).toFixed(1)}s</span>
-                </div>
-                <Slider
-                  min={0}
-                  max={endMs - 500}
-                  step={100}
-                  value={[startMs]}
-                  onValueChange={(v: number[]) => setStartMs(v[0] ?? 0)}
-                  className="py-2"
-                />
-              </div>
-              <div className="space-y-4">
-                <div className="flex justify-between items-center text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-                  <span>End: {(endMs / 1000).toFixed(1)}s</span>
-                </div>
-                <Slider
-                  min={startMs + 500}
-                  max={maxDuration}
-                  step={100}
-                  value={[endMs]}
-                  onValueChange={(v: number[]) => setEndMs(v[0] ?? 5000)}
-                  className="py-2"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Loop Controls Section */}
-        {(loopMode === 'loop' || loopMode === 'boomerang') && (
-          <div className="space-y-8 bg-muted/5 p-6 rounded-3xl border border-border/40">
-            {/* Mode Selection like Orientation in photo */}
-            {loopMode === 'loop' && (
-              <div className="space-y-4">
-                <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
-                  Mode Pengulangan
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setUseDurationMode(false)}
-                    className={cn(
-                      'p-4 rounded-2xl border transition-all flex flex-col items-center gap-2 group',
-                      !useDurationMode
-                        ? 'bg-primary/10 border-primary'
-                        : 'bg-muted/10 border-border/50 hover:bg-muted/20',
-                    )}
-                  >
-                    <p
-                      className={cn(
-                        'text-[10px] font-black uppercase tracking-tight',
-                        !useDurationMode ? 'text-primary' : 'text-foreground',
-                      )}
-                    >
-                      Jumlah Putaran
-                    </p>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setUseDurationMode(true)}
-                    className={cn(
-                      'p-4 rounded-2xl border transition-all flex flex-col items-center gap-2 group',
-                      useDurationMode
-                        ? 'bg-primary/10 border-primary'
-                        : 'bg-muted/10 border-border/50 hover:bg-muted/20',
-                    )}
-                  >
-                    <p
-                      className={cn(
-                        'text-[10px] font-black uppercase tracking-tight',
-                        useDurationMode ? 'text-primary' : 'text-foreground',
-                      )}
-                    >
-                      Target Durasi
-                    </p>
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Value & Slider Section */}
-            <div className="space-y-6">
-              <div className="flex justify-between items-center px-1">
-                <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                  {useDurationMode ? 'Durasi Menit' : 'Set Putaran'}
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="text-[10px] font-black tracking-widest bg-primary/10 text-primary px-3 py-1.5 rounded-full border border-primary/20">
-                    {useDurationMode ? `${targetMinutes} MENIT` : `${loopCount}X PUTAR`}
-                  </div>
-                  <div className="text-[10px] font-black tracking-widest bg-orange-500/10 text-orange-500 px-3 py-1.5 rounded-full border border-orange-500/20">
-                    EST:{' '}
-                    {formatDuration(
-                      ((loopMode === 'loop'
-                        ? endMs - startMs - Math.min(2000, (endMs - startMs) * 0.3)
-                        : (endMs - startMs) * 2) *
-                        loopCount) /
-                        1000,
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {useDurationMode ? (
-                <div className="px-1">
-                  <Input
-                    type="number"
-                    placeholder="Contoh: 10"
-                    value={targetMinutes.toString()}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      setTargetMinutes(Number(v));
-                      const unitMs = endMs - startMs - Math.min(2000, (endMs - startMs) * 0.3);
-                      const targetMs = Number(v) * 60 * 1000;
-                      setLoopCount(Math.ceil(targetMs / unitMs));
-                    }}
-                    className="h-12 rounded-xl bg-muted/20 border-border/50 font-bold"
-                  />
-                </div>
-              ) : (
-                <Slider
-                  min={1}
-                  max={
-                    loopMode === 'boomerang'
-                      ? Math.max(1, Math.floor(60000 / ((endMs - startMs) * 2)))
-                      : 100
-                  }
-                  step={1}
-                  value={[loopCount]}
-                  onValueChange={(v: number[]) => setLoopCount(v[0] ?? 1)}
-                  className="py-2"
-                />
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Processing State */}
-        {isProcessing && (
-          <div className="space-y-3 p-5 rounded-3xl bg-secondary/10 border border-secondary/20">
-            <div className="flex items-center justify-between text-xs font-bold uppercase tracking-widest mb-1">
-              <span className="text-primary animate-pulse">Memproses Video...</span>
-              <span>75%</span>
-            </div>
-            <Progress value={75} className="h-2 bg-muted transition-all" />
-            <p className="text-[10px] text-muted-foreground text-center font-medium uppercase tracking-wider">
-              {processingStatus}
+          ) : null}
+          {(summary?.adjustedToTier ?? estimateAdjustedToTier) ? (
+            <p className="text-xs font-semibold text-primary">
+              Durasi disesuaikan dengan batas paket kamu.
             </p>
-          </div>
-        )}
+          ) : null}
+        </section>
 
-        {/* Final Action Button */}
-        <div className="flex flex-col sm:flex-row gap-3 pt-4">
-          <Button
-            size="lg"
-            className="w-full flex-1 h-14 md:h-12 rounded-2xl font-black uppercase tracking-[0.2em] text-sm transition-all active:scale-[0.98]"
-            disabled={!hasVideo || isProcessing}
-            isLoading={isProcessing}
-            onClick={onProcess}
-          >
-            {!isProcessing && <currentModeConfig.icon size={18} className="mr-2" />}
-            {loopMode === 'gif' ? 'Render GIF' : 'Proses Video Loop'}
-          </Button>
-
-          {resultUrl && (
+        {document.trim.enabled && sourceInfo ? (
+          <section className="space-y-3 rounded-xl border border-primary/25 bg-primary/5 p-3.5">
+            <p className="flex items-start gap-2 text-xs font-semibold text-foreground">
+              <Info size={15} className="mt-0.5 shrink-0 text-primary" />
+              Draft lama ini menggunakan potongan video ({formatDuration(startMs)} -{' '}
+              {formatDuration(endMs)}).
+            </p>
             <Button
-              asChild
-              variant="secondary"
-              className="h-14 md:h-12 rounded-2xl px-8 font-black uppercase tracking-[0.2em] text-sm border-border/40 hover:bg-muted"
+              variant="outline"
+              size="sm"
+              className="h-10 w-full rounded-lg border-primary/25 text-primary"
+              onClick={() => patch({ trim: { enabled: false, startMs: 0 } })}
             >
-              <a href={resultUrl} download>
-                <Download size={18} className="mr-2" />
-                Simpan
-              </a>
+              Gunakan Video Penuh
             </Button>
-          )}
-        </div>
+          </section>
+        ) : null}
+
+        <section className="space-y-3 border-t border-border/40 pt-5">
+          <p className="text-[11px] font-black uppercase text-muted-foreground">Sambungan loop</p>
+          <div className="grid grid-cols-2 gap-2">
+            <Choice
+              selected={!smooth}
+              label="Loop Asli"
+              onClick={() => patch({ transition: { mode: 'repeat' } })}
+            />
+            <Choice
+              selected={smooth}
+              label="Loop Seamless"
+              disabled={segmentMs < 1000}
+              onClick={() => patch({ transition: { mode: 'smooth' } })}
+            />
+          </div>
+          <p className="text-xs font-medium text-muted-foreground">
+            {smooth
+              ? 'Terbaik untuk ambience satu sudut dengan gerakan dan cahaya stabil. Cut atau perubahan besar tetap dapat terlihat.'
+              : 'Mengulang langsung, cocok jika akhir dan awal video sudah menyatu.'}
+          </p>
+        </section>
+
+        {sourceInfo?.hasAudio ? (
+          <section className="flex items-center justify-between border-t border-border/40 pt-5">
+            <SectionTitle icon={VolumeX} title="Mute audio bawaan" />
+            <Switch
+              checked={document.audioMuted}
+              onCheckedChange={(audioMuted) => patch({ audioMuted })}
+            />
+          </section>
+        ) : null}
+
+        <section className="space-y-3 border-t border-border/40 pt-5">
+          <p className="text-[11px] font-black uppercase text-muted-foreground">Format video</p>
+          <div className="grid grid-cols-2 gap-2">
+            {RATIOS.map((ratio) => (
+              <button
+                key={ratio.value}
+                type="button"
+                className={cn(
+                  'flex h-16 items-center gap-3 rounded-xl border px-3 text-left transition-colors',
+                  ratio.value === 'original' && 'col-span-2',
+                  document.output.aspectRatio === ratio.value
+                    ? 'border-primary bg-primary/10 text-primary'
+                    : 'border-border/60 bg-muted/10 hover:bg-muted/20',
+                )}
+                onClick={() => patch({ output: { ...document.output, aspectRatio: ratio.value } })}
+              >
+                <RatioMark ratio={ratio.value} sourceInfo={sourceInfo} />
+                <span>
+                  <span className="block text-sm font-bold">{ratio.label}</span>
+                  <span className="block text-xs font-semibold text-muted-foreground">
+                    {ratio.value === 'original' ? 'Rasio sumber' : ratio.value}
+                  </span>
+                </span>
+              </button>
+            ))}
+          </div>
+          {document.output.aspectRatio !== 'original' ? (
+            <p className="text-xs font-medium text-muted-foreground">
+              Video akan dibuat Fit dengan blur background otomatis.
+            </p>
+          ) : null}
+        </section>
+
+        <Button
+          size="lg"
+          className="h-12 w-full rounded-xl font-black"
+          disabled={disabled || !sourceInfo}
+          onClick={onRender}
+        >
+          Render Video Loop
+        </Button>
       </CardBody>
     </Card>
   );
+}
+
+function RatioMark({
+  ratio,
+  sourceInfo,
+}: {
+  ratio: LoopCreatorProjectDocument['output']['aspectRatio'];
+  sourceInfo?: LoopSourceInfo;
+}) {
+  const value =
+    ratio === 'original'
+      ? sourceInfo
+        ? sourceInfo.width / sourceInfo.height
+        : 16 / 9
+      : { '16:9': 16 / 9, '9:16': 9 / 16, '1:1': 1, '4:5': 4 / 5 }[ratio];
+  return (
+    <span className="flex h-10 w-12 shrink-0 items-center justify-center rounded-lg bg-muted/20">
+      <span
+        className="block rounded border-2 border-current opacity-70"
+        style={value >= 1 ? { width: 34, aspectRatio: value } : { height: 32, aspectRatio: value }}
+      />
+    </span>
+  );
+}
+
+function SectionTitle({ icon: Icon, title }: { icon: typeof Film; title: string }) {
+  return (
+    <p className="flex items-center gap-2 text-[11px] font-black uppercase text-muted-foreground">
+      <Icon size={14} className="text-primary" />
+      {title}
+    </p>
+  );
+}
+
+function Choice({
+  selected,
+  label,
+  disabled,
+  onClick,
+}: {
+  selected: boolean;
+  label: string;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className={cn(
+        'h-12 rounded-xl border text-sm font-bold disabled:opacity-35',
+        selected ? 'border-primary bg-primary/10 text-primary' : 'border-border/60 bg-muted/10',
+      )}
+    >
+      {label}
+    </button>
+  );
+}
+
+function formatDuration(milliseconds: number): string {
+  const seconds = Math.round(milliseconds / 1000);
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  const remainder = seconds % 60;
+  return `${minutes}:${String(remainder).padStart(2, '0')}`;
+}
+
+function resolveAutomaticTransitionDurationMs(segmentDurationMs: number): number {
+  return Math.min(2000, Math.floor(segmentDurationMs * 0.3));
 }

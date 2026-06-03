@@ -24,8 +24,14 @@ export interface DrawtextOverlayInput {
   fontSize: number;
   fontFamily: string;
   fontWeight?: string;
+  fontStyle?: 'normal' | 'italic';
   color: string;
   backgroundColor?: string;
+  backgroundOpacity?: number;
+  opacity?: number;
+  rotation?: number;
+  textAlign?: 'left' | 'center' | 'right';
+  visible?: boolean;
   animation?: ModernTextAnimation;
   animationIn?: ModernTextAnimationIn;
   animationOut?: ModernTextAnimationOut;
@@ -50,7 +56,7 @@ export function buildDrawtextFilter(
   const animationLoop = overlay.animationLoop ?? 'none';
 
   let filter = `drawtext=text='${escapedText}'`;
-  filter += `:x=${buildXExpression(overlay.x, animationLoop)}`;
+  filter += `:x=${buildXExpression(overlay.x, overlay.textAlign ?? 'center', animationLoop)}`;
   filter += `:y=${buildYExpression(overlay.y, animationIn, animationOut, startSec, endSec)}`;
   filter += `:fontsize=${buildFontSizeExpression(overlay.fontSize, animationIn, animationOut, startSec, endSec)}`;
   filter += `:fontcolor=${color}`;
@@ -61,6 +67,7 @@ export function buildDrawtextFilter(
     animationLoop,
     startSec,
     endSec,
+    overlay.opacity ?? 1,
   );
   if (alphaExpression) {
     filter += `:alpha='${alphaExpression}'`;
@@ -73,7 +80,11 @@ export function buildDrawtextFilter(
   filter += `:enable='between(t\\,${startSec}\\,${endSec})'`;
 
   if (overlay.backgroundColor) {
-    const bgColor = toFFmpegColor(overlay.backgroundColor, 'black', 0.7);
+    const bgColor = toFFmpegColor(
+      overlay.backgroundColor,
+      'black',
+      overlay.backgroundOpacity ?? 0.7,
+    );
     filter += `:box=1:boxcolor=${bgColor}:boxborderw=${TEXT_BOX_BORDER_WIDTH}`;
   }
 
@@ -94,8 +105,10 @@ function buildAlphaExpression(
   animationLoop: ModernTextAnimationLoop,
   startSec: number,
   endSec: number,
+  opacity: number,
 ): string | null {
   const expressions: string[] = [];
+  const normalizedOpacity = normalizeOpacity(opacity);
 
   if (animationIn !== 'none' && animationIn !== 'typewriter') {
     const animationSec = getAnimationDurationSec(startSec, endSec);
@@ -113,6 +126,10 @@ function buildAlphaExpression(
 
   if (animationLoop === 'pulse' || animationLoop === 'glow') {
     expressions.push('(0.88+0.12*(sin(t*6.283)+1)/2)');
+  }
+
+  if (normalizedOpacity < 1) {
+    expressions.push(normalizedOpacity.toString());
   }
 
   if (expressions.length === 0) return null;
@@ -162,12 +179,16 @@ function buildStaticDrawtextFilter(
 ): string {
   const escapedText = escapeDrawtextText(content);
   const color = toFFmpegColor(overlay.color, 'white');
+  const opacity = normalizeOpacity(overlay.opacity ?? 1);
 
   let filter = `drawtext=text='${escapedText}'`;
-  filter += `:x=(w*${overlay.x}/100)-(text_w/2)`;
+  filter += `:x=${buildTextAlignXExpression(overlay.x, overlay.textAlign ?? 'center')}`;
   filter += `:y=(h*${overlay.y}/100)-(text_h/2)`;
   filter += `:fontsize=${overlay.fontSize}`;
   filter += `:fontcolor=${color}`;
+  if (opacity < 1) {
+    filter += `:alpha='${opacity}'`;
+  }
 
   if (fontFile) {
     filter += `:fontfile=${escapeDrawtextValue(fontFile)}`;
@@ -176,7 +197,11 @@ function buildStaticDrawtextFilter(
   filter += `:enable='${enableExpression}'`;
 
   if (overlay.backgroundColor) {
-    const bgColor = toFFmpegColor(overlay.backgroundColor, 'black', 0.7);
+    const bgColor = toFFmpegColor(
+      overlay.backgroundColor,
+      'black',
+      overlay.backgroundOpacity ?? 0.7,
+    );
     filter += `:box=1:boxcolor=${bgColor}:boxborderw=${TEXT_BOX_BORDER_WIDTH}`;
   }
 
@@ -231,14 +256,41 @@ function buildYExpression(
   return baseY;
 }
 
-function buildXExpression(xPercent: number, animationLoop: ModernTextAnimationLoop): string {
-  const baseX = `(w*${xPercent}/100)-(text_w/2)`;
+function buildXExpression(
+  xPercent: number,
+  textAlign: 'left' | 'center' | 'right',
+  animationLoop: ModernTextAnimationLoop,
+): string {
+  const baseX = buildTextAlignXExpression(xPercent, textAlign);
 
   if (animationLoop === 'shake') {
     return `${baseX}+${TEXT_SHAKE_DISTANCE_PX}*sin(t*34)`;
   }
 
   return baseX;
+}
+
+function buildTextAlignXExpression(
+  xPercent: number,
+  textAlign: 'left' | 'center' | 'right',
+): string {
+  if (textAlign === 'left') {
+    return `(w*${xPercent}/100)`;
+  }
+
+  if (textAlign === 'right') {
+    return `(w*${xPercent}/100)-text_w`;
+  }
+
+  return `(w*${xPercent}/100)-(text_w/2)`;
+}
+
+function normalizeOpacity(opacity: number): number {
+  if (!Number.isFinite(opacity)) {
+    return 1;
+  }
+
+  return Math.max(0, Math.min(1, opacity));
 }
 
 function buildFontSizeExpression(

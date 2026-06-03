@@ -1,4 +1,5 @@
-import { RotateCw, X } from 'lucide-react';
+import { RotateCw, Trash2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface LayerHandlesProps {
   onRotateMouseDown: (e: React.MouseEvent) => void;
@@ -17,93 +18,149 @@ export function LayerHandles({
 }: LayerHandlesProps) {
   return (
     <>
-      {/* Rotation Handle */}
       <button
         type="button"
         aria-label="Rotate layer"
-        className="absolute -top-12 left-1/2 -translate-x-1/2 flex cursor-move touch-manipulation flex-col items-center pointer-events-auto"
+        className="group/rotate pointer-events-auto absolute -top-11 left-1/2 z-20 flex h-11 w-11 -translate-x-1/2 cursor-grab touch-manipulation items-center justify-center active:cursor-grabbing"
         onMouseDown={onRotateMouseDown}
         onTouchStart={onRotateTouchStart}
       >
-        <div className="flex h-8 w-8 items-center justify-center rounded-full border border-primary/40 bg-background text-primary shadow-md transition-transform hover:scale-110">
-          <RotateCw size={12} strokeWidth={2.5} />
-        </div>
-        <div className="h-4 w-px bg-primary/70" />
+        <span className="pointer-events-none absolute top-9 h-3 w-px bg-primary/35" />
+        <span className="flex h-7 w-7 items-center justify-center rounded-full border border-primary/35 bg-background/90 text-primary shadow-sm backdrop-blur-md transition-all group-hover/rotate:scale-105 group-hover/rotate:border-primary/65 group-hover/rotate:bg-primary/10">
+          <RotateCw size={13} strokeWidth={2.4} />
+        </span>
       </button>
 
-      {/* Delete Button */}
       <button
         type="button"
-        className="absolute -top-12 -right-3 flex h-8 w-8 touch-manipulation items-center justify-center rounded-full bg-destructive text-destructive-foreground shadow-md transition-all hover:scale-110 hover:bg-destructive/90 pointer-events-auto"
+        className="group/delete pointer-events-auto absolute -top-11 -right-5 z-20 flex h-11 w-11 touch-manipulation items-center justify-center"
         onClick={(e) => {
           e.stopPropagation();
           onDelete();
         }}
         aria-label="Delete layer"
       >
-        <X size={12} strokeWidth={2.5} />
+        <span className="flex h-7 w-7 items-center justify-center rounded-full border border-border/45 bg-background/90 text-muted-foreground shadow-sm backdrop-blur-md transition-all group-hover/delete:scale-105 group-hover/delete:border-destructive/55 group-hover/delete:bg-destructive/10 group-hover/delete:text-destructive">
+          <Trash2 size={13} strokeWidth={2.4} />
+        </span>
       </button>
 
-      {/* RESIZE HANDLES */}
-      {/* Corner Handles */}
-      <button
-        type="button"
-        aria-label="Resize layer from north-west"
-        className="absolute -top-2 -left-2 z-10 h-4 w-4 touch-manipulation rounded-full border border-primary bg-background shadow-sm transition-transform hover:scale-125 cursor-nw-resize pointer-events-auto"
-        onMouseDown={(e) => onResizeMouseDown(e, 'nw')}
-        onTouchStart={(e) => onResizeTouchStart(e, 'nw')}
+      <ResizeHandle
+        ariaLabel="Resize layer from north-west"
+        cursorClassName="cursor-nw-resize"
+        handle="nw"
+        positionClassName="-top-5 -left-5"
+        variant="corner"
+        onResizeMouseDown={onResizeMouseDown}
+        onResizeTouchStart={onResizeTouchStart}
       />
-      <button
-        type="button"
-        aria-label="Resize layer from north-east"
-        className="absolute -top-2 -right-2 z-10 h-4 w-4 touch-manipulation rounded-full border border-primary bg-background shadow-sm transition-transform hover:scale-125 cursor-ne-resize pointer-events-auto"
-        onMouseDown={(e) => onResizeMouseDown(e, 'ne')}
-        onTouchStart={(e) => onResizeTouchStart(e, 'ne')}
+      <ResizeHandle
+        ariaLabel="Resize layer from north-east"
+        cursorClassName="cursor-ne-resize"
+        handle="ne"
+        positionClassName="-top-5 -right-5"
+        variant="corner"
+        onResizeMouseDown={onResizeMouseDown}
+        onResizeTouchStart={onResizeTouchStart}
       />
-      <button
-        type="button"
-        aria-label="Resize layer from south-west"
-        className="absolute -bottom-2 -left-2 z-10 h-4 w-4 touch-manipulation rounded-full border border-primary bg-background shadow-sm transition-transform hover:scale-125 cursor-sw-resize pointer-events-auto"
-        onMouseDown={(e) => onResizeMouseDown(e, 'sw')}
-        onTouchStart={(e) => onResizeTouchStart(e, 'sw')}
+      <ResizeHandle
+        ariaLabel="Resize layer from south-west"
+        cursorClassName="cursor-sw-resize"
+        handle="sw"
+        positionClassName="-bottom-5 -left-5"
+        variant="corner"
+        onResizeMouseDown={onResizeMouseDown}
+        onResizeTouchStart={onResizeTouchStart}
       />
-      <button
-        type="button"
-        aria-label="Resize layer from south-east"
-        className="absolute -bottom-2 -right-2 z-10 h-4 w-4 touch-manipulation rounded-full border border-primary bg-background shadow-sm transition-transform hover:scale-125 cursor-se-resize pointer-events-auto"
-        onMouseDown={(e) => onResizeMouseDown(e, 'se')}
-        onTouchStart={(e) => onResizeTouchStart(e, 'se')}
+      <ResizeHandle
+        ariaLabel="Resize layer from south-east"
+        cursorClassName="cursor-se-resize"
+        handle="se"
+        positionClassName="-right-5 -bottom-5"
+        variant="corner"
+        onResizeMouseDown={onResizeMouseDown}
+        onResizeTouchStart={onResizeTouchStart}
       />
 
-      {/* Side Handles */}
-      <button
-        type="button"
-        aria-label="Resize layer from north"
-        className="absolute -top-1.5 left-1/2 h-3 w-8 -translate-x-1/2 touch-manipulation rounded-full border border-primary bg-background shadow-sm transition-colors hover:bg-primary cursor-n-resize pointer-events-auto"
-        onMouseDown={(e) => onResizeMouseDown(e, 'n')}
-        onTouchStart={(e) => onResizeTouchStart(e, 'n')}
+      <ResizeHandle
+        ariaLabel="Resize layer from north"
+        cursorClassName="cursor-n-resize"
+        handle="n"
+        positionClassName="-top-5 left-1/2 -translate-x-1/2"
+        variant="horizontal"
+        onResizeMouseDown={onResizeMouseDown}
+        onResizeTouchStart={onResizeTouchStart}
       />
-      <button
-        type="button"
-        aria-label="Resize layer from south"
-        className="absolute -bottom-1.5 left-1/2 h-3 w-8 -translate-x-1/2 touch-manipulation rounded-full border border-primary bg-background shadow-sm transition-colors hover:bg-primary cursor-s-resize pointer-events-auto"
-        onMouseDown={(e) => onResizeMouseDown(e, 's')}
-        onTouchStart={(e) => onResizeTouchStart(e, 's')}
+      <ResizeHandle
+        ariaLabel="Resize layer from south"
+        cursorClassName="cursor-s-resize"
+        handle="s"
+        positionClassName="-bottom-5 left-1/2 -translate-x-1/2"
+        variant="horizontal"
+        onResizeMouseDown={onResizeMouseDown}
+        onResizeTouchStart={onResizeTouchStart}
       />
-      <button
-        type="button"
-        aria-label="Resize layer from west"
-        className="absolute -left-1.5 top-1/2 h-8 w-3 -translate-y-1/2 touch-manipulation rounded-full border border-primary bg-background shadow-sm transition-colors hover:bg-primary cursor-w-resize pointer-events-auto"
-        onMouseDown={(e) => onResizeMouseDown(e, 'w')}
-        onTouchStart={(e) => onResizeTouchStart(e, 'w')}
+      <ResizeHandle
+        ariaLabel="Resize layer from west"
+        cursorClassName="cursor-w-resize"
+        handle="w"
+        positionClassName="-left-5 top-1/2 -translate-y-1/2"
+        variant="vertical"
+        onResizeMouseDown={onResizeMouseDown}
+        onResizeTouchStart={onResizeTouchStart}
       />
-      <button
-        type="button"
-        aria-label="Resize layer from east"
-        className="absolute -right-1.5 top-1/2 h-8 w-3 -translate-y-1/2 touch-manipulation rounded-full border border-primary bg-background shadow-sm transition-colors hover:bg-primary cursor-e-resize pointer-events-auto"
-        onMouseDown={(e) => onResizeMouseDown(e, 'e')}
-        onTouchStart={(e) => onResizeTouchStart(e, 'e')}
+      <ResizeHandle
+        ariaLabel="Resize layer from east"
+        cursorClassName="cursor-e-resize"
+        handle="e"
+        positionClassName="-right-5 top-1/2 -translate-y-1/2"
+        variant="vertical"
+        onResizeMouseDown={onResizeMouseDown}
+        onResizeTouchStart={onResizeTouchStart}
       />
     </>
+  );
+}
+
+interface ResizeHandleProps {
+  readonly ariaLabel: string;
+  readonly cursorClassName: string;
+  readonly handle: string;
+  readonly positionClassName: string;
+  readonly variant: 'corner' | 'horizontal' | 'vertical';
+  readonly onResizeMouseDown: (e: React.MouseEvent, handle: string) => void;
+  readonly onResizeTouchStart: (e: React.TouchEvent, handle: string) => void;
+}
+
+function ResizeHandle({
+  ariaLabel,
+  cursorClassName,
+  handle,
+  positionClassName,
+  variant,
+  onResizeMouseDown,
+  onResizeTouchStart,
+}: ResizeHandleProps) {
+  return (
+    <button
+      type="button"
+      aria-label={ariaLabel}
+      className={cn(
+        'group/resize pointer-events-auto absolute z-10 flex h-11 w-11 touch-manipulation items-center justify-center',
+        cursorClassName,
+        positionClassName,
+      )}
+      onMouseDown={(e) => onResizeMouseDown(e, handle)}
+      onTouchStart={(e) => onResizeTouchStart(e, handle)}
+    >
+      <span
+        className={cn(
+          'block border border-primary/80 bg-background/95 shadow-sm transition-all group-hover/resize:scale-110 group-hover/resize:bg-primary',
+          variant === 'corner' && 'h-3 w-3 rounded-full',
+          variant === 'horizontal' && 'h-1.5 w-7 rounded-full',
+          variant === 'vertical' && 'h-7 w-1.5 rounded-full',
+        )}
+      />
+    </button>
   );
 }

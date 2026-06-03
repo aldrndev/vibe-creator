@@ -1,176 +1,108 @@
-/**
- * Announcement Handlers
- * Admin endpoints for announcement CRUD operations
- */
-
+import { ERROR_CODES } from '@vibe-creator/shared';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { AuditAction, audit } from '@/lib/audit';
+import { logger } from '@/lib/logger';
 import { redis } from '@/lib/redis';
+import { sendError, sendSuccess } from '@/utils/response';
+import {
+  adminAnnouncementIdParamsSchema,
+  adminCreateAnnouncementSchema,
+  adminUpdateAnnouncementSchema,
+} from '../admin.schemas';
 import { adminService } from '../admin.service';
 
-const createAnnouncementSchema = z.object({
-  title: z.string().min(1).max(200),
-  content: z.string().min(1).max(1000),
-});
+const ACTIVE_ANNOUNCEMENTS_CACHE_KEY = 'announcements:active';
 
-const updateAnnouncementSchema = z.object({
-  title: z.string().min(1).max(200).optional(),
-  content: z.string().min(1).max(1000).optional(),
-  isActive: z.boolean().optional(),
-});
+function validationMessage(error: z.ZodError): string {
+  return error.issues[0]?.message ?? 'Validasi gagal';
+}
+
+async function invalidateAnnouncementCache(): Promise<void> {
+  if (redis.status === 'ready') {
+    await redis.del(ACTIVE_ANNOUNCEMENTS_CACHE_KEY);
+  }
+}
+
+async function auditAnnouncementAction(
+  request: FastifyRequest,
+  resourceId: string,
+  action: string,
+): Promise<void> {
+  if (!request.user) return;
+
+  await audit({
+    requestId: request.id,
+    userId: request.user.id,
+    tenantId: request.user.id,
+    action: AuditAction.ADMIN_ACTION,
+    resourceType: 'announcement',
+    resourceId,
+    ipAddress: request.ip,
+    userAgent: request.headers['user-agent'] ?? undefined,
+    metadata: { action },
+  });
+}
+
+function handleAnnouncementError(reply: FastifyReply, error: unknown): FastifyReply {
+  if (error instanceof z.ZodError) {
+    return sendError(reply, ERROR_CODES.VALIDATION_ERROR, validationMessage(error), 400);
+  }
+
+  logger.error({ err: error }, 'Admin announcement operation failed');
+  return sendError(reply, ERROR_CODES.INTERNAL_ERROR, 'Operasi pengumuman gagal', 500);
+}
 
 export const announcementHandlers = {
-  /**
-   * Get all announcements
-   */
   async getAnnouncements(_request: FastifyRequest, reply: FastifyReply) {
     try {
       const announcements = await adminService.getAnnouncements();
-      return reply.send({
-        success: true,
-        data: announcements,
-      });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to get announcements';
-      return reply.status(500).send({
-        success: false,
-        error: { code: 'ADMIN_ERROR', message },
-      });
+      return sendSuccess(reply, announcements);
+    } catch (error) {
+      return handleAnnouncementError(reply, error);
     }
   },
 
-  /**
-   * Create announcement
-   */
   async createAnnouncement(request: FastifyRequest, reply: FastifyReply) {
     try {
-      const body = createAnnouncementSchema.parse(request.body);
+      const body = adminCreateAnnouncementSchema.parse(request.body);
       const announcement = await adminService.createAnnouncement(body.title, body.content);
 
-      if (redis.status === 'ready') {
-        await redis.del('announcements:active');
-      }
+      await invalidateAnnouncementCache();
+      await auditAnnouncementAction(request, announcement.id, 'create_announcement');
 
-      if (request.user) {
-        void audit({
-          requestId: request.id,
-          userId: request.user.id,
-          tenantId: request.user.id,
-          action: AuditAction.ADMIN_ACTION,
-          resourceType: 'announcement',
-          resourceId: announcement.id,
-          ipAddress: request.ip,
-          userAgent: request.headers['user-agent'] ?? undefined,
-          metadata: { action: 'create_announcement' },
-        });
-      }
-
-      return reply.status(201).send({
-        success: true,
-        data: announcement,
-      });
-    } catch (err) {
-      if (err instanceof z.ZodError) {
-        return reply.status(400).send({
-          success: false,
-          error: { code: 'VALIDATION_ERROR', message: err.issues[0]?.message },
-        });
-      }
-      const message = err instanceof Error ? err.message : 'Failed to create announcement';
-      return reply.status(500).send({
-        success: false,
-        error: { code: 'ADMIN_ERROR', message },
-      });
+      return sendSuccess(reply, announcement, undefined, 201);
+    } catch (error) {
+      return handleAnnouncementError(reply, error);
     }
   },
 
-  /**
-   * Update announcement
-   */
-  async updateAnnouncement(
-    request: FastifyRequest<{ Params: { id: string } }>,
-    reply: FastifyReply,
-  ) {
+  async updateAnnouncement(request: FastifyRequest, reply: FastifyReply) {
     try {
-      const body = updateAnnouncementSchema.parse(request.body);
-      const announcement = await adminService.updateAnnouncement(request.params.id, body);
+      const params = adminAnnouncementIdParamsSchema.parse(request.params);
+      const body = adminUpdateAnnouncementSchema.parse(request.body);
+      const announcement = await adminService.updateAnnouncement(params.id, body);
 
-      if (redis.status === 'ready') {
-        await redis.del('announcements:active');
-      }
+      await invalidateAnnouncementCache();
+      await auditAnnouncementAction(request, params.id, 'update_announcement');
 
-      if (request.user) {
-        void audit({
-          requestId: request.id,
-          userId: request.user.id,
-          tenantId: request.user.id,
-          action: AuditAction.ADMIN_ACTION,
-          resourceType: 'announcement',
-          resourceId: request.params.id,
-          ipAddress: request.ip,
-          userAgent: request.headers['user-agent'] ?? undefined,
-          metadata: { action: 'update_announcement' },
-        });
-      }
-
-      return reply.send({
-        success: true,
-        data: announcement,
-      });
-    } catch (err) {
-      if (err instanceof z.ZodError) {
-        return reply.status(400).send({
-          success: false,
-          error: {
-            code: 'VALIDATION_ERROR',
-            message: err.issues[0]?.message,
-          },
-        });
-      }
-      const message = err instanceof Error ? err.message : 'Failed to update announcement';
-      return reply.status(500).send({
-        success: false,
-        error: { code: 'ADMIN_ERROR', message },
-      });
+      return sendSuccess(reply, announcement);
+    } catch (error) {
+      return handleAnnouncementError(reply, error);
     }
   },
 
-  /**
-   * Delete announcement
-   */
-  async deleteAnnouncement(
-    request: FastifyRequest<{ Params: { id: string } }>,
-    reply: FastifyReply,
-  ) {
+  async deleteAnnouncement(request: FastifyRequest, reply: FastifyReply) {
     try {
-      await adminService.deleteAnnouncement(request.params.id);
-      if (redis.status === 'ready') {
-        await redis.del('announcements:active');
-      }
-      if (request.user) {
-        void audit({
-          requestId: request.id,
-          userId: request.user.id,
-          tenantId: request.user.id,
-          action: AuditAction.ADMIN_ACTION,
-          resourceType: 'announcement',
-          resourceId: request.params.id,
-          ipAddress: request.ip,
-          userAgent: request.headers['user-agent'] ?? undefined,
-          metadata: { action: 'delete_announcement' },
-        });
-      }
-      return reply.send({
-        success: true,
-        data: { message: 'Announcement deleted successfully' },
-      });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to delete announcement';
-      return reply.status(500).send({
-        success: false,
-        error: { code: 'ADMIN_ERROR', message },
-      });
+      const params = adminAnnouncementIdParamsSchema.parse(request.params);
+      await adminService.deleteAnnouncement(params.id);
+
+      await invalidateAnnouncementCache();
+      await auditAnnouncementAction(request, params.id, 'delete_announcement');
+
+      return sendSuccess(reply, { message: 'Announcement deleted successfully' });
+    } catch (error) {
+      return handleAnnouncementError(reply, error);
     }
   },
 };

@@ -8,6 +8,7 @@ import {
   Mic,
   Music,
   Plus,
+  Repeat2,
   Search,
   Sparkles,
   Timer,
@@ -42,6 +43,7 @@ const promptTypes: Array<{
   { key: 'RELAXING', label: 'Relaxing', icon: Music },
   { key: 'CREATIVE_SCAN', label: 'Scan', icon: Search },
   { key: 'TIMELAPSE', label: 'Timelapse', icon: Timer },
+  { key: 'LOOP_SOURCE', label: 'Loop Source', icon: Repeat2 },
 ];
 
 const promptTypeLabels: Record<
@@ -57,6 +59,7 @@ const promptTypeLabels: Record<
   RELAXING: { label: 'Relaxing' },
   CREATIVE_SCAN: { label: 'Scan' },
   TIMELAPSE: { label: 'Timelapse' },
+  LOOP_SOURCE: { label: 'Loop Source' },
 };
 
 export function PromptsPage() {
@@ -218,6 +221,8 @@ export function PromptsPage() {
                       'Bongkar strategi kreatif video viral kompetitor anda.'}
                     {selectedType === 'TIMELAPSE' &&
                       'Buat mahakarya timelapse cinematic dengan kekuatan Sora AI.'}
+                    {selectedType === 'LOOP_SOURCE' &&
+                      'Buat source ambience dengan visual dan audio natural untuk loop seamless.'}
                   </p>
                 </div>
               </div>

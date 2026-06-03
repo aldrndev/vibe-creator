@@ -114,4 +114,27 @@ describe('text overlay FFmpeg filter', () => {
 
     expect(filter).toContain(':x=(w*50/100)-(text_w/2)+6*sin(t*34)');
   });
+
+  it('uses explicit text opacity and background opacity', () => {
+    const filter = buildDrawtextFilter(
+      {
+        ...baseOverlay,
+        opacity: 0.6,
+        backgroundColor: '#000000',
+        backgroundOpacity: 0.35,
+      },
+      null,
+    );
+
+    expect(filter).toContain(":alpha='0.6'");
+    expect(filter).toContain(':box=1:boxcolor=0x000000@0.35:boxborderw=10');
+  });
+
+  it('maps text alignment to anchor-aware x expressions', () => {
+    const leftFilter = buildDrawtextFilter({ ...baseOverlay, textAlign: 'left' }, null);
+    const rightFilter = buildDrawtextFilter({ ...baseOverlay, textAlign: 'right' }, null);
+
+    expect(leftFilter).toContain(':x=(w*50/100)');
+    expect(rightFilter).toContain(':x=(w*50/100)-text_w');
+  });
 });

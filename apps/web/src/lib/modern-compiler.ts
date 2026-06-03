@@ -266,6 +266,11 @@ function compileVideoLayer(
 
   const videoClip: EditorClip = {
     id: generateClipId(layer.id, 'VIDEO', 0),
+    layerId: layer.id,
+    zIndex: layer.zIndex,
+    fit: layer.data.fit,
+    loop: layer.data.loop,
+    visible: layer.visible,
     assetId: layer.assetId,
     linkId,
     startMs: layer.startMs,
@@ -280,6 +285,10 @@ function compileVideoLayer(
   // Create linked audio clip for video with audio
   const audioClip: EditorClip = {
     id: generateClipId(layer.id, 'AUDIO', 0),
+    layerId: layer.id,
+    zIndex: layer.zIndex,
+    loop: layer.data.loop,
+    visible: layer.visible,
     assetId: layer.assetId,
     linkId,
     startMs: layer.startMs,
@@ -312,6 +321,10 @@ function compileImageLayer(
 
   return {
     id: generateClipId(layer.id, 'VIDEO', 0), // Images go on video track
+    layerId: layer.id,
+    zIndex: layer.zIndex,
+    fit: layer.data.fit,
+    visible: layer.visible,
     assetId: layer.assetId,
     startMs: layer.startMs,
     endMs: layer.endMs,
@@ -329,6 +342,10 @@ function compileImageLayer(
 function compileAudioLayer(layer: AudioLayer, asset: EditorAsset): EditorClip {
   return {
     id: generateClipId(layer.id, 'AUDIO', 0),
+    layerId: layer.id,
+    zIndex: layer.zIndex,
+    loop: layer.data.loop,
+    visible: layer.visible,
     assetId: layer.assetId,
     startMs: layer.startMs,
     endMs: layer.endMs,
@@ -467,7 +484,7 @@ export function compileModernProject(
  */
 export function extractTextOverlays(project: ModernProject) {
   return project.layers
-    .filter((l): l is TextLayer => l.type === 'text')
+    .filter((l): l is TextLayer => l.type === 'text' && l.visible)
     .map((layer) => ({
       id: layer.id,
       text: layer.data.text,
@@ -477,8 +494,11 @@ export function extractTextOverlays(project: ModernProject) {
       fontStyle: layer.data.fontStyle,
       color: layer.data.color,
       backgroundColor: layer.data.backgroundColor,
+      backgroundOpacity: layer.data.backgroundOpacity,
       x: layer.x,
       y: layer.y,
+      zIndex: layer.zIndex,
+      opacity: layer.opacity,
       rotation: layer.rotation,
       textAlign: layer.data.textAlign,
       startMs: layer.startMs,

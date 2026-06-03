@@ -5,17 +5,13 @@ import { TopupModal } from '@/components/tools/TopupModal';
 import { Badge, Button, Card, CardBody, Divider, Spinner } from '@/components/ui';
 import { PageTransition } from '@/components/ui/PageTransition';
 import { cn } from '@/lib/utils';
-import { authFetch } from '@/services/api';
+import {
+  getStreamHistory,
+  type StreamStatusRecord,
+  stopStream,
+} from '@/services/live-stream-project-api';
 
-interface StreamSession {
-  id: string;
-  platform: string;
-  status: 'PENDING' | 'LIVE' | 'ENDED' | 'FAILED';
-  startedAt: string;
-  endedAt: string | null;
-  durationMinutesBilled: number;
-  stopReason: string | null;
-}
+type StreamSession = StreamStatusRecord;
 
 interface FeedbackMessage {
   type: 'success' | 'error';
@@ -25,20 +21,24 @@ interface FeedbackMessage {
 export function LiveStreamHistoryPage() {
   const [streams, setStreams] = useState<StreamSession[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [showTopup, setShowTopup] = useState(false);
   const [feedback, setFeedback] = useState<FeedbackMessage | null>(null);
 
-  const fetchHistory = useCallback(async () => {
+  const fetchHistory = useCallback(async (cursor?: string) => {
     try {
-      const res = await authFetch('/api/v1/stream/history');
-      if (res.ok) {
-        const data = await res.json();
-        setStreams(data.data.streams);
+      if (cursor) {
+        setIsLoadingMore(true);
       }
+      const response = await getStreamHistory({ limit: 20, cursor });
+      setStreams((current) => (cursor ? [...current, ...response.streams] : response.streams));
+      setNextCursor(response.nextCursor);
     } catch {
       setFeedback({ type: 'error', text: 'Gagal memuat riwayat stream' });
     } finally {
       setIsLoading(false);
+      setIsLoadingMore(false);
     }
   }, []);
 
@@ -55,28 +55,16 @@ export function LiveStreamHistoryPage() {
 
   const handleStopStream = async (streamId: string) => {
     try {
-      const res = await authFetch('/api/v1/stream/stop', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ streamId }),
-      });
-
-      if (res.ok) {
-        setFeedback({ type: 'success', text: 'Stream berhasil dihentikan' });
-        fetchHistory();
-      } else {
-        const data = await res.json();
-        throw new Error(data.error?.message || 'Gagal menghentikan stream');
-      }
+      await stopStream(streamId);
+      setFeedback({ type: 'success', text: 'Stream berhasil dihentikan' });
+      fetchHistory();
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : 'Gagal menghentikan stream';
       setFeedback({ type: 'error', text: message });
     }
   };
 
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString: string | Date) => {
     return new Intl.DateTimeFormat('id-ID', {
       day: '2-digit',
       month: 'short',
@@ -84,7 +72,7 @@ export function LiveStreamHistoryPage() {
     }).format(new Date(dateString));
   };
 
-  const formatTime = (dateString: string) => {
+  const formatTime = (dateString: string | Date) => {
     return `${new Intl.DateTimeFormat('id-ID', {
       hour: '2-digit',
       minute: '2-digit',
@@ -234,7 +222,7 @@ export function LiveStreamHistoryPage() {
                         </div>
                       </div>
 
-                      {stream.status === 'LIVE' && (
+                      {(stream.status === 'LIVE' || stream.status === 'STARTING') && (
                         <Button
                           size="sm"
                           variant="ghost"
@@ -283,6 +271,17 @@ export function LiveStreamHistoryPage() {
                         )}
                       </div>
 
+                      <div className="grid grid-cols-2 gap-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                        <div className="rounded-xl border border-border/40 bg-muted/5 px-3 py-2">
+                          {stream.config?.quality ?? 'Auto'}
+                        </div>
+                        <div className="rounded-xl border border-border/40 bg-muted/5 px-3 py-2">
+                          {stream.config?.bitrateKbps
+                            ? `${stream.config.bitrateKbps}kbps`
+                            : 'Bitrate auto'}
+                        </div>
+                      </div>
+
                       {stream.stopReason && (
                         <div className="flex flex-col gap-1.5 mt-2">
                           <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
@@ -298,7 +297,7 @@ export function LiveStreamHistoryPage() {
                     </div>
 
                     {/* Action Bar for Ended Streams */}
-                    {stream.status !== 'LIVE' && (
+                    {stream.status !== 'LIVE' && stream.status !== 'STARTING' && (
                       <div className="pt-2">
                         <Button
                           asChild
@@ -320,6 +319,18 @@ export function LiveStreamHistoryPage() {
                   </CardBody>
                 </Card>
               ))}
+              {nextCursor && (
+                <div className="col-span-full flex justify-center pt-4">
+                  <Button
+                    variant="outline"
+                    className="rounded-full px-6 font-black"
+                    disabled={isLoadingMore}
+                    onClick={() => fetchHistory(nextCursor)}
+                  >
+                    {isLoadingMore ? 'Memuat...' : 'Muat Lagi'}
+                  </Button>
+                </div>
+              )}
             </div>
           );
         })()}

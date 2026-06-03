@@ -41,4 +41,17 @@ describe('audio track processor', () => {
     expect(filter).toContain('[1:a:0]volume=0[basea]');
     expect(filter).toContain('[2:a:0]atrim=start=1.500:end=6.000');
   });
+
+  it('loops audio tracks before applying fade controls', () => {
+    const filter = buildAudioMixFilter({
+      hasBaseAudio: true,
+      baseAudioInputIndex: 0,
+      audioInputStartIndex: 1,
+      audioTracks: [{ ...musicTrack, loop: true }],
+    });
+
+    expect(filter).toContain('aloop=loop=-1:size=2147483647');
+    expect(filter).toContain('atrim=duration=4.500');
+    expect(filter.indexOf('aloop=loop=-1')).toBeLessThan(filter.indexOf('afade=t=in'));
+  });
 });

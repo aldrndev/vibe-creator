@@ -5,6 +5,7 @@ import { env } from '@/config/env';
 import { logger } from '@/lib/logger';
 import { prisma } from '@/lib/prisma';
 import { cleanupDirectorAssetFileIfUnreferenced } from '@/modules/director/asset-file-cleanup';
+import { cleanupProjectAssetFiles } from '@/modules/project/project-asset-file-cleanup';
 import {
   getExpiredHardDeleteBefore,
   WORKSPACE_RETENTION_MS,
@@ -26,6 +27,16 @@ const CLEANUP_DIRS = [
     dir: 'uploads/director/live-previews',
     maxAgeMs: WORKSPACE_RETENTION_MS.previewCache,
     type: 'director-live-preview',
+  },
+  {
+    dir: 'uploads/temp/loop-previews',
+    maxAgeMs: WORKSPACE_RETENTION_MS.previewCache,
+    type: 'loop-preview',
+  },
+  {
+    dir: 'uploads/temp/workspace-thumbnails',
+    maxAgeMs: WORKSPACE_RETENTION_MS.previewCache,
+    type: 'workspace-thumbnail',
   },
   { dir: 'uploads/downloads', maxAgeMs: WORKSPACE_RETENTION_MS.exportDownload, type: 'download' },
 ] as const;
@@ -55,6 +66,7 @@ export const cleanupCron = {
     await this.markExpiredWorkspaces();
     await this.cleanExpiredDirectorExports();
     await this.cleanExpiredVideoStudioExports();
+    await this.cleanExpiredLoopPreviews();
     await this.hardDeleteExpiredWorkspaces();
   },
 
@@ -276,6 +288,53 @@ export const cleanupCron = {
     }
   },
 
+  async cleanExpiredLoopPreviews() {
+    const now = new Date();
+    const deleteBefore = new Date(now.getTime() - WORKSPACE_RETENTION_MS.expiredGrace);
+    const previews = await prisma.loopPreview.findMany({
+      where: { expiresAt: { lt: now }, localPath: { not: null } },
+      select: { id: true, localPath: true },
+      take: 100,
+    });
+    let deletedCount = 0;
+    let freedBytes = 0;
+    for (const preview of previews) {
+      if (preview.localPath) {
+        try {
+          const stats = await stat(preview.localPath);
+          await unlink(preview.localPath);
+          deletedCount += 1;
+          freedBytes += stats.size;
+        } catch {
+          // A missing file still invalidates the preview record.
+        }
+      }
+      await prisma.loopPreview.update({
+        where: { id: preview.id },
+        data: { status: 'EXPIRED', phase: 'EXPIRED', localPath: null },
+      });
+    }
+    const stale = await prisma.loopPreview.updateMany({
+      where: { expiresAt: { lt: now }, status: { not: 'EXPIRED' } },
+      data: { status: 'EXPIRED', phase: 'EXPIRED' },
+    });
+    const deletedRecords = await prisma.loopPreview.deleteMany({
+      where: { status: 'EXPIRED', expiresAt: { lt: deleteBefore } },
+    });
+    if (previews.length > 0 || stale.count > 0 || deletedRecords.count > 0) {
+      logger.info(
+        {
+          type: 'loop-preview',
+          records: previews.length + stale.count,
+          deletedRecords: deletedRecords.count,
+          deletedCount,
+          freedMB: Math.round(freedBytes / 1024 / 1024),
+        },
+        'Cleaned expired loop previews',
+      );
+    }
+  },
+
   async hardDeleteExpiredWorkspaces() {
     const cutoff = getExpiredHardDeleteBefore();
     const projects = await prisma.project.findMany({
@@ -300,8 +359,20 @@ export const cleanupCron = {
       take: 100,
     });
 
+    let deletedProjects = 0;
+    let deletedProjectAssetFiles = 0;
+    let freedProjectAssetBytes = 0;
+
     for (const project of projects) {
+      const cleanup = await cleanupProjectAssetFiles(project.id);
+      if (!cleanup.succeeded) {
+        continue;
+      }
+
       await prisma.project.delete({ where: { id: project.id } });
+      deletedProjects += 1;
+      deletedProjectAssetFiles += cleanup.deletedFiles;
+      freedProjectAssetBytes += cleanup.freedBytes;
     }
 
     for (const session of sessions) {
@@ -312,11 +383,13 @@ export const cleanupCron = {
       }
     }
 
-    if (projects.length > 0 || sessions.length > 0) {
+    if (deletedProjects > 0 || sessions.length > 0) {
       logger.info(
         {
           type: 'workspace-hard-delete',
-          projects: projects.length,
+          projects: deletedProjects,
+          projectAssetFiles: deletedProjectAssetFiles,
+          projectAssetFreedMB: Math.round(freedProjectAssetBytes / 1024 / 1024),
           directorSessions: sessions.length,
         },
         'Hard-deleted expired workspaces after grace period',

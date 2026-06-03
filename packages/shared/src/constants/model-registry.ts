@@ -39,7 +39,7 @@ export const MODEL_REGISTRY: Record<AIModel, ModelConfig> = {
     id: AIModel.SORA,
     label: 'OpenAI Sora',
     description: 'Terbaik untuk durasi panjang, fisika kompleks, dan penceritaan hiper-realistis.',
-    supports: ['VIDEO_GEN', 'TIMELAPSE'],
+    supports: ['VIDEO_GEN', 'TIMELAPSE', 'LOOP_SOURCE'],
   },
   [AIModel.GEN3]: {
     id: AIModel.GEN3,
@@ -51,7 +51,7 @@ export const MODEL_REGISTRY: Record<AIModel, ModelConfig> = {
     id: AIModel.VEO,
     label: 'Google Veo',
     description: 'Generasi 1080p+ definisi tinggi dengan pemahaman mendalam istilah sinematik.',
-    supports: ['VIDEO_GEN', 'TIMELAPSE'],
+    supports: ['VIDEO_GEN', 'TIMELAPSE', 'LOOP_SOURCE'],
   },
   [AIModel.LUMA]: {
     id: AIModel.LUMA,
@@ -142,6 +142,7 @@ export const DEFAULT_MODELS: Record<PromptType, AIModel> = {
   RELAXING: AIModel.MIDJOURNEY, // Defaults to visual asset prompt
   CREATIVE_SCAN: AIModel.GPT4,
   TIMELAPSE: AIModel.SORA,
+  LOOP_SOURCE: AIModel.VEO,
 };
 
 export function getModelsForType(type: PromptType): ModelConfig[] {

@@ -241,11 +241,30 @@ export const timelineSettingsSchema = z.object({
     .string()
     .regex(/^#[0-9A-Fa-f]{6}$/)
     .default('#000000'),
-  backgroundMode: z.enum(['solid', 'blur']).default('solid'),
+  backgroundMode: z.enum(['solid', 'blur', 'gradient', 'image']).default('solid'),
+  backgroundOpacity: z.number().min(0).max(1).optional().default(1),
   backgroundBlurAmount: z.number().min(0).max(50).optional().default(18),
   backgroundBlurZoom: z.number().min(1).max(1.5).optional().default(1.08),
   backgroundDim: z.number().min(0).max(0.6).optional().default(0.08),
   backgroundSaturation: z.number().min(0).max(2).optional().default(1.05),
+  backgroundGradientFrom: z
+    .string()
+    .regex(/^#[0-9A-Fa-f]{6}$/)
+    .optional()
+    .default('#111827'),
+  backgroundGradientTo: z
+    .string()
+    .regex(/^#[0-9A-Fa-f]{6}$/)
+    .optional()
+    .default('#ff4b1f'),
+  backgroundGradientAngle: z.number().min(0).max(360).optional().default(135),
+  backgroundImagePath: z.string().optional(),
+  backgroundImageFit: z.enum(['contain', 'cover']).optional().default('cover'),
+  backgroundImageBlurAmount: z.number().min(0).max(40).optional().default(0),
+  backgroundImageDim: z.number().min(0).max(0.6).optional().default(0),
+  backgroundImagePositionX: z.number().min(0).max(100).optional().default(50),
+  backgroundImagePositionY: z.number().min(0).max(100).optional().default(50),
+  backgroundImageScale: z.number().min(1).max(2).optional().default(1),
 });
 
 /**

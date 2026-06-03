@@ -1,21 +1,29 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  Clapperboard,
-  Flame,
-  Hash,
-  LayoutGrid,
-  type LucideIcon,
-  RefreshCw,
-  Search,
-  Sparkles,
-  TrendingUp,
-  XCircle,
-} from 'lucide-react';
+  DEFAULT_TRENDING_REGION,
+  getTrendingRegionLabel,
+  isTrendingRegionCode,
+  TRENDING_MAX_RESULTS,
+  TRENDING_REGIONS,
+  type TrendingRegionCode,
+} from '@vibe-creator/shared';
+import { Clapperboard, Flame, RefreshCw, Sparkles, TrendingUp, Wand2, XCircle } from 'lucide-react';
+import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Button, Card, CardBody } from '@/components/ui';
+import {
+  Button,
+  Card,
+  CardBody,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui';
 import { PageTransition } from '@/components/ui/PageTransition';
 import { cn } from '@/lib/utils';
 import { api } from '@/services/api';
+import { useAuthStore } from '@/stores/auth-store';
 import {
   TrendingBento,
   TrendingBillboard,
@@ -24,38 +32,61 @@ import {
   TrendingSkeleton,
 } from './trending/TrendingSections';
 import type { TrendingResponse } from './trending/trending.types';
-import {
-  filterTrendingItems,
-  getTrendingFormat,
-  type TrendingFormatFilter,
-} from './trending/trending-utils';
 
-const TRENDING_REGION = 'ID';
-const TRENDING_LIMIT = '50';
 const TRENDING_STALE_TIME_MS = 1000 * 60 * 60;
+const REFRESH_FEEDBACK_TIMEOUT_MS = 4000;
 
-interface FormatOption {
-  readonly value: TrendingFormatFilter;
-  readonly label: string;
-  readonly icon: LucideIcon;
+interface TrendingRefreshResponse {
+  readonly jobId: string;
+  readonly message: string;
 }
 
-const FORMAT_OPTIONS: readonly FormatOption[] = [
-  { value: 'all', label: 'Semua', icon: LayoutGrid },
-  { value: 'video', label: 'Video', icon: Clapperboard },
-  { value: 'search', label: 'Pencarian', icon: Search },
-  { value: 'topic', label: 'Topik', icon: TrendingUp },
-  { value: 'hashtag', label: 'Hashtag', icon: Hash },
-];
+function getTopCategory(items: TrendingResponse['items']): string {
+  const categoryCounts = new Map<string, number>();
 
-function isFormatFilter(value: string | null): value is TrendingFormatFilter {
-  return FORMAT_OPTIONS.some((option) => option.value === value);
+  for (const item of items) {
+    if (!item.category) {
+      continue;
+    }
+
+    categoryCounts.set(item.category, (categoryCounts.get(item.category) ?? 0) + 1);
+  }
+
+  const [topCategory] = Array.from(categoryCounts.entries()).sort((a, b) => b[1] - a[1])[0] ?? [];
+  return topCategory ?? 'Video';
 }
 
-async function fetchTrendingData(): Promise<TrendingResponse> {
+function getUpdateTimeLabel(timestamp: string | null | undefined): string {
+  if (!timestamp) {
+    return '-';
+  }
+
+  return new Date(timestamp).toLocaleTimeString('id-ID', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function getRefreshErrorMessage(error: unknown): string {
+  const message = error instanceof Error ? error.message : 'Refresh data sumber gagal.';
+
+  if (message.toLowerCase().includes('cooldown')) {
+    return 'Refresh data sumber masih cooldown. Coba lagi nanti.';
+  }
+
+  return message;
+}
+
+function getRegionFromSearch(searchParams: URLSearchParams): TrendingRegionCode {
+  const region = searchParams.get('region')?.toUpperCase();
+  return region && isTrendingRegionCode(region) ? region : DEFAULT_TRENDING_REGION;
+}
+
+async function fetchTrendingData(region: TrendingRegionCode): Promise<TrendingResponse> {
   const searchParams = new URLSearchParams({
-    region: TRENDING_REGION,
-    limit: TRENDING_LIMIT,
+    region,
+    type: 'VIDEO',
+    limit: String(TRENDING_MAX_RESULTS),
   });
 
   const response = await api.get<TrendingResponse>(`/trending?${searchParams.toString()}`);
@@ -68,111 +99,173 @@ async function fetchTrendingData(): Promise<TrendingResponse> {
 }
 
 export function TrendingPage() {
+  const queryClient = useQueryClient();
+  const user = useAuthStore((state) => state.user);
+  const isAdmin = user?.role === 'ADMIN';
   const [searchParams, setSearchParams] = useSearchParams();
-  const formatParam = searchParams.get('format');
-  const activeFormat: TrendingFormatFilter = isFormatFilter(formatParam) ? formatParam : 'all';
+  const activeRegion = getRegionFromSearch(searchParams);
+  const [refreshFeedback, setRefreshFeedback] = useState<string | null>(null);
 
   const { data, isLoading, isError, refetch, isFetching } = useQuery({
-    queryKey: ['trending', 'snapshot'],
-    queryFn: fetchTrendingData,
+    queryKey: ['trending', 'videos', activeRegion],
+    queryFn: () => fetchTrendingData(activeRegion),
     staleTime: TRENDING_STALE_TIME_MS,
   });
 
-  const snapshotItems = data?.items ?? [];
+  const sourceRefreshMutation = useMutation({
+    mutationFn: async () => {
+      const response = await api.post<TrendingRefreshResponse>('/trending/refresh', {
+        region: activeRegion,
+        mode: 'full',
+      });
+
+      if (!response.success) {
+        throw new Error(response.error?.message ?? 'Refresh data sumber gagal.');
+      }
+
+      return response.data;
+    },
+    onSuccess: async () => {
+      setRefreshFeedback('Refresh data sumber masuk antrean.');
+      await queryClient.invalidateQueries({ queryKey: ['trending', 'videos', activeRegion] });
+      globalThis.setTimeout(() => setRefreshFeedback(null), REFRESH_FEEDBACK_TIMEOUT_MS);
+    },
+    onError: (error) => {
+      setRefreshFeedback(getRefreshErrorMessage(error));
+      globalThis.setTimeout(() => setRefreshFeedback(null), REFRESH_FEEDBACK_TIMEOUT_MS);
+    },
+  });
+
+  const items = data?.items ?? [];
   const status = data?.status;
-  const items = filterTrendingItems(snapshotItems, activeFormat, 'all');
+  const metadata = data?.metadata;
+  const regionLabel = metadata?.regionLabel ?? getTrendingRegionLabel(activeRegion);
+  const lastUpdatedAt = metadata?.lastUpdatedAt ?? status?.lastSuccessAt;
+  const latestUpdateLabel = getUpdateTimeLabel(lastUpdatedAt);
   const heroItem = items[0];
   const bentoItems = items.slice(1, 5);
   const billboardItems = items.slice(5, 20);
-  const feedItems = items.slice(20);
-  const videoCount = snapshotItems.filter((item) => getTrendingFormat(item) === 'video').length;
-  const searchTopicCount = snapshotItems.filter((item) =>
-    ['search', 'topic', 'hashtag'].includes(getTrendingFormat(item)),
-  ).length;
+  const feedItems = items.slice(20, TRENDING_MAX_RESULTS);
+  const topCategory = getTopCategory(items);
+  const returnedCount = metadata?.returnedCount ?? items.length;
+  const maxResults = metadata?.maxResults ?? TRENDING_MAX_RESULTS;
   const insightCards = [
     {
-      label: 'Total Data',
-      value: snapshotItems.length.toString(),
-      detail: 'Jumlah data pada pembaruan terbaru',
-      icon: LayoutGrid,
-    },
-    {
-      label: 'Video Trending',
-      value: `${videoCount} video`,
-      detail: 'Data video dari YouTube',
+      label: 'Video Tersedia',
+      value: `${returnedCount}/${maxResults}`,
+      detail: `Top trending YouTube ${regionLabel}`,
       icon: Clapperboard,
     },
     {
-      label: 'Pencarian & Topik',
-      value: searchTopicCount.toString(),
-      detail: 'Gabungan pencarian, topik, dan hashtag',
-      icon: Search,
+      label: 'Kategori Dominan',
+      value: topCategory,
+      detail: 'Tema video yang paling sering muncul',
+      icon: Flame,
+    },
+    {
+      label: 'Siap Jadi Short',
+      value: `${returnedCount} ide`,
+      detail: 'Klik Buat Short untuk impor ide dan link video',
+      icon: Wand2,
     },
   ];
 
-  const handleFormatChange = (format: TrendingFormatFilter) => {
-    const nextSearchParams = new URLSearchParams(searchParams);
+  const handleRegionChange = (value: string) => {
+    if (!isTrendingRegionCode(value)) {
+      return;
+    }
 
-    if (format === 'all') {
-      nextSearchParams.delete('format');
+    const nextSearchParams = new URLSearchParams(searchParams);
+    if (value === DEFAULT_TRENDING_REGION) {
+      nextSearchParams.delete('region');
     } else {
-      nextSearchParams.set('format', format);
+      nextSearchParams.set('region', value);
     }
 
     setSearchParams(nextSearchParams);
   };
 
+  const handleRefresh = () => {
+    if (isAdmin) {
+      sourceRefreshMutation.mutate();
+      return;
+    }
+
+    void refetch();
+  };
+
   return (
-    <PageTransition className="pb-20 lg:pb-10">
-      <div className="max-w-250 mx-auto space-y-8 md:space-y-12 px-4 md:px-0">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+    <PageTransition className="pb-16 lg:pb-6">
+      <div className="mx-auto max-w-250 space-y-7 px-4 md:space-y-10 md:px-0">
+        <div className="flex flex-col items-start justify-between gap-3 lg:flex-row lg:items-center">
           <div className="space-y-1">
-            <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground flex items-center gap-3">
-              <TrendingUp className="text-primary" size={28} />
+            <h1 className="flex items-center gap-2.5 text-2xl font-bold tracking-tight text-foreground md:text-3xl">
+              <TrendingUp className="text-primary" size={26} />
               Viral Ideas
             </h1>
-            <p className="text-xs md:text-sm text-muted-foreground flex items-center gap-2">
+            <p className="flex items-center gap-2 text-xs text-muted-foreground md:text-sm">
               <Sparkles size={14} className="text-yellow-500" />
-              Temukan ide konten paling viral saat ini
+              Temukan ide konten video paling viral dari YouTube
             </p>
           </div>
 
-          <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
-            {/* Info Bar Compact (Hidden on mobile) */}
-            <div className="hidden md:flex items-center gap-3 text-xs text-muted-foreground bg-muted/50 px-3 py-1.5 rounded-full border border-border/40">
-              <span className="flex items-center gap-1">Sumber: YouTube + Google Trends</span>
-              <span className="w-px h-3 bg-border" />
-              <div className="group relative cursor-help">
-                <span className="border-b border-dashed border-muted-foreground/50">
-                  Diperbarui:{' '}
-                  {status?.lastSuccessAt
-                    ? new Date(status.lastSuccessAt).toLocaleTimeString('id-ID', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })
-                    : '-'}
-                </span>
-                <div className="absolute top-full right-0 mt-2 w-48 p-2 bg-popover text-popover-foreground text-[10px] rounded shadow-lg border border-border opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-                  Server melakukan refresh otomatis setiap 1 jam.
-                </div>
-              </div>
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
+            <div className="hidden h-9 items-center gap-2 rounded-xl border border-border/40 bg-muted/40 px-3 text-xs text-muted-foreground md:flex">
+              <span>YouTube</span>
+              <span className="h-3 w-px bg-border" />
+              <span>{regionLabel}</span>
+              <span className="h-3 w-px bg-border" />
+              <span>{latestUpdateLabel}</span>
             </div>
 
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-9 w-full justify-center gap-2 sm:w-auto"
-              onClick={() => {
-                void refetch();
-              }}
-              disabled={isFetching}
-            >
-              <RefreshCw size={14} className={cn(isFetching && 'animate-spin')} />
-              <span>{isFetching ? 'Memuat ulang...' : 'Muat Ulang Data'}</span>
-            </Button>
+            <div className="flex w-full gap-2 sm:w-auto">
+              <Select value={activeRegion} onValueChange={handleRegionChange}>
+                <SelectTrigger className="h-9 flex-1 rounded-xl bg-card/60 text-sm font-bold sm:w-[180px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {TRENDING_REGIONS.map((region) => (
+                    <SelectItem key={region.code} value={region.code}>
+                      {region.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-9 shrink-0 justify-center gap-2"
+                onClick={handleRefresh}
+                disabled={isFetching || sourceRefreshMutation.isPending}
+              >
+                <RefreshCw
+                  size={14}
+                  className={cn((isFetching || sourceRefreshMutation.isPending) && 'animate-spin')}
+                />
+                <span className="hidden sm:inline">
+                  {isFetching || sourceRefreshMutation.isPending
+                    ? 'Memuat...'
+                    : isAdmin
+                      ? 'Refresh Data Sumber'
+                      : 'Refresh Tampilan'}
+                </span>
+              </Button>
+            </div>
           </div>
         </div>
+
+        {refreshFeedback ? (
+          <div className="rounded-2xl border border-primary/20 bg-primary/10 px-4 py-3 text-sm font-semibold text-primary">
+            {refreshFeedback}
+          </div>
+        ) : null}
+
+        {status?.status && status.status !== 'ok' ? (
+          <div className="rounded-2xl border border-yellow-500/20 bg-yellow-500/10 px-4 py-3 text-sm font-semibold text-yellow-500">
+            Data YouTube sedang memakai fallback cadangan. Refresh sumber tersedia untuk admin.
+          </div>
+        ) : null}
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
           {insightCards.map(({ label, value, detail, icon: Icon }) => (
@@ -181,11 +274,13 @@ export function TrendingPage() {
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 text-primary">
                   <Icon size={18} />
                 </div>
-                <div className="space-y-1">
+                <div className="min-w-0 space-y-1">
                   <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-muted-foreground">
                     {label}
                   </p>
-                  <p className="text-lg font-black tracking-tight text-foreground">{value}</p>
+                  <p className="truncate text-lg font-black tracking-tight text-foreground">
+                    {value}
+                  </p>
                   <p className="text-xs text-muted-foreground">{detail}</p>
                 </div>
               </CardBody>
@@ -193,99 +288,71 @@ export function TrendingPage() {
           ))}
         </div>
 
-        <div className="rounded-3xl border border-border/40 bg-card/40 p-3 md:p-4">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div className="space-y-1">
-              <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-muted-foreground">
-                Filter Data
-              </p>
-              <p className="text-sm text-muted-foreground">
-                Pilih jenis data yang ingin Anda fokuskan.
-              </p>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              {FORMAT_OPTIONS.map(({ value, label, icon: Icon }) => (
-                <button
-                  type="button"
-                  key={value}
-                  onClick={() => handleFormatChange(value)}
-                  className={cn(
-                    'flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-all whitespace-nowrap',
-                    activeFormat === value
-                      ? 'bg-primary text-primary-foreground shadow-md shadow-primary/20'
-                      : 'bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground',
-                  )}
-                >
-                  <Icon size={14} />
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Error State */}
-        {isError && (
-          <Card className="bg-red-500/5 border-red-500/20">
+        {isError ? (
+          <Card className="border-red-500/20 bg-red-500/5">
             <CardBody className="p-6 text-center">
               <XCircle className="mx-auto mb-3 text-red-500" size={32} />
-              <p className="text-sm text-red-500 font-medium">Gagal memuat data trending.</p>
-              <Button variant="outline" size="sm" className="mt-4" onClick={() => refetch()}>
+              <p className="text-sm font-medium text-red-500">Gagal memuat data trending.</p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-4"
+                onClick={() => {
+                  void refetch();
+                }}
+              >
                 Coba Lagi
               </Button>
             </CardBody>
           </Card>
-        )}
+        ) : null}
 
-        {isLoading && <TrendingSkeleton />}
+        {isLoading ? <TrendingSkeleton /> : null}
 
-        {!isLoading && !isError && items.length === 0 && (
-          <div className="py-20 text-center border border-dashed border-border rounded-3xl bg-muted/10">
+        {!isLoading && !isError && items.length === 0 ? (
+          <div className="rounded-3xl border border-dashed border-border bg-muted/10 px-6 py-20 text-center">
             <h3 className="text-lg font-medium text-muted-foreground">
-              Tidak ada data untuk kombinasi filter ini
+              Data negara ini belum tersedia.
             </h3>
-            <p className="text-sm text-muted-foreground mt-2">
-              Coba ganti format untuk melihat sinyal lain
+            <p className="mt-2 text-sm text-muted-foreground">
+              Coba lagi setelah pembaruan berikutnya.
             </p>
           </div>
-        )}
+        ) : null}
 
-        {/* MAIN LAYOUT */}
-        {!isLoading && !isError && items.length > 0 && (
-          <div className="space-y-12 md:space-y-16 animate-in fade-in slide-in-from-bottom-8 duration-700">
-            {/* SECTION 1: THE KING & CHALLENGERS (#1 - #5) */}
+        {!isLoading && !isError && items.length > 0 ? (
+          <div className="space-y-10 animate-in fade-in slide-in-from-bottom-8 duration-700 md:space-y-12">
             <section className="space-y-4">
-              {heroItem && <TrendingHero item={heroItem} />}
-              {bentoItems.length > 0 && <TrendingBento items={bentoItems} />}
+              {heroItem ? <TrendingHero item={heroItem} /> : null}
+              {bentoItems.length > 0 ? <TrendingBento items={bentoItems} /> : null}
             </section>
 
-            {/* SECTION 2: BILLBOARD (#6 - #10) */}
-            {billboardItems.length > 0 && (
+            {billboardItems.length > 0 ? (
               <section>
                 <TrendingBillboard items={billboardItems} />
               </section>
-            )}
+            ) : null}
 
-            {/* SECTION 3: THE FEED (#11+) */}
-            {feedItems.length > 0 && (
+            {feedItems.length > 0 ? (
               <section className="space-y-4">
-                <h3 className="text-lg font-bold px-1 flex items-center gap-2">
-                  <Flame size={16} className="text-orange-500" />
-                  Tren Lainnya
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
-                  {feedItems.map((item, i) => (
-                    <TrendingFeedItem key={item.id} item={item} index={i + 21} />
+                <div className="flex flex-col gap-1 px-1 sm:flex-row sm:items-end sm:justify-between">
+                  <h3 className="flex items-center gap-2 text-lg font-bold">
+                    <Flame size={16} className="text-orange-500" />
+                    Tren Lainnya
+                  </h3>
+                  <p className="text-xs font-semibold text-muted-foreground">
+                    Rank #21-{returnedCount}
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  {feedItems.map((item, index) => (
+                    <TrendingFeedItem key={item.id} item={item} index={index + 21} />
                   ))}
                 </div>
               </section>
-            )}
-
-            {/* SECTION 4: RESOURCES REMOVED (Direct Integration Implemented) */}
-            <div className="h-4" />
+            ) : null}
           </div>
-        )}
+        ) : null}
       </div>
     </PageTransition>
   );

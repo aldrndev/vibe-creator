@@ -70,6 +70,7 @@ describe('modern editor drafts', () => {
       id: 'asset-video',
       name: 'clip.mp4',
       type: 'VIDEO',
+      libraryPurpose: 'background',
       url: 'blob:clip',
       file,
     };
@@ -81,10 +82,20 @@ describe('modern editor drafts', () => {
       id: 'asset-video',
       name: 'clip.mp4',
       type: 'VIDEO',
+      libraryPurpose: 'background',
       url: 'blob:clip',
     });
     expect(storedFile?.assetId).toBe('asset-video');
     expect(storedFile?.file).toBe(file);
+  });
+
+  it('keeps legacy assets valid when no library purpose is stored', () => {
+    stubDraftStorage();
+    const project = createDefaultModernProject('legacy-project', 'Legacy');
+
+    saveModernEditorDraft(project, [imageAsset]);
+
+    expect(loadLatestModernEditorDraft()?.assets).toEqual([imageAsset]);
   });
 
   it('restores draft asset files with fresh object URLs', () => {

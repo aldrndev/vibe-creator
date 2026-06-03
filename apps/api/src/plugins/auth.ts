@@ -44,6 +44,11 @@ export async function authPlugin(fastify: FastifyInstance): Promise<void> {
         return;
       }
 
+      if (user.status !== 'ACTIVE') {
+        request.auth = null;
+        return;
+      }
+
       request.user = user;
       request.session = null;
       return;
@@ -62,6 +67,10 @@ export async function authPlugin(fastify: FastifyInstance): Promise<void> {
       }
 
       if (session.expiresAt < new Date()) {
+        return;
+      }
+
+      if (session.user.status !== 'ACTIVE') {
         return;
       }
 

@@ -70,6 +70,8 @@ export function buildPromptInputData(
       return { ...forms.creativeScanForm };
     case 'TIMELAPSE':
       return { ...forms.timelapseForm };
+    case 'LOOP_SOURCE':
+      throw new Error('Gunakan Loop Creator untuk membuat prompt loop source.');
   }
 }
 

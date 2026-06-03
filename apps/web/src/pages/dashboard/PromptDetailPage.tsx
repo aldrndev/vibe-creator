@@ -53,6 +53,7 @@ const promptTypeLabels: Record<string, string> = {
   RELAXING: 'Relaxing / Ambient',
   CREATIVE_SCAN: 'Creative Scan',
   TIMELAPSE: 'Timelapse / Sora',
+  LOOP_SOURCE: 'Loop Source',
 };
 
 export function PromptDetailPage() {
@@ -193,6 +194,15 @@ export function PromptDetailPage() {
               >
                 <RefreshCw size={14} className="mr-2" /> Regenerate
               </Button>
+              {prompt.type === 'LOOP_SOURCE' ? (
+                <Button
+                  variant="outline"
+                  className="hidden sm:flex rounded-full h-10 px-4 border-border/50 font-black uppercase text-[10px] tracking-widest"
+                  onClick={() => navigate(`/tools/loop-creator?prompt=${promptId}`)}
+                >
+                  <Edit size={14} className="mr-2" /> Edit di Loop Creator
+                </Button>
+              ) : null}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button

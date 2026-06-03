@@ -247,6 +247,7 @@ export async function projectRoutes(fastify: FastifyInstance): Promise<void> {
 
         const sourceUrl = `/api/v1/projects/assets/${body.assetId}/file`;
         const metadata = {
+          libraryPurpose: body.libraryPurpose ?? 'media',
           mimeType: body.mimeType ?? null,
           size: body.size ?? null,
           durationMs: body.durationMs ?? null,

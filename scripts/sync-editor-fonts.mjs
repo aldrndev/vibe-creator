@@ -58,21 +58,6 @@ function parseCatalog(source) {
   return entries;
 }
 
-async function fetchJson(url) {
-  const response = await fetch(url, {
-    headers: {
-      Accept: 'application/vnd.github+json',
-      'User-Agent': 'vibe-creator-font-sync',
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(`GitHub request failed ${response.status}: ${url}`);
-  }
-
-  return response.json();
-}
-
 async function findFamilyDirectory(slug) {
   const licenseRoots = ['ofl', 'apache', 'ufl'];
 
@@ -177,8 +162,7 @@ async function syncFonts() {
     }
 
     const regularBytes = await downloadBytes(regularUrl);
-    const boldBytes =
-      boldUrl === regularUrl ? regularBytes : await downloadBytes(boldUrl);
+    const boldBytes = boldUrl === regularUrl ? regularBytes : await downloadBytes(boldUrl);
 
     await writeFontPair(font.regularFile, regularBytes);
     await writeFontPair(font.boldFile, boldBytes);

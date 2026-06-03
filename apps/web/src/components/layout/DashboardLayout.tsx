@@ -1,26 +1,17 @@
 import {
   ChevronDown,
   ChevronRight,
-  FolderClock,
-  LayoutDashboard,
   LogOut,
   Menu,
-  MessageSquareReply,
   Moon,
-  Radio,
-  Repeat,
-  Settings,
   Shield,
   Sparkles,
   Sun,
-  TrendingUp,
-  Users,
-  Video,
-  Wand2,
   X,
 } from 'lucide-react';
 import { useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { dashboardNavigation } from '@/components/layout/dashboard-navigation';
 import {
   Avatar,
   Badge,
@@ -31,52 +22,24 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui';
-import { FEATURES } from '@/lib/feature-flags';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/auth-store';
 import { useThemeStore } from '@/stores/theme-store';
 import { MobileBottomNav } from './MobileBottomNav';
 
-// Build Tools children based on feature flags
-const toolsChildren = [
-  {
-    name: 'AI Director',
-    href: '/tools/ai-director',
-    icon: Sparkles,
-  },
-  FEATURES.MODERN_EDITOR && {
-    name: 'Video Studio',
-    href: '/tools/video-studio',
-    icon: Wand2,
-  },
-  { name: 'Edit Video', href: '/tools/editor', icon: Video },
-  { name: 'Loop Creator', href: '/tools/loop-creator', icon: Repeat },
-  {
-    name: 'Reaction Video',
-    href: '/tools/reaction-creator',
-    icon: MessageSquareReply,
-  },
-  { name: 'Live Streaming', href: '/tools/live-stream-history', icon: Radio },
-].filter(Boolean) as Array<{ name: string; href: string; icon: typeof Video }>;
-
-// Main navigation items
-const navigation = [
-  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'Trending', href: '/dashboard/trending', icon: TrendingUp },
-  { name: 'Riwayat', href: '/dashboard/history', icon: FolderClock },
-  // { name: "My Exports", href: "/dashboard/exports", icon: FolderOpen },
-  {
-    name: 'Tools',
-    icon: Video,
-    children: toolsChildren,
-  },
-  { name: 'Prompt Builder', href: '/dashboard/prompts', icon: Sparkles },
-  // { name: "Downloads", href: "/dashboard/downloads", icon: Download },
-  { name: 'Community', href: '/dashboard/community', icon: Users },
-  { name: 'Settings', href: '/dashboard/settings', icon: Settings },
-];
-
 const adminNav = { name: 'Admin', href: '/dashboard/admin', icon: Shield };
+
+function isNavigationActive(pathname: string, href: string): boolean {
+  if (href === '/dashboard') {
+    return pathname === href;
+  }
+
+  if (href === '/tools/live-stream-history') {
+    return pathname === href || pathname.startsWith('/tools/live-stream');
+  }
+
+  return pathname === href;
+}
 
 export function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -136,11 +99,11 @@ export function DashboardLayout() {
 
           {/* Navigation */}
           <nav className="flex-1 space-y-1 p-4 overflow-y-auto scrollbar-hide">
-            {navigation.map((item) => {
+            {dashboardNavigation.map((item) => {
               // Check if this is a parent menu with children
-              if ('children' in item && item.children) {
-                const isChildActive = item.children.some(
-                  (child) => location.pathname === child.href,
+              if ('children' in item) {
+                const isChildActive = item.children.some((child) =>
+                  isNavigationActive(location.pathname, child.href),
                 );
 
                 return (
@@ -152,17 +115,13 @@ export function DashboardLayout() {
                       className={cn(
                         'w-full flex items-center gap-3 rounded-r-xl px-4 py-3 text-sm font-medium transition-all duration-200 touch-target border-l-[3px]',
                         isChildActive
-                          ? 'border-primary bg-linear-to-r from-primary/15 to-transparent text-primary font-bold'
+                          ? 'border-primary/70 bg-primary/10 text-primary font-bold'
                           : 'border-transparent text-muted-foreground hover:bg-accent hover:text-foreground',
                       )}
                     >
                       <item.icon
                         size={20}
-                        className={cn(
-                          'transition-colors',
-                          isChildActive &&
-                            'text-primary drop-shadow-[0_0_8px_rgba(249,115,22,0.5)]',
-                        )}
+                        className={cn('transition-colors', isChildActive && 'text-primary')}
                       />
                       {item.name}
                       <span className="ml-auto">
@@ -178,14 +137,15 @@ export function DashboardLayout() {
                             key={child.name}
                             to={child.href}
                             onClick={() => setSidebarOpen(false)}
-                            className={({ isActive }) =>
-                              cn(
+                            className={() => {
+                              const isActive = isNavigationActive(location.pathname, child.href);
+                              return cn(
                                 'flex items-center gap-3 rounded-xl px-4 py-2 text-sm font-medium transition-all',
                                 isActive
                                   ? 'text-primary bg-primary/10 font-semibold'
                                   : 'text-muted-foreground hover:text-foreground hover:bg-accent/50',
-                              )
-                            }
+                              );
+                            }}
                           >
                             <child.icon size={16} />
                             {child.name}
@@ -212,7 +172,7 @@ export function DashboardLayout() {
                     cn(
                       'flex items-center gap-3 rounded-r-xl px-4 py-3 text-sm font-medium transition-all duration-200 touch-target border-l-[3px]',
                       isActive
-                        ? 'border-primary bg-linear-to-r from-primary/15 to-transparent text-primary font-bold'
+                        ? 'border-primary/70 bg-primary/10 text-primary font-bold'
                         : 'border-transparent text-muted-foreground hover:bg-accent hover:text-foreground',
                     )
                   }
@@ -221,10 +181,7 @@ export function DashboardLayout() {
                     <>
                       <item.icon
                         size={20}
-                        className={cn(
-                          'transition-colors',
-                          isActive && 'text-primary drop-shadow-[0_0_8px_rgba(249,115,22,0.5)]',
-                        )}
+                        className={cn('transition-colors', isActive && 'text-primary')}
                       />
                       {item.name}
                     </>
@@ -239,16 +196,19 @@ export function DashboardLayout() {
                 to={adminNav.href}
                 className={({ isActive }) =>
                   cn(
-                    'flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors',
+                    'flex items-center gap-3 rounded-r-xl border-l-[3px] px-4 py-3 text-sm font-medium transition-colors',
                     isActive
-                      ? 'bg-yellow-500/20 text-yellow-500'
-                      : 'text-yellow-500 hover:bg-yellow-500/10',
+                      ? 'border-primary/70 bg-primary/10 text-primary font-bold'
+                      : 'border-transparent text-muted-foreground hover:bg-accent hover:text-foreground',
                   )
                 }
               >
                 <adminNav.icon size={20} />
                 {adminNav.name}
-                <Badge variant="warning" className="ml-auto">
+                <Badge
+                  variant="outline"
+                  className="ml-auto border-primary/20 bg-primary/10 text-primary"
+                >
                   Admin
                 </Badge>
               </NavLink>
@@ -337,14 +297,17 @@ export function DashboardLayout() {
         <main
           key={location.pathname}
           className={cn(
-            'flex-1 flex flex-col min-w-0', // base styles
+            'flex-1 flex flex-col min-h-0 min-w-0', // base styles
             // For Modern Editor (Full Screen Tool), remove padding/overflow to let tool handle it
             location.pathname.includes('/video-studio')
               ? 'overflow-hidden p-0'
-              : 'overflow-auto p-4 md:p-6 pb-20 md:pb-6',
+              : 'overflow-y-auto overflow-x-hidden p-4 pb-32 md:p-6 md:pb-6',
           )}
         >
           <Outlet />
+          {!location.pathname.startsWith('/tools/') ? (
+            <div className="h-28 shrink-0 md:h-10" aria-hidden="true" />
+          ) : null}
         </main>
 
         {/* Mobile bottom navigation */}

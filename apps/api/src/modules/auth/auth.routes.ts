@@ -6,15 +6,23 @@
 import type { FastifyInstance } from 'fastify';
 import { requireRateLimitReady } from '@/lib/rate-limit';
 import { requireAuth } from '@/plugins/auth';
-import { loginRateLimit, refreshRateLimit, registerRateLimit } from './auth.ratelimit';
 import {
+  loginRateLimit,
+  passwordChangeRateLimit,
+  refreshRateLimit,
+  registerRateLimit,
+} from './auth.ratelimit';
+import {
+  changePasswordRouteSchema,
   loginRouteSchema,
   logoutRouteSchema,
   meRouteSchema,
   refreshRouteSchema,
   registerRouteSchema,
+  updateProfileRouteSchema,
 } from './auth.schemas';
 import { loginHandler } from './handlers/login.handler';
+import { changePasswordHandler, updateProfileHandler } from './handlers/profile.handler';
 import { refreshHandler } from './handlers/refresh.handler';
 import { registerHandler } from './handlers/register.handler';
 import { logoutHandler, meHandler } from './handlers/session.handler';
@@ -75,5 +83,24 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
       schema: meRouteSchema,
     },
     meHandler,
+  );
+
+  fastify.patch(
+    '/profile',
+    {
+      preHandler: requireAuth,
+      schema: updateProfileRouteSchema,
+    },
+    updateProfileHandler,
+  );
+
+  fastify.post(
+    '/change-password',
+    {
+      ...passwordChangeRateLimit,
+      preHandler: requireAuth,
+      schema: changePasswordRouteSchema,
+    },
+    changePasswordHandler,
   );
 }

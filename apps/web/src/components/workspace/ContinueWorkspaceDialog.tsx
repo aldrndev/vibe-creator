@@ -13,13 +13,16 @@ import {
 } from '@/services/workspace-api';
 
 interface ContinueWorkspaceDialogProps {
-  readonly tool: 'ai-director' | 'video-studio';
+  readonly tool: 'ai-director' | 'video-studio' | 'loop-creator' | 'reaction-video' | 'live-stream';
   readonly onStartNew: () => void;
   readonly onUnavailable?: () => void;
 }
 
 function toolLabel(tool: ContinueWorkspaceDialogProps['tool']): string {
-  return tool === 'ai-director' ? 'AI Director' : 'Video Studio';
+  if (tool === 'ai-director') return 'AI Director';
+  if (tool === 'video-studio') return 'Video Studio';
+  if (tool === 'loop-creator') return 'Loop Creator';
+  return tool === 'reaction-video' ? 'Reaction Creator' : 'Live Streaming';
 }
 
 export function ContinueWorkspaceDialog({
@@ -49,7 +52,10 @@ export function ContinueWorkspaceDialog({
       item={data}
       label={toolLabel(tool)}
       onStartNew={onStartNew}
-      onContinue={() => navigate(getWorkspaceContinuePath(data))}
+      onContinue={() => {
+        onStartNew();
+        navigate(getWorkspaceContinuePath(data));
+      }}
     />
   );
 }

@@ -1,61 +1,38 @@
-/**
- * Stats & Activity Handlers
- * Admin endpoints for dashboard statistics and activity logs
- */
-
-import { performance } from 'node:perf_hooks';
-import { MAX_LIMIT } from '@vibe-creator/shared';
+import { ERROR_CODES } from '@vibe-creator/shared';
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import { enforceQueryBudget } from '@/utils/query-budget';
+import { z } from 'zod';
+import { logger } from '@/lib/logger';
+import { sendError, sendSuccess } from '@/utils/response';
+import { adminActivityQuerySchema } from '../admin.schemas';
 import { adminService } from '../admin.service';
 
+function validationMessage(error: z.ZodError): string {
+  return error.issues[0]?.message ?? 'Validasi gagal';
+}
+
 export const statsHandlers = {
-  /**
-   * Get dashboard statistics
-   */
   async getStats(_request: FastifyRequest, reply: FastifyReply) {
     try {
       const stats = await adminService.getStats();
-      return reply.send({
-        success: true,
-        data: stats,
-      });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to get stats';
-      return reply.status(500).send({
-        success: false,
-        error: { code: 'ADMIN_ERROR', message },
-      });
+      return sendSuccess(reply, stats);
+    } catch (error) {
+      logger.error({ err: error }, 'Admin stats failed');
+      return sendError(reply, ERROR_CODES.INTERNAL_ERROR, 'Gagal memuat statistik admin', 500);
     }
   },
 
-  /**
-   * Get recent activity
-   */
-  async getActivity(
-    request: FastifyRequest<{ Querystring: { limit?: string } }>,
-    reply: FastifyReply,
-  ) {
+  async getActivity(request: FastifyRequest, reply: FastifyReply) {
     try {
-      const limit = Math.min(parseInt(request.query.limit || '20', 10), MAX_LIMIT);
-      const start = performance.now();
-      const activity = await adminService.getRecentActivity(limit);
-      const durationMs = performance.now() - start;
-
-      if (enforceQueryBudget(reply, { durationMs, rows: activity.length })) {
-        return reply;
+      const query = adminActivityQuerySchema.parse(request.query);
+      const activity = await adminService.getRecentActivity(query.limit);
+      return sendSuccess(reply, { activity });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return sendError(reply, ERROR_CODES.VALIDATION_ERROR, validationMessage(error), 400);
       }
 
-      return reply.send({
-        success: true,
-        data: { activity },
-      });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to get activity';
-      return reply.status(500).send({
-        success: false,
-        error: { code: 'ADMIN_ERROR', message },
-      });
+      logger.error({ err: error }, 'Admin activity failed');
+      return sendError(reply, ERROR_CODES.INTERNAL_ERROR, 'Gagal memuat aktivitas admin', 500);
     }
   },
 };

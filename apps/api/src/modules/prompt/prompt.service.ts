@@ -2,6 +2,7 @@ import type { Prisma } from '@prisma/client';
 import type {
   CreativeScanPromptInput,
   ImagePromptInput,
+  LoopSourcePromptInput,
   PromptType,
   RelaxingPromptInput,
   ScriptPromptInput,
@@ -12,6 +13,7 @@ import type {
 import {
   generateCreativeScanPrompt,
   generateImagePrompt,
+  generateLoopSourcePrompt,
   generateRelaxingPrompt,
   generateScriptPrompt,
   generateTimelapsePrompt,
@@ -19,6 +21,7 @@ import {
   generateVoicePrompt,
 } from '@vibe-creator/shared';
 import { prisma } from '@/lib/prisma';
+import { loopSourcePromptInputSchema } from './prompt.schemas';
 
 interface ListPromptsParams {
   userId: string;
@@ -207,13 +210,18 @@ export const promptService = {
     if (!prompt) return null;
 
     const nextVersion = (prompt.versions[0]?.version ?? 0) + 1;
-    const generatedPrompt = this.generatePromptFromInput(prompt.type as PromptType, inputData);
+    const validatedInputData =
+      prompt.type === 'LOOP_SOURCE' ? loopSourcePromptInputSchema.parse(inputData) : inputData;
+    const generatedPrompt = this.generatePromptFromInput(
+      prompt.type as PromptType,
+      validatedInputData,
+    );
 
     const version = await prisma.promptVersion.create({
       data: {
         promptId,
         version: nextVersion,
-        inputData: inputData as Prisma.InputJsonValue,
+        inputData: validatedInputData as Prisma.InputJsonValue,
         generatedPrompt,
         userNotes,
       },
@@ -331,6 +339,10 @@ export const promptService = {
           return generateCreativeScanPrompt(inputData as unknown as CreativeScanPromptInput);
         case 'TIMELAPSE':
           return generateTimelapsePrompt(inputData as unknown as TimelapsePromptInput);
+        case 'LOOP_SOURCE':
+          return generateLoopSourcePrompt(
+            loopSourcePromptInputSchema.parse(inputData) as LoopSourcePromptInput,
+          );
         default:
           return '// Prompt type tidak dikenali';
       }

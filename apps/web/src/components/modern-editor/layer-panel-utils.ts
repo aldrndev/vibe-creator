@@ -23,6 +23,18 @@ export function getLayerDisplayName(layer: Layer, assets: readonly EditorAsset[]
 }
 
 /**
+ * Returns the primary layer-stack title. Text layers keep a stable type label so
+ * the editable copy can live in the secondary line without making the stack jumpy.
+ */
+export function getLayerStackTitle(layer: Layer, assets: readonly EditorAsset[]): string {
+  if (layer.type === 'text') {
+    return getTextLayerFallbackLabel(layer);
+  }
+
+  return getLayerDisplayName(layer, assets);
+}
+
+/**
  * Returns the compact fallback label for empty text thumbnails and titles.
  */
 export function getTextLayerFallbackLabel(layer: Layer): string {

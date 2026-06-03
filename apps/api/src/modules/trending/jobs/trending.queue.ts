@@ -4,8 +4,13 @@
  * BullMQ queue definitions for trending refresh jobs
  */
 
+import type { TrendingRegionCode } from '@vibe-creator/shared';
 import { Queue } from 'bullmq';
 import { redisOptions } from '@/lib/redis';
+import {
+  buildTrendingScheduledRefreshDefinitions,
+  buildTrendingStartupRefreshDefinitions,
+} from '../trending-refresh-jobs';
 
 // ============================================================================
 // QUEUE DEFINITIONS
@@ -48,7 +53,7 @@ export const trendingRetentionQueue = new Queue('trending-retention', {
 // ============================================================================
 
 export interface RefreshJobData {
-  region: string;
+  region: TrendingRegionCode;
   mode: 'quick' | 'full';
   idempotencyKey: string;
 }
@@ -57,21 +62,40 @@ export interface RetentionJobData {
   batchSize?: number;
 }
 
+const LEGACY_REPEATABLE_REFRESH_JOB_IDS = new Set(['cron-trending-refresh-id']);
+
+async function removeLegacyTrendingSchedules(): Promise<void> {
+  const repeatableJobs = await trendingQueue.getRepeatableJobs();
+
+  await Promise.all(
+    repeatableJobs
+      .filter((job) => job.id && LEGACY_REPEATABLE_REFRESH_JOB_IDS.has(job.id))
+      .map((job) => trendingQueue.removeRepeatableByKey(job.key)),
+  );
+}
+
 /**
  * Initialize repeatable schedules (CRON)
  */
 export async function initTrendingSchedules() {
-  // Refresh: Every 1 hour
-  await trendingQueue.add(
-    'scheduled-refresh-id',
-    { region: 'ID', mode: 'full', idempotencyKey: 'auto' },
-    {
-      repeat: {
-        every: 60 * 60 * 1000, // 1 hour
+  await removeLegacyTrendingSchedules();
+
+  for (const refreshJob of buildTrendingScheduledRefreshDefinitions()) {
+    await trendingQueue.add(
+      refreshJob.name,
+      {
+        region: refreshJob.region,
+        mode: refreshJob.mode,
+        idempotencyKey: refreshJob.idempotencyKey,
       },
-      jobId: 'cron-trending-refresh-id', // Singleton ID
-    },
-  );
+      {
+        repeat: {
+          every: refreshJob.repeatEveryMs,
+        },
+        jobId: refreshJob.jobId,
+      },
+    );
+  }
 
   // Retention: Every 24 hours
   await trendingRetentionQueue.add(
@@ -85,10 +109,16 @@ export async function initTrendingSchedules() {
     },
   );
 
-  // Add immediate one-time refresh on startup (if data is empty/stale)
-  await trendingQueue.add(
-    'startup-refresh',
-    { region: 'ID', mode: 'full', idempotencyKey: `startup-${Date.now()}` },
-    { delay: 5000 }, // 5 second delay to let server fully boot
-  );
+  // Add staggered one-time refresh jobs on startup so new regions get cache without user action.
+  for (const startupJob of buildTrendingStartupRefreshDefinitions()) {
+    await trendingQueue.add(
+      startupJob.name,
+      {
+        region: startupJob.region,
+        mode: startupJob.mode,
+        idempotencyKey: startupJob.idempotencyKey,
+      },
+      { delay: startupJob.delayMs },
+    );
+  }
 }

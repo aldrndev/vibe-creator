@@ -40,6 +40,7 @@ export async function refreshHandler(request: FastifyRequest, reply: FastifyRepl
             name: true,
             avatarUrl: true,
             role: true,
+            status: true,
           },
         },
       },
@@ -57,6 +58,17 @@ export async function refreshHandler(request: FastifyRequest, reply: FastifyRepl
 
     if (session.refreshExpiresAt <= new Date()) {
       await prisma.userSession.delete({ where: { id: session.id } });
+      clearRefreshTokenCookie(reply);
+      return sendError(
+        reply,
+        ERROR_CODES.TOKEN_EXPIRED,
+        'Refresh token tidak valid atau sudah expired',
+        401,
+      );
+    }
+
+    if (session.user.status !== 'ACTIVE') {
+      await prisma.userSession.deleteMany({ where: { userId: session.userId } });
       clearRefreshTokenCookie(reply);
       return sendError(
         reply,
@@ -173,7 +185,13 @@ export async function refreshHandler(request: FastifyRequest, reply: FastifyRepl
     });
 
     return sendSuccess(reply, {
-      user: session.user,
+      user: {
+        id: session.user.id,
+        email: session.user.email,
+        name: session.user.name,
+        avatarUrl: session.user.avatarUrl,
+        role: session.user.role,
+      },
       subscription: subscription
         ? {
             tier: subscription.tier,

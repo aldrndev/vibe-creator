@@ -36,6 +36,7 @@ export const attachProjectAssetRequestSchema = z.object({
   uploadToken: z.string().min(1),
   name: z.string().min(1).max(255),
   type: z.enum(['VIDEO', 'AUDIO', 'IMAGE']),
+  libraryPurpose: z.enum(['media', 'background', 'reaction']).optional(),
   mimeType: z.string().optional(),
   size: z.number().nonnegative().optional(),
   durationMs: z.number().nonnegative().optional(),

@@ -16,13 +16,18 @@ import {
   REFRESH_COOLDOWN_SECONDS,
   RETENTION_CONFIG,
   STATUS_WINDOW,
+  TRENDING_REFRESH_INTERVAL_MS,
+  TRENDING_STARTUP_REFRESH_DELAY_MS,
+  TRENDING_STARTUP_REFRESH_SPACING_MS,
   TRENDING_TYPES,
 } from '../../trending.constants';
 
 describe('trending constants', () => {
   describe('ALLOWED_DOMAINS', () => {
-    it('should include Google Trends domain', () => {
-      expect(ALLOWED_DOMAINS).toContain('trends.google.com');
+    it('should include YouTube API and media domains', () => {
+      expect(ALLOWED_DOMAINS).toContain('www.googleapis.com');
+      expect(ALLOWED_DOMAINS).toContain('www.youtube.com');
+      expect(ALLOWED_DOMAINS).toContain('i.ytimg.com');
     });
 
     it('should be a non-empty array', () => {
@@ -75,8 +80,19 @@ describe('trending constants', () => {
   });
 
   describe('REFRESH_COOLDOWN_SECONDS', () => {
-    it('should be at least 30 seconds', () => {
-      expect(REFRESH_COOLDOWN_SECONDS).toBeGreaterThanOrEqual(30);
+    it('should use a short admin-only cooldown to avoid duplicate refresh jobs', () => {
+      expect(REFRESH_COOLDOWN_SECONDS).toBe(15 * 60);
+    });
+  });
+
+  describe('TRENDING_REFRESH_INTERVAL_MS', () => {
+    it('should refresh cached regions every six hours', () => {
+      expect(TRENDING_REFRESH_INTERVAL_MS).toBe(6 * 60 * 60 * 1000);
+    });
+
+    it('should stagger startup jobs after initial boot delay', () => {
+      expect(TRENDING_STARTUP_REFRESH_DELAY_MS).toBeGreaterThan(0);
+      expect(TRENDING_STARTUP_REFRESH_SPACING_MS).toBeGreaterThan(0);
     });
   });
 
@@ -98,8 +114,8 @@ describe('trending constants', () => {
       expect(PAGINATION.DEFAULT_LIMIT).toBeLessThanOrEqual(50);
     });
 
-    it('should have max limit at 100 or less', () => {
-      expect(PAGINATION.MAX_LIMIT).toBeLessThanOrEqual(100);
+    it('should cap list responses to YouTube Top 50', () => {
+      expect(PAGINATION.MAX_LIMIT).toBe(50);
     });
   });
 

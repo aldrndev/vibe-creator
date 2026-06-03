@@ -35,8 +35,19 @@ export function SystemStats({ stats }: SystemStatsProps) {
               </span>
             </div>
             <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mt-1">
-              Total Users
+              Active Users
             </p>
+            <div className="mt-3 flex flex-wrap gap-1.5 text-[10px] font-bold">
+              <span className="rounded-full bg-green-500/10 px-2 py-1 text-green-500">
+                {stats?.users.byStatus.active || 0} active
+              </span>
+              <span className="rounded-full bg-yellow-500/10 px-2 py-1 text-yellow-500">
+                {stats?.users.byStatus.suspended || 0} suspended
+              </span>
+              <span className="rounded-full bg-muted px-2 py-1 text-muted-foreground">
+                {stats?.users.byStatus.deleted || 0} deleted
+              </span>
+            </div>
           </div>
         </CardBody>
       </Card>

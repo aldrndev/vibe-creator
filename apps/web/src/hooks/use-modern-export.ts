@@ -115,6 +115,7 @@ export function useModernExport() {
         // We need to map timeline clips to backend format
         const mediaAssetsById = new Map<string, EditorAsset>();
         let visualClipCount = 0;
+        let audioTrackCount = 0;
 
         for (const track of timeline.tracks) {
           for (const clip of track.clips) {
@@ -132,11 +133,29 @@ export function useModernExport() {
             if (isVisualClip) {
               visualClipCount++;
             }
+
+            if (isStandaloneAudioClip) {
+              audioTrackCount++;
+            }
           }
         }
 
-        if (visualClipCount === 0) {
-          throw new Error('Export requires at least one video or image layer.');
+        const visibleTextCount = project.layers.filter(
+          (layer) => layer.type === 'text' && layer.visible && layer.endMs > layer.startMs,
+        ).length;
+        if (visualClipCount === 0 && audioTrackCount === 0 && visibleTextCount === 0) {
+          throw new Error('Export requires at least one timed content layer.');
+        }
+
+        if (project.settings.backgroundMode === 'image') {
+          const backgroundAsset = assets.find(
+            (asset) =>
+              asset.id === project.settings.backgroundImageAssetId && asset.type === 'IMAGE',
+          );
+          if (!backgroundAsset) {
+            throw new Error('Background image asset is unavailable.');
+          }
+          mediaAssetsById.set(backgroundAsset.id, backgroundAsset);
         }
 
         const assetPathById = new Map<string, string>();
@@ -161,6 +180,9 @@ export function useModernExport() {
             (processedCount / assetsToUpload.length) *
               (UPLOAD_PROGRESS_END - UPLOAD_PROGRESS_START);
           setExportProgress(uploadProgress);
+        }
+        if (assetsToUpload.length === 0) {
+          setExportProgress(UPLOAD_PROGRESS_END);
         }
 
         const timelineData = buildModernExportTimelineData({
@@ -363,8 +385,12 @@ export function getModernExportAssetReference(asset: EditorAsset): string {
 export function getModernExportErrorMessage(error: unknown): string {
   const message = error instanceof Error ? error.message : '';
 
-  if (message.includes('at least one video or image')) {
-    return 'Tambahkan minimal satu video atau gambar sebelum export.';
+  if (message.includes('at least one timed content')) {
+    return 'Tambahkan minimal satu layer text, audio, video, atau gambar sebelum export.';
+  }
+
+  if (message.includes('Background image asset is unavailable')) {
+    return 'Gambar background sudah tidak tersedia. Pilih background image kembali.';
   }
 
   if (message.includes('Compilation failed')) {

@@ -5,7 +5,13 @@
  * Displays video/image/text layers with proper z-ordering.
  */
 
-import type { AudioLayer, ImageLayer, Layer, VideoLayer } from '@vibe-creator/shared';
+import type {
+  AudioLayer,
+  ImageLayer,
+  Layer,
+  ModernProjectSettings,
+  VideoLayer,
+} from '@vibe-creator/shared';
 import { FileUp, Grid2X2, Maximize2, Type } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui';
@@ -105,6 +111,12 @@ export function EditorCanvas({ className, isFocusMode = false }: Readonly<Editor
   const blurBackgroundAsset = blurBackgroundLayer
     ? assets.find((asset) => asset.id === blurBackgroundLayer.assetId)
     : null;
+  const imageBackgroundAsset =
+    settings.backgroundMode === 'image' && settings.backgroundImageAssetId
+      ? assets.find(
+          (asset) => asset.id === settings.backgroundImageAssetId && asset.type === 'IMAGE',
+        )
+      : null;
 
   const handleCanvasClick = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget) {
@@ -248,19 +260,15 @@ export function EditorCanvas({ className, isFocusMode = false }: Readonly<Editor
           style={{
             width: settings.width * scale,
             height: settings.height * scale,
-            backgroundColor:
-              settings.backgroundMode === 'solid' || !blurBackgroundAsset
-                ? settings.backgroundColor
-                : '#000000',
+            backgroundColor: '#000000',
           }}
         >
-          {blurBackgroundLayer && blurBackgroundAsset && (
-            <CanvasBlurBackground
-              layer={blurBackgroundLayer}
-              settings={settings}
-              src={blurBackgroundAsset.url}
-            />
-          )}
+          <CanvasBackgroundLayer
+            blurLayer={blurBackgroundLayer}
+            blurSourceUrl={blurBackgroundAsset?.url}
+            imageSourceUrl={imageBackgroundAsset?.url}
+            settings={settings}
+          />
 
           {shouldShowGuides && <CanvasGuides />}
 
@@ -375,12 +383,90 @@ function CanvasGuides() {
   );
 }
 
+function CanvasBackgroundLayer({
+  blurLayer,
+  blurSourceUrl,
+  imageSourceUrl,
+  settings,
+}: Readonly<{
+  blurLayer: ImageLayer | VideoLayer | null;
+  blurSourceUrl?: string;
+  imageSourceUrl?: string;
+  settings: ModernProjectSettings;
+}>) {
+  const opacity = settings.backgroundOpacity ?? 1;
+
+  if (settings.backgroundMode === 'image') {
+    const dim = settings.backgroundImageDim ?? 0;
+    return (
+      <>
+        <div
+          className="pointer-events-none absolute inset-0"
+          style={{ backgroundColor: settings.backgroundColor }}
+        />
+        {imageSourceUrl && (
+          <div className="pointer-events-none absolute inset-0 overflow-hidden" style={{ opacity }}>
+            <img
+              src={imageSourceUrl}
+              alt=""
+              className="absolute inset-0 h-full w-full"
+              style={{
+                filter: `blur(${Math.round(settings.backgroundImageBlurAmount ?? 0)}px)`,
+                objectFit: settings.backgroundImageFit ?? 'cover',
+                objectPosition: `${settings.backgroundImagePositionX ?? 50}% ${settings.backgroundImagePositionY ?? 50}%`,
+                transform: `scale(${settings.backgroundImageScale ?? 1})`,
+              }}
+            />
+            {dim > 0 && <div className="absolute inset-0 bg-black" style={{ opacity: dim }} />}
+          </div>
+        )}
+      </>
+    );
+  }
+
+  if (settings.backgroundMode === 'gradient') {
+    return (
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background: `linear-gradient(${settings.backgroundGradientAngle ?? 135}deg, ${settings.backgroundGradientFrom ?? '#111827'}, ${settings.backgroundGradientTo ?? '#ff4b1f'})`,
+          opacity,
+        }}
+      />
+    );
+  }
+
+  if (settings.backgroundMode === 'blur' && blurLayer && blurSourceUrl) {
+    return (
+      <CanvasBlurBackground
+        layer={blurLayer}
+        opacity={opacity}
+        settings={settings}
+        src={blurSourceUrl}
+      />
+    );
+  }
+
+  if (settings.backgroundMode === 'solid') {
+    return (
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{ backgroundColor: settings.backgroundColor, opacity }}
+      />
+    );
+  }
+
+  return null;
+}
+
 function CanvasBlurBackground({
   layer,
+  opacity,
   settings,
   src,
 }: Readonly<{
   layer: ImageLayer | VideoLayer;
+  opacity: number;
   settings: {
     backgroundBlurAmount?: number;
     backgroundBlurZoom?: number;
@@ -395,7 +481,7 @@ function CanvasBlurBackground({
   const saturation = settings.backgroundSaturation ?? 1.05;
 
   return (
-    <div className="pointer-events-none absolute inset-0 overflow-hidden">
+    <div className="pointer-events-none absolute inset-0 overflow-hidden" style={{ opacity }}>
       <div
         className="absolute inset-0"
         style={{

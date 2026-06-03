@@ -2,36 +2,14 @@ import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { logger } from '@/lib/logger';
 import { resolveTempUploadReference } from '@/utils/temp-upload';
+import {
+  customRtmpUrlSchema,
+  projectStreamStartBodySchema,
+  streamHistoryQuerySchema,
+  streamHistoryResponseSchema,
+  streamStatusResponseSchema,
+} from './stream.schemas';
 import { streamService } from './stream.service';
-
-function isPrivateHost(hostname: string): boolean {
-  const normalizedHost = hostname.toLowerCase();
-  return (
-    normalizedHost === 'localhost' ||
-    normalizedHost === '::1' ||
-    normalizedHost === '[::1]' ||
-    normalizedHost.startsWith('127.') ||
-    normalizedHost.startsWith('10.') ||
-    normalizedHost.startsWith('192.168.') ||
-    /^172\.(1[6-9]|2\d|3[0-1])\./.test(normalizedHost)
-  );
-}
-
-const customRtmpUrlSchema = z
-  .string()
-  .url()
-  .refine((value) => /^rtmps?:\/\//i.test(value), {
-    message: 'Custom RTMP URL must use rtmp:// or rtmps://',
-  })
-  .refine(
-    (value) => {
-      const parsed = new URL(value);
-      return !isPrivateHost(parsed.hostname);
-    },
-    {
-      message: 'Custom RTMP URL must not target private or loopback hosts',
-    },
-  );
 
 const startStreamSchema = z
   .object({
@@ -39,7 +17,7 @@ const startStreamSchema = z
     config: z.object({
       platform: z.enum(['youtube', 'tiktok', 'twitch', 'facebook', 'instagram', 'custom']),
       rtmpUrl: z.string().optional(),
-      streamKey: z.string(),
+      streamKey: z.string().min(1).max(500),
       quality: z.enum(['720p', '1080p']).default('720p'),
       bitrateKbps: z.number().optional(),
       durationMinutes: z.number().min(1).max(1440).default(60), // Max 24 hours
@@ -86,14 +64,21 @@ export const streamRoutes: FastifyPluginAsync = async (fastify) => {
     }
 
     try {
-      logger.debug({ body: request.body }, 'Stream Start request');
       const body = startStreamSchema.parse(request.body);
+      logger.debug(
+        {
+          platform: body.config.platform,
+          quality: body.config.quality,
+          durationMinutes: body.config.durationMinutes,
+        },
+        'Stream start request',
+      );
       const result = await streamService.startStream({
         userId: user.id,
         inputPath: resolveTempUploadReference(body.inputPath),
         config: {
           platform: body.config.platform,
-          rtmpUrl: body.config.rtmpUrl || '',
+          rtmpUrl: body.config.rtmpUrl,
           streamKey: body.config.streamKey,
           quality: body.config.quality,
           bitrateKbps: body.config.bitrateKbps,
@@ -108,6 +93,63 @@ export const streamRoutes: FastifyPluginAsync = async (fastify) => {
     } catch (err) {
       if (err instanceof z.ZodError) {
         logger.debug({ errors: err.issues }, 'Validation Error');
+        return reply.status(400).send({
+          success: false,
+          error: { code: 'VALIDATION_ERROR', message: err.issues[0]?.message },
+        });
+      }
+
+      const message = err instanceof Error ? err.message : 'Stream start failed';
+      return reply.status(500).send({
+        success: false,
+        error: { code: 'STREAM_ERROR', message },
+      });
+    }
+  });
+
+  fastify.get<{ Params: { id: string } }>('/projects/:id/source', async (request, reply) => {
+    const user = request.user;
+    if (!user) {
+      return reply.status(401).send({
+        success: false,
+        error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+      });
+    }
+
+    try {
+      const sourceInfo = await streamService.getProjectSourceInfo(request.params.id, user.id);
+      return reply.send({ success: true, data: sourceInfo });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Source video tidak tersedia.';
+      return reply.status(400).send({
+        success: false,
+        error: { code: 'STREAM_SOURCE_ERROR', message },
+      });
+    }
+  });
+
+  fastify.post<{ Params: { id: string } }>('/projects/:id/start', async (request, reply) => {
+    const user = request.user;
+    if (!user) {
+      return reply.status(401).send({
+        success: false,
+        error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+      });
+    }
+
+    try {
+      const body = projectStreamStartBodySchema.parse(request.body);
+
+      const result = await streamService.startProjectStream({
+        userId: user.id,
+        projectId: request.params.id,
+        streamKey: body.streamKey,
+        customRtmpUrl: body.customRtmpUrl,
+      });
+
+      return reply.send({ success: true, data: result });
+    } catch (err) {
+      if (err instanceof z.ZodError) {
         return reply.status(400).send({
           success: false,
           error: { code: 'VALIDATION_ERROR', message: err.issues[0]?.message },
@@ -175,7 +217,7 @@ export const streamRoutes: FastifyPluginAsync = async (fastify) => {
 
       return reply.send({
         success: true,
-        data: status,
+        data: streamStatusResponseSchema.parse(status),
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to get stream status';
@@ -203,7 +245,7 @@ export const streamRoutes: FastifyPluginAsync = async (fastify) => {
 
       return reply.send({
         success: true,
-        data: { streams },
+        data: { streams: streams.map((stream) => streamStatusResponseSchema.parse(stream)) },
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to get active streams';
@@ -227,13 +269,21 @@ export const streamRoutes: FastifyPluginAsync = async (fastify) => {
     }
 
     try {
-      const streams = await streamService.getHistory(user.id);
+      const query = streamHistoryQuerySchema.parse(request.query);
+      const result = await streamService.getHistory(user.id, query);
 
       return reply.send({
         success: true,
-        data: { streams },
+        data: streamHistoryResponseSchema.parse(result),
       });
     } catch (err) {
+      if (err instanceof z.ZodError) {
+        return reply.status(400).send({
+          success: false,
+          error: { code: 'VALIDATION_ERROR', message: err.issues[0]?.message },
+        });
+      }
+
       const message = err instanceof Error ? err.message : 'Failed to get stream history';
       return reply.status(500).send({
         success: false,

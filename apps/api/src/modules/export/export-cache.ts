@@ -14,6 +14,7 @@ interface ExportFingerprintInput {
 interface DisplayFilenameInput {
   readonly projectTitle?: string | null;
   readonly createdAt?: Date;
+  readonly prefix?: 'video-studio' | 'loop-creator' | 'reaction';
 }
 
 type CanonicalJson =
@@ -33,6 +34,9 @@ export function createExportFingerprint(input: ExportFingerprintInput): string {
     format: input.format,
     resolution: input.resolution,
     addWatermark: input.addWatermark,
+    renderKind: input.timelineData.renderKind ?? 'timeline',
+    loopSpec: input.timelineData.loopSpec ?? null,
+    reactionSpec: input.timelineData.reactionSpec ?? null,
     clips: input.timelineData.clips,
     textOverlays: input.timelineData.textOverlays ?? [],
     audioTracks: input.timelineData.audioTracks ?? [],
@@ -48,12 +52,13 @@ export function createExportFingerprint(input: ExportFingerprintInput): string {
 export function createExportDisplayFilename(input: DisplayFilenameInput): string {
   const timestamp = formatFilenameTimestamp(input.createdAt ?? new Date());
   const titleSegment = sanitizeFilenameSegment(input.projectTitle ?? '');
+  const prefix = input.prefix ?? 'video-studio';
 
   if (!titleSegment) {
-    return `video-studio-${timestamp}.mp4`;
+    return `${prefix}-${timestamp}.mp4`;
   }
 
-  return `video-studio-${titleSegment}-${timestamp}.mp4`;
+  return `${prefix}-${titleSegment}-${timestamp}.mp4`;
 }
 
 function sanitizeFilenameSegment(value: string): string {

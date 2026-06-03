@@ -11,6 +11,12 @@ import {
   Button,
   Card,
   CardBody,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
   ScrollArea,
   Tab,
   Tabs,
@@ -18,6 +24,7 @@ import {
   TabsList,
 } from '@/components/ui';
 import { useVideoStudioAssets } from '@/hooks/use-video-studio-assets';
+import { isMediaLibraryAsset } from '@/lib/modern-editor-asset-library';
 import {
   buildTextQuickActionLayerUpdate,
   type VideoStudioTextAction,
@@ -48,11 +55,14 @@ export function AssetSidebar({ className }: Readonly<AssetSidebarProps>) {
     addSubtitleLayer,
     addTextLayer,
     addVideoLayer,
+    settings,
+    updateSettings,
     updateLayer,
   } = useModernEditorStore();
 
   const [isDragging, setIsDragging] = useState(false);
   const [isVoiceDialogOpen, setIsVoiceDialogOpen] = useState(false);
+  const [assetPendingRemoval, setAssetPendingRemoval] = useState<EditorAsset | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { importFiles } = useModernMediaImport();
   const {
@@ -77,6 +87,33 @@ export function AssetSidebar({ className }: Readonly<AssetSidebarProps>) {
       addAudioLayer(asset.id);
     },
     [addAudioLayer, addImageLayer, addVideoLayer],
+  );
+
+  const handleSetAsBackground = useCallback(
+    (asset: EditorAsset) => {
+      if (asset.type !== 'IMAGE') {
+        return;
+      }
+
+      updateSettings({
+        backgroundMode: 'image',
+        backgroundImageAssetId: asset.id,
+      });
+    },
+    [updateSettings],
+  );
+
+  const handleRemoveMediaAsset = useCallback(
+    (assetId: string) => {
+      const asset = assets.find((candidate) => candidate.id === assetId);
+      if (asset && asset.id === settings.backgroundImageAssetId) {
+        setAssetPendingRemoval(asset);
+        return;
+      }
+
+      removeAsset(assetId);
+    },
+    [assets, removeAsset, settings.backgroundImageAssetId],
   );
 
   const addStyledTextLayer = useCallback(
@@ -116,6 +153,7 @@ export function AssetSidebar({ className }: Readonly<AssetSidebarProps>) {
         id: assetId,
         name: file.name,
         type: 'AUDIO',
+        libraryPurpose: 'media',
         url: URL.createObjectURL(file),
         durationMs,
         file,
@@ -152,9 +190,10 @@ export function AssetSidebar({ className }: Readonly<AssetSidebarProps>) {
     }
   };
 
-  const videoAssets = assets.filter((a) => a.type === 'VIDEO');
-  const imageAssets = assets.filter((a) => a.type === 'IMAGE');
-  const audioAssets = assets.filter((a) => a.type === 'AUDIO');
+  const mediaAssets = assets.filter(isMediaLibraryAsset);
+  const videoAssets = mediaAssets.filter((a) => a.type === 'VIDEO');
+  const imageAssets = mediaAssets.filter((a) => a.type === 'IMAGE');
+  const audioAssets = mediaAssets.filter((a) => a.type === 'AUDIO');
   const primaryTextActions = textActions.filter((action) =>
     videoStudioOpeningClosingActionIds.includes(action.id),
   );
@@ -186,12 +225,13 @@ export function AssetSidebar({ className }: Readonly<AssetSidebarProps>) {
             onFileInput={handleFileInput}
           />
           <AssetLibrary
-            allAssets={assets}
+            allAssets={mediaAssets}
             audioAssets={audioAssets}
             imageAssets={imageAssets}
             videoAssets={videoAssets}
             onAdd={handleAddAssetToTimeline}
-            onRemove={removeAsset}
+            onRemove={handleRemoveMediaAsset}
+            onSetAsBackground={handleSetAsBackground}
           />
         </TabsContent>
 
@@ -260,6 +300,39 @@ export function AssetSidebar({ className }: Readonly<AssetSidebarProps>) {
         onOpenChange={setIsVoiceDialogOpen}
         onSave={addVoiceRecording}
       />
+      <Dialog open={Boolean(assetPendingRemoval)} onOpenChange={() => setAssetPendingRemoval(null)}>
+        <DialogContent className="rounded-2xl border-border/45 bg-card/95 p-0 backdrop-blur-xl sm:max-w-sm">
+          <DialogHeader className="border-b border-border/35 p-5 pr-14">
+            <DialogTitle className="text-base font-black">Hapus image ini?</DialogTitle>
+            <DialogDescription className="mt-1 text-xs font-semibold">
+              Image sedang dipakai sebagai background. Background canvas akan dilepas.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-row gap-2 p-4 sm:space-x-0">
+            <Button
+              type="button"
+              variant="ghost"
+              className="h-10 flex-1 rounded-xl text-xs font-bold"
+              onClick={() => setAssetPendingRemoval(null)}
+            >
+              Batal
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              className="h-10 flex-1 rounded-xl text-xs font-black"
+              onClick={() => {
+                if (assetPendingRemoval) {
+                  removeAsset(assetPendingRemoval.id);
+                }
+                setAssetPendingRemoval(null);
+              }}
+            >
+              Hapus
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -290,6 +363,7 @@ function createEditorAudioAssetFromStudioAsset(studioAsset: VideoStudioAsset): E
     id: assetId,
     name: studioAsset.title,
     type: 'AUDIO',
+    libraryPurpose: 'media',
     url: studioAsset.previewUrl ?? '',
     durationMs: studioAsset.durationMs ?? undefined,
     serverUrl: studioAsset.previewUrl ?? undefined,

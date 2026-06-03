@@ -1,5 +1,5 @@
 import type { AudioLayer, Layer } from '@vibe-creator/shared';
-import { Music, Repeat2, Scissors, Volume2, VolumeX } from 'lucide-react';
+import { Music, Repeat2, Volume2, VolumeX } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Card, CardBody, Slider } from '@/components/ui';
 import { cn } from '@/lib/utils';
@@ -17,8 +17,6 @@ const fadePresets = [
 ] as const;
 
 export function AudioLayerProperties({ layer, onUpdate }: Readonly<AudioLayerPropertiesProps>) {
-  const layerDurationMs = Math.max(100, layer.endMs - layer.startMs);
-  const trimMaxMs = Math.max(layerDurationMs, layer.data.trimEndMs, layer.data.trimStartMs, 1000);
   const updateData = (dataUpdates: Partial<AudioLayer['data']>) => {
     onUpdate({ data: { ...layer.data, ...dataUpdates } } as Partial<Layer>);
   };
@@ -59,36 +57,23 @@ export function AudioLayerProperties({ layer, onUpdate }: Readonly<AudioLayerPro
           />
         </div>
 
-        <div className="space-y-1.5">
-          <PanelLabel>Fade in</PanelLabel>
-          <FadePresetGrid
-            selectedMs={layer.data.fadeIn}
-            onSelect={(fadeIn) => updateData({ fadeIn })}
-          />
-        </div>
-
-        <div className="space-y-1.5">
-          <PanelLabel>Fade out</PanelLabel>
-          <FadePresetGrid
-            selectedMs={layer.data.fadeOut}
-            onSelect={(fadeOut) => updateData({ fadeOut })}
-          />
-        </div>
-
-        <div className="space-y-1.5">
-          <SectionTitle icon={<Scissors size={15} />}>Trim</SectionTitle>
-          <div className="space-y-3">
-            <TrimSlider
-              label="Start"
-              valueMs={layer.data.trimStartMs}
-              maxMs={trimMaxMs}
-              onChange={(trimStartMs) => updateData({ trimStartMs })}
+        <div className="space-y-2 rounded-xl border border-border/30 bg-background/20 p-2.5">
+          <p className="text-[11px] font-semibold leading-relaxed text-muted-foreground/75">
+            Haluskan audio saat mulai dan berakhir.
+          </p>
+          <div className="space-y-1.5">
+            <PanelLabel>Fade in</PanelLabel>
+            <FadePresetGrid
+              selectedMs={layer.data.fadeIn}
+              onSelect={(fadeIn) => updateData({ fadeIn })}
             />
-            <TrimSlider
-              label="End"
-              valueMs={layer.data.trimEndMs}
-              maxMs={trimMaxMs}
-              onChange={(trimEndMs) => updateData({ trimEndMs })}
+          </div>
+
+          <div className="space-y-1.5">
+            <PanelLabel>Fade out</PanelLabel>
+            <FadePresetGrid
+              selectedMs={layer.data.fadeOut}
+              onSelect={(fadeOut) => updateData({ fadeOut })}
             />
           </div>
         </div>
@@ -165,36 +150,6 @@ function ToggleCard({
         />
       </span>
     </button>
-  );
-}
-
-function TrimSlider({
-  label,
-  maxMs,
-  valueMs,
-  onChange,
-}: Readonly<{
-  label: string;
-  maxMs: number;
-  valueMs: number;
-  onChange: (valueMs: number) => void;
-}>) {
-  return (
-    <div className="space-y-1.5">
-      <div className="flex items-center justify-between gap-3">
-        <PanelLabel>{label}</PanelLabel>
-        <span className="rounded-full bg-muted/20 px-2 py-1 font-mono text-[10px] font-black text-muted-foreground">
-          {(valueMs / 1000).toFixed(1)}s
-        </span>
-      </div>
-      <Slider
-        min={0}
-        max={maxMs}
-        step={100}
-        value={[valueMs]}
-        onValueChange={(value: number[]) => onChange(value[0] ?? valueMs)}
-      />
-    </div>
   );
 }
 

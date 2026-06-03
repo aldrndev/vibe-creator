@@ -18,6 +18,7 @@ import {
   QUALITY_PRESETS,
   RESOLUTION_MAP,
   timelineClipSchema,
+  timelineSettingsSchema,
 } from '@/modules/export/export.schema';
 
 describe('export.schema contracts', () => {
@@ -171,6 +172,75 @@ describe('export.schema contracts', () => {
       for (const preset of presets) {
         expect(() => exportSettingsSchema.parse({ preset })).not.toThrow();
       }
+    });
+  });
+
+  describe('timelineSettingsSchema', () => {
+    it('accepts gradient background settings', () => {
+      const result = timelineSettingsSchema.parse({
+        width: 1080,
+        height: 1920,
+        fps: 30,
+        backgroundColor: '#000000',
+        backgroundMode: 'gradient',
+        backgroundOpacity: 0.75,
+        backgroundGradientFrom: '#020617',
+        backgroundGradientTo: '#2563eb',
+        backgroundGradientAngle: 135,
+      });
+
+      expect(result.backgroundMode).toBe('gradient');
+      expect(result.backgroundOpacity).toBe(0.75);
+      expect(result.backgroundGradientFrom).toBe('#020617');
+      expect(result.backgroundGradientTo).toBe('#2563eb');
+      expect(result.backgroundGradientAngle).toBe(135);
+    });
+
+    it('rejects invalid gradient colors and opacity', () => {
+      expect(() =>
+        timelineSettingsSchema.parse({
+          backgroundMode: 'gradient',
+          backgroundOpacity: 1.5,
+          backgroundGradientFrom: 'red',
+        }),
+      ).toThrow();
+    });
+
+    it('accepts valid image background settings', () => {
+      const result = timelineSettingsSchema.parse({
+        backgroundMode: 'image',
+        backgroundImagePath: 'project-asset:cover-id',
+        backgroundImageFit: 'contain',
+        backgroundOpacity: 0.8,
+        backgroundImageBlurAmount: 4,
+        backgroundImageDim: 0.2,
+        backgroundImagePositionX: 45,
+        backgroundImagePositionY: 60,
+        backgroundImageScale: 1.2,
+      });
+
+      expect(result).toMatchObject({
+        backgroundMode: 'image',
+        backgroundImagePath: 'project-asset:cover-id',
+        backgroundImageFit: 'contain',
+        backgroundImageBlurAmount: 4,
+        backgroundImageDim: 0.2,
+        backgroundImagePositionX: 45,
+        backgroundImagePositionY: 60,
+        backgroundImageScale: 1.2,
+      });
+    });
+
+    it('rejects invalid image background controls', () => {
+      expect(() =>
+        timelineSettingsSchema.parse({
+          backgroundMode: 'image',
+          backgroundImageBlurAmount: 41,
+          backgroundImageDim: 0.7,
+          backgroundImagePositionX: -1,
+          backgroundImageScale: 0.9,
+        }),
+      ).toThrow();
     });
   });
 

@@ -116,6 +116,7 @@ node -e "console.log(require('crypto').randomBytes(32).toString('base64'))" # JW
 - `XENDIT_WEBHOOK_TOKEN` - Required outside development
 - `FRONTEND_URL` - Frontend base URL for redirects
 - `R2_*` - Cloudflare R2 credentials
+- `VITE_TELEGRAM_URL` / `VITE_WHATSAPP_URL` - Public community links for the Community page
 
 ### 3. Start Infrastructure
 
