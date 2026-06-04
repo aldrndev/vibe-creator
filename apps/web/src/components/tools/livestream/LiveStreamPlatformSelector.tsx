@@ -7,25 +7,39 @@ interface LiveStreamPlatformSelectorProps {
   platform: StreamPlatform;
   setPlatform: (p: StreamPlatform) => void;
   isStreaming: boolean;
+  embedded?: boolean;
 }
 
 export function LiveStreamPlatformSelector({
   platform,
   setPlatform,
   isStreaming,
+  embedded = false,
 }: LiveStreamPlatformSelectorProps) {
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col gap-1 ml-1">
-        <div className="text-xs font-black uppercase tracking-widest text-muted-foreground">
+    <section
+      className={cn(
+        'overflow-hidden',
+        embedded
+          ? 'bg-transparent'
+          : 'rounded-3xl border border-border/50 bg-card/70 backdrop-blur-xl',
+      )}
+    >
+      <div
+        className={cn(
+          'flex min-h-[82px] flex-col justify-center border-b border-border/50 px-5 py-4',
+          embedded && 'px-5 sm:px-6',
+        )}
+      >
+        <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground">
           Pilih Platform
-        </div>
-        <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">
+        </h2>
+        <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/75">
           Target tujuan siaran anda
         </p>
       </div>
 
-      <div className="grid grid-cols-3 md:grid-cols-6 lg:grid-cols-6 gap-2">
+      <div className={cn('grid grid-cols-3 gap-2 p-5 md:grid-cols-6', embedded && 'sm:p-6')}>
         {Object.entries(platformConfigs).map(([key, config]) => {
           const isActive = platform === key;
           return (
@@ -35,7 +49,7 @@ export function LiveStreamPlatformSelector({
                 onClick={() => !isStreaming && setPlatform(key as StreamPlatform)}
                 disabled={isStreaming}
                 className={cn(
-                  'flex flex-col items-center justify-center gap-3 p-4 rounded-2xl border transition-all duration-300 relative group overflow-hidden active:scale-95 w-full h-full',
+                  'group relative flex h-28 w-full flex-col items-center justify-center gap-3 overflow-hidden rounded-2xl border p-3 transition-all duration-300 active:scale-95',
                   isActive
                     ? 'border-primary/35 bg-muted/25'
                     : 'bg-card/20 backdrop-blur-xl border-border/50 hover:border-primary/30 hover:bg-muted/20',
@@ -44,7 +58,7 @@ export function LiveStreamPlatformSelector({
               >
                 <div
                   className={cn(
-                    'w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-300',
+                    'flex h-11 w-11 items-center justify-center rounded-xl transition-all duration-300',
                     isActive
                       ? 'bg-muted text-primary scale-105'
                       : 'bg-muted text-muted-foreground group-hover:scale-110 group-hover:bg-primary/10 group-hover:text-primary',
@@ -53,7 +67,9 @@ export function LiveStreamPlatformSelector({
                   {config.icon}
                 </div>
                 <div className="text-center">
-                  <p className="text-xs font-black tracking-tight text-foreground">{config.name}</p>
+                  <p className="text-[11px] font-black tracking-tight text-foreground">
+                    {config.name}
+                  </p>
                 </div>
 
                 {isActive && (
@@ -64,6 +80,6 @@ export function LiveStreamPlatformSelector({
           );
         })}
       </div>
-    </div>
+    </section>
   );
 }

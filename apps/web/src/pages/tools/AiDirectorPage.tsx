@@ -1,6 +1,5 @@
 import { AlertCircle, Plus } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
 import { StepIndicator } from '@/components/director/StepIndicator';
 import { AnalyzeStep } from '@/components/director/steps/AnalyzeStep';
 import { EditingStep } from '@/components/director/steps/EditingStep';
@@ -13,11 +12,16 @@ import {
   resolveInitialSourceUrl,
   resolveTrendingImportContext,
 } from '@/lib/ai-director-trending-context';
+import { useMutableSearchParams } from '@/lib/route-search';
 import {
   DEFAULT_TRANSCRIBE_LANGUAGE,
   normalizeTranscribeLanguage,
 } from '@/lib/transcribe-language';
-import { resolveHydratedStep } from '@/pages/tools/ai-director-page-utils';
+import {
+  isPlainAiDirectorEntry,
+  resolveHydratedStep,
+  shouldClearPlainEntrySession,
+} from '@/pages/tools/ai-director-page-utils';
 import { authFetch } from '@/services/api';
 import type {
   Candidate,
@@ -178,7 +182,7 @@ function applyHydratedSession(
 }
 
 export function AiDirectorPage() {
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useMutableSearchParams();
   const [isHydrating, setIsHydrating] = useState(Boolean(searchParams.get('session')));
   const {
     activeSession,
@@ -202,29 +206,25 @@ export function AiDirectorPage() {
 
   const sessionParam = searchParams.get('session');
   const topicParam = searchParams.get('topic');
-  const sourceUrlParam = searchParams.get('sourceUrl');
-  const sourceParam = searchParams.get('source');
   const queryTrendingImportContext = useMemo(
     () => resolveTrendingImportContext(searchParams),
     [searchParams],
   );
+  const isPlainEntry = useMemo(() => isPlainAiDirectorEntry(searchParams), [searchParams]);
   const [trendingContextSnapshot, setTrendingContextSnapshot] = useState(
     queryTrendingImportContext,
   );
   const pendingSessionHydrationRef = useRef<string | null>(null);
-  const clearedStaleSessionRef = useRef(false);
-  const [openedWithoutSession] = useState(
-    !sessionParam &&
-      !topicParam &&
-      !sourceUrlParam &&
-      !sourceParam &&
-      !searchParams.get('thumbnailUrl') &&
-      !searchParams.get('region') &&
-      !searchParams.get('rank'),
-  );
-  const [showContinuePrompt, setShowContinuePrompt] = useState(openedWithoutSession);
+  const manualEntryInitializedRef = useRef(false);
+  const suppressedPlainEntrySessionIdRef = useRef<string | null>(null);
+  const [showContinuePrompt, setShowContinuePrompt] = useState(isPlainEntry);
   const activeSessionId = activeSession?.id ?? null;
   const hasActiveSession = activeSession !== null;
+  const isClearingPlainEntrySession = shouldClearPlainEntrySession({
+    isPlainEntry,
+    activeSessionId,
+    hasInitializedManualEntry: manualEntryInitializedRef.current,
+  });
   const trendingImportContext =
     step === 'IMPORT' ? (queryTrendingImportContext ?? trendingContextSnapshot) : null;
   const initialTopic = !hasActiveSession ? (topicParam?.trim() ?? null) : null;
@@ -239,16 +239,27 @@ export function AiDirectorPage() {
   }, [hasActiveSession, queryTrendingImportContext]);
 
   useEffect(() => {
-    if (sessionParam || clearedStaleSessionRef.current || !activeSessionId) {
+    if (!isPlainEntry) {
+      manualEntryInitializedRef.current = false;
+      setShowContinuePrompt(false);
       return;
     }
 
-    if (openedWithoutSession || queryTrendingImportContext) {
-      clearedStaleSessionRef.current = true;
-      reset();
-      setShowContinuePrompt(openedWithoutSession);
+    if (manualEntryInitializedRef.current) {
+      return;
     }
-  }, [activeSessionId, openedWithoutSession, queryTrendingImportContext, reset, sessionParam]);
+
+    manualEntryInitializedRef.current = true;
+
+    if (activeSessionId) {
+      suppressedPlainEntrySessionIdRef.current = activeSessionId;
+      reset();
+    } else {
+      suppressedPlainEntrySessionIdRef.current = null;
+    }
+
+    setShowContinuePrompt(true);
+  }, [activeSessionId, isPlainEntry, reset]);
 
   useEffect(() => {
     if (sessionParam) {
@@ -341,6 +352,14 @@ export function AiDirectorPage() {
 
     const nextSearchParams = new URLSearchParams(searchParams);
 
+    if (activeSessionId && suppressedPlainEntrySessionIdRef.current === activeSessionId) {
+      return;
+    }
+
+    if (!activeSessionId) {
+      suppressedPlainEntrySessionIdRef.current = null;
+    }
+
     if (activeSessionId && sessionParam !== activeSessionId) {
       nextSearchParams.set('session', activeSessionId);
       setSearchParams(clearDirectorInitialContextSearchParams(nextSearchParams), {
@@ -373,10 +392,10 @@ export function AiDirectorPage() {
   ]);
 
   return (
-    <div className="min-h-screen bg-background text-foreground p-4 md:p-8 font-sans pb-32">
-      <div className="max-w-400 mx-auto space-y-8">
+    <div className="min-h-screen bg-background px-4 pt-3 pb-8 font-sans text-foreground md:px-8 md:pt-5 lg:pb-0">
+      <div className="max-w-400 mx-auto space-y-5">
         {/* Header */}
-        <div className="space-y-4 mb-2">
+        <div className="space-y-3">
           {showContinuePrompt && !hasActiveSession ? (
             <ContinueWorkspaceDialog
               tool="ai-director"
@@ -391,7 +410,7 @@ export function AiDirectorPage() {
             />
           ) : null}
 
-          {hasActiveSession ? (
+          {hasActiveSession && !isClearingPlainEntrySession ? (
             <div className="flex justify-start">
               <button
                 type="button"
@@ -421,7 +440,12 @@ export function AiDirectorPage() {
 
         {/* Content */}
         <div className="min-h-100 flex items-center justify-center">
-          {step === 'IMPORT' && (
+          {isClearingPlainEntrySession ? (
+            <div className="rounded-3xl border border-border/50 bg-card/60 px-6 py-5 text-sm font-semibold text-muted-foreground">
+              Menyiapkan AI Director...
+            </div>
+          ) : null}
+          {!isClearingPlainEntrySession && step === 'IMPORT' && (
             <ImportStep
               initialTopic={initialTopic}
               initialSourceUrl={initialSourceUrl}
@@ -434,12 +458,12 @@ export function AiDirectorPage() {
               }}
             />
           )}
-          {step === 'ANALYZING' && <AnalyzeStep />}
-          {step === 'PICKING' && <PickingStep />}
-          {step === 'EDITING' && <EditingStep />}
-          {step === 'PUBLISH_COPY' && <EditingStep />}
-          {step === 'EXPORTING' && <EditingStep />}
-          {step === 'COMPLETED' && <EditingStep />}
+          {!isClearingPlainEntrySession && step === 'ANALYZING' && <AnalyzeStep />}
+          {!isClearingPlainEntrySession && step === 'PICKING' && <PickingStep />}
+          {!isClearingPlainEntrySession && step === 'EDITING' && <EditingStep />}
+          {!isClearingPlainEntrySession && step === 'PUBLISH_COPY' && <EditingStep />}
+          {!isClearingPlainEntrySession && step === 'EXPORTING' && <EditingStep />}
+          {!isClearingPlainEntrySession && step === 'COMPLETED' && <EditingStep />}
         </div>
       </div>
     </div>

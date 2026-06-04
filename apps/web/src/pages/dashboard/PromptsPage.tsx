@@ -1,3 +1,4 @@
+import { Link, useNavigate } from '@tanstack/react-router';
 import type { PromptType } from '@vibe-creator/shared';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
@@ -15,7 +16,6 @@ import {
   Video,
 } from 'lucide-react';
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
 import {
   Badge,
   Button,
@@ -79,7 +79,7 @@ export function PromptsPage() {
   const totalPages = meta?.totalPages || 1;
 
   const handlePromptClick = (promptId: string) => {
-    navigate(`/dashboard/prompts/${promptId}`);
+    navigate({ to: '/dashboard/prompts/$id', params: { id: promptId } });
   };
 
   const handleTypeChange = (key: string) => {

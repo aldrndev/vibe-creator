@@ -18,7 +18,7 @@ export function LoopHeader({ title, onTitleChange, isSaving, hasProject }: LoopH
           </div>
           <h1 className="text-3xl font-black tracking-tight text-foreground">Loop Creator</h1>
         </div>
-        <p className="ml-14 max-w-xl text-sm font-medium text-muted-foreground">
+        <p className="max-w-xl text-sm font-medium text-muted-foreground">
           Perpanjang satu video siap pakai menjadi video loop panjang yang halus.
         </p>
       </div>

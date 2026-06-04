@@ -23,8 +23,8 @@ interface TopupPackage {
 }
 
 interface TopupModalProps {
-  isOpen: boolean;
-  onClose: () => void;
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
 }
 
 const topupPackageSchema = z.object({
@@ -42,28 +42,40 @@ const topupPurchaseResponseSchema = z.object({
   success: z.boolean(),
   data: z
     .object({
-      invoiceUrl: z.string().url(),
+      invoiceUrl: z.url(),
     })
     .optional(),
-  error: z.string().optional(),
+  error: z.union([z.string(), z.object({ message: z.string().optional() })]).optional(),
 });
 
-export function TopupModal({ isOpen, onClose }: TopupModalProps) {
+function getTopupErrorMessage(payload: unknown, fallback: string): string {
+  const parsed = topupPurchaseResponseSchema.safeParse(payload);
+  if (!parsed.success) return fallback;
+
+  const { error } = parsed.data;
+  if (typeof error === 'string') return error;
+  return error?.message || fallback;
+}
+
+export function TopupModal({ isOpen, onClose }: Readonly<TopupModalProps>) {
   const [packages, setPackages] = useState<TopupPackage[]>([]);
   const [selectedPackage, setSelectedPackage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [purchasing, setPurchasing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const selectedPlan = packages.find((pkg) => pkg.id === selectedPackage);
 
   const fetchPackages = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const res = await authFetch('/api/v1/billing/packages');
       if (res.ok) {
         const data = topupPackagesResponseSchema.parse(await res.json());
         setPackages(data.data);
       } else {
-        setError('Gagal memuat paket');
+        const payload = await res.json().catch(() => null);
+        setError(getTopupErrorMessage(payload, 'Gagal memuat paket'));
       }
     } catch {
       setError('Gagal memuat paket');
@@ -87,20 +99,22 @@ export function TopupModal({ isOpen, onClose }: TopupModalProps) {
     try {
       const res = await authFetch('/api/v1/billing/topup', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ packageId: selectedPackage }),
       });
 
-      const data = topupPurchaseResponseSchema.parse(await res.json());
+      const payload = await res.json().catch(() => null);
+      const data = topupPurchaseResponseSchema.safeParse(payload);
 
-      if (res.ok && data.success) {
-        if (!data.data?.invoiceUrl) {
+      if (res.ok && data.success && data.data.success) {
+        if (!data.data.data?.invoiceUrl) {
           setError('Tautan invoice tidak tersedia');
           return;
         }
 
-        window.location.href = data.data.invoiceUrl;
+        globalThis.location.href = data.data.data.invoiceUrl;
       } else {
-        setError(data.error || 'Gagal memproses pembayaran');
+        setError(getTopupErrorMessage(payload, 'Gagal memproses pembayaran'));
       }
     } catch {
       setError('Terjadi kesalahan');
@@ -117,23 +131,32 @@ export function TopupModal({ isOpen, onClose }: TopupModalProps) {
     }).format(price);
   };
 
+  const formatMinutes = (minutes: number) => {
+    if (minutes >= 1440) return `${minutes / 1440} hari streaming`;
+    if (minutes >= 60) return `${minutes / 60} jam streaming`;
+    return `${minutes} menit streaming`;
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-2xl rounded-3xl border-border/60 bg-card">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-xl">
-            <Zap className="text-yellow-500" /> Top Up Kuota Streaming
+          <DialogTitle className="flex items-center gap-3 text-xl">
+            <span className="flex h-11 w-11 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 text-primary">
+              <Zap size={20} />
+            </span>
+            <span>Top Up Kuota Streaming</span>
           </DialogTitle>
-          <p className="text-sm text-muted-foreground font-normal">
-            Pilih paket tambahan durasi streaming sesuai kebutuhan Anda.
+          <p className="text-sm font-medium text-muted-foreground">
+            Kuota masuk otomatis setelah pembayaran berhasil.
           </p>
         </DialogHeader>
 
         {/* Inline Error */}
         {error && (
-          <div className="mb-4 p-3 rounded-lg bg-destructive/10 text-destructive border border-destructive/20 flex items-center gap-2">
+          <div className="mb-4 flex items-center gap-2 rounded-2xl border border-destructive/20 bg-destructive/10 p-3 text-destructive">
             <AlertCircle size={18} />
-            <span className="text-sm">{error}</span>
+            <span className="text-sm font-bold">{error}</span>
           </div>
         )}
 
@@ -142,17 +165,17 @@ export function TopupModal({ isOpen, onClose }: TopupModalProps) {
             <Spinner size="lg" />
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             {packages.map((pkg) => (
               <Card
                 key={pkg.id}
                 role="button"
                 tabIndex={0}
                 aria-pressed={selectedPackage === pkg.id}
-                className={`cursor-pointer border-2 transition-all ${
+                className={`cursor-pointer rounded-2xl border transition-all ${
                   selectedPackage === pkg.id
-                    ? 'border-primary bg-primary/5'
-                    : 'border-transparent hover:border-primary/50'
+                    ? 'border-primary/70 bg-primary/6.5'
+                    : 'border-border/50 bg-muted/10 hover:border-primary/40'
                 }`}
                 onClick={() => setSelectedPackage(pkg.id)}
                 onKeyDown={(event) => {
@@ -162,22 +185,32 @@ export function TopupModal({ isOpen, onClose }: TopupModalProps) {
                   }
                 }}
               >
-                <CardBody className="flex flex-col gap-2 p-4">
+                <CardBody className="flex h-full flex-col gap-4 p-4">
                   <div className="flex justify-between items-start">
-                    <div>
-                      <h4 className="font-bold text-lg">{pkg.name}</h4>
-                      <p className="text-sm text-muted-foreground">
-                        {pkg.minutes >= 60
-                          ? `${pkg.minutes / 60} Jam Streaming`
-                          : `${pkg.minutes} Menit Streaming`}
+                    <div className="min-w-0">
+                      <h4 className="truncate text-base font-black">{pkg.name}</h4>
+                      <p className="mt-1 text-sm font-medium text-muted-foreground">
+                        {formatMinutes(pkg.minutes)}
                       </p>
                     </div>
                     {selectedPackage === pkg.id && (
                       <CheckCircle className="text-primary" size={20} />
                     )}
                   </div>
-                  <div className="mt-2">
-                    <Badge variant="default">{formatPrice(pkg.price)}</Badge>
+                  <div className="mt-auto flex items-end justify-between gap-3">
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                        Harga
+                      </p>
+                      <p className="mt-1 text-lg font-black">{formatPrice(pkg.price)}</p>
+                    </div>
+                    <Badge
+                      variant="secondary"
+                      className="rounded-full bg-muted/40 text-[10px] uppercase tracking-widest"
+                    >
+                      Rp {Math.round(pkg.price / Math.max(pkg.minutes, 1)).toLocaleString('id-ID')}
+                      /min
+                    </Badge>
                   </div>
                 </CardBody>
               </Card>
@@ -185,11 +218,36 @@ export function TopupModal({ isOpen, onClose }: TopupModalProps) {
           </div>
         )}
 
-        <DialogFooter>
+        <div className="rounded-2xl border border-border/50 bg-muted/10 p-4">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                Pilihan
+              </p>
+              <p className="mt-1 text-sm font-black">
+                {selectedPlan
+                  ? `${selectedPlan.name} - ${formatPrice(selectedPlan.price)}`
+                  : 'Pilih paket untuk lanjut pembayaran'}
+              </p>
+            </div>
+            {selectedPlan && (
+              <Badge className="w-fit rounded-full bg-primary/10 text-primary">
+                {formatMinutes(selectedPlan.minutes)}
+              </Badge>
+            )}
+          </div>
+        </div>
+
+        <DialogFooter className="gap-2 sm:gap-3">
           <Button variant="ghost" onClick={onClose}>
             Batal
           </Button>
-          <Button onClick={handlePurchase} isLoading={purchasing} disabled={!selectedPackage}>
+          <Button
+            className="rounded-xl font-black"
+            onClick={handlePurchase}
+            isLoading={purchasing}
+            disabled={!selectedPackage}
+          >
             {!purchasing && <CreditCard size={18} />}
             Bayar Sekarang
           </Button>

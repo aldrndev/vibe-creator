@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
 import { LoopHeader } from '@/components/tools/loop/LoopHeader';
 import { LoopRenderDialog } from '@/components/tools/loop/LoopRenderDialog';
 import { LoopSettingsPanel } from '@/components/tools/loop/LoopSettingsPanel';
@@ -10,9 +9,10 @@ import { PageTransition } from '@/components/ui/PageTransition';
 import { ContinueWorkspaceDialog } from '@/components/workspace/ContinueWorkspaceDialog';
 import { usePrompt } from '@/hooks/use-prompts';
 import { useLoopCreator } from '@/hooks/useLoopCreator';
+import { useMutableSearchParams } from '@/lib/route-search';
 
 export function LoopCreatorPage() {
-  const [params, setParams] = useSearchParams();
+  const [params, setParams] = useMutableSearchParams();
   const sessionId = params.get('session') ?? undefined;
   const promptId = params.get('prompt') ?? undefined;
   const [showContinue, setShowContinue] = useState(!sessionId && !promptId);

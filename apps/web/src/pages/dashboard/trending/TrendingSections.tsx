@@ -1,6 +1,6 @@
+import { useNavigate } from '@tanstack/react-router';
 import { ExternalLink, Flame, Medal, Sparkles, Trophy, Wand2 } from 'lucide-react';
 import type { SyntheticEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui';
 import { Skeleton } from '@/components/ui/SkeletonLoader';
 import { buildTrendingDirectorUrl } from '@/lib/ai-director-trending-context';
@@ -95,7 +95,7 @@ function TrendingActions({ item, compact = false, tone = 'primary' }: TrendingAc
           isMinimal &&
             'h-7 rounded-lg border-primary/20 bg-transparent px-2.5 text-[11px] text-primary shadow-none hover:bg-primary/10 hover:text-primary',
         )}
-        onClick={() => navigate(getDirectorTopicUrl(item))}
+        onClick={() => navigate({ to: getDirectorTopicUrl(item) })}
       >
         <Wand2 size={isMinimal ? 12 : compact ? 13 : 16} />
         Buat Short
@@ -206,7 +206,7 @@ export function TrendingBento({ items }: Readonly<{ items: TrendingItem[] }>) {
               <button
                 type="button"
                 className="text-left text-lg font-bold leading-snug line-clamp-2 transition-colors hover:text-primary"
-                onClick={() => navigate(getDirectorTopicUrl(item))}
+                onClick={() => navigate({ to: getDirectorTopicUrl(item) })}
               >
                 {item.title}
               </button>
@@ -263,7 +263,7 @@ export function TrendingBillboard({ items }: Readonly<{ items: TrendingItem[] }>
                   <button
                     type="button"
                     className="text-left text-sm font-bold leading-snug line-clamp-2 transition-colors hover:text-primary"
-                    onClick={() => navigate(getDirectorTopicUrl(item))}
+                    onClick={() => navigate({ to: getDirectorTopicUrl(item) })}
                   >
                     {item.title}
                   </button>
@@ -307,7 +307,7 @@ export function TrendingFeedItem({ item, index }: Readonly<{ item: TrendingItem;
         <button
           type="button"
           className="text-left text-sm font-semibold leading-snug text-foreground transition-colors line-clamp-2 hover:text-primary"
-          onClick={() => navigate(getDirectorTopicUrl(item))}
+          onClick={() => navigate({ to: getDirectorTopicUrl(item) })}
         >
           {item.title}
         </button>

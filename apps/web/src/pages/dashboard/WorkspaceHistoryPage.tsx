@@ -1,8 +1,18 @@
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Link, useNavigate } from '@tanstack/react-router';
 import { Download, FolderClock, History, RotateCcw, Trash2 } from 'lucide-react';
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Badge, Button, Card, CardBody } from '@/components/ui';
+import {
+  Badge,
+  Button,
+  Card,
+  CardBody,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui';
 import { WorkspaceHistoryThumbnail } from '@/components/workspace/workspace-history-thumbnail';
 import { downloadAuthenticatedFile } from '@/services/api';
 import {
@@ -20,8 +30,10 @@ import {
 
 type HistoryFilter = 'all' | WorkspaceTool | 'expired';
 
+const allHistoryFilter = { value: 'all', label: 'Semua' } as const;
+
 const filters: Array<{ value: HistoryFilter; label: string }> = [
-  { value: 'all', label: 'Semua' },
+  allHistoryFilter,
   { value: 'ai-director', label: 'AI Director' },
   { value: 'video-studio', label: 'Video Studio' },
   { value: 'loop-creator', label: 'Loop Creator' },
@@ -30,6 +42,10 @@ const filters: Array<{ value: HistoryFilter; label: string }> = [
   { value: 'exports', label: 'Export' },
   { value: 'expired', label: 'Berakhir' },
 ];
+
+function isHistoryFilter(value: string): value is HistoryFilter {
+  return filters.some((item) => item.value === value);
+}
 const loadingCardIds = [
   'history-loading-1',
   'history-loading-2',
@@ -206,7 +222,7 @@ export function WorkspaceHistoryPage() {
     onSuccess: async (result, item) => {
       await queryClient.invalidateQueries({ queryKey: ['workspace-history'] });
       if (result && typeof result === 'object' && 'id' in result && typeof result.id === 'string') {
-        navigate(getDuplicatedWorkspacePath(item, result.id));
+        navigate({ to: getDuplicatedWorkspacePath(item, result.id) });
       }
     },
   });
@@ -224,9 +240,10 @@ export function WorkspaceHistoryPage() {
   const availableItems = displayedItems.filter(isAvailableItem);
   const endedItems = displayedItems.filter(isEndedItem);
   const hasVisibleHistory = availableItems.length > 0 || endedItems.length > 0;
+  const selectedFilter = filters.find((item) => item.value === filter) ?? allHistoryFilter;
 
   return (
-    <div className="min-h-full bg-background px-4 pt-6 pb-40 text-foreground md:px-8 md:pb-10">
+    <div className="min-h-full bg-background px-4 pt-6 pb-[calc(4.75rem+env(safe-area-inset-bottom))] text-foreground md:px-8 md:pb-6 lg:pb-0">
       <div className="mx-auto max-w-6xl space-y-6">
         <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div>
@@ -240,17 +257,29 @@ export function WorkspaceHistoryPage() {
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            {filters.map((item) => (
-              <Button
-                key={item.value}
-                size="sm"
-                variant={filter === item.value ? 'default' : 'outline'}
-                onClick={() => setFilter(item.value)}
-              >
-                {item.label}
-              </Button>
-            ))}
+          <div className="w-full sm:w-64">
+            <p className="mb-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">
+              Filter
+            </p>
+            <Select
+              value={selectedFilter.value}
+              onValueChange={(value) => {
+                if (isHistoryFilter(value)) {
+                  setFilter(value);
+                }
+              }}
+            >
+              <SelectTrigger className="h-11 rounded-xl border-border/70 bg-card/70 font-semibold">
+                <SelectValue placeholder={selectedFilter.label} />
+              </SelectTrigger>
+              <SelectContent>
+                {filters.map((item) => (
+                  <SelectItem key={item.value} value={item.value}>
+                    {item.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
 

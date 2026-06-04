@@ -15,17 +15,16 @@ export const useThemeStore = create<ThemeState>()(
       theme: 'dark',
 
       toggleTheme: () => {
-        set((state) => ({
-          theme: state.theme === 'light' ? 'dark' : 'light',
-        }));
+        set({ theme: 'dark' });
       },
 
-      setTheme: (theme) => {
-        set({ theme });
+      setTheme: () => {
+        set({ theme: 'dark' });
       },
     }),
     {
       name: 'vibe-creator-theme',
+      merge: (_persistedState, currentState) => ({ ...currentState, theme: 'dark' }),
     },
   ),
 );

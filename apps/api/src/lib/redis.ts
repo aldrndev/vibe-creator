@@ -1,6 +1,9 @@
+import type { RedisOptions } from 'ioredis';
 import Redis from 'ioredis';
 import { env } from '@/config/env';
 import { logger } from '@/lib/logger';
+
+const isVitestRuntime = process.env.VITEST === 'true' || process.env.VITEST_WORKER_ID !== undefined;
 
 /**
  * Redis Client with timeout and retry configuration
@@ -10,11 +13,17 @@ import { logger } from '@/lib/logger';
  * - Command timeout: 5 seconds
  * - Bounded retries: Max 3 attempts with exponential backoff
  */
-// Shared Redis Options for BullMQ compatibility
-export const redisOptions = {
+/**
+ * Shared Redis options for BullMQ and direct Redis clients.
+ *
+ * Vitest runs without a real Redis instance for most unit tests. Keep clients lazy in that runtime
+ * so importing modules that reference Redis does not open a localhost connection by accident.
+ */
+export const redisOptions: RedisOptions = {
   host: new URL(env.REDIS_URL).hostname || 'localhost',
   port: parseInt(new URL(env.REDIS_URL).port || '6379', 10),
   password: new URL(env.REDIS_URL).password || undefined,
+  lazyConnect: isVitestRuntime,
   maxRetriesPerRequest: null, // Required for BullMQ workers
 };
 
@@ -39,7 +48,7 @@ export const redis = new Redis(env.REDIS_URL, {
 
   // Connection options
   enableReadyCheck: true, // Wait for Redis READY before accepting commands
-  lazyConnect: false, // Connect immediately
+  lazyConnect: isVitestRuntime, // Connect immediately outside test runtime
 
   // Reconnection options
   reconnectOnError: (err) => {

@@ -1,8 +1,8 @@
+import { useNavigate } from '@tanstack/react-router';
 import type { PromptType } from '@vibe-creator/shared';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowLeft, Check, ChevronRight, RefreshCw, Sparkles } from 'lucide-react';
 import { type ReactNode, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Button, Card, CardBody, Input } from '@/components/ui';
 import { PageTransition } from '@/components/ui/PageTransition';
 import { useCreatePrompt } from '@/hooks/use-prompts';
@@ -114,7 +114,7 @@ export function PromptBuilderPage() {
             Composer khusus memastikan scene, gerakan kontinu, dan audio ambience tetap cocok untuk
             video loop.
           </p>
-          <Button className="rounded-xl" onClick={() => navigate('/tools/loop-creator')}>
+          <Button className="rounded-xl" onClick={() => navigate({ to: '/tools/loop-creator' })}>
             Buka Loop Creator
           </Button>
         </CardBody>
@@ -133,7 +133,7 @@ export function PromptBuilderPage() {
                 size="icon"
                 variant="ghost"
                 className="rounded-full w-10 h-10 bg-muted/20 border border-border/50"
-                onClick={() => navigate('/dashboard/prompts')}
+                onClick={() => navigate({ to: '/dashboard/prompts' })}
               >
                 <ArrowLeft size={18} />
               </Button>

@@ -30,7 +30,10 @@ export const TurnstileWidget = forwardRef<TurnstileWidgetRef, TurnstileWidgetPro
     }));
 
     return (
-      <div className="flex justify-center my-4">
+      <div className="my-4 flex flex-col items-center rounded-2xl border border-border/60 bg-card/45 p-3">
+        <p className="mb-3 text-center text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">
+          Verifikasi keamanan
+        </p>
         <Turnstile
           ref={turnstileRef}
           siteKey={SITE_KEY}
@@ -47,7 +50,7 @@ export const TurnstileWidget = forwardRef<TurnstileWidgetRef, TurnstileWidgetPro
             onExpire?.();
           }}
           options={{
-            theme: 'auto',
+            theme: 'dark',
             size: 'normal',
           }}
         />

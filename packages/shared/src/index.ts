@@ -6,6 +6,7 @@ export * from './constants/prompt-templates';
 export * from './constants/trending-regions';
 // Types
 export * from './types/api';
+export * from './types/dashboard';
 export * from './types/modern-editor.types';
 export * from './types/project';
 export * from './types/prompt';

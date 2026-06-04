@@ -1,423 +1,484 @@
-import { motion, useSpring, useTransform } from 'framer-motion';
+import { Link, useNavigate } from '@tanstack/react-router';
+import type { DashboardRecentWorkspace, DashboardSummaryResponse } from '@vibe-creator/shared';
 import {
-  Activity,
+  AlertCircle,
   ArrowRight,
   Clock,
   Crown,
   Download,
+  FolderClock,
   FolderOpen,
-  Repeat,
+  RefreshCw,
   Sparkles,
-  TrendingUp,
-  Video,
-  Wand2,
   Zap,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Button, Card, CardBody } from '@/components/ui';
+import { DashboardThumbnail } from '@/components/dashboard/dashboard-thumbnail';
+import { Badge, Button, Card, CardBody, Progress } from '@/components/ui';
 import { PageTransition } from '@/components/ui/PageTransition';
 import { Skeleton } from '@/components/ui/SkeletonLoader';
-import { useDashboardStats } from '@/hooks/use-dashboard-stats';
+import { useDashboardSummary } from '@/hooks/use-dashboard-summary';
+import {
+  dashboardQuickActions,
+  getDashboardToolIcon,
+  getDashboardToolLabel,
+} from '@/lib/dashboard-home';
 import { cn } from '@/lib/utils';
+import { downloadAuthenticatedFile } from '@/services/api';
 import { useAuthStore } from '@/stores/auth-store';
 
-// Animated number component
-function AnimatedNumber({ value, isLoading }: Readonly<{ value: number; isLoading: boolean }>) {
-  const spring = useSpring(0, { stiffness: 100, damping: 30 });
-  const display = useTransform(spring, (v) => Math.round(v));
-  const [displayValue, setDisplayValue] = useState(0);
+const dashboardDateFormatter = new Intl.DateTimeFormat('id-ID', {
+  day: 'numeric',
+  month: 'short',
+  hour: '2-digit',
+  minute: '2-digit',
+});
 
-  useEffect(() => {
-    if (!isLoading) {
-      spring.set(value);
-    }
-  }, [value, isLoading, spring]);
-
-  useEffect(() => {
-    return display.on('change', (v) => setDisplayValue(v));
-  }, [display]);
-
-  if (isLoading) {
-    return <Skeleton className="h-8 w-12 rounded-lg opacity-50 bg-muted/20" />;
+function formatDateTime(value: string | null): string {
+  if (!value) {
+    return 'Tanpa batas waktu';
   }
 
-  return <span>{displayValue}</span>;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return 'Tanpa batas waktu';
+  }
+
+  return dashboardDateFormatter.format(date).replace('.', ':');
 }
 
-const quickActions = [
-  {
-    title: 'AI Director',
-    description: 'Automated video generation',
-    icon: Sparkles,
-    href: '/tools/ai-director',
-    color: 'from-blue-500/20 to-cyan-500/20',
-    iconColor: 'text-blue-500',
-  },
-  {
-    title: 'Video Studio',
-    description: 'Professional video editing',
-    icon: Wand2,
-    href: '/tools/video-studio',
-    color: 'from-orange-500/20 to-amber-500/20',
-    iconColor: 'text-orange-500',
-  },
-  {
-    title: 'Loop Creator',
-    description: 'Create looping videos & GIFs',
-    icon: Repeat,
-    href: '/tools/loop-creator',
-    color: 'from-green-500/20 to-emerald-500/20',
-    iconColor: 'text-green-500',
-  },
-  {
-    title: 'Reaction Video',
-    description: 'Create reaction & tempel videos',
-    icon: Video,
-    href: '/tools/reaction-creator',
-    color: 'from-purple-500/20 to-fuchsia-500/20',
-    iconColor: 'text-purple-500',
-  },
-  {
-    title: 'Live Streaming',
-    description: 'Stream to YouTube, TikTok, Twitch',
-    icon: TrendingUp,
-    href: '/tools/live-stream',
-    color: 'from-rose-500/20 to-red-500/20',
-    iconColor: 'text-rose-500',
-  },
-];
+function getExpiryLabel(value: string | null): string {
+  if (!value) {
+    return 'Tanpa batas waktu';
+  }
+
+  const expiresAt = new Date(value).getTime();
+  if (Number.isNaN(expiresAt)) {
+    return 'Tanpa batas waktu';
+  }
+
+  const diffMs = expiresAt - Date.now();
+  if (diffMs <= 0) {
+    return 'Berakhir';
+  }
+
+  const hours = Math.ceil(diffMs / (60 * 60 * 1000));
+  if (hours < 48) {
+    return `${hours}h tersisa`;
+  }
+
+  return `${Math.ceil(hours / 24)} hari tersisa`;
+}
+
+function DashboardLoading() {
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+        <Skeleton className="h-48 rounded-2xl lg:col-span-7" />
+        <Skeleton className="h-48 rounded-2xl lg:col-span-5" />
+      </div>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        {['stats-1', 'stats-2', 'stats-3', 'stats-4'].map((id) => (
+          <Skeleton key={id} className="h-24 rounded-2xl" />
+        ))}
+      </div>
+      <Skeleton className="h-72 rounded-2xl" />
+    </div>
+  );
+}
+
+interface StatCardProps {
+  readonly label: string;
+  readonly value: number;
+  readonly icon: typeof FolderOpen;
+}
+
+function StatCard({ label, value, icon: Icon }: StatCardProps) {
+  return (
+    <div className="flex h-full min-h-28 flex-col justify-center rounded-2xl border border-border/60 bg-card/70 p-3.5">
+      <div className="mb-3 flex h-8 w-8 items-center justify-center rounded-lg border border-primary/15 bg-primary/10 text-primary">
+        <Icon size={18} />
+      </div>
+      <p className="text-2xl font-bold leading-none text-foreground">{value}</p>
+      <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        {label}
+      </p>
+    </div>
+  );
+}
+
+interface QuotaCardProps {
+  readonly summary: DashboardSummaryResponse;
+}
+
+function QuotaCard({ summary }: QuotaCardProps) {
+  const { quota } = summary;
+  const isNearLimit = !quota.isUnlimited && quota.usagePercent >= 80;
+  const tierLabel =
+    quota.tier === 'ADMIN' ? 'Admin' : quota.tier[0] + quota.tier.slice(1).toLowerCase();
+
+  return (
+    <Card className="h-full border-border/60 bg-card/75">
+      <CardBody className="flex h-full flex-col justify-center p-4 md:p-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-primary/15 bg-primary/10 text-primary">
+                {quota.isUnlimited ? <Crown size={19} /> : <Zap size={19} />}
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-muted-foreground">Kuota Produksi</p>
+                <h2 className="text-2xl font-bold tracking-tight text-foreground">
+                  {quota.isUnlimited ? 'Unlimited' : `${quota.exportsUsed}/${quota.exportsLimit}`}
+                </h2>
+              </div>
+            </div>
+            <p className="mt-3 max-w-xl text-sm text-muted-foreground">
+              Paket aktif: <span className="font-semibold text-foreground">{tierLabel}</span>
+              {quota.isUnlimited
+                ? '. Akses admin dengan export tanpa batas.'
+                : `, sisa ${quota.remaining} export bulan ini.`}
+            </p>
+            {quota.isUnlimited && (
+              <div className="mt-5 grid gap-2 sm:grid-cols-3">
+                <div className="rounded-xl border border-primary/15 bg-primary/10 px-3 py-2">
+                  <p className="text-xs font-bold text-primary">Admin</p>
+                  <p className="mt-0.5 text-[11px] font-medium text-muted-foreground">
+                    Full access
+                  </p>
+                </div>
+                <div className="rounded-xl border border-border/65 bg-background/35 px-3 py-2">
+                  <p className="text-xs font-bold text-foreground">Export</p>
+                  <p className="mt-0.5 text-[11px] font-medium text-muted-foreground">
+                    Tanpa limit
+                  </p>
+                </div>
+                <div className="rounded-xl border border-border/65 bg-background/35 px-3 py-2">
+                  <p className="text-xs font-bold text-foreground">Download</p>
+                  <p className="mt-0.5 text-[11px] font-medium text-muted-foreground">
+                    Tetap expiry
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+          {!quota.isUnlimited && (
+            <Button asChild className="h-11 rounded-xl px-5 font-semibold">
+              <Link to="/dashboard/pricing">
+                Upgrade Plan <ArrowRight size={16} />
+              </Link>
+            </Button>
+          )}
+        </div>
+        {!quota.isUnlimited && (
+          <div className="mt-5 space-y-2">
+            <div className="flex items-center justify-between text-xs font-semibold text-muted-foreground">
+              <span>Usage</span>
+              <span className={cn(isNearLimit && 'text-rose-500')}>
+                {Math.round(quota.usagePercent)}%
+              </span>
+            </div>
+            <Progress value={quota.usagePercent} className="h-2" />
+            {isNearLimit && (
+              <p className="rounded-lg border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-xs font-medium text-rose-400">
+                Kuota hampir habis. Upgrade agar proses export tidak tertahan.
+              </p>
+            )}
+          </div>
+        )}
+      </CardBody>
+    </Card>
+  );
+}
+
+interface WorkspaceRowProps {
+  readonly item: DashboardRecentWorkspace;
+}
+
+function WorkspaceRow({ item }: WorkspaceRowProps) {
+  const ToolIcon = getDashboardToolIcon(item.tool);
+
+  return (
+    <Link
+      to={item.continueUrl}
+      className="group flex items-center gap-3 rounded-2xl border border-border/55 bg-background/35 p-3 transition-colors hover:border-primary/45 hover:bg-primary/5"
+    >
+      <DashboardThumbnail thumbnailUrl={item.thumbnailUrl} tool={item.tool} className="h-16 w-24" />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <Badge variant="default" className="gap-1 border-border/70 px-2 py-0 text-[10px]">
+            <ToolIcon size={12} />
+            {getDashboardToolLabel(item.tool)}
+          </Badge>
+          <span className="text-xs font-semibold text-muted-foreground">
+            {getExpiryLabel(item.expiresAt)}
+          </span>
+        </div>
+        <p className="mt-2 line-clamp-1 text-sm font-bold text-foreground">{item.title}</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Diedit {formatDateTime(item.updatedAt)}
+        </p>
+      </div>
+      <ArrowRight
+        size={18}
+        className="text-muted-foreground transition-transform group-hover:translate-x-1 group-hover:text-primary"
+      />
+    </Link>
+  );
+}
+
+function LatestExportCard({ summary }: QuotaCardProps) {
+  const exportItem = summary.latestExport;
+  if (!exportItem) {
+    return (
+      <div className="flex items-center gap-3 rounded-2xl border border-dashed border-border/70 bg-background/25 p-4">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted/20 text-muted-foreground">
+          <Download size={17} />
+        </div>
+        <div>
+          <h3 className="text-sm font-bold text-foreground">Belum ada download aktif</h3>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Export siap download akan muncul di sini.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const handleDownload = () => {
+    void downloadAuthenticatedFile(exportItem.downloadUrl, `${exportItem.title}.mp4`);
+  };
+
+  return (
+    <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
+      <div className="flex gap-3">
+        <DashboardThumbnail
+          thumbnailUrl={exportItem.thumbnailUrl}
+          tool="export"
+          className="h-20 w-28"
+        />
+        <div className="min-w-0 flex-1">
+          <Badge variant="outline" className="mb-2 border-primary/35 text-primary">
+            Export
+          </Badge>
+          <h3 className="line-clamp-2 text-sm font-bold leading-snug text-foreground">
+            {exportItem.title}
+          </h3>
+          <p className="mt-1 text-xs font-medium leading-relaxed text-muted-foreground">
+            Download tersedia sampai {formatDateTime(exportItem.downloadExpiresAt)}
+          </p>
+        </div>
+      </div>
+      <Button className="mt-4 h-11 w-full rounded-xl font-semibold" onClick={handleDownload}>
+        <Download size={16} />
+        Download
+      </Button>
+    </div>
+  );
+}
+
+function EmptyActivity() {
+  return (
+    <div className="rounded-2xl border border-dashed border-border/70 bg-background/25 p-6 text-center">
+      <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+        <Sparkles size={22} />
+      </div>
+      <h3 className="text-lg font-bold text-foreground">Mulai proyek pertama</h3>
+      <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
+        Pilih tool utama untuk membuat short, edit video, reaction, loop, atau live stream.
+      </p>
+      <div className="mt-5 flex flex-col justify-center gap-3 sm:flex-row">
+        <Button asChild className="rounded-xl">
+          <Link to="/tools/ai-director">Mulai AI Director</Link>
+        </Button>
+        <Button asChild variant="outline" className="rounded-xl">
+          <Link to="/tools/video-studio">Buka Video Studio</Link>
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function DashboardError({ onRetry }: Readonly<{ onRetry: () => void }>) {
+  return (
+    <Card className="border-destructive/30 bg-card/80">
+      <CardBody className="flex flex-col items-center gap-4 p-8 text-center">
+        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+          <AlertCircle size={22} />
+        </div>
+        <div>
+          <h2 className="text-xl font-bold text-foreground">Dashboard belum bisa dimuat</h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Coba refresh data dashboard. Kalau masih gagal, cek koneksi atau session login.
+          </p>
+        </div>
+        <Button className="rounded-xl" onClick={onRetry}>
+          <RefreshCw size={16} />
+          Coba Lagi
+        </Button>
+      </CardBody>
+    </Card>
+  );
+}
 
 export function DashboardPage() {
   const navigate = useNavigate();
-  const { user, subscription } = useAuthStore();
-  const { data: stats, isLoading } = useDashboardStats();
-
-  const safeStats = stats ?? {
-    projects: 0,
-    prompts: 0,
-    exports: 0,
-    downloads: 0,
-  };
-
-  const handleAction = (action: { action?: string; href?: string }) => {
-    if (action.action === 'new-project') {
-      navigate('/tools/editor');
-    } else if (action.href) {
-      navigate(action.href);
-    }
-  };
-
-  // Calculate export usage percentage
-  const exportsUsed = subscription?.exportsUsed ?? 0;
-  const exportsLimit = subscription?.exportsLimit ?? 5;
-  const isUnlimited = exportsLimit >= 999999 || user?.role === 'ADMIN';
-  const usagePercent = isUnlimited ? 0 : Math.min((exportsUsed / exportsLimit) * 100, 100);
-  const isNearLimit = usagePercent >= 80;
-
-  // Get tier info
-  let tierName = 'Free';
-  if (user?.role === 'ADMIN') {
-    tierName = 'Admin';
-  } else if (subscription?.tier === 'PRO') {
-    tierName = 'Pro';
-  } else if (subscription?.tier === 'CREATOR') {
-    tierName = 'Creator';
-  }
-
-  let TierIcon = Zap;
-  if (subscription?.tier === 'PRO' || user?.role === 'ADMIN') {
-    TierIcon = Crown;
-  } else if (subscription?.tier === 'CREATOR') {
-    TierIcon = Sparkles;
-  }
+  const { user } = useAuthStore();
+  const { data: summary, error, isLoading, refetch } = useDashboardSummary();
 
   return (
-    <PageTransition className="pb-20 lg:pb-10">
-      <div className="max-w-[1400px] mx-auto space-y-10">
-        {/* Welcome */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 px-1">
-          <div className="space-y-2">
-            <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold tracking-tighter text-foreground leading-tight">
-              Selamat datang,{' '}
-              <span className="bg-clip-text text-transparent bg-linear-to-r from-primary via-orange-500 to-rose-600 animate-gradient">
-                {user?.name?.split(' ')[0]}
-              </span>{' '}
-              ! 👋
+    <PageTransition>
+      <div className="mx-auto max-w-330 space-y-6">
+        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div>
+            <p className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-primary">
+              <FolderClock size={15} />
+              Dashboard
+            </p>
+            <h1 className="text-3xl font-bold tracking-tight text-foreground md:text-4xl">
+              Halo, {user?.name?.split(' ')[0] ?? 'Creator'}
             </h1>
-            <p className="text-muted-foreground font-medium text-sm md:text-base tracking-tight ml-0.5">
-              Creator Dashboard & Toolset
+            <p className="mt-2 max-w-2xl text-sm font-medium text-muted-foreground md:text-base">
+              Lanjutkan pekerjaan, pantau kuota, dan ambil hasil export yang masih tersedia.
             </p>
           </div>
-          <div className="relative group">
-            <div className="absolute -inset-0.5 bg-linear-to-r from-orange-400/20 via-amber-500/20 to-orange-400/20 rounded-xl blur opacity-50 group-hover:opacity-100 transition duration-1000 animate-pulse"></div>
-            <div className="relative h-12 p-6 md:px-5 rounded-xl bg-background border border-orange-500/20 flex items-center gap-3.5 shadow-sm">
-              <div className="size-8 rounded-lg bg-linear-to-br from-orange-500/10 to-amber-500/10 flex items-center justify-center border border-orange-500/10">
-                <TierIcon size={16} className="text-orange-500 fill-orange-500/20" />
+          <Button
+            variant="outline"
+            className="h-11 rounded-xl"
+            onClick={() => navigate({ to: '/dashboard/history' })}
+          >
+            Buka Riwayat
+            <ArrowRight size={16} />
+          </Button>
+        </div>
+
+        {isLoading && <DashboardLoading />}
+
+        {!isLoading && error && <DashboardError onRetry={() => void refetch()} />}
+
+        {!isLoading && !error && summary && (
+          <>
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+              <div className="lg:col-span-7">
+                <QuotaCard summary={summary} />
               </div>
-              <div className="flex flex-col">
-                <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/70">
-                  Paket Aktif
-                </span>
-                <span className="text-sm font-black bg-linear-to-r from-orange-600 to-amber-600 bg-clip-text text-transparent leading-none mt-0.5">
-                  {tierName}
-                </span>
+              <div className="grid grid-cols-2 gap-3 lg:col-span-5 lg:h-full lg:grid-rows-2">
+                <StatCard
+                  label="Proyek Aktif"
+                  value={summary.stats.activeProjects}
+                  icon={FolderOpen}
+                />
+                <StatCard label="Prompt" value={summary.stats.prompts} icon={Sparkles} />
+                <StatCard label="Total Export" value={summary.stats.exports} icon={Download} />
+                <StatCard
+                  label="Download Aktif"
+                  value={summary.stats.downloads}
+                  icon={FolderClock}
+                />
               </div>
             </div>
-          </div>
-        </div>
 
-        {/* Global Usage & Quick Stats */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Main Card - Export Usage */}
-          <div className="lg:col-span-8">
-            <Card className="bg-card/70 backdrop-blur-xl border border-border/40 overflow-hidden relative group/usage h-full shadow-2xl shadow-black/5 hover:border-primary/20 transition-all duration-500">
-              <CardBody className="p-6 md:p-10 relative z-10 flex flex-col justify-between h-full">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 mb-8">
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                        <Activity size={20} className="text-primary" />
-                      </div>
-                      <p className="text-lg font-bold text-foreground/80 tracking-tight">
-                        Kuota Produksi Video
+            <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
+              <Card className="h-full border-border/60 bg-card/75">
+                <CardBody className="p-5 md:p-6">
+                  <div className="mb-5 flex items-center justify-between gap-3">
+                    <div>
+                      <h2 className="text-lg font-bold text-foreground">Lanjutkan Pekerjaan</h2>
+                      <p className="text-sm text-muted-foreground">
+                        Draft dan session aktif terbaru.
                       </p>
                     </div>
-                    <div className="flex items-baseline gap-3">
-                      <p className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tighter text-foreground drop-shadow-sm">
-                        {isUnlimited ? '∞' : exportsUsed}
-                      </p>
-                      {!isUnlimited && (
-                        <p className="text-2xl md:text-3xl font-bold text-muted-foreground/30">
-                          / {exportsLimit}
-                        </p>
-                      )}
-                      {isUnlimited && (
-                        <p className="text-xl md:text-2xl font-bold text-muted-foreground/40">
-                          Unlimited
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  {tierName === 'Free' && (
-                    <Button
-                      asChild
-                      size="lg"
-                      className="w-full sm:w-auto rounded-xl font-bold uppercase text-xs tracking-widest h-14 px-8 bg-linear-to-r from-primary to-orange-600 hover:scale-[1.02] shadow-lg shadow-primary/20 transition-all active:scale-95 border-none"
-                    >
-                      <Link to="/dashboard/pricing" className="flex items-center gap-3">
-                        Upgrade Pro <Crown size={18} />
+                    <Button asChild variant="ghost" className="hidden rounded-xl sm:inline-flex">
+                      <Link to="/dashboard/history">
+                        Semua <ArrowRight size={15} />
                       </Link>
                     </Button>
-                  )}
-                </div>
-
-                <div className="space-y-5">
-                  {!isUnlimited && (
+                  </div>
+                  {summary.recentWorkspaces.length > 0 ? (
                     <div className="space-y-3">
-                      <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider">
-                        <span className="text-muted-foreground/70">Monthly Usage</span>
-                        <span
-                          className={cn(
-                            'px-2 py-0.5 rounded-md bg-background/50 border border-border/10',
-                            isNearLimit ? 'text-red-500' : 'text-primary',
-                          )}
-                        >
-                          {Math.round(usagePercent)}%
-                        </span>
-                      </div>
-                      <div className="h-3 w-full rounded-full bg-foreground/5 overflow-hidden border border-border/10 p-[2px]">
-                        <motion.div
-                          initial={{ width: 0 }}
-                          animate={{ width: `${usagePercent}%` }}
-                          transition={{ duration: 1, ease: 'easeOut' }}
-                          className={cn(
-                            'h-full rounded-full transition-all duration-1000 shadow-sm relative overflow-hidden',
-                            isNearLimit
-                              ? 'bg-linear-to-r from-red-500 to-rose-600'
-                              : 'bg-linear-to-r from-primary to-orange-500',
-                          )}
-                        >
-                          <div className="absolute inset-0 bg-white/20 animate-[shimmer_2s_infinite]" />
-                        </motion.div>
-                      </div>
+                      {summary.recentWorkspaces.map((item) => (
+                        <WorkspaceRow key={item.id} item={item} />
+                      ))}
                     </div>
+                  ) : (
+                    <EmptyActivity />
                   )}
-                  {isNearLimit && !isUnlimited && (
-                    <motion.p
-                      initial={{ opacity: 0, x: -10 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      className="text-xs font-semibold text-rose-500 flex items-center gap-2 bg-rose-500/10 p-3 rounded-lg border border-rose-500/20"
-                    >
-                      <div className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
-                      Hampir mencapai limit produksi. Upgrade untuk konten tanpa batas.
-                    </motion.p>
-                  )}
-                </div>
-              </CardBody>
-            </Card>
-          </div>
-
-          {/* Mini Stats Grid */}
-          <div className="lg:col-span-4 grid grid-cols-2 gap-4">
-            <Card className="bg-card/70 backdrop-blur-xl border border-border/40 hover:border-primary/50 transition-all duration-300 group/stat hover:-translate-y-1 hover:shadow-xl hover:shadow-primary/5">
-              <CardBody className="p-5 md:p-6 flex flex-col justify-between h-32 md:h-full">
-                <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center group-hover/stat:scale-110 group-hover/stat:bg-primary group-hover/stat:text-white transition-all duration-300">
-                  <FolderOpen
-                    size={22}
-                    className="text-primary group-hover/stat:text-white transition-colors"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <div className="text-2xl md:text-3xl font-black tracking-tighter">
-                    <AnimatedNumber value={safeStats.projects} isLoading={isLoading} />
-                  </div>
-                  <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                    Proyek
-                  </p>
-                </div>
-              </CardBody>
-            </Card>
-
-            <Card className="bg-card/70 backdrop-blur-xl border border-border/40 hover:border-orange-500/50 transition-all duration-300 group/stat hover:-translate-y-1 hover:shadow-xl hover:shadow-orange-500/5">
-              <CardBody className="p-5 md:p-6 flex flex-col justify-between h-32 md:h-full">
-                <div className="w-12 h-12 rounded-xl bg-orange-500/10 flex items-center justify-center group-hover/stat:scale-110 group-hover/stat:bg-orange-500 group-hover/stat:text-white transition-all duration-300">
-                  <Sparkles
-                    size={22}
-                    className="text-orange-500 group-hover/stat:text-white transition-colors"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <div className="text-2xl md:text-3xl font-black tracking-tighter">
-                    <AnimatedNumber value={safeStats.prompts} isLoading={isLoading} />
-                  </div>
-                  <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                    Prompts
-                  </p>
-                </div>
-              </CardBody>
-            </Card>
-
-            <Card className="bg-card/70 backdrop-blur-xl border border-border/40 hover:border-rose-500/50 transition-all duration-300 group/stat hover:-translate-y-1 hover:shadow-xl hover:shadow-rose-500/5">
-              <CardBody className="p-5 md:p-6 flex flex-col justify-between h-32 md:h-full">
-                <div className="w-12 h-12 rounded-xl bg-rose-500/10 flex items-center justify-center group-hover/stat:scale-110 group-hover/stat:bg-rose-500 group-hover/stat:text-white transition-all duration-300">
-                  <Video
-                    size={22}
-                    className="text-rose-500 group-hover/stat:text-white transition-colors"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <div className="text-2xl md:text-3xl font-black tracking-tighter">
-                    <AnimatedNumber value={safeStats.exports} isLoading={isLoading} />
-                  </div>
-                  <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                    Exports
-                  </p>
-                </div>
-              </CardBody>
-            </Card>
-
-            <Card className="bg-card/70 backdrop-blur-xl border border-border/40 hover:border-amber-500/50 transition-all duration-300 group/stat hover:-translate-y-1 hover:shadow-xl hover:shadow-amber-500/5">
-              <CardBody className="p-5 md:p-6 flex flex-col justify-between h-32 md:h-full">
-                <div className="w-12 h-12 rounded-xl bg-amber-500/10 flex items-center justify-center group-hover/stat:scale-110 group-hover/stat:bg-amber-500 group-hover/stat:text-white transition-all duration-300">
-                  <Download
-                    size={22}
-                    className="text-amber-500 group-hover/stat:text-white transition-colors"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <div className="text-2xl md:text-3xl font-black tracking-tighter">
-                    <AnimatedNumber value={safeStats.downloads} isLoading={isLoading} />
-                  </div>
-                  <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                    Downloads
-                  </p>
-                </div>
-              </CardBody>
-            </Card>
-          </div>
-        </div>
-
-        {/* Quick Actions */}
-        <div className="space-y-6">
-          <div className="flex items-center gap-3 ml-1">
-            <Zap size={20} className="text-primary fill-primary" />
-            <h2 className="text-lg font-bold tracking-tight text-foreground">Aksi Cepat & Tools</h2>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-            {quickActions.map((action) => (
-              <Card
-                key={action.title}
-                className="group bg-card/70 backdrop-blur-xl border border-border/40 hover:border-primary/50 transition-all duration-300 rounded-3xl overflow-hidden cursor-pointer relative hover:-translate-y-1 hover:shadow-xl hover:shadow-primary/5"
-                onClick={() => handleAction(action)}
-              >
-                <CardBody className="p-6 relative z-10 flex flex-col items-center text-center gap-5">
-                  <div className="w-14 h-14 rounded-2xl bg-muted/10 flex items-center justify-center group-hover:scale-110 transition-transform duration-500 border border-white/5 relative overflow-hidden">
-                    <action.icon
-                      className={cn(
-                        'transition-all duration-500 relative z-10',
-                        action.iconColor,
-                        'group-hover:drop-shadow-[0_0_8px_rgba(255,255,255,0.3)]',
-                      )}
-                      size={40}
-                      strokeWidth={1.5}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <h3 className="font-bold text-base text-foreground transition-colors leading-tight">
-                      {action.title}
-                    </h3>
-                    <p className="text-sm text-muted-foreground/80 font-medium line-clamp-2 leading-relaxed px-2">
-                      {action.description}
-                    </p>
-                  </div>
-                  <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all group-hover:translate-y-[-5px]">
-                    <ArrowRight size={16} className="text-primary" />
-                  </div>
                 </CardBody>
               </Card>
-            ))}
-          </div>
-        </div>
 
-        {/* Recent Activity */}
-        <div className="space-y-6 text-center">
-          <div className="flex items-center justify-center gap-3 mb-8">
-            <div className="h-px w-12 bg-border/50" />
-            <Activity size={18} className="text-muted-foreground/50" />
-            <h2 className="text-sm md:text-base font-bold text-muted-foreground/70 tracking-tight">
-              Aktivitas Terbaru
-            </h2>
-            <div className="h-px w-12 bg-border/50" />
-          </div>
+              <div className="flex flex-col gap-5">
+                <Card className="border-border/60 bg-card/75">
+                  <CardBody className="p-5 md:p-6">
+                    <h2 className="mb-4 text-lg font-bold text-foreground">Export Terbaru</h2>
+                    <LatestExportCard summary={summary} />
+                  </CardBody>
+                </Card>
 
-          <Card className="bg-card/70 backdrop-blur-xl border-border/50 border-dashed rounded-4xl md:rounded-5xl overflow-hidden">
-            <CardBody className="py-12 md:py-20 flex flex-col items-center gap-6">
-              <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-muted/10 flex items-center justify-center relative">
-                <Clock
-                  className="text-muted-foreground/20 animate-pulse w-10 h-10 md:w-12 md:h-12"
-                  strokeWidth={1}
-                />
-                <div className="absolute inset-0 border border-muted-foreground/10 rounded-full animate-ping scale-150 opacity-10" />
+                {summary.expiringSoon.length > 0 && (
+                  <Card className="border-amber-500/25 bg-amber-500/5">
+                    <CardBody className="p-5">
+                      <div className="mb-4 flex items-center gap-2">
+                        <Clock size={17} className="text-amber-400" />
+                        <h2 className="font-bold text-foreground">Hampir Berakhir</h2>
+                      </div>
+                      <div className="space-y-3">
+                        {summary.expiringSoon.map((item) => (
+                          <Link
+                            key={item.id}
+                            to={item.continueUrl}
+                            className="block rounded-xl border border-amber-500/15 bg-background/25 p-3 transition-colors hover:bg-amber-500/10"
+                          >
+                            <p className="line-clamp-1 text-sm font-bold text-foreground">
+                              {item.title}
+                            </p>
+                            <p className="mt-1 text-xs text-amber-300">
+                              Berakhir {formatDateTime(item.expiresAt)}
+                            </p>
+                          </Link>
+                        ))}
+                      </div>
+                    </CardBody>
+                  </Card>
+                )}
               </div>
-              <div className="space-y-2 px-6">
-                <h3 className="text-xl md:text-2xl font-bold text-foreground/80">
-                  Siap Rakit Konten Viral?
-                </h3>
-                <p className="text-sm md:text-base text-muted-foreground/60 font-medium max-w-sm mx-auto leading-relaxed">
-                  Dashboard kamu masih kosong. Mulai kreasikan ide cemerlangmu sekarang!
-                </p>
+            </div>
+
+            <section className="space-y-4 pb-[calc(4.75rem+env(safe-area-inset-bottom))] md:pb-6">
+              <div className="flex items-center gap-2">
+                <Zap size={18} className="text-primary" />
+                <h2 className="text-lg font-bold text-foreground">Aksi Cepat</h2>
               </div>
-              <Button
-                className="mt-md rounded-full h-11 md:h-12 px-xl font-semibold text-xs md:text-sm bg-primary text-primary-foreground hover:bg-primary/90 transition-all active:scale-95"
-                onClick={() => navigate('/dashboard/prompts/new')}
-              >
-                Buat Prompt AI Sekarang <ArrowRight size={14} className="ml-3" />
-              </Button>
-            </CardBody>
-          </Card>
-        </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                {dashboardQuickActions.map((action) => (
+                  <Link
+                    key={action.title}
+                    to={action.href}
+                    className="group rounded-2xl border border-border/60 bg-card/70 p-3.5 transition-colors hover:border-primary/35 hover:bg-primary/5"
+                  >
+                    <div
+                      className={cn(
+                        'mb-3 flex h-8 w-8 items-center justify-center rounded-lg border',
+                        action.accentClass,
+                      )}
+                    >
+                      <action.icon size={17} />
+                    </div>
+                    <h3 className="text-sm font-bold text-foreground">{action.title}</h3>
+                    <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+                      {action.description}
+                    </p>
+                    <div className="mt-3 flex items-center text-[11px] font-bold uppercase tracking-wide text-primary">
+                      Buka Tool
+                      <ArrowRight
+                        size={14}
+                        className="ml-2 transition-transform group-hover:translate-x-1"
+                      />
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </section>
+          </>
+        )}
       </div>
     </PageTransition>
   );

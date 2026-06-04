@@ -1,5 +1,5 @@
+import { useNavigate } from '@tanstack/react-router';
 import { ChevronLeft, Link, Mic, Redo2, Type, Undo2, Upload, Zap } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
 import { Button, Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui';
 import { cn } from '@/lib/utils';
 
@@ -42,7 +42,7 @@ export const EditorHeader = ({
         <Button
           size="sm"
           variant="ghost"
-          onClick={() => navigate('/dashboard')}
+          onClick={() => navigate({ to: '/dashboard' })}
           className="h-9 w-9 md:h-10 md:w-10 rounded-full hover:bg-muted transition-colors p-0"
         >
           <ChevronLeft size={20} className="text-muted-foreground" />

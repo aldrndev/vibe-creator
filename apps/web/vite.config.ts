@@ -1,9 +1,16 @@
 import { resolve } from 'node:path';
+import { tanstackRouter } from '@tanstack/router-plugin/vite';
 import react from '@vitejs/plugin-react-swc';
 import { defineConfig } from 'vite';
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    tanstackRouter({
+      target: 'react',
+      autoCodeSplitting: true,
+    }),
+    react(),
+  ],
   resolve: {
     alias: {
       '@': resolve(__dirname, './src'),
@@ -30,6 +37,39 @@ export default defineConfig({
           }
 
           if (
+            id.includes('/react/') ||
+            id.includes('/react-dom/') ||
+            id.includes('/scheduler/') ||
+            id.includes('/use-sync-external-store/') ||
+            id.includes('/loose-envify/') ||
+            id.includes('/js-tokens/')
+          ) {
+            return 'react-vendor';
+          }
+
+          if (id.includes('/@tanstack/')) {
+            return 'tanstack-vendor';
+          }
+
+          if (
+            id.includes('/react-hook-form/') ||
+            id.includes('/@hookform/') ||
+            id.includes('/@marsidev/react-turnstile/')
+          ) {
+            return 'form-vendor';
+          }
+
+          if (
+            id.includes('/clsx/') ||
+            id.includes('/class-variance-authority/') ||
+            id.includes('/tailwind-merge/') ||
+            id.includes('/ky/') ||
+            id.includes('/zod/')
+          ) {
+            return 'app-utils-vendor';
+          }
+
+          if (
             id.includes('/@dnd-kit/') ||
             id.includes('/@ffmpeg/ffmpeg/') ||
             id.includes('/@ffmpeg/util/')
@@ -37,7 +77,7 @@ export default defineConfig({
             return 'editor-vendor';
           }
 
-          return 'vendor';
+          return undefined;
         },
       },
     },

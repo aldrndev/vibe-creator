@@ -1,16 +1,6 @@
-import {
-  ChevronDown,
-  ChevronRight,
-  LogOut,
-  Menu,
-  Moon,
-  Shield,
-  Sparkles,
-  Sun,
-  X,
-} from 'lucide-react';
+import { Link, Outlet, useLocation, useNavigate } from '@tanstack/react-router';
+import { ChevronDown, ChevronRight, LogOut, Menu, Shield, Sparkles, X } from 'lucide-react';
 import { useState } from 'react';
-import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { dashboardNavigation } from '@/components/layout/dashboard-navigation';
 import {
   Avatar,
@@ -24,7 +14,6 @@ import {
 } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/auth-store';
-import { useThemeStore } from '@/stores/theme-store';
 import { MobileBottomNav } from './MobileBottomNav';
 
 const adminNav = { name: 'Admin', href: '/dashboard/admin', icon: Shield };
@@ -45,13 +34,12 @@ export function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [toolsExpanded, setToolsExpanded] = useState(true);
   const { user, logout } = useAuthStore();
-  const { theme, toggleTheme } = useThemeStore();
   const navigate = useNavigate();
   const location = useLocation();
 
   const handleLogout = async () => {
     await logout();
-    navigate('/login');
+    navigate({ to: '/login' });
   };
 
   return (
@@ -80,7 +68,7 @@ export function DashboardLayout() {
               to="/"
               className="flex items-center gap-2 text-xl font-black tracking-tighter hover:opacity-80 transition-opacity"
             >
-              <div className="w-8 h-8 rounded-xl bg-linear-to-br from-primary via-orange-500 to-rose-600 flex items-center justify-center shadow-lg shadow-primary/20">
+              <div className="w-8 h-8 rounded-xl bg-linear-to-br from-primary via-orange-500 to-rose-600 flex items-center justify-center">
                 <Sparkles className="text-white w-5 h-5" />
               </div>
               <span className="bg-clip-text text-transparent bg-linear-to-r from-primary via-orange-500 to-rose-600">
@@ -132,25 +120,26 @@ export function DashboardLayout() {
                     {/* Child menu items */}
                     {toolsExpanded && (
                       <div className="ml-4 mt-1 space-y-1 pl-2 border-l border-border/40">
-                        {item.children.map((child) => (
-                          <NavLink
-                            key={child.name}
-                            to={child.href}
-                            onClick={() => setSidebarOpen(false)}
-                            className={() => {
-                              const isActive = isNavigationActive(location.pathname, child.href);
-                              return cn(
+                        {item.children.map((child) => {
+                          const isActive = isNavigationActive(location.pathname, child.href);
+
+                          return (
+                            <Link
+                              key={child.name}
+                              to={child.href}
+                              onClick={() => setSidebarOpen(false)}
+                              className={cn(
                                 'flex items-center gap-3 rounded-xl px-4 py-2 text-sm font-medium transition-all',
                                 isActive
                                   ? 'text-primary bg-primary/10 font-semibold'
                                   : 'text-muted-foreground hover:text-foreground hover:bg-accent/50',
-                              );
-                            }}
-                          >
-                            <child.icon size={16} />
-                            {child.name}
-                          </NavLink>
-                        ))}
+                              )}
+                            >
+                              <child.icon size={16} />
+                              {child.name}
+                            </Link>
+                          );
+                        })}
                       </div>
                     )}
                   </div>
@@ -162,68 +151,99 @@ export function DashboardLayout() {
                 return null;
               }
 
+              const isActive = isNavigationActive(location.pathname, item.href);
+
               return (
-                <NavLink
+                <Link
                   key={item.name}
                   to={item.href}
-                  end={item.href === '/dashboard'}
                   onClick={() => setSidebarOpen(false)}
-                  className={({ isActive }) =>
-                    cn(
-                      'flex items-center gap-3 rounded-r-xl px-4 py-3 text-sm font-medium transition-all duration-200 touch-target border-l-[3px]',
-                      isActive
-                        ? 'border-primary/70 bg-primary/10 text-primary font-bold'
-                        : 'border-transparent text-muted-foreground hover:bg-accent hover:text-foreground',
-                    )
-                  }
-                >
-                  {({ isActive }) => (
-                    <>
-                      <item.icon
-                        size={20}
-                        className={cn('transition-colors', isActive && 'text-primary')}
-                      />
-                      {item.name}
-                    </>
+                  className={cn(
+                    'flex items-center gap-3 rounded-r-xl px-4 py-3 text-sm font-medium transition-all duration-200 touch-target border-l-[3px]',
+                    isActive
+                      ? 'border-primary/70 bg-primary/10 text-primary font-bold'
+                      : 'border-transparent text-muted-foreground hover:bg-accent hover:text-foreground',
                   )}
-                </NavLink>
+                >
+                  <item.icon
+                    size={20}
+                    className={cn('transition-colors', isActive && 'text-primary')}
+                  />
+                  {item.name}
+                </Link>
               );
             })}
 
             {/* Admin Menu - only visible for ADMIN role */}
-            {user?.role === 'ADMIN' && (
-              <NavLink
-                to={adminNav.href}
-                className={({ isActive }) =>
-                  cn(
-                    'flex items-center gap-3 rounded-r-xl border-l-[3px] px-4 py-3 text-sm font-medium transition-colors',
-                    isActive
-                      ? 'border-primary/70 bg-primary/10 text-primary font-bold'
-                      : 'border-transparent text-muted-foreground hover:bg-accent hover:text-foreground',
-                  )
-                }
-              >
-                <adminNav.icon size={20} />
-                {adminNav.name}
-                <Badge
-                  variant="outline"
-                  className="ml-auto border-primary/20 bg-primary/10 text-primary"
-                >
-                  Admin
-                </Badge>
-              </NavLink>
-            )}
+            {user?.role === 'ADMIN' &&
+              (() => {
+                const isActive = isNavigationActive(location.pathname, adminNav.href);
+
+                return (
+                  <Link
+                    to={adminNav.href}
+                    className={cn(
+                      'flex items-center gap-3 rounded-r-xl border-l-[3px] px-4 py-3 text-sm font-medium transition-colors',
+                      isActive
+                        ? 'border-primary/70 bg-primary/10 text-primary font-bold'
+                        : 'border-transparent text-muted-foreground hover:bg-accent hover:text-foreground',
+                    )}
+                  >
+                    <adminNav.icon size={20} />
+                    {adminNav.name}
+                    <Badge
+                      variant="outline"
+                      className="ml-auto border-primary/20 bg-primary/10 text-primary"
+                    >
+                      Admin
+                    </Badge>
+                  </Link>
+                );
+              })()}
           </nav>
 
           {/* User section */}
           <div className="border-t border-border p-4">
-            <div className="flex items-center gap-3">
-              <Avatar name={user?.name ?? 'User'} size="sm" />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{user?.name}</p>
-                <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
-              </div>
-            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-3 rounded-xl p-2 text-left transition-colors hover:bg-accent"
+                >
+                  <Avatar name={user?.name ?? 'User'} size="sm" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{user?.name}</p>
+                    <p className="truncate text-xs text-muted-foreground">{user?.email}</p>
+                  </div>
+                  <ChevronRight size={16} className="text-muted-foreground" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" side="top" className="w-56">
+                <div className="px-3 py-2">
+                  <p className="truncate text-sm font-bold">{user?.name}</p>
+                  <p className="truncate text-xs text-muted-foreground">{user?.email}</p>
+                </div>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={() => {
+                    setSidebarOpen(false);
+                    navigate({ to: '/dashboard/settings' });
+                  }}
+                >
+                  Settings
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => {
+                    setSidebarOpen(false);
+                    void handleLogout();
+                  }}
+                  className="text-destructive focus:bg-destructive focus:text-white"
+                >
+                  <LogOut size={16} />
+                  <span className="font-bold">Logout</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </aside>
@@ -251,11 +271,6 @@ export function DashboardLayout() {
           <div className="flex-1" />
 
           <div className="flex items-center gap-2">
-            {/* Theme toggle */}
-            <Button variant="ghost" size="icon" onClick={toggleTheme} aria-label="Toggle theme">
-              {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
-            </Button>
-
             {/* User menu */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -277,7 +292,7 @@ export function DashboardLayout() {
                     </p>
                   </div>
                 </div>
-                <DropdownMenuItem onClick={() => navigate('/dashboard/settings')}>
+                <DropdownMenuItem onClick={() => navigate({ to: '/dashboard/settings' })}>
                   Settings
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
@@ -301,13 +316,10 @@ export function DashboardLayout() {
             // For Modern Editor (Full Screen Tool), remove padding/overflow to let tool handle it
             location.pathname.includes('/video-studio')
               ? 'overflow-hidden p-0'
-              : 'overflow-y-auto overflow-x-hidden p-4 pb-32 md:p-6 md:pb-6',
+              : 'overflow-y-auto overflow-x-hidden p-4 pb-4 md:p-6 md:pb-6 lg:pb-0',
           )}
         >
           <Outlet />
-          {!location.pathname.startsWith('/tools/') ? (
-            <div className="h-28 shrink-0 md:h-10" aria-hidden="true" />
-          ) : null}
         </main>
 
         {/* Mobile bottom navigation */}

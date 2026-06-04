@@ -57,7 +57,7 @@ export function CommunityPage() {
   };
 
   return (
-    <PageTransition className="space-y-8 pb-24 lg:pb-10">
+    <PageTransition className="space-y-8 pb-[calc(4.75rem+env(safe-area-inset-bottom))] lg:pb-0">
       {/* Header Section */}
       <div className="flex flex-col justify-between gap-6 border-b border-border/30 pb-8 md:flex-row md:items-end">
         <div className="space-y-3">

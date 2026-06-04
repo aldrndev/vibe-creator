@@ -1,9 +1,10 @@
+import { Link, useNavigate } from '@tanstack/react-router';
 import { AlertCircle, Eye, EyeOff, Lock, Mail, User, UserPlus } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { Link, useNavigate } from 'react-router-dom';
 import { Button, Input } from '@/components/ui';
 import { TurnstileWidget, type TurnstileWidgetRef } from '@/components/ui/turnstile-widget';
+import { type RegisterForm, registerFormSchema } from '@/lib/auth-form-schemas';
 import { api } from '@/services/api';
 import { useAuthStore } from '@/stores/auth-store';
 
@@ -26,13 +27,6 @@ interface AuthApiResponse {
   expiresAt: string;
 }
 
-interface RegisterForm {
-  name: string;
-  email: string;
-  password: string;
-  confirmPassword: string;
-}
-
 export function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -45,32 +39,53 @@ export function RegisterPage() {
   const {
     register,
     handleSubmit,
-    watch,
+    setError,
     formState: { errors },
-  } = useForm<RegisterForm>();
-
-  const password = watch('password');
+  } = useForm<RegisterForm>({
+    defaultValues: {
+      name: '',
+      email: '',
+      password: '',
+      confirmPassword: '',
+    },
+  });
 
   const onSubmit = async (data: RegisterForm) => {
     setErrorMessage(null);
 
+    const parsedData = registerFormSchema.safeParse(data);
+    if (!parsedData.success) {
+      for (const issue of parsedData.error.issues) {
+        const field = issue.path[0];
+        if (
+          field === 'name' ||
+          field === 'email' ||
+          field === 'password' ||
+          field === 'confirmPassword'
+        ) {
+          setError(field, { message: issue.message });
+        }
+      }
+      return;
+    }
+
     if (!turnstileToken) {
-      setErrorMessage('Harap selesaikan verifikasi captcha');
+      setErrorMessage('Harap selesaikan verifikasi keamanan.');
       return;
     }
 
     setIsLoading(true);
     try {
       const response = await api.post<AuthApiResponse>('/auth/register', {
-        name: data.name,
-        email: data.email,
-        password: data.password,
+        name: parsedData.data.name,
+        email: parsedData.data.email,
+        password: parsedData.data.password,
         turnstileToken,
       });
 
       if (response.success) {
         setAuth(response.data);
-        navigate('/dashboard');
+        navigate({ to: '/dashboard' });
       } else {
         setErrorMessage(response.error.message);
         turnstileRef.current?.reset();
@@ -88,9 +103,9 @@ export function RegisterPage() {
   return (
     <div>
       <div className="mb-10 text-center sm:text-left">
-        <h1 className="text-3xl font-black tracking-tight mb-2">Buat Akun Baru</h1>
+        <h1 className="text-3xl font-black tracking-tight mb-2">Buat Akun Creator</h1>
         <p className="text-muted-foreground font-medium">
-          Daftar untuk mulai membangun masa depan konten digital kamu.
+          Mulai gratis untuk mencoba AI Director, Video Studio, dan workflow export.
         </p>
       </div>
 
@@ -108,13 +123,7 @@ export function RegisterPage() {
           placeholder="Nama kamu"
           leftIcon={<User size={20} />}
           error={errors.name?.message}
-          {...register('name', {
-            required: 'Nama diperlukan',
-            minLength: {
-              value: 2,
-              message: 'Nama minimal 2 karakter',
-            },
-          })}
+          {...register('name')}
         />
 
         <Input
@@ -123,13 +132,7 @@ export function RegisterPage() {
           placeholder="nama@email.com"
           leftIcon={<Mail size={20} />}
           error={errors.email?.message}
-          {...register('email', {
-            required: 'Email diperlukan',
-            pattern: {
-              value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
-              message: 'Email tidak valid',
-            },
-          })}
+          {...register('email')}
         />
 
         <Input
@@ -141,20 +144,18 @@ export function RegisterPage() {
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
+              aria-label={showPassword ? 'Sembunyikan password' : 'Tampilkan password'}
               className="text-muted-foreground hover:text-primary transition-colors pr-1"
             >
               {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
             </button>
           }
           error={errors.password?.message}
-          {...register('password', {
-            required: 'Password diperlukan',
-            minLength: {
-              value: 8,
-              message: 'Password minimal 8 karakter',
-            },
-          })}
+          {...register('password')}
         />
+        <p className="-mt-3 ml-1 text-xs font-medium text-muted-foreground">
+          Gunakan minimal 8 karakter. Kombinasi huruf dan angka lebih aman.
+        </p>
 
         <Input
           label="Konfirmasi Password"
@@ -162,10 +163,7 @@ export function RegisterPage() {
           placeholder="Ulangi password"
           leftIcon={<Lock size={20} />}
           error={errors.confirmPassword?.message}
-          {...register('confirmPassword', {
-            required: 'Konfirmasi password diperlukan',
-            validate: (value) => value === password || 'Password tidak cocok',
-          })}
+          {...register('confirmPassword')}
         />
 
         <TurnstileWidget

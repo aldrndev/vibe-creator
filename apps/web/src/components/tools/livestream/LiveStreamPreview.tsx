@@ -15,6 +15,7 @@ interface LiveStreamPreviewProps {
   };
   quality: '720p' | '1080p';
   bitrate: number;
+  embedded?: boolean;
 }
 
 function formatDuration(durationMs: number): string {
@@ -31,6 +32,7 @@ export function LiveStreamPreview({
   sourceMetadata,
   quality,
   bitrate,
+  embedded = false,
 }: LiveStreamPreviewProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -42,7 +44,13 @@ export function LiveStreamPreview({
   };
 
   return (
-    <Card className="bg-card/70 backdrop-blur-xl border-border/50 overflow-hidden group/container">
+    <Card
+      className={
+        embedded
+          ? 'overflow-hidden border-border/40 bg-black/30 group/container'
+          : 'bg-card/70 backdrop-blur-xl border-border/50 overflow-hidden group/container'
+      }
+    >
       <CardBody className="p-0">
         {!videoUrl ? (
           <button

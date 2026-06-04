@@ -1,57 +1,98 @@
+import { Link } from '@tanstack/react-router';
 import { motion } from 'framer-motion';
-import { Sparkles } from 'lucide-react';
+import { CheckCircle2, Sparkles } from 'lucide-react';
 import type { ReactNode } from 'react';
-import { Link } from 'react-router-dom';
 
 interface AuthLayoutProps {
-  children: ReactNode;
+  readonly children: ReactNode;
 }
 
-export function AuthLayout({ children }: AuthLayoutProps) {
+const authHighlights = [
+  {
+    label: 'Mulai dari ide atau source video',
+    description: 'Pakai Trending, AI Director, atau upload video sendiri.',
+  },
+  {
+    label: 'Produksi dalam satu workspace',
+    description: 'Edit, loop, reaction, live stream, export, dan download.',
+  },
+  {
+    label: 'Draft dan riwayat tetap rapi',
+    description: 'Lanjutkan project aktif tanpa mulai ulang dari awal.',
+  },
+] as const;
+
+const authFeatureChips = ['AI Director', 'Video Studio', 'Loop', 'Reaction', 'Live'] as const;
+
+export function AuthLayout(props: AuthLayoutProps) {
+  const { children } = props;
+
   return (
-    <div className="flex min-h-screen bg-background text-foreground overflow-hidden">
-      {/* Dynamic Background Glows for Auth */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none -z-10">
-        <div className="absolute top-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-primary/5 blur-[120px]" />
-        <div className="absolute bottom-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-primary/5 blur-[120px]" />
-      </div>
-
+    <div className="flex min-h-screen bg-background text-foreground">
       {/* Left side - Brand Section */}
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-primary via-orange-500 to-rose-600 p-16 flex-col justify-between relative overflow-hidden">
-        {/* Decorative elements for brand side */}
-        <div className="absolute top-0 left-0 w-full h-full bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10 pointer-events-none" />
-        <div className="absolute -top-24 -left-24 w-96 h-96 bg-white/10 rounded-full blur-3xl" />
-        <div className="absolute -bottom-24 -right-24 w-96 h-96 bg-black/10 rounded-full blur-3xl" />
-
-        <div className="relative z-10">
+      <div className="relative hidden overflow-hidden border-r border-border/60 bg-card/70 lg:flex lg:w-[40%] lg:shrink-0">
+        <div className="relative z-10 flex min-h-screen w-full flex-col p-10 xl:p-12">
           <Link
             to="/"
-            className="flex items-center gap-2 text-2xl font-black text-white tracking-tighter group hover:opacity-90 transition-opacity"
+            className="group flex items-center gap-2 text-2xl font-black tracking-tighter transition-opacity hover:opacity-90"
           >
-            <div className="w-10 h-10 rounded-xl bg-white text-primary flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform">
-              <Sparkles className="w-6 h-6 fill-primary" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-linear-to-br from-primary via-orange-500 to-rose-600 transition-transform group-hover:scale-105">
+              <Sparkles className="h-6 w-6 text-white" />
             </div>
-            <span>Vibe Creator</span>
+            <span className="bg-linear-to-r from-primary via-orange-500 to-rose-600 bg-clip-text text-transparent">
+              Vibe Creator
+            </span>
           </Link>
-        </div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.2 }}
-          className="relative z-10 space-y-6"
-        >
-          <h1 className="text-5xl font-black text-white leading-[1.1] tracking-tight">
-            Wujudkan Ide <br /> Menjadi Konten Viral.
-          </h1>
-          <p className="text-white/80 text-lg font-medium max-w-md">
-            Gabung dengan ribuan kreator yang sedang membangun masa depan konten digital dengan AI.
-          </p>
-        </motion.div>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.2 }}
+            className="mt-14 max-w-md space-y-7 xl:mt-16"
+          >
+            <div className="space-y-4">
+              <h1 className="text-4xl font-black leading-tight tracking-tight xl:text-5xl">
+                Workspace video creator kamu.
+              </h1>
+              <p className="text-base font-medium leading-relaxed text-muted-foreground xl:text-lg">
+                Lanjutkan short, edit timeline, buat loop, record reaction, atau kelola live stream
+                dari satu akun.
+              </p>
+            </div>
 
-        <div className="relative z-10">
-          <p className="text-white/60 text-sm font-medium">
-            © 2024 Vibe Creator. All rights reserved.
+            <div className="rounded-3xl border border-border/70 bg-background/45 p-5">
+              <p className="text-xs font-black uppercase tracking-[0.22em] text-primary">
+                Workflow siap pakai
+              </p>
+              <div className="mt-4 grid gap-4">
+                {authHighlights.map((item) => (
+                  <div key={item.label} className="flex items-start gap-3">
+                    <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+                    <div className="min-w-0 space-y-1">
+                      <p className="text-sm font-bold leading-snug text-foreground">{item.label}</p>
+                      <p className="text-sm font-medium leading-relaxed text-muted-foreground">
+                        {item.description}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {authFeatureChips.map((item) => (
+                <span
+                  key={item}
+                  className="rounded-full border border-border/70 bg-background/40 px-3 py-1.5 text-xs font-bold text-muted-foreground"
+                >
+                  {item}
+                </span>
+              ))}
+            </div>
+          </motion.div>
+
+          <p className="mt-auto pt-10 text-sm font-medium text-muted-foreground">
+            © 2026 Vibe Creator. All rights reserved.
           </p>
         </div>
       </div>
@@ -70,15 +111,15 @@ export function AuthLayout({ children }: AuthLayoutProps) {
               to="/"
               className="flex items-center gap-2 text-3xl font-black tracking-tighter mb-2 group transition-opacity"
             >
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary via-orange-500 to-rose-600 flex items-center justify-center shadow-xl shadow-primary/20 group-hover:scale-105 transition-transform">
+              <div className="w-12 h-12 rounded-2xl bg-linear-to-br from-primary via-orange-500 to-rose-600 flex items-center justify-center group-hover:scale-105 transition-transform">
                 <Sparkles className="text-white w-7 h-7" />
               </div>
-              <span className="bg-clip-text text-transparent bg-gradient-to-r from-primary via-orange-500 to-rose-600">
+              <span className="bg-clip-text text-transparent bg-linear-to-r from-primary via-orange-500 to-rose-600">
                 Vibe Creator
               </span>
             </Link>
             <p className="text-muted-foreground font-medium text-sm">
-              Creative intelligence for creators.
+              Video workspace for creators.
             </p>
           </div>
 
@@ -89,7 +130,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
 
         {/* Mobile Footer Credit */}
         <div className="lg:hidden mt-12">
-          <p className="text-muted-foreground/60 text-xs font-medium">© 2024 Vibe Creator.</p>
+          <p className="text-muted-foreground/60 text-xs font-medium">© 2026 Vibe Creator.</p>
         </div>
       </div>
     </div>

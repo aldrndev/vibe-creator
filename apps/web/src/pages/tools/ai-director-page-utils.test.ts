@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { resolveHydratedStep } from '@/pages/tools/ai-director-page-utils';
+import {
+  isPlainAiDirectorEntry,
+  resolveHydratedStep,
+  shouldClearPlainEntrySession,
+} from '@/pages/tools/ai-director-page-utils';
 import type { DirectorStep } from '@/stores/director-store';
 
 function createSession(step: DirectorStep) {
@@ -51,5 +55,63 @@ describe('resolveHydratedStep', () => {
     session.analysisJob = { status: 'COMPLETED' };
 
     expect(resolveHydratedStep(session)).toBe('PICKING');
+  });
+});
+
+describe('isPlainAiDirectorEntry', () => {
+  it('treats the menu route without query params as a plain entry', () => {
+    expect(isPlainAiDirectorEntry(new URLSearchParams())).toBe(true);
+  });
+
+  it('does not treat an explicit session route as a plain entry', () => {
+    expect(isPlainAiDirectorEntry(new URLSearchParams({ session: 'session-1' }))).toBe(false);
+  });
+
+  it('does not treat trending context as a plain entry', () => {
+    expect(
+      isPlainAiDirectorEntry(
+        new URLSearchParams({
+          source: 'trending',
+          topic: 'Viral video',
+          sourceUrl: 'https://www.youtube.com/watch?v=abc',
+        }),
+      ),
+    ).toBe(false);
+  });
+
+  it('ignores blank query values when deciding plain entry', () => {
+    expect(isPlainAiDirectorEntry(new URLSearchParams({ topic: '   ' }))).toBe(true);
+  });
+});
+
+describe('shouldClearPlainEntrySession', () => {
+  it('clears a stored active session when opening AI Director from the menu route', () => {
+    expect(
+      shouldClearPlainEntrySession({
+        isPlainEntry: true,
+        activeSessionId: 'expired-session',
+        hasInitializedManualEntry: false,
+      }),
+    ).toBe(true);
+  });
+
+  it('keeps a fresh session created after the manual entry has initialized', () => {
+    expect(
+      shouldClearPlainEntrySession({
+        isPlainEntry: true,
+        activeSessionId: 'fresh-session',
+        hasInitializedManualEntry: true,
+      }),
+    ).toBe(false);
+  });
+
+  it('keeps sessions opened through an explicit session URL', () => {
+    expect(
+      shouldClearPlainEntrySession({
+        isPlainEntry: false,
+        activeSessionId: 'session-from-url',
+        hasInitializedManualEntry: false,
+      }),
+    ).toBe(false);
   });
 });

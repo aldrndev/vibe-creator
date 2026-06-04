@@ -12,12 +12,12 @@ import {
   Video,
 } from 'lucide-react';
 import { type CSSProperties, type RefObject, useEffect, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
 import { ReactionRenderDialog } from '@/components/tools/reaction/ReactionRenderDialog';
 import { Button, Card, Slider } from '@/components/ui';
 import { PageTransition } from '@/components/ui/PageTransition';
 import { ContinueWorkspaceDialog } from '@/components/workspace/ContinueWorkspaceDialog';
 import { useReactionCreator } from '@/hooks/useReactionCreator';
+import { useMutableSearchParams } from '@/lib/route-search';
 import { cn } from '@/lib/utils';
 import type { ReactionCreatorProjectDocument } from '@/services/reaction-creator-project-api';
 
@@ -61,7 +61,7 @@ type ReactionSourceSummary = {
 type ReactionVideoFraming = ReactionCreatorProjectDocument['layout']['mainFraming'];
 
 export function ReactionCreatorPage() {
-  const [params, setParams] = useSearchParams();
+  const [params, setParams] = useMutableSearchParams();
   const sessionId = params.get('session') ?? undefined;
   const [showContinue, setShowContinue] = useState(!sessionId);
   const reaction = useReactionCreator(sessionId);
@@ -144,8 +144,15 @@ export function ReactionCreatorPage() {
           </div>
         ) : null}
 
+        <div className="mb-5 flex justify-center">
+          <ReactionStepGuide
+            hasMainVideo={reaction.state.hasMainVideo}
+            hasReactionVideo={reaction.state.hasReactionVideo}
+          />
+        </div>
+
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_390px]">
-          <Card className="overflow-hidden rounded-2xl border-border/55 bg-card">
+          <Card className="overflow-hidden rounded-2xl border-border/55 bg-card shadow-sm">
             <div className="flex items-center gap-3 border-b border-border/45 p-5">
               <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-primary/25 bg-primary/10 text-primary">
                 <MonitorPlay size={20} />
@@ -210,11 +217,6 @@ export function ReactionCreatorPage() {
 
               <SourceSummary
                 sourceInfo={reaction.state.sourceInfo}
-                hasMainVideo={reaction.state.hasMainVideo}
-                hasReactionVideo={reaction.state.hasReactionVideo}
-              />
-
-              <ReactionStepGuide
                 hasMainVideo={reaction.state.hasMainVideo}
                 hasReactionVideo={reaction.state.hasReactionVideo}
               />
@@ -298,7 +300,7 @@ function ReactionStepGuide({
   ] as const;
 
   return (
-    <div className="grid grid-cols-3 gap-2 rounded-2xl border border-border/45 bg-muted/10 p-2 sm:flex sm:items-center sm:px-4 sm:py-3">
+    <div className="mx-auto grid w-full max-w-3xl grid-cols-3 gap-1.5 rounded-2xl border border-border/45 bg-card/75 p-1.5 shadow-sm sm:flex sm:items-center sm:px-3 sm:py-2.5">
       {steps.map((step, index) => {
         const isActive = step.id === activeStep;
         const isDone = step.id < activeStep;
@@ -306,14 +308,14 @@ function ReactionStepGuide({
           <div className="contents" key={step.id}>
             <div
               className={cn(
-                'flex min-w-0 items-center justify-center gap-2 rounded-xl px-2 py-2 sm:shrink-0 sm:justify-start sm:p-0',
+                'flex min-w-0 items-center justify-center gap-2 rounded-xl px-2 py-2 sm:shrink-0 sm:justify-start sm:px-2 sm:py-1.5',
                 isActive ? 'text-foreground' : 'text-muted-foreground',
                 isActive && 'bg-primary/10 sm:bg-transparent',
               )}
             >
               <span
                 className={cn(
-                  'flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-black',
+                  'flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-black',
                   isDone || isActive ? 'bg-primary text-primary-foreground' : 'bg-muted',
                 )}
               >
@@ -325,7 +327,7 @@ function ReactionStepGuide({
               </span>
             </div>
             {index < steps.length - 1 ? (
-              <span className="mx-4 hidden h-px min-w-6 flex-1 bg-border/60 sm:block" />
+              <span className="mx-2 hidden h-px min-w-8 flex-1 bg-border/60 sm:block" />
             ) : null}
           </div>
         );
@@ -391,7 +393,7 @@ function ReactionStage({
       <button
         type="button"
         onClick={onUploadMain}
-        className="flex min-h-[420px] w-full flex-col items-center justify-center rounded-2xl border border-dashed border-border/60 bg-muted/10 text-center transition-colors hover:border-primary/50 hover:bg-primary/5"
+        className="flex min-h-[400px] w-full flex-col items-center justify-center rounded-2xl border border-dashed border-border/60 bg-muted/10 text-center shadow-inner transition-colors hover:border-primary/50 hover:bg-primary/5"
       >
         <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 text-primary">
           <Upload size={28} />
@@ -438,10 +440,10 @@ function ReactionStage({
       : [mainSplitPane, reactionSplitPane];
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-border/55 bg-black">
+    <div className="overflow-hidden rounded-2xl border border-border/45 bg-muted/10 p-2 shadow-inner md:p-3">
       <div
         className={cn(
-          'relative mx-auto max-h-[560px] w-full overflow-hidden bg-black',
+          'relative mx-auto max-h-[560px] w-full overflow-hidden rounded-xl border border-white/10 bg-black shadow-xl',
           document.output.aspectRatio === '9:16' && 'aspect-[9/16] max-w-[340px]',
           document.output.aspectRatio === '1:1' && 'aspect-square max-w-[520px]',
           document.output.aspectRatio === '4:5' && 'aspect-[4/5] max-w-[420px]',
@@ -595,17 +597,17 @@ function ReactionStageActions({
   }
 
   return (
-    <div className="flex flex-col gap-2 border-t border-border/50 bg-card/95 p-3 sm:flex-row sm:flex-wrap sm:items-center">
+    <div className="mt-2 flex flex-col gap-2 rounded-xl border border-border/45 bg-card/80 p-2.5 sm:flex-row sm:flex-wrap sm:items-center">
       {recordingPhase === 'ready' && hasPendingRecording ? (
         <>
-          <Button type="button" className="h-11 rounded-xl font-black" onClick={onAcceptRecording}>
+          <Button type="button" className="h-10 rounded-xl font-black" onClick={onAcceptRecording}>
             <Check size={17} />
             Gunakan Recording
           </Button>
           <Button
             type="button"
             variant="outline"
-            className="h-11 rounded-xl font-bold"
+            className="h-10 rounded-xl font-bold"
             onClick={onDiscardRecording}
           >
             Retake
@@ -613,7 +615,7 @@ function ReactionStageActions({
           <Button
             type="button"
             variant="outline"
-            className="h-11 rounded-xl font-bold"
+            className="h-10 rounded-xl font-bold"
             onClick={onUploadReaction}
           >
             <Upload size={16} />
@@ -622,14 +624,14 @@ function ReactionStageActions({
         </>
       ) : (
         <>
-          <Button type="button" className="h-11 rounded-xl font-black" onClick={onStartRecording}>
+          <Button type="button" className="h-10 rounded-xl font-black" onClick={onStartRecording}>
             <Camera size={17} />
             {hasReactionVideo ? 'Record Ulang' : 'Record Reaction'}
           </Button>
           <Button
             type="button"
             variant="outline"
-            className="h-11 rounded-xl font-bold"
+            className="h-10 rounded-xl font-bold"
             onClick={onUploadReaction}
           >
             <Upload size={16} />
@@ -638,7 +640,7 @@ function ReactionStageActions({
           <Button
             type="button"
             variant="outline"
-            className="h-11 rounded-xl font-bold"
+            className="h-10 rounded-xl font-bold"
             onClick={onUploadMain}
           >
             <RefreshCw size={16} />
@@ -853,7 +855,7 @@ function SourceSummary({
 }) {
   if (!hasMainVideo) return null;
   return (
-    <div className="grid gap-3 md:grid-cols-2">
+    <div className="grid gap-2.5 md:grid-cols-2">
       <MediaInfoCard label="Main video" info={sourceInfo?.main} active={hasMainVideo} />
       <MediaInfoCard label="Reaction" info={sourceInfo?.reaction} active={hasReactionVideo} />
     </div>
@@ -876,16 +878,16 @@ function MediaInfoCard({
   readonly active: boolean;
 }) {
   return (
-    <div className="rounded-xl border border-border/45 bg-muted/10 p-4">
+    <div className="rounded-xl border border-border/45 bg-muted/10 p-3">
       <div className="flex items-center justify-between gap-3">
         <p className="text-xs font-black uppercase tracking-[0.18em] text-muted-foreground">
           {label}
         </p>
         <span
           className={cn(
-            'rounded-full px-2 py-1 text-[10px] font-black uppercase ring-1',
+            'rounded-full px-2 py-0.5 text-[10px] font-black uppercase ring-1',
             active
-              ? 'bg-emerald-500/10 text-emerald-300 ring-emerald-400/25'
+              ? 'bg-emerald-500/5 text-emerald-300/90 ring-emerald-400/20'
               : 'bg-muted text-muted-foreground ring-border/45',
           )}
         >
@@ -895,7 +897,7 @@ function MediaInfoCard({
       {info ? (
         <>
           <p className="mt-2 truncate text-sm font-black">{info.assetName}</p>
-          <p className="mt-1 text-xs font-semibold text-muted-foreground">
+          <p className="mt-1 truncate text-xs font-semibold text-muted-foreground">
             {Math.round(info.durationMs / 1000)}s • {info.width}×{info.height} •{' '}
             {info.hasAudio ? 'Audio tersedia' : 'Tanpa audio'}
           </p>

@@ -1,6 +1,6 @@
+import { useParams } from '@tanstack/react-router';
 import { LayoutTemplate, Sparkles } from 'lucide-react';
 import { useEffect } from 'react';
-import { useParams } from 'react-router-dom';
 import { Button } from '@/components/ui';
 import { useStoryStore } from '@/stores/story-store';
 import { DirectorPanel } from './story-director/DirectorPanel';
@@ -8,7 +8,7 @@ import { StoryBoard } from './story-director/StoryBoard';
 
 export function StoryDirectorPage() {
   const { initStory, loadStory, currentStory } = useStoryStore();
-  const { projectId } = useParams();
+  const { projectId } = useParams({ strict: false });
 
   useEffect(() => {
     if (projectId) {

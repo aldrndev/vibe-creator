@@ -69,8 +69,17 @@ const MINIMUM_TECHNICAL_TITLE_LENGTH = 12;
 const HOUR_MS = 60 * 60 * 1000;
 const ACTIVE_WORKSPACE_RETENTION_MS = 7 * 24 * HOUR_MS;
 const COMPLETED_WORKSPACE_RETENTION_MS = 72 * HOUR_MS;
+const WORKSPACE_DISPLAY_TIME_ZONE = 'Asia/Jakarta';
 const UUID_TITLE_PATTERN =
   /[0-9a-f]{8}[-\s]?[0-9a-f]{4}[-\s]?[0-9a-f]{4}[-\s]?[0-9a-f]{4}[-\s]?[0-9a-f]{12}/i;
+const workspaceDateTimeFormatter = new Intl.DateTimeFormat('en-GB', {
+  day: '2-digit',
+  hour: '2-digit',
+  hourCycle: 'h23',
+  minute: '2-digit',
+  month: '2-digit',
+  timeZone: WORKSPACE_DISPLAY_TIME_ZONE,
+});
 
 export type WorkspaceItem = z.infer<typeof workspaceItemSchema>;
 export type WorkspaceTool = z.infer<typeof workspaceToolSchema>;
@@ -213,10 +222,13 @@ export function getWorkspaceEditedLabel(item: WorkspaceItem): string {
     return 'Diedit baru saja';
   }
 
-  const day = editedAt.getDate();
-  const month = workspaceMonthLabels[editedAt.getMonth()] ?? workspaceMonthLabels[0];
-  const hours = String(editedAt.getHours()).padStart(2, '0');
-  const minutes = String(editedAt.getMinutes()).padStart(2, '0');
+  const parts = workspaceDateTimeFormatter.formatToParts(editedAt);
+  const dateParts = new Map(parts.map((part) => [part.type, part.value]));
+  const day = Number(dateParts.get('day') ?? '1');
+  const monthIndex = Number(dateParts.get('month') ?? '1') - 1;
+  const month = workspaceMonthLabels[monthIndex] ?? workspaceMonthLabels[0];
+  const hours = dateParts.get('hour') ?? '00';
+  const minutes = dateParts.get('minute') ?? '00';
 
   return `Diedit ${day} ${month}, ${hours}:${minutes}`;
 }

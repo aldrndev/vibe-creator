@@ -25,7 +25,7 @@ export const StepIndicator = () => {
   const lineInsetPercent = 100 / (steps.length * 2);
 
   return (
-    <div className="w-full mx-auto mb-10 px-2 py-2">
+    <div className="w-full mx-auto mb-5 px-2 py-2">
       <div className="relative grid max-w-2xl grid-cols-4 items-start mx-auto">
         <div
           className="absolute top-5 z-0 -translate-y-1/2 sm:top-6"

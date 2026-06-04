@@ -1,475 +1,328 @@
+import { Link } from '@tanstack/react-router';
 import { motion } from 'framer-motion';
-import {
-  ArrowRight,
-  BarChart3,
-  Check,
-  Download,
-  Menu,
-  Mic,
-  Moon,
-  Radio,
-  Sparkles,
-  Sun,
-  Video,
-  X,
-} from 'lucide-react';
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { ArrowRight, Check, Download, Menu, Sparkles, X } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { LandingFooter } from '@/components/landing/LandingFooter';
+import { LandingProductPreview } from '@/components/landing/product-preview';
 import { Button } from '@/components/ui';
+import {
+  landingPricingPlans,
+  landingProductFeatures,
+  landingWorkflows,
+} from '@/data/landing-content';
 import { cn } from '@/lib/utils';
-import { useThemeStore } from '@/stores/theme-store';
+import { useAuthStore } from '@/stores/auth-store';
 
-const features = [
-  {
-    icon: Sparkles,
-    title: 'Prompt Builder',
-    description: 'Generate script, voice, video, dan image prompt yang detail dan siap pakai.',
-  },
-  {
-    icon: Video,
-    title: 'Video Editor',
-    description: 'Edit video dengan mudah - cut, trim, dan tambahkan voice over.',
-  },
-  {
-    icon: Mic,
-    title: 'Voice Recording',
-    description: 'Rekam suara langsung atau import audio untuk dubbing.',
-  },
-  {
-    icon: Download,
-    title: 'URL Import',
-    description: 'Download video dari YouTube, TikTok, Instagram, dan Facebook.',
-  },
-  {
-    icon: BarChart3,
-    title: 'Creative Scan',
-    description: 'Analisis video kompetitor dan dapatkan insight untuk konten lebih baik.',
-  },
-  {
-    icon: Radio,
-    title: 'Live Streaming',
-    description: 'Setup live streaming ke multiple platform sekaligus.',
-  },
+type LandingSectionId = 'features' | 'workflow' | 'pricing';
+
+const landingNavItems: ReadonlyArray<{ label: string; section: LandingSectionId }> = [
+  { label: 'Fitur', section: 'features' },
+  { label: 'Workflow', section: 'workflow' },
+  { label: 'Harga', section: 'pricing' },
 ];
 
-const pricingPlans = [
-  {
-    name: 'Gratis',
-    price: 'Rp 0',
-    description: 'Untuk mencoba fitur dasar',
-    features: [
-      'Preview penuh',
-      'Prompt Builder lengkap',
-      'Edit video',
-      'URL Import',
-      'Rekam suara',
-    ],
-    cta: 'Mulai Gratis',
-    popular: false,
-  },
-  {
-    name: 'Creator',
-    price: 'Rp 99.000',
-    period: '/bulan',
-    description: 'Untuk content creator aktif',
-    features: [
-      'Semua fitur Gratis',
-      'Export 720p-1080p',
-      '20 export/bulan',
-      'Tanpa watermark',
-      'Priority support',
-    ],
-    cta: 'Mulai Creator',
-    popular: true,
-  },
-  {
-    name: 'Pro',
-    price: 'Rp 249.000',
-    period: '/bulan',
-    description: 'Untuk professional & agency',
-    features: [
-      'Semua fitur Creator',
-      'Export hingga 4K',
-      'Unlimited export',
-      'Priority queue',
-      'Live streaming',
-    ],
-    cta: 'Mulai Pro',
-    popular: false,
-  },
-];
+function scrollToSection(sectionId: LandingSectionId) {
+  globalThis.document
+    .getElementById(sectionId)
+    ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
 
 export function LandingPage() {
-  const { theme, toggleTheme } = useThemeStore();
+  const { isAuthenticated } = useAuthStore();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [hasScrolled, setHasScrolled] = useState(false);
 
-  const scrollToSection = (sectionId: 'features' | 'pricing') => {
-    document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const primaryCta = isAuthenticated
+    ? { label: 'Buka Dashboard', to: '/dashboard' as const }
+    : { label: 'Mulai Gratis', to: '/register' as const };
+  const pricingCta = isAuthenticated ? '/dashboard/pricing' : '/register';
+
+  const handleSectionClick = (sectionId: LandingSectionId) => {
+    scrollToSection(sectionId);
     setIsMenuOpen(false);
   };
 
-  return (
-    <div className="min-h-screen bg-background text-foreground selection:bg-primary/30">
-      {/* Dynamic Background Glows - Subtle & Balanced */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none -z-10">
-        <div className="absolute top-[-5%] left-[-5%] w-[40%] h-[40%] rounded-full bg-primary/10 blur-[130px]" />
-        <div className="absolute bottom-[-5%] right-[-5%] w-[40%] h-[40%] rounded-full bg-primary/5 blur-[130px]" />
-      </div>
+  useEffect(() => {
+    const updateScrollState = () => setHasScrolled(globalThis.scrollY > 8);
+    updateScrollState();
+    globalThis.addEventListener('scroll', updateScrollState, { passive: true });
 
-      {/* Header */}
-      <header className="sticky top-0 z-50 border-b border-white/5 bg-background/80 backdrop-blur-xl">
-        <div className="container mx-auto flex h-20 items-center justify-between px-6">
+    return () => globalThis.removeEventListener('scroll', updateScrollState);
+  }, []);
+
+  return (
+    <div className="min-h-screen bg-background text-foreground selection:bg-primary/25">
+      <header
+        className={cn(
+          'sticky top-0 z-50 bg-background/88 backdrop-blur-xl transition-colors',
+          hasScrolled && 'border-b border-border/60',
+        )}
+      >
+        <div className="container mx-auto flex h-18 items-center justify-between px-4 sm:px-6">
           <Link
             to="/"
-            className="flex items-center gap-2 group transition-opacity hover:opacity-90"
+            className="group flex items-center gap-2 transition-opacity hover:opacity-90"
           >
-            <div className="w-9 h-9 rounded-xl bg-linear-to-br from-primary via-orange-500 to-rose-600 flex items-center justify-center shadow-lg shadow-primary/20 group-hover:scale-105 transition-transform">
-              <Sparkles className="text-white w-5 h-5" />
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-linear-to-br from-primary via-orange-500 to-rose-600 transition-transform group-hover:scale-105">
+              <Sparkles className="h-5 w-5 text-white" />
             </div>
-            <span className="text-xl font-black bg-clip-text text-transparent bg-linear-to-r from-primary via-orange-500 to-rose-600 tracking-tighter">
+            <span className="bg-linear-to-r from-primary via-orange-500 to-rose-600 bg-clip-text text-lg font-black tracking-tight text-transparent">
               Vibe Creator
             </span>
           </Link>
 
-          <nav className="hidden lg:flex items-center gap-8">
-            <a
-              href="#features"
-              className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors"
-            >
-              Fitur
-            </a>
-            <a
-              href="#pricing"
-              className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors"
-            >
-              Harga
-            </a>
+          <nav className="hidden items-center gap-7 lg:flex">
+            {landingNavItems.map((item) => (
+              <button
+                key={item.section}
+                type="button"
+                onClick={() => handleSectionClick(item.section)}
+                className="text-sm font-semibold text-muted-foreground transition-colors hover:text-primary"
+              >
+                {item.label}
+              </button>
+            ))}
           </nav>
 
-          <div className="flex items-center gap-3">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={toggleTheme}
-              className="rounded-full cursor-pointer"
-              aria-label="Toggle theme"
-            >
-              {theme === 'dark' ? <Sun size={19} /> : <Moon size={19} />}
-            </Button>
-
-            <div className="hidden sm:flex items-center gap-3">
-              <Button variant="ghost" asChild className="rounded-full">
+          <div className="flex items-center gap-2 sm:gap-3">
+            {!isAuthenticated && (
+              <Button variant="ghost" asChild className="hidden rounded-full sm:inline-flex">
                 <Link to="/login">Masuk</Link>
               </Button>
-              <Button asChild className="rounded-full px-6 transition-all font-bold">
-                <Link to="/register">Mulai Sekarang</Link>
-              </Button>
-            </div>
-
+            )}
+            <Button asChild className="hidden rounded-full px-5 font-bold sm:inline-flex">
+              <Link to={primaryCta.to}>{primaryCta.label}</Link>
+            </Button>
             <Button
               variant="ghost"
               size="icon"
-              className="lg:hidden rounded-full"
-              onClick={() => setIsMenuOpen(!isMenuOpen)}
+              className="rounded-full lg:hidden"
+              onClick={() => setIsMenuOpen((value) => !value)}
+              aria-label="Toggle menu"
             >
-              {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
+              {isMenuOpen ? <X size={22} /> : <Menu size={22} />}
             </Button>
           </div>
         </div>
 
-        {/* Mobile Menu */}
         {isMenuOpen && (
           <motion.div
-            initial={{ opacity: 0, y: -20 }}
+            initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="lg:hidden absolute top-20 left-0 right-0 bg-background border-b border-border p-6 space-y-6 z-50 shadow-2xl"
+            className="absolute left-0 right-0 top-18 z-50 border-b border-border bg-background p-4 shadow-2xl lg:hidden"
           >
-            <nav className="flex flex-col gap-4">
-              <button
-                type="button"
-                onClick={() => scrollToSection('features')}
-                className="text-lg font-medium text-left"
-              >
-                Fitur
-              </button>
-              <button
-                type="button"
-                onClick={() => scrollToSection('pricing')}
-                className="text-lg font-medium text-left"
-              >
-                Harga
-              </button>
+            <nav className="grid gap-2">
+              {landingNavItems.map((item) => (
+                <button
+                  key={item.section}
+                  type="button"
+                  onClick={() => handleSectionClick(item.section)}
+                  className="rounded-xl px-3 py-3 text-left text-sm font-bold text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                >
+                  {item.label}
+                </button>
+              ))}
             </nav>
-            <div className="flex flex-col gap-3 pt-4 border-t border-border">
-              <Button variant="outline" asChild className="w-full rounded-xl justify-center">
-                <Link to="/login">Masuk</Link>
-              </Button>
-              <Button asChild className="w-full rounded-xl justify-center font-bold">
-                <Link to="/register">Daftar Sekarang</Link>
+            <div className="mt-4 grid gap-3 border-t border-border pt-4">
+              {!isAuthenticated && (
+                <Button variant="outline" asChild className="rounded-xl">
+                  <Link to="/login">Masuk</Link>
+                </Button>
+              )}
+              <Button asChild className="rounded-xl font-bold">
+                <Link to={primaryCta.to}>{primaryCta.label}</Link>
               </Button>
             </div>
           </motion.div>
         )}
       </header>
 
-      {/* Hero Section */}
-      <section className="relative pt-24 pb-32 overflow-hidden">
-        <div className="container mx-auto px-6">
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, ease: 'easeOut' }}
-            className="text-center max-w-4xl mx-auto"
-          >
-            <div className="inline-flex items-center gap-2 px-4 py-2 mb-8 text-xs font-semibold tracking-wide uppercase text-primary bg-primary/10 rounded-full border border-primary/20">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
-              </span>{' '}
-              Next-Gen AI Video Platform
-            </div>
-
-            <h1 className="text-4xl sm:text-5xl md:text-7xl font-extrabold mb-6 sm:mb-8 tracking-tight leading-[1.1]">
-              Buat Konten Luar Biasa, <br className="hidden sm:block" />
-              <span className="text-transparent bg-clip-text bg-linear-to-r from-primary via-orange-400 to-rose-600 animate-gradient">
-                Tanpa Hambatan
-              </span>
-            </h1>
-
-            <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto mb-8 sm:mb-10 leading-relaxed font-medium px-4 sm:px-0">
-              Vibe Creator adalah workspace cerdas untuk para konten kreator. Gabungkan AI video,
-              automasi script, dan toolkit editing profesional dalam satu platform intuitif.
-            </p>
-
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-6 mb-20">
-              <Button
-                size="lg"
-                asChild
-                className="h-14 px-8 rounded-full text-base font-bold shadow-md hover:shadow-lg transition-all group"
-              >
-                <Link to="/register" className="flex items-center gap-3">
-                  Buat Konten Gratis
-                  <ArrowRight
-                    size={20}
-                    className="group-hover:translate-x-1 transition-transform"
-                  />
-                </Link>
-              </Button>
-              <Button
-                variant="outline"
-                size="lg"
-                asChild
-                className="h-14 px-8 rounded-full text-base font-semibold border-white/10 bg-white/5 backdrop-blur-sm hover:bg-white/10 transition-all"
-              >
-                <a href="#features">Pelajari Fitur</a>
-              </Button>
-            </div>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Feature Grid */}
-      <section id="features" className="py-20 sm:py-32 bg-secondary/10 relative">
-        <div className="container mx-auto px-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 lg:gap-20 items-center mb-16 lg:mb-24">
-            <div>
-              <h2 className="text-3xl md:text-5xl font-bold mb-6 tracking-tight">
-                Kreativitas Tanpa Batas <br />
-                dengan Kecerdasan <span className="text-primary">AI</span>
-              </h2>
-              <p className="text-lg text-muted-foreground mb-8 leading-relaxed">
-                Platform kami memberikan Anda kekuatan untuk memproduksi konten berkualitas tinggi
-                dalam hitungan menit, bukan jam. Semua fitur dirancang untuk mempercepat alur kerja
-                Anda.
-              </p>
-
-              <div className="grid gap-6">
-                {[
-                  {
-                    title: 'AI-Powered Storyboard',
-                    desc: 'Ubah ide kasar menjadi struktur video yang matang.',
-                  },
-                  {
-                    title: 'One-Click Optimization',
-                    desc: 'Optimalkan video untuk setiap platform media sosial.',
-                  },
-                  {
-                    title: 'Real-time Collaboration',
-                    desc: 'Bekerja sama dengan tim secara langsung di editor.',
-                  },
-                ].map((item) => (
-                  <div
-                    key={item.title}
-                    className="flex gap-4 items-start p-4 rounded-2xl bg-muted/50 border border-border hover:ring-2 hover:ring-primary hover:border-transparent transition-all cursor-default group"
-                  >
-                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0 group-hover:bg-primary group-hover:text-primary-foreground transition-all text-primary">
-                      <Check size={18} />
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-lg mb-1">{item.title}</h4>
-                      <p className="text-muted-foreground text-sm leading-relaxed">{item.desc}</p>
-                    </div>
-                  </div>
-                ))}
+      <main>
+        <section className="container mx-auto px-4 pb-14 pt-14 sm:px-6 sm:pb-20 sm:pt-20">
+          <div className="grid items-center gap-10 lg:grid-cols-[0.95fr_1.05fr]">
+            <motion.div
+              initial={{ opacity: 0, y: 24 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.55, ease: 'easeOut' }}
+              className="max-w-3xl"
+            >
+              <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.16em] text-primary">
+                <Sparkles size={14} />
+                AI Video Workspace
               </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-              {features.map((feature, index) => (
-                <motion.div
-                  key={feature.title}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ duration: 0.5, delay: index * 0.1 }}
-                  className="p-6 sm:p-8 rounded-2xl sm:rounded-3xl border border-border bg-card shadow-sm hover:shadow-md hover:ring-2 hover:ring-primary hover:border-transparent transition-all duration-300 group"
+              <h1 className="max-w-4xl text-4xl font-black leading-tight tracking-tight text-foreground sm:text-5xl lg:text-6xl">
+                Bikin konten video lebih cepat dari satu workspace.
+              </h1>
+              <p className="mt-6 max-w-2xl text-base font-medium leading-relaxed text-muted-foreground sm:text-lg">
+                Mulai dari trending atau source video. Buat short, edit timeline, loop ambience,
+                record reaction, export, download, atau live stream tanpa pindah tool.
+              </p>
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+                <Button asChild size="lg" className="h-12 rounded-xl px-6 font-bold">
+                  <Link to={primaryCta.to}>
+                    {primaryCta.label}
+                    <ArrowRight size={18} />
+                  </Link>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className="h-12 rounded-xl px-6 font-bold"
+                  onClick={() => handleSectionClick('features')}
                 >
-                  <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mb-6 group-hover:scale-110 group-hover:bg-primary transition-all">
-                    <feature.icon className="text-primary group-hover:text-primary-foreground w-7 h-7" />
+                  Lihat Fitur
+                </Button>
+              </div>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 28 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.65, delay: 0.1, ease: 'easeOut' }}
+            >
+              <LandingProductPreview />
+            </motion.div>
+          </div>
+        </section>
+
+        <section id="features" className="border-y border-border/60 bg-card/30 py-16 sm:py-20">
+          <div className="container mx-auto px-4 sm:px-6">
+            <div className="mb-10 max-w-2xl">
+              <p className="mb-3 text-xs font-bold uppercase tracking-[0.18em] text-primary">
+                Fitur utama
+              </p>
+              <h2 className="text-3xl font-black tracking-tight sm:text-4xl">
+                Tool dari ide sampai siap upload.
+              </h2>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {landingProductFeatures.map((feature) => (
+                <div
+                  key={feature.title}
+                  className="group rounded-2xl border border-border/70 bg-background/70 p-5 transition-colors hover:border-primary/35 hover:bg-primary/5"
+                >
+                  <div className="mb-5 flex h-11 w-11 items-center justify-center rounded-xl border border-primary/15 bg-primary/10 text-primary">
+                    <feature.icon size={21} />
                   </div>
-                  <h3 className="text-xl font-bold mb-3 tracking-tight">{feature.title}</h3>
-                  <p className="text-muted-foreground text-sm leading-relaxed opacity-80">
+                  <h3 className="text-lg font-black text-foreground">{feature.title}</h3>
+                  <p className="mt-2 text-sm font-medium leading-relaxed text-muted-foreground">
                     {feature.description}
                   </p>
-                </motion.div>
+                </div>
               ))}
             </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* Sophisticated Pricing */}
-      <section id="pricing" className="py-20 sm:py-32 relative">
-        <div className="container mx-auto px-6 text-center">
-          <div className="mb-20 space-y-4">
-            <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight">
-              Investasi Untuk Karir Anda
-            </h2>
-            <p className="text-muted-foreground max-w-2xl mx-auto text-base sm:text-lg leading-relaxed">
-              Plan yang fleksibel untuk setiap tahap perjalanan Anda sebagai kreator.
+        <section id="workflow" className="container mx-auto px-4 py-16 sm:px-6 sm:py-20">
+          <div className="mb-10 text-center">
+            <p className="mb-3 text-xs font-bold uppercase tracking-[0.18em] text-primary">
+              Workflow
             </p>
+            <h2 className="text-3xl font-black tracking-tight sm:text-4xl">
+              Alur kerja yang jelas, bukan tool terpisah yang membingungkan.
+            </h2>
           </div>
-
-          <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
-            {pricingPlans.map((plan, index) => (
-              <motion.div
-                key={plan.name}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: index * 0.1 }}
-                className={cn(
-                  'relative flex flex-col p-8 sm:p-10 rounded-2xl sm:rounded-3xl border transition-all duration-300',
-                  plan.popular
-                    ? 'bg-card border-primary shadow-xl sm:scale-105 z-20 ring-1 ring-primary/20'
-                    : 'bg-card border-border shadow-sm z-10',
-                )}
-              >
-                {plan.popular && (
-                  <div className="absolute top-0 right-0 p-4">
-                    <span className="px-3 py-1 text-[10px] font-bold uppercase tracking-widest bg-primary text-primary-foreground rounded-full shadow-sm">
-                      Paling Populer
-                    </span>
-                  </div>
-                )}
-
-                <h3 className="text-2xl font-bold mb-6 text-left">{plan.name}</h3>
-
-                <div className="text-left mb-8">
-                  <span className="text-5xl font-black">{plan.price}</span>
-                  {plan.period && (
-                    <span className="text-sm ml-2 font-medium text-muted-foreground">
-                      {plan.period}
-                    </span>
-                  )}
+          <div className="grid gap-4 lg:grid-cols-4">
+            {landingWorkflows.map((step, index) => (
+              <div key={step.label} className="rounded-2xl border border-border/70 bg-card p-5">
+                <div className="mb-5 flex h-10 w-10 items-center justify-center rounded-full bg-primary text-sm font-black text-primary-foreground">
+                  {index + 1}
                 </div>
-
-                <p className="text-left mb-10 text-sm leading-relaxed font-medium text-muted-foreground">
-                  {plan.description}
+                <h3 className="text-lg font-black text-foreground">{step.label}</h3>
+                <p className="mt-2 text-sm font-medium leading-relaxed text-muted-foreground">
+                  {step.description}
                 </p>
-
-                <ul className="space-y-5 mb-auto">
-                  {plan.features.map((feature) => (
-                    <li key={feature} className="flex items-center gap-3 text-sm font-medium">
-                      <div
-                        className={cn(
-                          'w-5 h-5 rounded-full flex items-center justify-center shrink-0',
-                          plan.popular ? 'bg-white/20' : 'bg-primary/10',
-                        )}
-                      >
-                        <Check size={12} className="text-primary" />
-                      </div>
-                      {feature}
-                    </li>
-                  ))}
-                </ul>
-
-                <Button
-                  variant={plan.popular ? 'default' : 'outline'}
-                  className="mt-12 h-14 rounded-full text-base font-bold transition-all shadow-sm active:scale-95"
-                  asChild
-                >
-                  <Link to="/register">{plan.cta}</Link>
-                </Button>
-              </motion.div>
+              </div>
             ))}
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* CTA Section */}
-      <section className="container mx-auto px-6 py-20 sm:py-24">
-        <div className="relative overflow-hidden rounded-4xl bg-primary p-8 sm:p-12 md:p-24 text-center text-primary-foreground shadow-xl">
-          <div className="relative z-10 space-y-8 sm:space-y-10">
-            <h2 className="text-3xl sm:text-5xl md:text-6xl font-black tracking-tighter max-w-3xl mx-auto leading-[1.1]">
-              Mulai Petualangan <br className="hidden sm:block" />
-              Kreatif Anda Hari Ini.
+        <section id="pricing" className="border-y border-border/60 bg-card/30 py-16 sm:py-20">
+          <div className="container mx-auto px-4 sm:px-6">
+            <div className="mb-10 flex flex-col gap-3 text-center">
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary">Harga</p>
+              <h2 className="text-3xl font-black tracking-tight sm:text-4xl">
+                Paket sesuai tahap produksi.
+              </h2>
+              <p className="mx-auto max-w-2xl text-sm font-medium text-muted-foreground sm:text-base">
+                Mulai gratis, lalu upgrade saat kamu butuh export lebih banyak, resolusi lebih
+                tinggi, dan workflow premium.
+              </p>
+            </div>
+            <div className="grid gap-5 lg:grid-cols-3">
+              {landingPricingPlans.map((plan) => (
+                <div
+                  key={plan.id}
+                  className={cn(
+                    'relative flex flex-col rounded-2xl border bg-background/75 p-6',
+                    plan.popular
+                      ? 'border-primary/50 shadow-lg shadow-primary/10'
+                      : 'border-border/70',
+                  )}
+                >
+                  {plan.popular && (
+                    <span className="mb-4 w-fit rounded-full bg-primary px-3 py-1 text-[10px] font-black uppercase tracking-wide text-primary-foreground">
+                      Paling populer
+                    </span>
+                  )}
+                  <h3 className="text-2xl font-black text-foreground">{plan.name}</h3>
+                  <p className="mt-2 min-h-11 text-sm font-medium leading-relaxed text-muted-foreground">
+                    {plan.description}
+                  </p>
+                  <div className="mt-6 flex items-end gap-2">
+                    <span className="text-4xl font-black tracking-tight">{plan.price}</span>
+                    <span className="pb-1 text-sm font-semibold text-muted-foreground">
+                      {plan.period}
+                    </span>
+                  </div>
+                  <ul className="mt-7 flex-1 space-y-3">
+                    {plan.features.map((feature) => (
+                      <li key={feature} className="flex gap-3 text-sm font-semibold">
+                        <Check size={16} className="mt-0.5 shrink-0 text-primary" />
+                        <span>{feature}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <Button
+                    asChild
+                    variant={plan.popular ? 'default' : 'outline'}
+                    className="mt-8 h-11 rounded-xl font-bold"
+                  >
+                    <Link to={pricingCta}>
+                      {isAuthenticated ? 'Kelola Plan' : plan.cta}
+                      <ArrowRight size={16} />
+                    </Link>
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="container mx-auto px-4 py-16 sm:px-6 sm:py-20">
+          <div className="rounded-3xl border border-primary/35 bg-background/75 p-6 text-center shadow-lg shadow-primary/10 sm:p-10">
+            <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-2xl border border-primary/25 bg-primary/10 text-primary">
+              <Download size={22} />
+            </div>
+            <h2 className="text-3xl font-black tracking-tight sm:text-4xl">
+              Siapkan workflow creator kamu hari ini.
             </h2>
-            <p className="text-lg sm:text-xl text-primary-foreground/80 max-w-2xl mx-auto font-medium">
-              Tidak perlu kartu kredit. Hanya butuh satu visi untuk mengubah dunia dengan konten
-              Anda.
+            <p className="mx-auto mt-4 max-w-2xl text-sm font-medium leading-relaxed text-muted-foreground sm:text-base">
+              Coba AI Director, Video Studio, Loop Creator, Reaction Recorder, dan Live Streaming
+              dari satu akun.
             </p>
-            <Button
-              size="lg"
-              variant="secondary"
-              asChild
-              className="h-14 sm:h-16 px-8 sm:px-12 rounded-full text-base sm:text-lg font-black bg-background text-foreground shadow-lg hover:shadow-xl transition-all active:scale-95"
-            >
-              <Link to="/register">Daftar Sekarang - Gratis 100%</Link>
+            <Button asChild size="lg" className="mt-7 h-12 rounded-xl px-7 font-black">
+              <Link to={primaryCta.to}>
+                {primaryCta.label}
+                <ArrowRight size={18} />
+              </Link>
             </Button>
           </div>
-        </div>
-      </section>
+        </section>
+      </main>
 
-      {/* Minimal Footer */}
-      <footer className="border-t border-white/5 py-16 bg-background/50">
-        <div className="container mx-auto px-6">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-10">
-            <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded bg-primary flex items-center justify-center">
-                <Sparkles className="text-primary-foreground w-4 h-4" />
-              </div>
-              <span className="font-bold">Vibe Creator</span>
-            </div>
-
-            <div className="flex gap-8 text-sm font-medium text-muted-foreground">
-              <a href="/terms" className="hover:text-primary">
-                Term of Service
-              </a>
-              <a href="/privacy" className="hover:text-primary">
-                Privacy Policy
-              </a>
-              <a href="/help" className="hover:text-primary">
-                Help Center
-              </a>
-            </div>
-
-            <div className="text-sm text-muted-foreground font-medium">
-              © 2024 Vibe Creator. All rights reserved.
-            </div>
-          </div>
-        </div>
-      </footer>
+      <LandingFooter onSectionClick={handleSectionClick} />
     </div>
   );
 }

@@ -1,5 +1,5 @@
+import { useParams } from '@tanstack/react-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useParams } from 'react-router-dom';
 // New components
 import { EditorHeader } from '@/components/editor/layout/EditorHeader';
 import { EditorMainArea } from '@/components/editor/layout/EditorMainArea';
@@ -20,7 +20,7 @@ import {
 } from './editor-import.utils';
 
 export function EditorPage() {
-  const { projectId } = useParams<{ projectId: string }>();
+  const { projectId } = useParams({ strict: false }) as { projectId?: string };
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Modals state

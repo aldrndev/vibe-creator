@@ -1,3 +1,4 @@
+import { useNavigate } from '@tanstack/react-router';
 import {
   AlertCircle,
   ArrowRight,
@@ -12,13 +13,11 @@ import {
   Palette,
   ShieldCheck,
   Sparkles,
-  Sun,
   User,
   Zap,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { useNavigate, useSearchParams } from 'react-router-dom';
 import { z } from 'zod';
 import {
   Avatar,
@@ -52,12 +51,11 @@ import {
   useUpdateUserPreferences,
   useUserPreferences,
 } from '@/hooks/use-settings';
+import { useMutableSearchParams } from '@/lib/route-search';
 import { cn } from '@/lib/utils';
 import type { PaymentRecord } from '@/services/settings-api';
 import { useAuthStore } from '@/stores/auth-store';
-import { useThemeStore } from '@/stores/theme-store';
 
-type ThemeMode = 'light' | 'dark';
 type SettingsTab = 'general' | 'account' | 'billing' | 'notifications' | 'security';
 type NotificationKey = keyof NotificationPreferences;
 
@@ -137,9 +135,8 @@ function getPaymentStatusLabel(status: PaymentRecord['status']): string {
 
 export function SettingsPage() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams] = useMutableSearchParams();
   const { user, subscription } = useAuthStore();
-  const { theme, setTheme } = useThemeStore();
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const [profileName, setProfileName] = useState(user?.name ?? '');
   const [profileMessage, setProfileMessage] = useState<string | null>(null);
@@ -295,7 +292,11 @@ export function SettingsPage() {
               Status pembayaran tersedia di halaman Pricing. Buka halaman paket untuk melihat
               detailnya.
             </span>
-            <Button size="sm" className="rounded-xl" onClick={() => navigate('/dashboard/pricing')}>
+            <Button
+              size="sm"
+              className="rounded-xl"
+              onClick={() => navigate({ to: '/dashboard/pricing' })}
+            >
               Buka Pricing
             </Button>
           </div>
@@ -335,32 +336,28 @@ export function SettingsPage() {
                   Tema
                 </CardTitle>
                 <CardDescription>
-                  Preferensi tampilan disimpan lokal di browser ini.
+                  Vibe Creator memakai mode gelap sebagai tampilan utama untuk pengalaman video yang
+                  lebih fokus.
                 </CardDescription>
               </CardHeader>
-              <CardBody className="grid gap-3 p-5 sm:grid-cols-2">
-                {[
-                  { id: 'light', label: 'Mode Terang', icon: Sun },
-                  { id: 'dark', label: 'Mode Gelap', icon: Moon },
-                ].map((mode) => (
-                  <button
-                    key={mode.id}
-                    type="button"
-                    onClick={() => setTheme(mode.id as ThemeMode)}
-                    className={cn(
-                      'flex items-center justify-between rounded-2xl border p-4 text-left transition-colors',
-                      theme === mode.id
-                        ? 'border-primary bg-primary/10 text-foreground'
-                        : 'border-border bg-background hover:bg-muted/40',
-                    )}
-                  >
-                    <span className="flex items-center gap-3 font-bold">
-                      <mode.icon className="size-5 text-primary" />
-                      {mode.label}
-                    </span>
-                    {theme === mode.id && <Check className="size-4 text-primary" />}
-                  </button>
-                ))}
+              <CardBody className="p-5">
+                <div className="flex flex-col gap-4 rounded-2xl border border-primary/25 bg-primary/10 p-5 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-start gap-4">
+                    <div className="flex size-12 shrink-0 items-center justify-center rounded-2xl border border-primary/25 bg-background/60 text-primary">
+                      <Moon className="size-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-black text-foreground">Mode gelap aktif</h3>
+                      <p className="mt-1 max-w-2xl text-sm font-medium leading-relaxed text-muted-foreground">
+                        Untuk fase launch, tampilan dibuat dark-only agar preview video, timeline,
+                        dan workspace tetap konsisten.
+                      </p>
+                    </div>
+                  </div>
+                  <Badge variant="secondary" className="w-fit rounded-full">
+                    Default
+                  </Badge>
+                </div>
               </CardBody>
             </Card>
           </TabsContent>
@@ -489,13 +486,16 @@ export function SettingsPage() {
                       Valid sampai {formatDateTime(subscription?.validUntil ?? null)}
                     </p>
                     <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-                      <Button className="rounded-xl" onClick={() => navigate('/dashboard/pricing')}>
+                      <Button
+                        className="rounded-xl"
+                        onClick={() => navigate({ to: '/dashboard/pricing' })}
+                      >
                         Upgrade Plan
                       </Button>
                       <Button
                         variant="outline"
                         className="rounded-xl"
-                        onClick={() => navigate('/dashboard/pricing')}
+                        onClick={() => navigate({ to: '/dashboard/pricing' })}
                       >
                         Kelola Langganan
                         <ArrowRight className="size-4" />

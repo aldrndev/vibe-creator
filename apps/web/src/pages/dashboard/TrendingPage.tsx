@@ -9,7 +9,6 @@ import {
 } from '@vibe-creator/shared';
 import { Clapperboard, Flame, RefreshCw, Sparkles, TrendingUp, Wand2, XCircle } from 'lucide-react';
 import { useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
 import {
   Button,
   Card,
@@ -21,6 +20,7 @@ import {
   SelectValue,
 } from '@/components/ui';
 import { PageTransition } from '@/components/ui/PageTransition';
+import { useMutableSearchParams } from '@/lib/route-search';
 import { cn } from '@/lib/utils';
 import { api } from '@/services/api';
 import { useAuthStore } from '@/stores/auth-store';
@@ -102,7 +102,7 @@ export function TrendingPage() {
   const queryClient = useQueryClient();
   const user = useAuthStore((state) => state.user);
   const isAdmin = user?.role === 'ADMIN';
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useMutableSearchParams();
   const activeRegion = getRegionFromSearch(searchParams);
   const [refreshFeedback, setRefreshFeedback] = useState<string | null>(null);
 
@@ -195,8 +195,8 @@ export function TrendingPage() {
   };
 
   return (
-    <PageTransition className="pb-16 lg:pb-6">
-      <div className="mx-auto max-w-250 space-y-7 px-4 md:space-y-10 md:px-0">
+    <PageTransition className="pb-[calc(4.75rem+env(safe-area-inset-bottom))] lg:pb-0">
+      <div className="mx-auto max-w-250 space-y-7 px-4 md:space-y-10 md:px-0 md:pb-6">
         <div className="flex flex-col items-start justify-between gap-3 lg:flex-row lg:items-center">
           <div className="space-y-1">
             <h1 className="flex items-center gap-2.5 text-2xl font-bold tracking-tight text-foreground md:text-3xl">
@@ -220,7 +220,7 @@ export function TrendingPage() {
 
             <div className="flex w-full gap-2 sm:w-auto">
               <Select value={activeRegion} onValueChange={handleRegionChange}>
-                <SelectTrigger className="h-9 flex-1 rounded-xl bg-card/60 text-sm font-bold sm:w-[180px]">
+                <SelectTrigger className="h-9 flex-1 rounded-xl bg-card/60 text-sm font-bold sm:w-45">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

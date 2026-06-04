@@ -1,3 +1,4 @@
+import { useNavigate, useParams } from '@tanstack/react-router';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   ArrowLeft,
@@ -14,7 +15,6 @@ import {
   Trash,
 } from 'lucide-react';
 import { useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
 import {
   Badge,
   Button,
@@ -57,7 +57,7 @@ const promptTypeLabels: Record<string, string> = {
 };
 
 export function PromptDetailPage() {
-  const { id } = useParams<{ id: string }>();
+  const { id } = useParams({ strict: false }) as { id?: string };
   const promptId = id ?? '';
   const navigate = useNavigate();
   const { data: prompt, isLoading, error } = usePrompt(promptId);
@@ -93,7 +93,7 @@ export function PromptDetailPage() {
 
     try {
       await deletePrompt.mutateAsync(promptId);
-      navigate('/dashboard/prompts');
+      navigate({ to: '/dashboard/prompts' });
     } catch {
       // Error is logged by mutation
     }
@@ -132,7 +132,7 @@ export function PromptDetailPage() {
           </div>
           <Button
             variant="outline"
-            onClick={() => navigate('/dashboard/prompts')}
+            onClick={() => navigate({ to: '/dashboard/prompts' })}
             className="rounded-full px-8 border-border/50 font-black uppercase text-[10px] tracking-widest h-11"
           >
             Kembali ke Prompts
@@ -157,7 +157,7 @@ export function PromptDetailPage() {
                 size="icon"
                 variant="ghost"
                 className="rounded-full w-10 h-10 bg-muted/20 border border-border/50"
-                onClick={() => navigate('/dashboard/prompts')}
+                onClick={() => navigate({ to: '/dashboard/prompts' })}
               >
                 <ArrowLeft size={18} />
               </Button>
@@ -198,7 +198,9 @@ export function PromptDetailPage() {
                 <Button
                   variant="outline"
                   className="hidden sm:flex rounded-full h-10 px-4 border-border/50 font-black uppercase text-[10px] tracking-widest"
-                  onClick={() => navigate(`/tools/loop-creator?prompt=${promptId}`)}
+                  onClick={() =>
+                    navigate({ to: '/tools/loop-creator', search: { prompt: promptId } })
+                  }
                 >
                   <Edit size={14} className="mr-2" /> Edit di Loop Creator
                 </Button>

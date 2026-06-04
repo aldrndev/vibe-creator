@@ -1,6 +1,6 @@
+import { useNavigate } from '@tanstack/react-router';
 import { AlertTriangle, Layers, Loader2, Music, Wand2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import {
   Button,
   Card,
@@ -91,7 +91,7 @@ export function DirectorPanel() {
       if (currentStory && previewTimeline) {
         initProject(currentStory.projectId, 'Story Project (Forked)');
         useEditorStore.getState().loadTimeline(previewTimeline);
-        navigate(`/editor/${currentStory.projectId}`);
+        navigate({ to: '/editor/$projectId', params: { projectId: currentStory.projectId } });
       }
     } catch {
       setFeedback({ type: 'error', text: 'Failed to fork project' });

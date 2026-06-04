@@ -26,6 +26,73 @@ vi.mock('child_process', () => ({
 }));
 
 describe('stream configuration', () => {
+  describe('stream billing minutes', () => {
+    it('does not bill a stream that fails before reaching LIVE', async () => {
+      const { calculateStreamBilledMinutes } = await import('../../stream-billing');
+
+      const billedMinutes = calculateStreamBilledMinutes({
+        previousStatus: 'STARTING',
+        finalStatus: 'FAILED',
+        startedAt: new Date('2026-06-03T12:00:00.000Z'),
+        finalizedAt: new Date('2026-06-03T12:00:42.000Z'),
+      });
+
+      expect(billedMinutes).toBe(0);
+    });
+
+    it('bills a stream that fails after it has gone live', async () => {
+      const { calculateStreamBilledMinutes } = await import('../../stream-billing');
+
+      const billedMinutes = calculateStreamBilledMinutes({
+        previousStatus: 'LIVE',
+        finalStatus: 'FAILED',
+        startedAt: new Date('2026-06-03T12:00:00.000Z'),
+        finalizedAt: new Date('2026-06-03T12:00:42.000Z'),
+      });
+
+      expect(billedMinutes).toBe(1);
+    });
+
+    it('keeps manual stop billing based on actual elapsed minutes', async () => {
+      const { calculateStreamBilledMinutes } = await import('../../stream-billing');
+
+      const billedMinutes = calculateStreamBilledMinutes({
+        previousStatus: 'LIVE',
+        finalStatus: 'ENDED',
+        startedAt: new Date('2026-06-03T12:00:00.000Z'),
+        finalizedAt: new Date('2026-06-03T12:02:01.000Z'),
+      });
+
+      expect(billedMinutes).toBe(3);
+    });
+
+    it('does not clamp admin stream duration to remaining quota minutes', async () => {
+      const { resolveStreamEffectiveDuration } = await import('../../stream-billing');
+
+      const effectiveDuration = resolveStreamEffectiveDuration({
+        isAdmin: true,
+        requestedDurationMinutes: 180,
+        quotaRemainingMinutes: 0,
+        absoluteMaxDurationMinutes: 1440,
+      });
+
+      expect(effectiveDuration).toBe(180);
+    });
+
+    it('keeps regular users clamped to remaining quota minutes', async () => {
+      const { resolveStreamEffectiveDuration } = await import('../../stream-billing');
+
+      const effectiveDuration = resolveStreamEffectiveDuration({
+        isAdmin: false,
+        requestedDurationMinutes: 180,
+        quotaRemainingMinutes: 12,
+        absoluteMaxDurationMinutes: 1440,
+      });
+
+      expect(effectiveDuration).toBe(12);
+    });
+  });
+
   describe('platform config', () => {
     it('should have YouTube RTMP base URL', () => {
       const YOUTUBE_RTMP = 'rtmp://a.rtmp.youtube.com/live2';
@@ -86,6 +153,14 @@ describe('stream configuration', () => {
       expect(STREAM_STATUS.STARTING).toBe('STARTING');
       expect(STREAM_STATUS.LIVE).toBe('LIVE');
       expect(STREAM_STATUS.ENDED).toBe('ENDED');
+    });
+  });
+
+  describe('stream history schema', () => {
+    it('uses 10 items as the default user-facing history page size', async () => {
+      const { streamHistoryQuerySchema } = await import('../../stream.schemas');
+
+      expect(streamHistoryQuerySchema.parse({}).limit).toBe(10);
     });
   });
 });

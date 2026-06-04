@@ -28,10 +28,11 @@ const streamPackageSchema = z.object({
 export const quotaResponseSchema = z.object({
   success: z.literal(true),
   data: z.object({
-    remaining: z.number(),
-    total: z.number(),
+    remaining: z.number().nullable(),
+    total: z.number().nullable(),
     used: z.number(),
-    cycleEnd: z.date(),
+    isUnlimited: z.boolean(),
+    cycleEnd: z.date().nullable(),
   }),
 });
 

@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
 import {
   type MobileEditorTab,
   ModernEditorHeader,
@@ -15,6 +14,7 @@ import {
   type ModernEditorRestoredDraft,
 } from '@/lib/modern-editor-drafts';
 import { resolveHydratedModernEditorProject } from '@/lib/modern-editor-hydration';
+import { useMutableSearchParams } from '@/lib/route-search';
 import {
   isLocalVideoStudioSessionId,
   loadVideoStudioProjectSession,
@@ -25,7 +25,7 @@ import { DEFAULT_PROJECT_TITLE } from '@/stores/modern-editor-store-helpers';
 const DEFAULT_VIDEO_STUDIO_SETTINGS = { width: 1920, height: 1080 } as const;
 
 export function ModernEditorPage() {
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useMutableSearchParams();
   const { initProject, isPlaying, layerOrder, loadProject, selectedLayerId } =
     useModernEditorStore();
   const projectId = useModernEditorStore((state) => state.projectId);

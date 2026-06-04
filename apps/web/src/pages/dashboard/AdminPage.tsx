@@ -1,5 +1,5 @@
+import { useNavigate } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { AdminActivityPanel } from '@/components/dashboard/admin/AdminActivityPanel';
 import { AdminHeader } from '@/components/dashboard/admin/AdminHeader';
 import {
@@ -62,7 +62,7 @@ export function AdminPage() {
 
   useEffect(() => {
     if (!authLoading && user?.role !== 'ADMIN') {
-      navigate('/dashboard', { replace: true });
+      navigate({ to: '/dashboard', replace: true });
     }
   }, [authLoading, user, navigate]);
 
@@ -105,7 +105,7 @@ export function AdminPage() {
     admin.deleteAnnouncementMutation.isPending;
 
   return (
-    <div className="mx-auto w-full max-w-[1500px] space-y-8 px-2 pb-24 pt-4 sm:px-4 lg:pb-10">
+    <div className="mx-auto w-full max-w-[1500px] space-y-8 px-2 pb-[calc(4.75rem+env(safe-area-inset-bottom))] pt-4 sm:px-4 lg:pb-0">
       <AdminHeader />
 
       <Tabs defaultValue="overview" className="space-y-6">

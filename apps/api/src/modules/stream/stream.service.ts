@@ -22,6 +22,7 @@ import {
 import { setStopStreamHandler, startStreamReaper } from './services/reaper';
 import { buildStreamArgs, getRtmpUrl, type StreamConfig } from './services/rtmp.utils';
 import { type LiveStreamProjectDocument, liveStreamProjectDocumentSchema } from './stream.schemas';
+import { calculateStreamBilledMinutes, resolveStreamEffectiveDuration } from './stream-billing';
 
 export type { StreamConfig, StreamPlatform } from './services/rtmp.utils';
 
@@ -30,6 +31,8 @@ type StreamStopReasonInput =
   | 'AUTO_STOP'
   | 'ADMIN'
   | 'ERROR'
+  | 'SERVER_RESTART'
+  | 'QUOTA_EXHAUSTED'
   | 'REPLACED_BY_NEW_STREAM'
   | 'PROCESS_LOST';
 
@@ -39,6 +42,7 @@ interface StartStreamInput {
   readonly userId: string;
   readonly inputPath: string;
   readonly config: StreamConfig;
+  readonly isAdmin?: boolean;
   readonly projectId?: string;
   readonly sourceAssetId?: string;
 }
@@ -48,6 +52,7 @@ interface StartProjectStreamInput {
   readonly projectId: string;
   readonly streamKey: string;
   readonly customRtmpUrl?: string;
+  readonly isAdmin?: boolean;
 }
 
 interface FinalizeStreamInput {
@@ -74,6 +79,11 @@ interface PublicStreamSession {
 
 const ABSOLUTE_MAX_DURATION = 1440; // 24 hours
 const REPLACEMENT_SHUTDOWN_DELAY_MS = 1000;
+const HISTORY_DEFAULT_LIMIT = 10;
+const HISTORY_MAX_LIMIT = 50;
+const USER_VISIBLE_HISTORY_FILTER: Prisma.StreamSessionWhereInput = {
+  OR: [{ status: { not: 'FAILED' } }, { durationMinutesBilled: { gt: 0 } }],
+};
 
 function resolveProjectAssetPath(projectId: string, r2Key: string): string {
   return join(env.MEDIA_INPUT_DIR, 'projects', projectId, r2Key.split('/').pop() ?? '');
@@ -247,6 +257,7 @@ export const streamService = {
     quotaRemainingAfterReservation: number;
   }> {
     const { userId, inputPath, config } = input;
+    const isAdmin = Boolean(input.isAdmin);
 
     await stat(inputPath).catch(() => {
       throw new Error('Source video sudah tidak tersedia.');
@@ -254,16 +265,22 @@ export const streamService = {
 
     await stopActiveStreamsForUser(userId);
 
-    const cycle = await billingService.getOrCreateOpenCycle(userId);
-    const quotaTotal = cycle.quotaMinutesBase + cycle.quotaMinutesTopup;
-    const quotaRemaining = Math.max(0, quotaTotal - cycle.quotaMinutesUsed);
+    const cycle = isAdmin ? null : await billingService.getOrCreateOpenCycle(userId);
+    const quotaRemaining = cycle
+      ? Math.max(0, cycle.quotaMinutesBase + cycle.quotaMinutesTopup - cycle.quotaMinutesUsed)
+      : null;
 
-    if (quotaRemaining <= 0) {
+    if (!isAdmin && (quotaRemaining ?? 0) <= 0) {
       throw new Error('Kuota live streaming habis. Upgrade atau top-up untuk lanjut.');
     }
 
     const requestedDuration = config.durationMinutes || 60;
-    const effectiveDuration = Math.min(requestedDuration, quotaRemaining, ABSOLUTE_MAX_DURATION);
+    const effectiveDuration = resolveStreamEffectiveDuration({
+      isAdmin,
+      requestedDurationMinutes: requestedDuration,
+      quotaRemainingMinutes: quotaRemaining ?? ABSOLUTE_MAX_DURATION,
+      absoluteMaxDurationMinutes: ABSOLUTE_MAX_DURATION,
+    });
     const autoStopAt = new Date(Date.now() + effectiveDuration * 60 * 1000);
     const sourceInfo = await resolveVideoInfo(inputPath);
 
@@ -276,7 +293,7 @@ export const streamService = {
         status: 'STARTING',
         startedAt: new Date(),
         autoStopAt,
-        quotaCycleId: cycle.id,
+        quotaCycleId: cycle?.id,
         config: {
           quality: config.quality,
           bitrateKbps: config.bitrateKbps,
@@ -341,7 +358,9 @@ export const streamService = {
       status: 'STARTING',
       effectiveDurationMinutes: effectiveDuration,
       autoStopAt: autoStopAt.toISOString(),
-      quotaRemainingAfterReservation: Math.max(0, quotaRemaining - effectiveDuration),
+      quotaRemainingAfterReservation: isAdmin
+        ? -1
+        : Math.max(0, (quotaRemaining ?? 0) - effectiveDuration),
     };
   },
 
@@ -353,6 +372,7 @@ export const streamService = {
     return this.startStream({
       userId: input.userId,
       inputPath,
+      isAdmin: input.isAdmin,
       projectId: project.id,
       sourceAssetId: sourceAsset.id,
       config: {
@@ -416,8 +436,12 @@ export const streamService = {
         return;
       }
 
-      const seconds = Math.max(0, (now.getTime() - existing.startedAt.getTime()) / 1000);
-      const minutesBilled = Math.ceil(seconds / 60);
+      const minutesBilled = calculateStreamBilledMinutes({
+        previousStatus: existing.status,
+        finalStatus: input.status,
+        startedAt: existing.startedAt,
+        finalizedAt: now,
+      });
 
       await tx.streamSession.update({
         where: { id: input.streamId },
@@ -493,19 +517,22 @@ export const streamService = {
    * Get user's stream history.
    */
   async getHistory(userId: string, options: { limit?: number; cursor?: string } = {}) {
-    const limit = Math.min(Math.max(options.limit ?? 20, 1), 50);
+    const limit = Math.min(Math.max(options.limit ?? HISTORY_DEFAULT_LIMIT, 1), HISTORY_MAX_LIMIT);
     const cursor = parseHistoryCursor(options.cursor);
+    const cursorFilter: Prisma.StreamSessionWhereInput | null = cursor
+      ? {
+          OR: [
+            { startedAt: { lt: cursor.startedAt } },
+            { startedAt: cursor.startedAt, id: { lt: cursor.id } },
+          ],
+        }
+      : null;
     const streams = await prisma.streamSession.findMany({
       where: {
         userId,
-        ...(cursor
-          ? {
-              OR: [
-                { startedAt: { lt: cursor.startedAt } },
-                { startedAt: cursor.startedAt, id: { lt: cursor.id } },
-              ],
-            }
-          : {}),
+        AND: cursorFilter
+          ? [USER_VISIBLE_HISTORY_FILTER, cursorFilter]
+          : [USER_VISIBLE_HISTORY_FILTER],
       },
       orderBy: [{ startedAt: 'desc' }, { id: 'desc' }],
       take: limit + 1,

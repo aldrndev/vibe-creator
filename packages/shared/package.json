@@ -12,6 +12,9 @@
       "default": "./src/index.ts"
     }
   },
+  "dependencies": {
+    "zod": "4.3.6"
+  },
   "scripts": {
     "build": "tsc && tsc-alias",
     "typecheck": "tsc --noEmit",

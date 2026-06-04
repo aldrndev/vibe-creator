@@ -77,10 +77,11 @@ const startStreamResponseSchema = z.object({
 });
 
 const streamQuotaSchema = z.object({
-  remaining: z.number(),
-  total: z.number(),
+  remaining: z.number().nullable(),
+  total: z.number().nullable(),
   used: z.number(),
-  cycleEnd: z.string().or(z.date()).optional(),
+  isUnlimited: z.boolean().optional().default(false),
+  cycleEnd: z.string().or(z.date()).nullable().optional(),
 });
 
 const streamHistoryResponseSchema = z.object({
@@ -261,7 +262,7 @@ export async function getStreamQuota(): Promise<StreamQuota> {
 export async function getStreamHistory(
   input: { limit?: number; cursor?: string | null } = {},
 ): Promise<z.infer<typeof streamHistoryResponseSchema>> {
-  const query = new URLSearchParams({ limit: String(input.limit ?? 20) });
+  const query = new URLSearchParams({ limit: String(input.limit ?? 10) });
   if (input.cursor) {
     query.set('cursor', input.cursor);
   }

@@ -76,6 +76,7 @@ export const streamRoutes: FastifyPluginAsync = async (fastify) => {
       const result = await streamService.startStream({
         userId: user.id,
         inputPath: resolveTempUploadReference(body.inputPath),
+        isAdmin: user.role === 'ADMIN',
         config: {
           platform: body.config.platform,
           rtmpUrl: body.config.rtmpUrl,
@@ -145,6 +146,7 @@ export const streamRoutes: FastifyPluginAsync = async (fastify) => {
         projectId: request.params.id,
         streamKey: body.streamKey,
         customRtmpUrl: body.customRtmpUrl,
+        isAdmin: user.role === 'ADMIN',
       });
 
       return reply.send({ success: true, data: result });

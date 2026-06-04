@@ -1,9 +1,10 @@
+import { Link, useNavigate } from '@tanstack/react-router';
 import { AlertCircle, Eye, EyeOff, Lock, LogIn, Mail } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { Link, useNavigate } from 'react-router-dom';
 import { Button, Input } from '@/components/ui';
 import { TurnstileWidget, type TurnstileWidgetRef } from '@/components/ui/turnstile-widget';
+import { type LoginForm, loginFormSchema } from '@/lib/auth-form-schemas';
 import { api } from '@/services/api';
 import { useAuthStore } from '@/stores/auth-store';
 
@@ -26,11 +27,6 @@ interface AuthApiResponse {
   expiresAt: string;
 }
 
-interface LoginForm {
-  email: string;
-  password: string;
-}
-
 export function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -43,27 +39,44 @@ export function LoginPage() {
   const {
     register,
     handleSubmit,
+    setError,
     formState: { errors },
-  } = useForm<LoginForm>();
+  } = useForm<LoginForm>({
+    defaultValues: {
+      email: '',
+      password: '',
+    },
+  });
 
   const onSubmit = async (data: LoginForm) => {
     setErrorMessage(null);
 
+    const parsedData = loginFormSchema.safeParse(data);
+    if (!parsedData.success) {
+      for (const issue of parsedData.error.issues) {
+        const field = issue.path[0];
+        if (field === 'email' || field === 'password') {
+          setError(field, { message: issue.message });
+        }
+      }
+      return;
+    }
+
     if (!turnstileToken) {
-      setErrorMessage('Harap selesaikan verifikasi captcha');
+      setErrorMessage('Harap selesaikan verifikasi keamanan.');
       return;
     }
 
     setIsLoading(true);
     try {
       const response = await api.post<AuthApiResponse>('/auth/login', {
-        ...data,
+        ...parsedData.data,
         turnstileToken,
       });
 
       if (response.success) {
         setAuth(response.data);
-        navigate('/dashboard');
+        navigate({ to: '/dashboard' });
       } else {
         setErrorMessage(response.error.message);
         turnstileRef.current?.reset();
@@ -81,9 +94,9 @@ export function LoginPage() {
   return (
     <div>
       <div className="mb-10 text-center sm:text-left">
-        <h1 className="text-3xl font-black tracking-tight mb-2">Selamat Datang Kembali</h1>
+        <h1 className="text-3xl font-black tracking-tight mb-2">Masuk ke Workspace</h1>
         <p className="text-muted-foreground font-medium">
-          Masuk ke akun kamu untuk melanjutkan petualangan kreatif.
+          Lanjutkan draft, export, dan workflow video yang sudah kamu siapkan.
         </p>
       </div>
 
@@ -102,13 +115,7 @@ export function LoginPage() {
           placeholder="nama@email.com"
           leftIcon={<Mail size={20} />}
           error={errors.email?.message}
-          {...register('email', {
-            required: 'Email diperlukan',
-            pattern: {
-              value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
-              message: 'Email tidak valid',
-            },
-          })}
+          {...register('email')}
         />
 
         <Input
@@ -120,15 +127,14 @@ export function LoginPage() {
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
+              aria-label={showPassword ? 'Sembunyikan password' : 'Tampilkan password'}
               className="text-muted-foreground hover:text-primary transition-colors pr-1"
             >
               {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
             </button>
           }
           error={errors.password?.message}
-          {...register('password', {
-            required: 'Password diperlukan',
-          })}
+          {...register('password')}
         />
 
         <TurnstileWidget

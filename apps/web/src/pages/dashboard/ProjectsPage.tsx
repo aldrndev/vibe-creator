@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from '@tanstack/react-router';
 import {
   Clock,
   Download as DownloadIcon,
@@ -7,7 +8,6 @@ import {
   Trash2,
   Video,
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
 import {
   Badge,
   Button,
@@ -74,7 +74,7 @@ export function ProjectsPage() {
   });
 
   const handleNewExport = () => {
-    navigate('/tools/editor');
+    navigate({ to: '/tools/editor' });
   };
 
   const handleDeleteExport = async (id: string) => {

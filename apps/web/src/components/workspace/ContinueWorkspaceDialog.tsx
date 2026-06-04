@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
+import { Link, useNavigate } from '@tanstack/react-router';
 import { Clock3, History, Plus, RotateCcw, X } from 'lucide-react';
 import { useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
 import { Button, Dialog, DialogClose, DialogContent, DialogTitle } from '@/components/ui';
 import {
   getLastActiveWorkspace,
@@ -54,7 +54,7 @@ export function ContinueWorkspaceDialog({
       onStartNew={onStartNew}
       onContinue={() => {
         onStartNew();
-        navigate(getWorkspaceContinuePath(data));
+        navigate({ to: getWorkspaceContinuePath(data) });
       }}
     />
   );

@@ -37,6 +37,19 @@ export const billingRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       try {
+        if (user.role === 'ADMIN') {
+          return reply.send({
+            success: true,
+            data: {
+              remaining: null,
+              total: null,
+              used: 0,
+              isUnlimited: true,
+              cycleEnd: null,
+            },
+          });
+        }
+
         const cycle = await billingService.getOrCreateOpenCycle(user.id);
         const used = cycle.quotaMinutesUsed;
         const total = cycle.quotaMinutesBase + cycle.quotaMinutesTopup;
@@ -48,6 +61,7 @@ export const billingRoutes: FastifyPluginAsync = async (fastify) => {
             remaining,
             total,
             used,
+            isUnlimited: false,
             cycleEnd: cycle.cycleEndAt,
           },
         });

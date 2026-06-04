@@ -17,6 +17,7 @@ import { adminRoutes } from '@/modules/admin/admin.routes';
 import { authRoutes } from '@/modules/auth/auth.routes';
 import { billingRoutes } from '@/modules/billing/billing.routes';
 import { cleanupCron } from '@/modules/cron/cleanup.cron';
+import { dashboardRoutes } from '@/modules/dashboard/dashboard.routes';
 import { directorRoutes } from '@/modules/director/director.routes';
 import { downloadRoutes } from '@/modules/download/download.routes';
 import { exportRoutes } from '@/modules/export/export.routes';
@@ -171,6 +172,7 @@ async function main(): Promise<void> {
       await api.register(paymentRoutes, { prefix: '/payment' });
       await api.register(userRoutes, { prefix: '/user' });
       await api.register(adminRoutes, { prefix: '/admin' });
+      await api.register(dashboardRoutes, { prefix: '/dashboard' });
       await api.register(projectRoutes, { prefix: '/projects' });
       await api.register(videoStudioRoutes, { prefix: '/video-studio' });
       await api.register(workspaceRoutes, { prefix: '/workspaces' });

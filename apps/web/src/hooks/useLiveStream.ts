@@ -237,14 +237,6 @@ export function useLiveStream(options: UseLiveStreamOptions = {}) {
       setStreamId(response.streamId);
       setIsStreaming(true);
       setStreamStatus(response.status);
-      setQuota((current) =>
-        current
-          ? {
-              ...current,
-              remaining: response.quotaRemainingAfterReservation ?? current.remaining,
-            }
-          : current,
-      );
       pollStatus(response.streamId);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Gagal memulai live stream.';
@@ -305,7 +297,6 @@ export function useLiveStream(options: UseLiveStreamOptions = {}) {
     setBitrate: (bitrateKbps: number) => updateDocument({ bitrateKbps }),
     duration: document.durationMinutes,
     setDuration: (durationMinutes: number) => updateDocument({ durationMinutes }),
-    quotaRemaining: quota?.remaining ?? null,
     quota,
     showTopup,
     setShowTopup,
