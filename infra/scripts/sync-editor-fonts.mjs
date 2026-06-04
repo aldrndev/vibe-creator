@@ -5,7 +5,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const workspaceRoot = resolve(__dirname, '..');
+const workspaceRoot = resolve(__dirname, '../..');
 const catalogPath = join(workspaceRoot, 'packages/shared/src/constants/editor-fonts.ts');
 const webFontDir = join(workspaceRoot, 'apps/web/public/fonts/editor');
 const apiFontDir = join(workspaceRoot, 'apps/api/src/assets/fonts/editor');

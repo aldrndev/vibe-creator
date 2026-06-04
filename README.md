@@ -10,6 +10,14 @@ video SaaS architecture: typed React UI, Fastify APIs, secure auth, persistent
 project assets, background media jobs, billing/quota flows, admin operations,
 and FFmpeg-based rendering.
 
+## Repository Profile
+
+- Repo Profile: B
+- Uses Database: true
+- CI Uses Compose: true
+- Prod Single Node Supported: true
+- Automated Deploy (GitHub Actions): true
+
 ## Core Features
 
 - AI Director: import a video or trending YouTube link, analyze it, and prepare
