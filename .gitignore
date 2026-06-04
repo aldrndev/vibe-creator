@@ -69,6 +69,7 @@ test-temp-ffmpeg/
 
 # Cache
 .cache/
+.pnpm-store/
 .vite/
 .vite-temp/
 
