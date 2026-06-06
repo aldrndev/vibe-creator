@@ -255,8 +255,6 @@ If you find a security issue, do not open a public exploit issue. See
 This repository is intended to be a transparent reference implementation for
 creator-video SaaS workflows. Near-term open-source work includes:
 
-- Publish a root `LICENSE` file after the maintainers choose the distribution
-  license.
 - Add screenshots or a short demo walkthrough.
 - Publish the first `v0.1.0-alpha` release.
 - Create `good first issue` tasks for setup, docs, examples, and tests.
@@ -279,3 +277,7 @@ server-side secret management. Do not bake `.env` files into images.
 
 See `CONTRIBUTING.md` for setup, coding standards, testing expectations,
 security reporting, and pull request guidelines.
+
+## License
+
+Vibe Creator is released under the MIT License. See `LICENSE` for details.
