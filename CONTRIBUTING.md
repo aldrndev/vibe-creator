@@ -36,8 +36,8 @@ keep changes explicit, reviewed, and easy to verify.
 ### Setup
 
 ```bash
-git clone <repository-url>
-cd contencreative
+git clone https://github.com/aldrndev/vibe-creator.git
+cd vibe-creator
 pnpm install
 
 cp apps/api/.env.example apps/api/.env
@@ -199,6 +199,5 @@ Documentation should be practical and accurate:
 
 ## License
 
-Contributions will be governed by the repository license once the maintainers
-select and publish a root `LICENSE` file. Do not copy code from incompatible
-licenses into this repository.
+By contributing to Vibe Creator, you agree that your contributions are licensed
+under the repository's MIT License.
