@@ -1,14 +1,29 @@
 # Vibe Creator
 
-Vibe Creator is an open-source, full-stack workspace for modern creator-video
-workflows. It brings trend discovery, AI-assisted short creation, timeline
-editing, long-loop generation, reaction recording, live streaming, exports, and
-project history into one production-oriented web app.
+Vibe Creator is an open-source, full-stack TypeScript workspace for modern
+creator-video workflows. It brings trend discovery, AI-assisted short creation,
+timeline editing, long-loop generation, reaction recording, live streaming,
+exports, and project history into one production-oriented web app.
 
 The repository is useful for developers who want to study or extend a realistic
 video SaaS architecture: typed React UI, Fastify APIs, secure auth, persistent
 project assets, background media jobs, billing/quota flows, admin operations,
 and FFmpeg-based rendering.
+
+## Project Status
+
+Vibe Creator is in early public alpha. The codebase is actively maintained, but
+APIs, feature boundaries, environment variables, and deployment details may still
+change before a stable release.
+
+Current focus areas:
+
+- Improve local setup and first-run documentation.
+- Document media, FFmpeg, export, and streaming workflows.
+- Add contributor-friendly issues and examples.
+- Expand deterministic tests for auth, ownership checks, jobs, media pipelines,
+  billing/quota, and webhooks.
+- Prepare the first tagged alpha release.
 
 ## Repository Profile
 
@@ -101,8 +116,8 @@ graph TB
 ### 1. Clone and install
 
 ```bash
-git clone <repository-url>
-cd contencreative
+git clone https://github.com/aldrndev/vibe-creator.git
+cd vibe-creator
 pnpm install
 ```
 
@@ -186,7 +201,7 @@ Default local URLs:
 ## Project Structure
 
 ```text
-contencreative/
+vibe-creator/
   apps/
     api/                 Fastify API, Prisma schema, workers, modules
     web/                 React/Vite app, routes, pages, components
@@ -235,6 +250,19 @@ admin actions. The project follows these security principles:
 If you find a security issue, do not open a public exploit issue. See
 `CONTRIBUTING.md` for responsible disclosure guidance.
 
+## Open Source Roadmap
+
+This repository is intended to be a transparent reference implementation for
+creator-video SaaS workflows. Near-term open-source work includes:
+
+- Publish a root `LICENSE` file after the maintainers choose the distribution
+  license.
+- Add screenshots or a short demo walkthrough.
+- Publish the first `v0.1.0-alpha` release.
+- Create `good first issue` tasks for setup, docs, examples, and tests.
+- Improve setup diagnostics for local PostgreSQL, Redis, FFmpeg, and Python
+  helper dependencies.
+
 ## Deployment
 
 The production deployment target is a single-node VPS using Docker Compose and
@@ -246,12 +274,6 @@ Nginx. Start with:
 
 Production secrets must be injected at runtime through environment variables or
 server-side secret management. Do not bake `.env` files into images.
-
-## Open Source Notes
-
-This repository is intended to be a transparent reference implementation for
-creator-video SaaS workflows. A root `LICENSE` file should reflect the chosen
-open-source license for distribution and contributions.
 
 ## Contributing
 
