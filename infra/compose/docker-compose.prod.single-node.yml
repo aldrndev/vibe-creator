@@ -50,7 +50,7 @@ services:
     image: vibe-creator-transcribe:${IMAGE_TAG:-latest}
     container_name: vibe-creator-transcribe-prod
     env_file:
-      - apps/api/.env.docker
+      - ../../apps/api/.env.docker
     environment:
       TRANSCRIBE_ALLOWED_ROOTS: /app/uploads
       HF_HOME: /app/uploads/cache/huggingface
@@ -90,7 +90,7 @@ services:
     ports:
       - "80:3000"
     env_file:
-      - apps/api/.env.docker
+      - ../../apps/api/.env.docker
     environment:
       NODE_ENV: production
       FFMPEG_PATH: /usr/bin/ffmpeg
@@ -130,7 +130,7 @@ services:
     container_name: vibe-creator-export-worker-prod
     command: ["node", "dist/workers/export.worker.js"]
     env_file:
-      - apps/api/.env.docker
+      - ../../apps/api/.env.docker
     environment:
       NODE_ENV: production
       FFMPEG_PATH: /usr/bin/ffmpeg
