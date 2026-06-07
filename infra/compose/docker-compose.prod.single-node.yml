@@ -88,7 +88,7 @@ services:
     image: vibe-creator-api:${IMAGE_TAG:-latest}
     container_name: vibe-creator-api-prod
     ports:
-      - "3000:3000"
+      - "80:3000"
     env_file:
       - apps/api/.env.docker
     environment:
