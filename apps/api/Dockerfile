@@ -100,7 +100,7 @@ COPY --from=builder /app/apps/api/package.json ./apps/api/
 COPY --from=builder /app/apps/web/package.json ./apps/web/
 
 # Install PROD dependencies only
-RUN pnpm install --prod --frozen-lockfile
+RUN pnpm install --prod --frozen-lockfile --ignore-scripts
 
 # Copy built artifacts
 WORKDIR /app/apps/api
