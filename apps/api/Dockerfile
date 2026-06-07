@@ -107,9 +107,9 @@ WORKDIR /app/apps/api
 COPY --from=builder /app/apps/api/dist ./dist
 COPY --from=builder /app/apps/api/prisma ./prisma
 
-# Copy Prisma Engine
-COPY --from=builder /app/node_modules/.pnpm/@prisma+client*/node_modules/.prisma /app/node_modules/.prisma
-COPY --from=builder /app/node_modules/.pnpm/@prisma+client*/node_modules/@prisma /app/node_modules/@prisma
+# Generate Prisma Engine locally for production
+WORKDIR /app/apps/api
+RUN pnpm dlx prisma generate
 
 # Copy Python Scripts for Runtime
 COPY --from=builder /app/apps/api/src/modules/transcribe/run_whisper.py ./dist/modules/transcribe/
