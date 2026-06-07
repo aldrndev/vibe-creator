@@ -25,9 +25,9 @@ export function useTimelineThumbnailBackfill(assets: readonly EditorAsset[]) {
     }
 
     let cancelled = false;
-    assetsNeedingThumbnails.forEach((asset) => {
+    for (const asset of assetsNeedingThumbnails) {
       attemptedAssetIdsRef.current.add(asset.id);
-    });
+    }
 
     const backfillTimelineThumbnails = async () => {
       for (const asset of assetsNeedingThumbnails) {

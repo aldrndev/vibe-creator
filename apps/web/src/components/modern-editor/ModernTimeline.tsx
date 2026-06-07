@@ -99,7 +99,7 @@ export function ModernTimeline({ className, isFocusMode = false }: ModernTimelin
   const timelineWidthPx = Math.max(360, timelineMsToPx(durationMs, pxPerSecond));
   const currentTimeLeftPx = timelineMsToPx(currentTimeMs, pxPerSecond);
   const snapGuideLeftPx =
-    dragState?.snapGuideMs != null ? timelineMsToPx(dragState.snapGuideMs, pxPerSecond) : null;
+    dragState?.snapGuideMs == null ? null : timelineMsToPx(dragState.snapGuideMs, pxPerSecond);
   const selectedCount = selectedLayerIds.length;
   const isUserInteractingWithTimeline = isTimelineInteracting || isLayerInteracting;
   const {
@@ -163,9 +163,9 @@ export function ModernTimeline({ className, isFocusMode = false }: ModernTimelin
 
     const [from, to] = [Math.min(startIndex, endIndex), Math.max(startIndex, endIndex)];
     clearLayerSelection();
-    displayLayerIds.slice(from, to + 1).forEach((id) => {
+    for (const id of displayLayerIds.slice(from, to + 1)) {
       toggleLayerSelection(id);
-    });
+    }
   };
 
   const handleSelectLayer = (event: React.MouseEvent<HTMLButtonElement>, layerId: string) => {
@@ -304,7 +304,11 @@ export function ModernTimeline({ className, isFocusMode = false }: ModernTimelin
     <section
       className={cn(
         'h-24 border-t border-border/50 bg-card/70 backdrop-blur-xl',
-        hasLayers ? 'md:h-[220px]' : isFocusMode ? 'md:h-[156px]' : 'md:h-[172px]',
+        (() => {
+          if (hasLayers) return 'md:h-[220px]';
+          if (isFocusMode) return 'md:h-[156px]';
+          return 'md:h-[172px]';
+        })(),
         className,
       )}
       aria-label="Video studio timeline"

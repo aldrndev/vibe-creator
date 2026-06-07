@@ -79,7 +79,7 @@ describe('ffmpeg-command-builder', () => {
       const cmd = buildTrimCommand(TEST_VIDEO, output, -1000, 5000, 10000);
 
       const ssIndex = cmd.args.indexOf('-ss');
-      expect(parseFloat(cmd.args[ssIndex + 1] || '0')).toBeGreaterThanOrEqual(0);
+      expect(Number.parseFloat(cmd.args[ssIndex + 1] || '0')).toBeGreaterThanOrEqual(0);
     });
 
     it('should preserve non-zero source trim ranges', () => {

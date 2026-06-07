@@ -151,12 +151,12 @@ export function UserStatusModal({
     if (isOpen) setReason('');
   }, [isOpen]);
 
-  const title =
-    nextStatus === 'SUSPENDED'
-      ? 'Suspend User'
-      : nextStatus === 'DELETED'
-        ? 'Soft Delete User'
-        : 'Restore User';
+  let title = 'Restore User';
+  if (nextStatus === 'SUSPENDED') {
+    title = 'Suspend User';
+  } else if (nextStatus === 'DELETED') {
+    title = 'Soft Delete User';
+  }
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && !isSubmitting && onClose()}>

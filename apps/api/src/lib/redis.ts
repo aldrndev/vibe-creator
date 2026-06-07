@@ -21,7 +21,7 @@ const isVitestRuntime = process.env.VITEST === 'true' || process.env.VITEST_WORK
  */
 export const redisOptions: RedisOptions = {
   host: new URL(env.REDIS_URL).hostname || 'localhost',
-  port: parseInt(new URL(env.REDIS_URL).port || '6379', 10),
+  port: Number.parseInt(new URL(env.REDIS_URL).port || '6379', 10),
   password: new URL(env.REDIS_URL).password || undefined,
   lazyConnect: isVitestRuntime,
   maxRetriesPerRequest: null, // Required for BullMQ workers

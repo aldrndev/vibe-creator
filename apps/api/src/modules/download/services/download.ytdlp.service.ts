@@ -54,6 +54,76 @@ export function buildYtDlpDownloadArgs(
   return args;
 }
 
+function handleYtDlpProgress(data: Buffer | string, onProgress?: (percent: number) => void) {
+  if (!onProgress) return;
+  const lines = data.toString().split('\n');
+  for (const line of lines) {
+    const match = line.match(/\[download\]\s+(\d+(?:\.\d+)?)%/);
+    if (match?.[1]) {
+      const percent = Number.parseFloat(match[1]);
+      if (Math.round(percent) % 10 === 0 || percent >= 99) {
+        logger.info({ percent, line: line.trim() }, 'Matched download progress');
+      }
+      onProgress(percent);
+    }
+  }
+}
+
+async function handleYtDlpClose(
+  code: number | null,
+  outputPath: string,
+  errorOutput: string,
+  resolve: () => void,
+  reject: (err: Error) => void,
+  onProgress?: (percent: number) => void,
+) {
+  if (code !== 0) {
+    reject(new Error(`yt-dlp failed with code ${code}: ${errorOutput}`));
+    return;
+  }
+
+  try {
+    if (onProgress) onProgress(100);
+    const finalPath = await findAndRenameDownload(outputPath);
+    if (finalPath !== outputPath) {
+      logger.info({ expected: outputPath, actual: finalPath }, 'Renamed yt-dlp output');
+    }
+    resolve();
+  } catch (renameErr) {
+    reject(renameErr instanceof Error ? renameErr : new Error(String(renameErr)));
+  }
+}
+
+async function executeYtDlpDownload(
+  url: string,
+  outputPath: string,
+  formatSelector: string,
+  options?: DownloadVideoOptions,
+  onProgress?: (percent: number) => void,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const downloadProcess = spawn(
+      'yt-dlp',
+      buildYtDlpDownloadArgs(url, outputPath, formatSelector, options),
+    );
+
+    let errorOutput = '';
+    downloadProcess.stderr.on('data', (data) => {
+      errorOutput += data.toString();
+      handleYtDlpProgress(data, onProgress);
+    });
+    downloadProcess.stdout.on('data', (data) => handleYtDlpProgress(data, onProgress));
+
+    downloadProcess.on('close', (code) =>
+      handleYtDlpClose(code, outputPath, errorOutput, resolve, reject, onProgress),
+    );
+
+    downloadProcess.on('error', () => {
+      reject(new Error('yt-dlp not found. Install with: brew install yt-dlp'));
+    });
+  });
+}
+
 export const downloadYtDlpService = {
   /**
    * Run yt-dlp command (fallback)
@@ -70,7 +140,6 @@ export const downloadYtDlpService = {
       let title = 'Downloaded Video';
       let metadata: Record<string, unknown> = {};
 
-      // First get video info with bypass options
       const infoProcess = spawn('yt-dlp', buildYtDlpInfoArgs(url));
 
       let infoOutput = '';
@@ -78,99 +147,40 @@ export const downloadYtDlpService = {
         infoOutput += data.toString();
       });
 
-      infoProcess.on('close', (infoCode) => {
+      infoProcess.on('close', async (infoCode) => {
         if (infoCode === 0) {
           const lines = infoOutput.trim().split('\n');
           title = lines[0] || 'Downloaded Video';
           metadata = { duration: lines[1] || '0', source: 'yt-dlp' };
         }
 
-        // Then download with bypass options and PROGRESS
-        const downloadProcess = spawn(
-          'yt-dlp',
-          buildYtDlpDownloadArgs(url, outputPath, YT_DLP_PRIMARY_FORMAT_SELECTOR, options),
-        );
-
-        let errorOutput = '';
-        downloadProcess.stderr.on('data', (data) => {
-          errorOutput += data.toString();
-        });
-
-        const parseProgress = (data: Buffer | string) => {
-          const lines = data.toString().split('\n');
-          for (const line of lines) {
-            // Match decimal (45.5%) or integer (100%)
-            const match = line.match(/\[download\]\s+(\d+(?:\.\d+)?)%/);
-            if (match?.[1]) {
-              const percent = parseFloat(match[1]);
-              if (onProgress) {
-                // Log only significant changes to avoid spamming logs too much, but enough for debug
-                if (Math.round(percent) % 10 === 0 || percent >= 99) {
-                  logger.info({ percent, line: line.trim() }, 'Matched download progress');
-                }
-                onProgress(percent);
-              }
-            }
-          }
-        };
-
-        downloadProcess.stdout.on('data', parseProgress);
-        downloadProcess.stderr.on('data', parseProgress); // Some versions use stderr
-
-        downloadProcess.on('close', async (code) => {
-          if (code === 0) {
-            try {
-              if (onProgress) onProgress(100);
-              const finalPath = await findAndRenameDownload(outputPath);
-              if (finalPath !== outputPath) {
-                logger.info({ expected: outputPath, actual: finalPath }, 'Renamed yt-dlp output');
-              }
-              resolve({ title, metadata });
-            } catch (renameErr) {
-              reject(renameErr);
-            }
-          } else {
-            reject(new Error(`yt-dlp failed with code ${code}: ${errorOutput}`));
-          }
-        });
-
-        downloadProcess.on('error', () => {
-          reject(new Error('yt-dlp not found. Install with: brew install yt-dlp'));
-        });
+        try {
+          await executeYtDlpDownload(
+            url,
+            outputPath,
+            YT_DLP_PRIMARY_FORMAT_SELECTOR,
+            options,
+            onProgress,
+          );
+          resolve({ title, metadata });
+        } catch (err) {
+          reject(err);
+        }
       });
 
-      infoProcess.on('error', () => {
-        // Fallback flow if getting info fails
-        const downloadProcess = spawn(
-          'yt-dlp',
-          buildYtDlpDownloadArgs(url, outputPath, YT_DLP_FALLBACK_FORMAT_SELECTOR, options),
-        );
-
-        downloadProcess.stdout.on('data', (data) => {
-          const line = data.toString();
-          const match = line.match(/\[download\]\s+(\d+\.\d+)%/);
-          if (match?.[1]) {
-            if (onProgress) onProgress(parseFloat(match[1]));
-          }
-        });
-
-        downloadProcess.on('close', async (code) => {
-          if (code === 0) {
-            if (onProgress) onProgress(100);
-            try {
-              await findAndRenameDownload(outputPath);
-              resolve({ title, metadata });
-            } catch (renameErr) {
-              reject(renameErr);
-            }
-          } else {
-            reject(new Error('yt-dlp failed'));
-          }
-        });
-
-        downloadProcess.on('error', () => {
-          reject(new Error('yt-dlp not found. Install with: brew install yt-dlp'));
-        });
+      infoProcess.on('error', async () => {
+        try {
+          await executeYtDlpDownload(
+            url,
+            outputPath,
+            YT_DLP_FALLBACK_FORMAT_SELECTOR,
+            options,
+            onProgress,
+          );
+          resolve({ title, metadata });
+        } catch (err) {
+          reject(err);
+        }
       });
     });
   },

@@ -18,11 +18,11 @@ export function PreviewPlayer({ timeline, aspectRatio = 9 / 16 }: PreviewPlayerP
   // Calculate duration from timeline
   useEffect(() => {
     let max = 0;
-    timeline.tracks.forEach((t) => {
-      t.clips.forEach((c) => {
+    for (const t of timeline.tracks) {
+      for (const c of t.clips) {
         if (c.endMs > max) max = c.endMs;
-      });
-    });
+      }
+    }
     setDurationMs(max || 10000);
   }, [timeline]);
 

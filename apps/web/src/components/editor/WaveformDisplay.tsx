@@ -16,6 +16,83 @@ interface WaveformDisplayProps {
   showLoading?: boolean;
 }
 
+function drawWaveformBackground(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  backgroundColor: string,
+) {
+  if (backgroundColor !== 'transparent') {
+    ctx.fillStyle = backgroundColor;
+    ctx.fillRect(0, 0, width, height);
+  }
+}
+
+function drawWaveformBars(
+  ctx: CanvasRenderingContext2D,
+  waveform: Float32Array | number[],
+  startSample: number,
+  visibleSamples: number,
+  width: number,
+  height: number,
+  color: string,
+) {
+  const barWidth = width / visibleSamples;
+  const centerY = height / 2;
+  const maxBarHeight = height * 0.85;
+
+  ctx.fillStyle = color;
+
+  for (let i = 0; i < visibleSamples; i++) {
+    const sampleIndex = startSample + i;
+    const amplitude = Math.abs(waveform[sampleIndex] ?? 0);
+    const barHeight = Math.max(amplitude * maxBarHeight, 2);
+    const x = i * barWidth;
+    const y = centerY - barHeight / 2;
+    let gap = 0;
+    if (barWidth > 3) {
+      gap = 1.5;
+    } else if (barWidth > 1) {
+      gap = 0.5;
+    }
+
+    // Premium rounded bars if enough width
+    if (barWidth > 2) {
+      ctx.beginPath();
+      ctx.roundRect(x, y, barWidth - gap, barHeight, 2);
+      ctx.fill();
+    } else {
+      ctx.fillRect(x, y, Math.max(barWidth - gap, 0.5), barHeight);
+    }
+  }
+}
+
+function drawPlayhead(
+  ctx: CanvasRenderingContext2D,
+  currentTimeMs: number | undefined,
+  timeRange: { startMs: number; endMs: number },
+  width: number,
+  height: number,
+) {
+  if (
+    currentTimeMs !== undefined &&
+    currentTimeMs >= timeRange.startMs &&
+    currentTimeMs <= timeRange.endMs
+  ) {
+    const playheadRatio =
+      (currentTimeMs - timeRange.startMs) / (timeRange.endMs - timeRange.startMs);
+    const playheadX = playheadRatio * width;
+
+    const gradient = ctx.createLinearGradient(0, 0, 0, height);
+    gradient.addColorStop(0, '#f87171');
+    gradient.addColorStop(1, '#ef4444');
+    ctx.fillStyle = gradient;
+    ctx.shadowBlur = 10;
+    ctx.shadowColor = 'rgba(239, 68, 68, 0.5)';
+    ctx.fillRect(playheadX - 1, 0, 2, height);
+  }
+}
+
 export function WaveformDisplay({
   audioUrl,
   assetId,
@@ -57,10 +134,7 @@ export function WaveformDisplay({
     ctx.scale(dpr, dpr);
     ctx.clearRect(0, 0, width, height);
 
-    if (backgroundColor !== 'transparent') {
-      ctx.fillStyle = backgroundColor;
-      ctx.fillRect(0, 0, width, height);
-    }
+    drawWaveformBackground(ctx, width, height, backgroundColor);
 
     const totalDurationMs = duration * 1000;
     const startRatio = timeRange.startMs / totalDurationMs;
@@ -70,49 +144,11 @@ export function WaveformDisplay({
     const endSample = Math.ceil(endRatio * waveform.length);
     const visibleSamples = endSample - startSample;
 
-    if (visibleSamples <= 0) return;
-
-    const barWidth = width / visibleSamples;
-    const centerY = height / 2;
-    const maxBarHeight = height * 0.85;
-
-    ctx.fillStyle = color;
-
-    for (let i = 0; i < visibleSamples; i++) {
-      const sampleIndex = startSample + i;
-      const amplitude = Math.abs(waveform[sampleIndex] ?? 0);
-      const barHeight = Math.max(amplitude * maxBarHeight, 2);
-      const x = i * barWidth;
-      const y = centerY - barHeight / 2;
-      const gap = barWidth > 3 ? 1.5 : barWidth > 1 ? 0.5 : 0;
-
-      // Premium rounded bars if enough width
-      if (barWidth > 2) {
-        ctx.beginPath();
-        ctx.roundRect(x, y, barWidth - gap, barHeight, 2);
-        ctx.fill();
-      } else {
-        ctx.fillRect(x, y, Math.max(barWidth - gap, 0.5), barHeight);
-      }
+    if (visibleSamples > 0) {
+      drawWaveformBars(ctx, waveform, startSample, visibleSamples, width, height, color);
     }
 
-    if (
-      currentTimeMs !== undefined &&
-      currentTimeMs >= timeRange.startMs &&
-      currentTimeMs <= timeRange.endMs
-    ) {
-      const playheadRatio =
-        (currentTimeMs - timeRange.startMs) / (timeRange.endMs - timeRange.startMs);
-      const playheadX = playheadRatio * width;
-
-      const gradient = ctx.createLinearGradient(0, 0, 0, height);
-      gradient.addColorStop(0, '#f87171');
-      gradient.addColorStop(1, '#ef4444');
-      ctx.fillStyle = gradient;
-      ctx.shadowBlur = 10;
-      ctx.shadowColor = 'rgba(239, 68, 68, 0.5)';
-      ctx.fillRect(playheadX - 1, 0, 2, height);
-    }
+    drawPlayhead(ctx, currentTimeMs, timeRange, width, height);
   }, [waveform, width, height, color, backgroundColor, timeRange, duration, currentTimeMs]);
 
   if (isLoading && showLoading) {

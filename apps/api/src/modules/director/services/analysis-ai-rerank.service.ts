@@ -130,38 +130,37 @@ function isDialogCompleteProxy(candidate: AnalysisAiCandidateInput): boolean {
   );
 }
 
-function getShortReadinessAdjustment(
-  candidate: AnalysisAiCandidateInput,
+function calculateDurationAdjustment(
+  durationSeconds: number,
   durationWindow: DurationReadinessWindow,
+  isDialogComplete: boolean,
 ): number {
-  const durationSeconds = getDurationSeconds(candidate);
-  const dialogDensity = candidate.scoreBreakdown.dialogDensity;
-  const durationFit = candidate.scoreBreakdown.durationFit;
-  const visualPenalty = candidate.scoreBreakdown.visualPenalty;
-  const hasStrongDialogBadge = hasBadge(candidate, 'Dialog Padat');
-  const hasNeedReviewBadge = hasBadge(candidate, 'Butuh Review');
-  let adjustment = 0;
-
   if (
     durationSeconds >= durationWindow.idealShortMinSeconds &&
     durationSeconds <= durationWindow.idealShortMaxSeconds
   ) {
-    adjustment += 12;
-  } else if (
+    return 12;
+  }
+  if (
     durationSeconds > durationWindow.idealShortMaxSeconds &&
     durationSeconds <= durationWindow.extendedShortMaxSeconds
   ) {
-    adjustment += isDialogCompleteProxy(candidate) ? 5 : -4;
-  } else if (
+    return isDialogComplete ? 5 : -4;
+  }
+  if (
     durationSeconds > durationWindow.extendedShortMaxSeconds &&
     durationSeconds <= MAX_SHORT_SECONDS
   ) {
-    adjustment -= isDialogCompleteProxy(candidate) ? 10 : 16;
-  } else if (durationSeconds < durationWindow.idealShortMinSeconds) {
-    adjustment -= durationSeconds < 30 ? 9 : 4;
-  } else {
-    adjustment -= 20;
+    return isDialogComplete ? -10 : -16;
   }
+  if (durationSeconds < durationWindow.idealShortMinSeconds) {
+    return durationSeconds < 30 ? -9 : -4;
+  }
+  return -20;
+}
+
+function calculateDialogAdjustment(dialogDensity: number, durationFit: number): number {
+  let adjustment = 0;
 
   if (dialogDensity >= STRONG_DIALOG_SCORE) {
     adjustment += 7;
@@ -177,18 +176,41 @@ function getShortReadinessAdjustment(
     adjustment += 2;
   }
 
+  return adjustment;
+}
+
+function calculateVisualAdjustment(visualPenalty: number, hasNeedReviewBadge: boolean): number {
+  if (hasNeedReviewBadge || visualPenalty >= HIGH_VISUAL_PENALTY) {
+    return -18;
+  }
+  if (visualPenalty >= MEDIUM_VISUAL_PENALTY) {
+    return -6;
+  }
+  return 0;
+}
+
+function getShortReadinessAdjustment(
+  candidate: AnalysisAiCandidateInput,
+  durationWindow: DurationReadinessWindow,
+): number {
+  const durationSeconds = getDurationSeconds(candidate);
+  const dialogDensity = candidate.scoreBreakdown.dialogDensity;
+  const durationFit = candidate.scoreBreakdown.durationFit;
+  const visualPenalty = candidate.scoreBreakdown.visualPenalty;
+  const hasStrongDialogBadge = hasBadge(candidate, 'Dialog Padat');
+  const hasNeedReviewBadge = hasBadge(candidate, 'Butuh Review');
+  const isDialogComplete = isDialogCompleteProxy(candidate);
+
+  let adjustment = calculateDurationAdjustment(durationSeconds, durationWindow, isDialogComplete);
+  adjustment += calculateDialogAdjustment(dialogDensity, durationFit);
+  adjustment += calculateVisualAdjustment(visualPenalty, hasNeedReviewBadge);
+
   if (candidate.tags.includes('HIGH ENERGY') || hasBadge(candidate, 'Hook Kuat')) {
     adjustment += 4;
   }
 
   if (hasStrongDialogBadge) {
     adjustment += 3;
-  }
-
-  if (hasNeedReviewBadge || visualPenalty >= HIGH_VISUAL_PENALTY) {
-    adjustment -= 18;
-  } else if (visualPenalty >= MEDIUM_VISUAL_PENALTY) {
-    adjustment -= 6;
   }
 
   if (candidate.rank <= 3) {

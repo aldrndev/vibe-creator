@@ -69,8 +69,11 @@ export function getMetricSummary(item: TrendingItem): TrendingMetricSummary {
   if (typeof traffic === 'string' || typeof traffic === 'number') {
     return {
       value: String(traffic),
-      label:
-        item.type === 'SEARCH' ? 'pencarian' : isShortItem(item) ? 'tayangan pendek' : 'tayangan',
+      label: (() => {
+        if (item.type === 'SEARCH') return 'pencarian';
+        if (isShortItem(item)) return 'tayangan pendek';
+        return 'tayangan';
+      })(),
     };
   }
 

@@ -82,10 +82,13 @@ interface TextOverlayEditorProps {
   editingOverlay?: TextOverlay | null;
 }
 
-export function TextOverlayEditor({ isOpen, onClose, editingOverlay }: TextOverlayEditorProps) {
-  const { timeline, addTextOverlay, updateTextOverlay } = useEditorStore();
-
+function useOverlaySync(
+  editingOverlay: TextOverlayEditorProps['editingOverlay'],
+  isOpen: boolean,
+  timelineDuration: number,
+) {
   const overlayKey = editingOverlay?.id ?? (isOpen ? 'new' : 'closed');
+
   const [text, setText] = useState(() => editingOverlay?.text ?? '');
   const [fontFamily, setFontFamily] = useState(() => editingOverlay?.fontFamily ?? 'Inter');
   const [fontSize, setFontSize] = useState(() => editingOverlay?.fontSize ?? 48);
@@ -109,7 +112,7 @@ export function TextOverlayEditor({ isOpen, onClose, editingOverlay }: TextOverl
   >(() => editingOverlay?.animation ?? 'fade');
   const [startMs, setStartMs] = useState(() => editingOverlay?.startMs ?? 0);
   const [endMs, setEndMs] = useState(
-    () => editingOverlay?.endMs ?? Math.min(5000, timeline.durationMs || 5000),
+    () => editingOverlay?.endMs ?? Math.min(5000, timelineDuration || 5000),
   );
 
   const [lastOverlayKey, setLastOverlayKey] = useState(overlayKey);
@@ -143,9 +146,70 @@ export function TextOverlayEditor({ isOpen, onClose, editingOverlay }: TextOverl
       setTextAlign('center');
       setAnimation('fade');
       setStartMs(0);
-      setEndMs(Math.min(5000, timeline.durationMs || 5000));
+      setEndMs(Math.min(5000, timelineDuration || 5000));
     }
   }
+
+  return {
+    text,
+    setText,
+    fontFamily,
+    setFontFamily,
+    fontSize,
+    setFontSize,
+    fontWeight,
+    setFontWeight,
+    fontStyle,
+    setFontStyle,
+    color,
+    setColor,
+    backgroundColor,
+    setBackgroundColor,
+    x,
+    setX,
+    y,
+    setY,
+    textAlign,
+    setTextAlign,
+    animation,
+    setAnimation,
+    startMs,
+    setStartMs,
+    endMs,
+    setEndMs,
+  };
+}
+
+export function TextOverlayEditor({ isOpen, onClose, editingOverlay }: TextOverlayEditorProps) {
+  const { timeline, addTextOverlay, updateTextOverlay } = useEditorStore();
+
+  const {
+    text,
+    setText,
+    fontFamily,
+    setFontFamily,
+    fontSize,
+    fontWeight,
+    setFontWeight,
+    fontStyle,
+    setFontStyle,
+    color,
+    setColor,
+    backgroundColor,
+    setBackgroundColor,
+    x,
+    setX,
+    y,
+    setY,
+    textAlign,
+    setTextAlign,
+    animation,
+    setAnimation,
+    startMs,
+    setStartMs,
+    endMs,
+    setEndMs,
+  } = useOverlaySync(editingOverlay, isOpen, timeline.durationMs || 5000);
 
   const handleSave = () => {
     if (!text.trim()) return;
@@ -246,13 +310,15 @@ export function TextOverlayEditor({ isOpen, onClose, editingOverlay }: TextOverl
                       className="flex-1 h-12 rounded-xl"
                       onClick={() => setTextAlign(align)}
                     >
-                      {align === 'left' ? (
-                        <AlignLeft size={16} />
-                      ) : align === 'center' ? (
-                        <AlignCenter size={16} />
-                      ) : (
-                        <AlignRight size={16} />
-                      )}
+                      {(() => {
+                        if (align === 'left') {
+                          return <AlignLeft size={16} />;
+                        }
+                        if (align === 'center') {
+                          return <AlignCenter size={16} />;
+                        }
+                        return <AlignRight size={16} />;
+                      })()}
                     </Button>
                   ))}
                 </div>
@@ -377,7 +443,7 @@ export function TextOverlayEditor({ isOpen, onClose, editingOverlay }: TextOverl
                   <Input
                     type="number"
                     value={startMs}
-                    onChange={(e) => setStartMs(parseInt(e.target.value, 10) || 0)}
+                    onChange={(e) => setStartMs(Number.parseInt(e.target.value, 10) || 0)}
                     className="h-12 pl-14 font-black bg-background/40 border-border/40 rounded-xl"
                   />
                   <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[10px] font-black text-muted-foreground/40">
@@ -388,7 +454,7 @@ export function TextOverlayEditor({ isOpen, onClose, editingOverlay }: TextOverl
                   <Input
                     type="number"
                     value={endMs}
-                    onChange={(e) => setEndMs(parseInt(e.target.value, 10) || 0)}
+                    onChange={(e) => setEndMs(Number.parseInt(e.target.value, 10) || 0)}
                     className="h-12 pl-14 font-black bg-background/40 border-border/40 rounded-xl"
                   />
                   <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[10px] font-black text-muted-foreground/40">
@@ -423,7 +489,7 @@ export function TextOverlayEditor({ isOpen, onClose, editingOverlay }: TextOverl
 
           {/* Real-time Preview Area */}
           <div className="relative group/preview mt-4">
-            <div className="absolute -inset-0.5 bg-gradient-to-r from-primary/20 to-purple-500/20 rounded-3xl blur opacity-30 group-hover/preview:opacity-50 transition duration-1000"></div>
+            <div className="absolute -inset-0.5 bg-linear-to-r from-primary/20 to-purple-500/20 rounded-3xl blur opacity-30 group-hover/preview:opacity-50 transition duration-1000"></div>
             <div className="relative bg-black rounded-2xl overflow-hidden border border-white/10 aspect-video flex items-center justify-center shadow-2xl">
               <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 pointer-events-none"></div>
               <div
@@ -441,7 +507,7 @@ export function TextOverlayEditor({ isOpen, onClose, editingOverlay }: TextOverl
                   whiteSpace: 'pre-wrap',
                   maxWidth: '80%',
                   boxShadow: backgroundColor ? '0 10px 30px rgba(0,0,0,0.5)' : 'none',
-                  textShadow: !backgroundColor ? '0 4px 12px rgba(0,0,0,0.8)' : 'none',
+                  textShadow: backgroundColor ? 'none' : '0 4px 12px rgba(0,0,0,0.8)',
                 }}
               >
                 {text || 'Hello Visual Studio'}

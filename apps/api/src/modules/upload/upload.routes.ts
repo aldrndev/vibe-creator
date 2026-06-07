@@ -144,6 +144,66 @@ function getAllowedUploadFormat(
   );
 }
 
+async function handleUploadError(
+  err: unknown,
+  reply: FastifyReply,
+  filepath: string | null,
+  uploadPurpose: UploadPurpose,
+  directorLimits: DirectorSourceLimits | null,
+) {
+  if (filepath) {
+    await unlink(filepath).catch(() => {});
+  }
+  if (err instanceof z.ZodError) {
+    return sendError(
+      reply,
+      ERROR_CODES.VALIDATION_ERROR,
+      err.issues[0]?.message ?? 'Invalid upload query',
+      400,
+    );
+  }
+  if (err instanceof DirectorSourceLimitError) {
+    return sendError(reply, err.code, err.message, err.statusCode, err.details);
+  }
+  const message = err instanceof Error ? err.message : 'Upload failed';
+  const normalizedMessage = message.toLowerCase();
+  if (
+    uploadPurpose === 'ai-director' &&
+    directorLimits &&
+    normalizedMessage.includes('file too large')
+  ) {
+    return sendError(
+      reply,
+      ERROR_CODES.DIRECTOR_FILE_TOO_LARGE,
+      `File melebihi batas paket kamu. Maksimal ${directorLimits.maxSizeLabel} atau ${directorLimits.maxDurationLabel}. Pilih video yang lebih kecil, kompres video, atau upgrade paket.`,
+      400,
+      {
+        minDurationMs: directorLimits.minDurationMs,
+        maxDurationMs: directorLimits.maxDurationMs,
+        maxSizeBytes: directorLimits.maxSizeBytes,
+        maxDurationLabel: directorLimits.maxDurationLabel,
+        maxSizeLabel: directorLimits.maxSizeLabel,
+      },
+    );
+  }
+  if (
+    uploadPurpose === 'ai-director' &&
+    (normalizedMessage.includes('aborted') ||
+      normalizedMessage.includes('premature') ||
+      normalizedMessage.includes('terminated') ||
+      normalizedMessage.includes('unexpected end') ||
+      normalizedMessage.includes('network'))
+  ) {
+    return sendError(
+      reply,
+      ERROR_CODES.DIRECTOR_UPLOAD_INTERRUPTED,
+      'Upload terputus. Coba lagi dengan koneksi stabil, atau gunakan Import URL jika video tersedia di sumber yang didukung.',
+      400,
+    );
+  }
+  return sendError(reply, ERROR_CODES.INTERNAL_ERROR, message, 500);
+}
+
 async function handleUpload(
   request: FastifyRequest,
   reply: FastifyReply,
@@ -243,57 +303,7 @@ async function handleUpload(
       },
     });
   } catch (err) {
-    if (filepath) {
-      await unlink(filepath).catch(() => {});
-    }
-    if (err instanceof z.ZodError) {
-      return sendError(
-        reply,
-        ERROR_CODES.VALIDATION_ERROR,
-        err.issues[0]?.message ?? 'Invalid upload query',
-        400,
-      );
-    }
-    if (err instanceof DirectorSourceLimitError) {
-      return sendError(reply, err.code, err.message, err.statusCode, err.details);
-    }
-    const message = err instanceof Error ? err.message : 'Upload failed';
-    const normalizedMessage = message.toLowerCase();
-    if (
-      uploadPurpose === 'ai-director' &&
-      directorLimits &&
-      normalizedMessage.includes('file too large')
-    ) {
-      return sendError(
-        reply,
-        ERROR_CODES.DIRECTOR_FILE_TOO_LARGE,
-        `File melebihi batas paket kamu. Maksimal ${directorLimits.maxSizeLabel} atau ${directorLimits.maxDurationLabel}. Pilih video yang lebih kecil, kompres video, atau upgrade paket.`,
-        400,
-        {
-          minDurationMs: directorLimits.minDurationMs,
-          maxDurationMs: directorLimits.maxDurationMs,
-          maxSizeBytes: directorLimits.maxSizeBytes,
-          maxDurationLabel: directorLimits.maxDurationLabel,
-          maxSizeLabel: directorLimits.maxSizeLabel,
-        },
-      );
-    }
-    if (
-      uploadPurpose === 'ai-director' &&
-      (normalizedMessage.includes('aborted') ||
-        normalizedMessage.includes('premature') ||
-        normalizedMessage.includes('terminated') ||
-        normalizedMessage.includes('unexpected end') ||
-        normalizedMessage.includes('network'))
-    ) {
-      return sendError(
-        reply,
-        ERROR_CODES.DIRECTOR_UPLOAD_INTERRUPTED,
-        'Upload terputus. Coba lagi dengan koneksi stabil, atau gunakan Import URL jika video tersedia di sumber yang didukung.',
-        400,
-      );
-    }
-    return sendError(reply, ERROR_CODES.INTERNAL_ERROR, message, 500);
+    return handleUploadError(err, reply, filepath, uploadPurpose, directorLimits);
   }
 }
 

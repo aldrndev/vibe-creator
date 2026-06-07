@@ -58,12 +58,14 @@ export async function initializeKeyRing(): Promise<void> {
     };
 
     // Verify keys (includes active + previous for rotation overlap)
-    const verifyKeysArray: JWK[] =
-      typeof env.JWT_VERIFY_KEYS === 'string'
-        ? JSON.parse(env.JWT_VERIFY_KEYS)
-        : Array.isArray(env.JWT_VERIFY_KEYS)
-          ? env.JWT_VERIFY_KEYS
-          : [signingKeyJWK];
+    let verifyKeysArray: JWK[];
+    if (typeof env.JWT_VERIFY_KEYS === 'string') {
+      verifyKeysArray = JSON.parse(env.JWT_VERIFY_KEYS);
+    } else if (Array.isArray(env.JWT_VERIFY_KEYS)) {
+      verifyKeysArray = env.JWT_VERIFY_KEYS;
+    } else {
+      verifyKeysArray = [signingKeyJWK];
+    }
 
     verifyKeys = new Map();
     for (const jwk of verifyKeysArray) {

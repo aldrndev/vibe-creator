@@ -135,9 +135,15 @@ export async function executeWithCircuitBreaker<T>(
  */
 export function getCircuitBreakerStats(breaker: CircuitBreaker<unknown[], unknown>) {
   const stats = breaker.stats;
+  let state = 'CLOSED';
+  if (breaker.opened) {
+    state = 'OPEN';
+  } else if (breaker.halfOpen) {
+    state = 'HALF_OPEN';
+  }
   return {
     name: breaker.name,
-    state: breaker.opened ? 'OPEN' : breaker.halfOpen ? 'HALF_OPEN' : 'CLOSED',
+    state,
     failures: stats.failures,
     fallbacks: stats.fallbacks,
     successes: stats.successes,

@@ -9,29 +9,52 @@ interface PublishCopyCardProps {
   readonly selectedClips: SelectedClip[];
 }
 
+function getPublishCopyStatusAndBadge(
+  publishPack: { source: string; provider: string; notice: { message: string } },
+  isGenerating: boolean,
+) {
+  if (isGenerating) {
+    return {
+      status: 'AI sedang merapikan copy publish short...',
+      badgeText: 'Fallback Heuristik',
+      isAiSource: false,
+    };
+  }
+
+  if (publishPack.source === 'ai') {
+    const providerName = publishPack.provider === 'ollama' ? 'Ollama' : 'OpenAI';
+    return {
+      status: `Copy short direkomendasikan AI Director via ${providerName}`,
+      badgeText: `AI ${providerName}`,
+      isAiSource: true,
+    };
+  }
+
+  return {
+    status: publishPack.notice.message,
+    badgeText: 'Fallback Heuristik',
+    isAiSource: false,
+  };
+}
+
+function hasTimeoutError(lastError: string | undefined | null): boolean {
+  if (!lastError) return false;
+  return lastError.includes('timeout') || lastError.includes('aborted');
+}
+
 export function PublishCopyCard({ activeSession, selectedClips }: Readonly<PublishCopyCardProps>) {
   const { publishPack, isGenerating, retryPublishCopy } = useDirectorPublishCopy(
     activeSession,
     selectedClips,
   );
 
-  let publishCopyStatus = publishPack.notice.message;
-  let badgeText = 'Fallback Heuristik';
-  let isAiSource = false;
+  const {
+    status: publishCopyStatus,
+    badgeText,
+    isAiSource,
+  } = getPublishCopyStatusAndBadge(publishPack, isGenerating);
 
-  if (isGenerating) {
-    publishCopyStatus = 'AI sedang merapikan copy publish short...';
-  } else if (publishPack.source === 'ai') {
-    isAiSource = true;
-    const providerName = publishPack.provider === 'ollama' ? 'Ollama' : 'OpenAI';
-    publishCopyStatus = `Copy short direkomendasikan AI Director via ${providerName}`;
-    badgeText = `AI ${providerName}`;
-  }
-
-  const hasRetryError =
-    publishPack.notice.lastError &&
-    (publishPack.notice.lastError.includes('timeout') ||
-      publishPack.notice.lastError.includes('aborted'));
+  const hasRetryError = hasTimeoutError(publishPack.notice.lastError);
 
   return (
     <Card className="bg-card/70 border-border/50 backdrop-blur-xl rounded-4xl">

@@ -92,7 +92,7 @@ export function updateKeyframe(
     return {
       ...kf,
       ...updates,
-      volume: updates.volume !== undefined ? Math.max(0, Math.min(2, updates.volume)) : kf.volume,
+      volume: updates.volume === undefined ? kf.volume : Math.max(0, Math.min(2, updates.volume)),
     };
   });
 

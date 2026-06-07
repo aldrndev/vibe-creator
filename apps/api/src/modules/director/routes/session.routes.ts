@@ -62,6 +62,44 @@ export const updateSubtitleStyleSchema = z.object({
   speakerStyles: z.array(subtitleSpeakerStyleSchema).max(8).optional(),
 });
 
+function handleGetSessionError(err: unknown, reply: FastifyReply) {
+  if (err instanceof WorkspaceLifecycleError) {
+    return reply.status(err.statusCode).send({
+      success: false,
+      error: { code: err.code, message: err.message },
+    });
+  }
+  const message = err instanceof Error ? err.message : 'Session not found';
+  const code = message.includes('not found') ? 'NOT_FOUND' : 'FORBIDDEN';
+  return reply.status(code === 'NOT_FOUND' ? 404 : 403).send({
+    success: false,
+    error: { code, message },
+  });
+}
+
+function handleUpdateSubtitleError(err: unknown, reply: FastifyReply) {
+  if (err instanceof z.ZodError) {
+    return reply.status(400).send({
+      success: false,
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: err.issues[0]?.message,
+      },
+    });
+  }
+  const message = err instanceof Error ? err.message : 'Update failed';
+  if (err instanceof WorkspaceLifecycleError) {
+    return reply.status(err.statusCode).send({
+      success: false,
+      error: { code: err.code, message: err.message },
+    });
+  }
+  return reply.status(400).send({
+    success: false,
+    error: { code: 'UPDATE_FAILED', message },
+  });
+}
+
 export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
   /**
    * Create new director session
@@ -111,18 +149,7 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
           data: session,
         });
       } catch (err) {
-        if (err instanceof WorkspaceLifecycleError) {
-          return reply.status(err.statusCode).send({
-            success: false,
-            error: { code: err.code, message: err.message },
-          });
-        }
-        const message = err instanceof Error ? err.message : 'Session not found';
-        const code = message.includes('not found') ? 'NOT_FOUND' : 'FORBIDDEN';
-        return reply.status(code === 'NOT_FOUND' ? 404 : 403).send({
-          success: false,
-          error: { code, message },
-        });
+        return handleGetSessionError(err, reply);
       }
     },
   );
@@ -189,26 +216,7 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
           data: style,
         });
       } catch (err) {
-        if (err instanceof z.ZodError) {
-          return reply.status(400).send({
-            success: false,
-            error: {
-              code: 'VALIDATION_ERROR',
-              message: err.issues[0]?.message,
-            },
-          });
-        }
-        const message = err instanceof Error ? err.message : 'Update failed';
-        if (err instanceof WorkspaceLifecycleError) {
-          return reply.status(err.statusCode).send({
-            success: false,
-            error: { code: err.code, message: err.message },
-          });
-        }
-        return reply.status(400).send({
-          success: false,
-          error: { code: 'UPDATE_FAILED', message },
-        });
+        return handleUpdateSubtitleError(err, reply);
       }
     },
   );

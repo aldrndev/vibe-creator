@@ -47,6 +47,38 @@ const API_BASE_URL = `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}
  */
 let refreshPromise: Promise<boolean> | null = null;
 
+async function handleRefreshError(
+  response: Response,
+  accessToken: string | null,
+  isAuthenticated: boolean,
+  set: (state: Partial<AuthState>) => void,
+) {
+  const errorData = await response.json().catch(() => ({}));
+
+  if (!accessToken && !isAuthenticated) {
+    set({ isLoading: false });
+    return false;
+  }
+
+  if (isAuthenticated && (response.status === 401 || response.status === 400)) {
+    if (errorData.error?.code === 'TOKEN_EXPIRED') {
+      set({
+        user: null,
+        subscription: null,
+        accessToken: null,
+        isAuthenticated: false,
+        isLoading: false,
+      });
+    } else {
+      set({ isLoading: false });
+    }
+  } else {
+    set({ isLoading: false });
+  }
+
+  return false;
+}
+
 export const useAuthStore = create<AuthState>()((set, get) => ({
   user: null,
   subscription: null,
@@ -142,38 +174,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
           }
         }
 
-        // Handle different error cases
-        const errorData = await response.json().catch(() => ({}));
-
-        // If refresh fails with 400 (no cookie) or 401 (invalid token)
-        // and we have NO access token in memory, just mark as not loading
-        // Don't force logout if user was never authenticated
-        if (!accessToken && !isAuthenticated) {
-          set({ isLoading: false });
-          return false;
-        }
-
-        // If we had an access token but refresh failed, the session is truly expired
-        // Only logout if the user was actually authenticated before
-        if (isAuthenticated && (response.status === 401 || response.status === 400)) {
-          // Check if it's actually a session issue vs just cookie not being sent
-          if (errorData.error?.code === 'TOKEN_EXPIRED') {
-            set({
-              user: null,
-              subscription: null,
-              accessToken: null,
-              isAuthenticated: false,
-              isLoading: false,
-            });
-          } else {
-            // Unknown error - just finish loading without logging out
-            set({ isLoading: false });
-          }
-        } else {
-          set({ isLoading: false });
-        }
-
-        return false;
+        return await handleRefreshError(response, accessToken, isAuthenticated, set);
       } catch {
         // Network error - don't logout, just finish loading
         set({ isLoading: false });

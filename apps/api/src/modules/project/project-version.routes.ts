@@ -19,6 +19,33 @@ const updateVersionSchema = z.object({
   description: z.string().max(255).optional(),
 });
 
+async function enforceVersionLimit(projectId: string) {
+  const versionCount = await prisma.projectVersion.count({
+    where: { projectId },
+  });
+
+  if (versionCount >= MAX_VERSIONS_PER_PROJECT) {
+    const oldestVersion = await prisma.projectVersion.findFirst({
+      where: { projectId },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    if (oldestVersion) {
+      await prisma.projectVersion.delete({
+        where: { id: oldestVersion.id },
+      });
+
+      logger.info(
+        {
+          projectId,
+          deletedVersionId: oldestVersion.id,
+        },
+        'Deleted oldest version to make room for new one',
+      );
+    }
+  }
+}
+
 export const projectVersionRoutes: FastifyPluginAsync = async (fastify) => {
   /**
    * List versions for a project
@@ -102,32 +129,7 @@ export const projectVersionRoutes: FastifyPluginAsync = async (fastify) => {
           });
         }
 
-        // Check version limit
-        const versionCount = await prisma.projectVersion.count({
-          where: { projectId: request.params.projectId },
-        });
-
-        if (versionCount >= MAX_VERSIONS_PER_PROJECT) {
-          // Delete oldest version
-          const oldestVersion = await prisma.projectVersion.findFirst({
-            where: { projectId: request.params.projectId },
-            orderBy: { createdAt: 'asc' },
-          });
-
-          if (oldestVersion) {
-            await prisma.projectVersion.delete({
-              where: { id: oldestVersion.id },
-            });
-
-            logger.info(
-              {
-                projectId: request.params.projectId,
-                deletedVersionId: oldestVersion.id,
-              },
-              'Deleted oldest version to make room for new one',
-            );
-          }
-        }
+        await enforceVersionLimit(request.params.projectId);
 
         const version = await prisma.projectVersion.create({
           data: {

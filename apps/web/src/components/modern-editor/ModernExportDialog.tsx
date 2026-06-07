@@ -58,24 +58,30 @@ export function ModernExportDialog({
         <DialogHeader className="border-b border-border/40 p-5 pr-14">
           <div className="flex items-start gap-4">
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-primary/25 bg-primary/10 text-primary">
-              {isCompleted ? (
-                <CheckCircle2 size={22} />
-              ) : isFailed ? (
-                <AlertTriangle size={22} />
-              ) : (
-                <FileVideo2 size={22} />
-              )}
+              {(() => {
+                if (isCompleted) {
+                  return <CheckCircle2 size={22} />;
+                }
+                if (isFailed) {
+                  return <AlertTriangle size={22} />;
+                }
+                return <FileVideo2 size={22} />;
+              })()}
             </div>
             <div className="min-w-0 flex-1">
               <DialogTitle className="text-xl font-black tracking-tight sm:text-2xl">
-                {isCompleted ? 'Video siap' : isFailed ? 'Export gagal' : 'Export video'}
+                {(() => {
+                  if (isCompleted) return 'Video siap';
+                  if (isFailed) return 'Export gagal';
+                  return 'Export video';
+                })()}
               </DialogTitle>
               <DialogDescription className="mt-1.5 text-sm font-semibold">
-                {isCompleted
-                  ? 'Preview hasil sudah tersedia.'
-                  : isFailed
-                    ? 'Cek pesan error lalu coba export lagi.'
-                    : getModernExportPhaseLabel(phase)}
+                {(() => {
+                  if (isCompleted) return 'Preview hasil sudah tersedia.';
+                  if (isFailed) return 'Cek pesan error lalu coba export lagi.';
+                  return getModernExportPhaseLabel(phase);
+                })()}
               </DialogDescription>
             </div>
           </div>
@@ -157,39 +163,50 @@ export function ModernExportDialog({
         </div>
 
         <DialogFooter className="gap-3 border-t border-border/40 p-5 sm:flex-row">
-          {isCompleted ? (
-            <>
-              <Button
-                variant="outline"
-                className="h-11 rounded-xl sm:min-w-36"
-                onClick={onEditBack}
-              >
-                <Pencil size={16} />
-                Edit Kembali
-              </Button>
-              <Button className="h-11 rounded-xl px-6 font-black sm:min-w-40" onClick={onDownload}>
-                <Download size={16} />
-                Download
-              </Button>
-            </>
-          ) : isFailed ? (
-            <>
-              <Button
-                variant="outline"
-                className="h-11 rounded-xl sm:min-w-36"
-                onClick={onEditBack}
-              >
-                Edit Kembali
-              </Button>
-              <Button className="h-11 rounded-xl px-6 font-black sm:min-w-36" onClick={onRetry}>
-                Coba Lagi
-              </Button>
-            </>
-          ) : (
-            <div className="flex min-h-11 items-center rounded-xl border border-border/40 px-4 text-sm font-bold text-muted-foreground">
-              Jangan tutup tab sampai proses selesai.
-            </div>
-          )}
+          {(() => {
+            if (isCompleted) {
+              return (
+                <>
+                  <Button
+                    variant="outline"
+                    className="h-11 rounded-xl sm:min-w-36"
+                    onClick={onEditBack}
+                  >
+                    <Pencil size={16} />
+                    Edit Kembali
+                  </Button>
+                  <Button
+                    className="h-11 rounded-xl px-6 font-black sm:min-w-40"
+                    onClick={onDownload}
+                  >
+                    <Download size={16} />
+                    Download
+                  </Button>
+                </>
+              );
+            }
+            if (isFailed) {
+              return (
+                <>
+                  <Button
+                    variant="outline"
+                    className="h-11 rounded-xl sm:min-w-36"
+                    onClick={onEditBack}
+                  >
+                    Edit Kembali
+                  </Button>
+                  <Button className="h-11 rounded-xl px-6 font-black sm:min-w-36" onClick={onRetry}>
+                    Coba Lagi
+                  </Button>
+                </>
+              );
+            }
+            return (
+              <div className="flex min-h-11 items-center rounded-xl border border-border/40 px-4 text-sm font-bold text-muted-foreground">
+                Jangan tutup tab sampai proses selesai.
+              </div>
+            );
+          })()}
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -55,6 +55,155 @@ export interface CreateLoopInput {
  * ```
  */
 
+function buildSeamlessFilter(startSec: number, segDuration: number) {
+  const overlap = Math.min(2.0, segDuration * 0.3); // Max 2s overlap
+  const midPoint = segDuration / 2;
+  const xfadeOffset = segDuration - midPoint - overlap;
+  const vLabel = '[v_base]';
+  const aLabel = '[a_base]';
+
+  let baseFilter = '[0:v]split[vA_raw][vB_raw];';
+  baseFilter += `[vA_raw]trim=start=${startSec}:duration=${midPoint},setpts=PTS-STARTPTS[vPartA];`;
+  baseFilter += `[vB_raw]trim=start=${startSec + midPoint}:duration=${
+    segDuration - midPoint
+  },setpts=PTS-STARTPTS[vPartB];`;
+  baseFilter += `[vPartB][vPartA]xfade=transition=fade:duration=${overlap}:offset=${xfadeOffset}${vLabel};`;
+
+  baseFilter += '[0:a]asplit[aA_raw][aB_raw];';
+  baseFilter += `[aA_raw]atrim=start=${startSec}:duration=${midPoint},asetpts=PTS-STARTPTS[aPartA];`;
+  baseFilter += `[aB_raw]atrim=start=${startSec + midPoint}:duration=${
+    segDuration - midPoint
+  },asetpts=PTS-STARTPTS[aPartB];`;
+  baseFilter += `[aPartB][aPartA]acrossfade=d=${overlap}:c1=tri:c2=tri${aLabel};`;
+
+  return { baseFilter, vLabel, aLabel };
+}
+
+function buildStandardTrimFilter(startSec: number, segDuration: number) {
+  const vLabel = '[v_base]';
+  const aLabel = '[a_base]';
+  let baseFilter = '';
+
+  if (segDuration > 0) {
+    baseFilter += `[0:v]trim=start=${startSec}:duration=${segDuration},setpts=PTS-STARTPTS${vLabel};`;
+    baseFilter += `[0:a]atrim=start=${startSec}:duration=${segDuration},asetpts=PTS-STARTPTS${aLabel};`;
+  } else {
+    baseFilter += `[0:v]trim=start=${startSec},setpts=PTS-STARTPTS${vLabel};`;
+    baseFilter += `[0:a]atrim=start=${startSec},asetpts=PTS-STARTPTS${aLabel};`;
+  }
+
+  return { baseFilter, vLabel, aLabel };
+}
+
+async function executeSmartExtendPass(
+  inputPath: string,
+  outputPath: string,
+  pass1Filter: string,
+  repeats: number,
+): Promise<string> {
+  const baseId = randomUUID();
+  const basePath = join(LOOPS_DIR, `${baseId}_base.mp4`);
+
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const args = [
+        '-i',
+        inputPath,
+        '-filter_complex',
+        pass1Filter,
+        '-map',
+        '[v]',
+        '-map',
+        '[a]',
+        '-c:v',
+        'libx264',
+        '-c:a',
+        'aac',
+        '-y',
+        basePath,
+      ];
+      const p = spawn(getFFmpegPath(), args);
+      p.on('close', (code) =>
+        code === 0 ? resolve() : reject(new Error(`Pass 1 failed: ${code}`)),
+      );
+      p.stderr.on('data', (d) => logger.debug({ data: d.toString() }, 'Pass 1 stderr'));
+    });
+
+    // --- PASS 2: Stream Copy Extend ---
+    await new Promise<void>((resolve, reject) => {
+      const args = [
+        '-stream_loop',
+        repeats.toString(),
+        '-i',
+        basePath,
+        '-c',
+        'copy',
+        '-y',
+        outputPath,
+      ];
+      const p = spawn(getFFmpegPath(), args);
+      p.on('close', (code) =>
+        code === 0 ? resolve() : reject(new Error(`Pass 2 failed: ${code}`)),
+      );
+      p.stderr.on('data', (d) => logger.debug({ data: d.toString() }, 'Pass 2 stderr'));
+    });
+
+    await unlink(basePath).catch((e) => logger.warn({ err: e }, 'Failed to cleanup base loop'));
+
+    return outputPath;
+  } catch (error) {
+    if (existsSync(basePath)) await unlink(basePath).catch(() => {});
+    throw error;
+  }
+}
+
+async function executeSinglePass(
+  inputPath: string,
+  outputPath: string,
+  filterComplex: string,
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const args = [
+      '-i',
+      inputPath,
+      '-filter_complex',
+      filterComplex,
+      '-map',
+      '[v]',
+      '-map',
+      '[a]',
+      '-c:v',
+      'libx264',
+      '-c:a',
+      'aac',
+      '-y',
+      outputPath,
+    ];
+
+    const process = spawn(getFFmpegPath(), args);
+    let errorOutput = '';
+
+    process.stderr.on('data', (data) => {
+      errorOutput += data.toString();
+      logger.debug({ data: data.toString() }, 'ffmpeg loop stderr');
+    });
+
+    process.on('close', (code) => {
+      if (code === 0) {
+        logger.info({ outputPath }, 'Loop video created');
+        resolve(outputPath);
+      } else {
+        logger.error({ code, errorOutput }, 'Loop creation failed');
+        reject(new Error(`FFmpeg failed with code ${code}`));
+      }
+    });
+
+    process.on('error', (err) => {
+      reject(new Error(`FFmpeg not found: ${err.message}`));
+    });
+  });
+}
+
 export async function processLoop(input: CreateLoopInput): Promise<string> {
   await ensureLoopsDir();
   const { inputPath, startMs = 0, endMs, loopCount } = input;
@@ -73,41 +222,17 @@ export async function processLoop(input: CreateLoopInput): Promise<string> {
   let segDuration = 0;
   if (endMs) segDuration = (endMs - (startMs || 0)) / 1000;
 
-  let baseFilter = '';
-  let vLabel = '[v_base]';
-  const aLabel = '[a_base]';
-
+  let filterParams: { baseFilter: string; vLabel: string; aLabel: string };
   const isSeamless = input.crossfade && endMs && startMs !== undefined && segDuration > 0;
 
   if (isSeamless) {
-    // Shift & Dissolve Logic (Perfect Loop)
-    const overlap = Math.min(2.0, segDuration * 0.3); // Max 2s overlap
-    const midPoint = segDuration / 2;
-    const xfadeOffset = segDuration - midPoint - overlap;
-
-    baseFilter += '[0:v]split[vA_raw][vB_raw];';
-    baseFilter += `[vA_raw]trim=start=${startSec}:duration=${midPoint},setpts=PTS-STARTPTS[vPartA];`;
-    baseFilter += `[vB_raw]trim=start=${startSec + midPoint}:duration=${
-      segDuration - midPoint
-    },setpts=PTS-STARTPTS[vPartB];`;
-    baseFilter += `[vPartB][vPartA]xfade=transition=fade:duration=${overlap}:offset=${xfadeOffset}${vLabel};`;
-
-    baseFilter += '[0:a]asplit[aA_raw][aB_raw];';
-    baseFilter += `[aA_raw]atrim=start=${startSec}:duration=${midPoint},asetpts=PTS-STARTPTS[aPartA];`;
-    baseFilter += `[aB_raw]atrim=start=${startSec + midPoint}:duration=${
-      segDuration - midPoint
-    },asetpts=PTS-STARTPTS[aPartB];`;
-    baseFilter += `[aPartB][aPartA]acrossfade=d=${overlap}:c1=tri:c2=tri${aLabel};`;
+    filterParams = buildSeamlessFilter(startSec, segDuration);
   } else {
-    // Standard Trim Logic
-    if (segDuration > 0) {
-      baseFilter += `[0:v]trim=start=${startSec}:duration=${segDuration},setpts=PTS-STARTPTS${vLabel};`;
-      baseFilter += `[0:a]atrim=start=${startSec}:duration=${segDuration},asetpts=PTS-STARTPTS${aLabel};`;
-    } else {
-      baseFilter += `[0:v]trim=start=${startSec},setpts=PTS-STARTPTS${vLabel};`;
-      baseFilter += `[0:a]atrim=start=${startSec},asetpts=PTS-STARTPTS${aLabel};`;
-    }
+    filterParams = buildStandardTrimFilter(startSec, segDuration);
   }
+
+  let { baseFilter, vLabel } = filterParams;
+  const { aLabel } = filterParams;
 
   // Aspect Ratio Scaling
   let scaleFilter = '';
@@ -128,108 +253,12 @@ export async function processLoop(input: CreateLoopInput): Promise<string> {
   const useSmartExtend = repeats > 5;
 
   if (useSmartExtend) {
-    // --- PASS 1: Base Unit ---
-    const baseId = randomUUID();
-    const basePath = join(LOOPS_DIR, `${baseId}_base.mp4`);
-
     const finalMap = `${vLabel}copy[v];${aLabel}copy[a]`;
     const pass1Filter = `${baseFilter}${scaleFilter}${finalMap}`;
-
-    try {
-      await new Promise<void>((resolve, reject) => {
-        const args = [
-          '-i',
-          inputPath,
-          '-filter_complex',
-          pass1Filter,
-          '-map',
-          '[v]',
-          '-map',
-          '[a]',
-          '-c:v',
-          'libx264',
-          '-c:a',
-          'aac',
-          '-y',
-          basePath,
-        ];
-        const p = spawn(getFFmpegPath(), args);
-        p.on('close', (code) =>
-          code === 0 ? resolve() : reject(new Error(`Pass 1 failed: ${code}`)),
-        );
-        p.stderr.on('data', (d) => logger.debug({ data: d.toString() }, 'Pass 1 stderr'));
-      });
-
-      // --- PASS 2: Stream Copy Extend ---
-      await new Promise<void>((resolve, reject) => {
-        const args = [
-          '-stream_loop',
-          repeats.toString(),
-          '-i',
-          basePath,
-          '-c',
-          'copy',
-          '-y',
-          outputPath,
-        ];
-        const p = spawn(getFFmpegPath(), args);
-        p.on('close', (code) =>
-          code === 0 ? resolve() : reject(new Error(`Pass 2 failed: ${code}`)),
-        );
-        p.stderr.on('data', (d) => logger.debug({ data: d.toString() }, 'Pass 2 stderr'));
-      });
-
-      await unlink(basePath).catch((e) => logger.warn({ err: e }, 'Failed to cleanup base loop'));
-
-      return outputPath;
-    } catch (error) {
-      if (existsSync(basePath)) await unlink(basePath).catch(() => {});
-      throw error;
-    }
+    return executeSmartExtendPass(inputPath, outputPath, pass1Filter, repeats);
   } else {
-    // --- STANDARD SINGLE PASS ---
     const loopFilter = `${vLabel}loop=${repeats}:size=32767:start=0[v];${aLabel}aloop=${repeats}:size=2e+09:start=0[a]`;
     const filterComplex = `${baseFilter}${scaleFilter}${loopFilter}`;
-
-    return new Promise((resolve, reject) => {
-      const args = [
-        '-i',
-        inputPath,
-        '-filter_complex',
-        filterComplex,
-        '-map',
-        '[v]',
-        '-map',
-        '[a]',
-        '-c:v',
-        'libx264',
-        '-c:a',
-        'aac',
-        '-y',
-        outputPath,
-      ];
-
-      const process = spawn(getFFmpegPath(), args);
-      let errorOutput = '';
-
-      process.stderr.on('data', (data) => {
-        errorOutput += data.toString();
-        logger.debug({ data: data.toString() }, 'ffmpeg loop stderr');
-      });
-
-      process.on('close', (code) => {
-        if (code === 0) {
-          logger.info({ outputPath }, 'Loop video created');
-          resolve(outputPath);
-        } else {
-          logger.error({ code, errorOutput }, 'Loop creation failed');
-          reject(new Error(`FFmpeg failed with code ${code}`));
-        }
-      });
-
-      process.on('error', (err) => {
-        reject(new Error(`FFmpeg not found: ${err.message}`));
-      });
-    });
+    return executeSinglePass(inputPath, outputPath, filterComplex);
   }
 }

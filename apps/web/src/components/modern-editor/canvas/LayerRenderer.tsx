@@ -45,7 +45,11 @@ function getVisualAnimation(layer: ImageLayer | VideoLayer) {
   const animate = {
     opacity: 1,
     x: 0,
-    scale: effects.motion === 'zoom-in' ? 1.04 : effects.motion === 'zoom-out' ? 0.96 : 1,
+    scale: (() => {
+      if (effects.motion === 'zoom-in') return 1.04;
+      if (effects.motion === 'zoom-out') return 0.96;
+      return 1;
+    })(),
   };
 
   if (effects.transitionIn === 'fade') {
@@ -136,34 +140,220 @@ export function LayerRenderer({
     };
   };
 
+  function VisualLayerRenderer({
+    layer,
+    asset,
+  }: {
+    layer: ImageLayer | VideoLayer;
+    asset: { url: string };
+  }) {
+    const visualAnimation = getVisualAnimation(layer);
+
+    if (layer.type === 'video') {
+      return (
+        <motion.div
+          initial={visualAnimation.initial}
+          animate={visualAnimation.animate}
+          transition={{ duration: 0.5 }}
+          className="h-full w-full"
+          style={getVisualFilterStyle(layer)}
+        >
+          <VideoLayerContent
+            src={asset.url}
+            layerStartMs={layer.startMs}
+            layerTrimStartMs={layer.data.trimStartMs}
+            volume={layer.data.volume}
+            fit={layer.data.fit}
+            loop={layer.data.loop}
+          />
+        </motion.div>
+      );
+    }
+    return (
+      <motion.img
+        src={asset.url}
+        alt=""
+        initial={visualAnimation.initial}
+        animate={visualAnimation.animate}
+        transition={{ duration: 0.5 }}
+        style={getVisualFilterStyle(layer)}
+        className={clsx(
+          'w-full h-full pointer-events-none',
+          layer.data.fit === 'cover' ? 'object-cover' : 'object-contain',
+        )}
+      />
+    );
+  }
+
+  function getBaseTextAnimationVariants(animation: string) {
+    const variants: {
+      initial: { opacity: number; y: number; scale?: number };
+      animate: {
+        opacity: number | number[];
+        y: number;
+        scale?: number | number[];
+        x?: number[];
+        textShadow?: string[];
+      };
+    } = {
+      initial: { opacity: 0, y: 0 },
+      animate: { opacity: 1, y: 0 },
+    };
+
+    switch (animation) {
+      case 'fade':
+        variants.initial = { opacity: 0, y: 0 };
+        break;
+      case 'slide-up':
+        variants.initial = { opacity: 0, y: 20 };
+        break;
+      case 'slide-down':
+        variants.initial = { opacity: 0, y: -20 };
+        break;
+      case 'pop':
+        variants.initial = { opacity: 0, y: 0, scale: 0.78 };
+        variants.animate = { opacity: 1, y: 0, scale: 1 };
+        break;
+      case 'zoom':
+        variants.initial = { opacity: 0, y: 0, scale: 0.88 };
+        variants.animate = { opacity: 1, y: 0, scale: 1 };
+        break;
+      case 'typewriter':
+      case 'none':
+        variants.initial = { opacity: 1, y: 0 };
+        break;
+    }
+    return variants;
+  }
+
+  type TextAnimationVariants = {
+    initial: { opacity: number; y: number; scale?: number };
+    animate: {
+      opacity: number | number[];
+      y: number;
+      scale?: number | number[];
+      x?: number[];
+      textShadow?: string[];
+    };
+  };
+
+  function applyTextLoopAnimationVariants(variants: TextAnimationVariants, loopAnimation: string) {
+    switch (loopAnimation) {
+      case 'pulse':
+        variants.animate.scale = [1, 1.04, 1];
+        break;
+      case 'shake':
+        variants.animate.x = [0, -3, 3, -2, 2, 0];
+        break;
+      case 'glow':
+        variants.animate.textShadow = [
+          '0 0 0 rgba(255,255,255,0)',
+          '0 0 12px rgba(255,255,255,0.7)',
+          '0 0 0 rgba(255,255,255,0)',
+        ];
+        break;
+    }
+  }
+
+  function getTextAnimationVariants(textLayer: TextLayer) {
+    const animation = textLayer.data.animationIn ?? textLayer.data.animation;
+    const loopAnimation = textLayer.data.animationLoop ?? 'none';
+
+    const variants = getBaseTextAnimationVariants(animation);
+    applyTextLoopAnimationVariants(variants, loopAnimation);
+
+    return variants;
+  }
+
+  function TextLayerRenderer({ layer, scale }: { layer: TextLayer; scale: number }) {
+    const animation = layer.data.animationIn ?? layer.data.animation;
+    const loopAnimation = layer.data.animationLoop ?? 'none';
+    const resolvedBackground = resolveTextBackground(layer.data);
+    const variants = getTextAnimationVariants(layer);
+
+    return (
+      <motion.div
+        initial={animation === 'none' ? undefined : variants.initial}
+        animate={variants.animate}
+        transition={{
+          duration: loopAnimation === 'none' ? 0.5 : 1.2,
+          repeat: loopAnimation === 'none' ? 0 : Number.POSITIVE_INFINITY,
+        }}
+        className="w-full h-full flex items-center justify-center overflow-hidden whitespace-pre-wrap"
+        style={{
+          boxSizing: 'border-box',
+          fontFamily: getEditorFontPreviewFamily(layer.data.fontFamily),
+          fontSize: layer.data.fontSize * scale,
+          fontWeight: layer.data.fontWeight,
+          fontStyle: layer.data.fontStyle,
+          color: layer.data.color,
+          backgroundColor: resolvedBackground.cssColor,
+          textAlign: layer.data.textAlign,
+          justifyContent: getTextJustifyContent(layer.data.textAlign),
+          paddingInline: layer.width <= 12 ? 0 : 8 * scale,
+          lineHeight: 1.2,
+        }}
+      >
+        {animation === 'typewriter' ? (
+          <TypewriterPreviewText
+            text={layer.data.text}
+            layerDurationMs={layer.endMs - layer.startMs}
+          />
+        ) : (
+          layer.data.text
+        )}
+      </motion.div>
+    );
+  }
+
+  function TextEditorTextarea({
+    layer,
+    scale,
+    onUpdate,
+    setIsEditing,
+  }: {
+    layer: TextLayer;
+    scale: number;
+    onUpdate: (updates: Partial<Layer>) => void;
+    setIsEditing: (editing: boolean) => void;
+  }) {
+    return (
+      <textarea
+        className="w-full h-full bg-transparent resize-none border-none outline-none overflow-hidden p-0 m-0"
+        style={{
+          fontFamily: getEditorFontPreviewFamily(layer.data.fontFamily),
+          fontSize: layer.data.fontSize * scale,
+          fontWeight: layer.data.fontWeight,
+          fontStyle: layer.data.fontStyle,
+          color: layer.data.color,
+          textAlign: layer.data.textAlign,
+          lineHeight: 1.2,
+        }}
+        value={layer.data.text}
+        onChange={(e) =>
+          onUpdate({
+            data: { ...layer.data, text: e.target.value },
+          } as Partial<TextLayer>)
+        }
+        onBlur={() => setIsEditing(false)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            setIsEditing(false);
+          }
+        }}
+      />
+    );
+  }
+
   const renderContent = () => {
     if (isEditing && layer.type === 'text') {
-      const textLayer = layer as TextLayer;
       return (
-        <textarea
-          className="w-full h-full bg-transparent resize-none border-none outline-none overflow-hidden p-0 m-0"
-          style={{
-            fontFamily: getEditorFontPreviewFamily(textLayer.data.fontFamily),
-            fontSize: textLayer.data.fontSize * scale,
-            fontWeight: textLayer.data.fontWeight,
-            fontStyle: textLayer.data.fontStyle,
-            color: textLayer.data.color,
-            textAlign: textLayer.data.textAlign,
-            lineHeight: 1.2,
-          }}
-          value={textLayer.data.text}
-          onChange={(e) =>
-            onUpdate({
-              data: { ...textLayer.data, text: e.target.value },
-            } as Partial<TextLayer>)
-          }
-          onBlur={() => setIsEditing(false)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              setIsEditing(false);
-            }
-          }}
+        <TextEditorTextarea
+          layer={layer as TextLayer}
+          scale={scale}
+          onUpdate={onUpdate}
+          setIsEditing={setIsEditing}
         />
       );
     }
@@ -173,132 +363,10 @@ export function LayerRenderer({
       case 'image': {
         const asset = assets.find((a) => a.id === layer.assetId);
         if (!asset) return null;
-        const visualLayer = layer as ImageLayer | VideoLayer;
-        const visualAnimation = getVisualAnimation(visualLayer);
-
-        if (layer.type === 'video') {
-          return (
-            <motion.div
-              initial={visualAnimation.initial}
-              animate={visualAnimation.animate}
-              transition={{ duration: 0.5 }}
-              className="h-full w-full"
-              style={getVisualFilterStyle(visualLayer)}
-            >
-              <VideoLayerContent
-                src={asset.url}
-                layerStartMs={layer.startMs}
-                layerTrimStartMs={(layer as VideoLayer).data.trimStartMs}
-                volume={(layer as VideoLayer).data.volume}
-                fit={(layer as VideoLayer).data.fit}
-                loop={(layer as VideoLayer).data.loop}
-              />
-            </motion.div>
-          );
-        }
-        return (
-          <motion.img
-            src={asset.url}
-            alt=""
-            initial={visualAnimation.initial}
-            animate={visualAnimation.animate}
-            transition={{ duration: 0.5 }}
-            style={getVisualFilterStyle(visualLayer)}
-            className={clsx(
-              'w-full h-full pointer-events-none',
-              (layer as ImageLayer).data.fit === 'cover' ? 'object-cover' : 'object-contain',
-            )}
-          />
-        );
+        return <VisualLayerRenderer layer={layer as ImageLayer | VideoLayer} asset={asset} />;
       }
-      case 'text': {
-        const textLayer = layer as TextLayer;
-        const animation = textLayer.data.animationIn ?? textLayer.data.animation;
-        const loopAnimation = textLayer.data.animationLoop ?? 'none';
-        const resolvedBackground = resolveTextBackground(textLayer.data);
-
-        const variants: {
-          initial: { opacity: number; y: number; scale?: number };
-          animate: {
-            opacity: number | number[];
-            y: number;
-            scale?: number | number[];
-            x?: number[];
-            textShadow?: string[];
-          };
-        } = {
-          initial: { opacity: 0, y: 0 },
-          animate: { opacity: 1, y: 0 },
-        };
-
-        if (animation === 'fade') {
-          variants.initial = { opacity: 0, y: 0 };
-        } else if (animation === 'slide-up') {
-          variants.initial = { opacity: 0, y: 20 };
-        } else if (animation === 'slide-down') {
-          variants.initial = { opacity: 0, y: -20 };
-        } else if (animation === 'pop') {
-          variants.initial = { opacity: 0, y: 0, scale: 0.78 };
-          variants.animate = { opacity: 1, y: 0, scale: 1 };
-        } else if (animation === 'zoom') {
-          variants.initial = { opacity: 0, y: 0, scale: 0.88 };
-          variants.animate = { opacity: 1, y: 0, scale: 1 };
-        } else if (animation === 'typewriter') {
-          variants.initial = { opacity: 1, y: 0 };
-        }
-
-        if (animation === 'none') {
-          variants.initial = { opacity: 1, y: 0 };
-        }
-
-        if (loopAnimation === 'pulse') {
-          variants.animate.scale = [1, 1.04, 1];
-        } else if (loopAnimation === 'shake') {
-          variants.animate.x = [0, -3, 3, -2, 2, 0];
-        } else if (loopAnimation === 'glow') {
-          variants.animate.textShadow = [
-            '0 0 0 rgba(255,255,255,0)',
-            '0 0 12px rgba(255,255,255,0.7)',
-            '0 0 0 rgba(255,255,255,0)',
-          ];
-        }
-
-        return (
-          <motion.div
-            initial={animation !== 'none' ? variants.initial : undefined}
-            animate={variants.animate}
-            transition={{
-              duration: loopAnimation === 'none' ? 0.5 : 1.2,
-              repeat: loopAnimation === 'none' ? 0 : Number.POSITIVE_INFINITY,
-            }}
-            className="w-full h-full flex items-center justify-center overflow-hidden whitespace-pre-wrap break-words"
-            style={{
-              boxSizing: 'border-box',
-              fontFamily: getEditorFontPreviewFamily(textLayer.data.fontFamily),
-              fontSize: textLayer.data.fontSize * scale,
-              fontWeight: textLayer.data.fontWeight,
-              fontStyle: textLayer.data.fontStyle,
-              color: textLayer.data.color,
-              backgroundColor: resolvedBackground.cssColor,
-              textAlign: textLayer.data.textAlign,
-              justifyContent: getTextJustifyContent(textLayer.data.textAlign),
-              paddingInline: textLayer.width <= 12 ? 0 : 8 * scale,
-              lineHeight: 1.2,
-            }}
-          >
-            {animation === 'typewriter' ? (
-              <TypewriterPreviewText
-                text={textLayer.data.text}
-                layerDurationMs={textLayer.endMs - textLayer.startMs}
-              />
-            ) : (
-              textLayer.data.text
-            )}
-          </motion.div>
-        );
-      }
-      case 'audio':
-        return null; // Should be handled by AudioLayerContent list outside
+      case 'text':
+        return <TextLayerRenderer layer={layer as TextLayer} scale={scale} />;
       default:
         return null;
     }

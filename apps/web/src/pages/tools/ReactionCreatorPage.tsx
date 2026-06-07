@@ -69,11 +69,12 @@ export function ReactionCreatorPage() {
   const liveVideoRef = useRef<HTMLVideoElement>(null);
   const reactionPreviewRef = useRef<HTMLVideoElement>(null);
   const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
-  const reactionStepKey = reaction.state.hasReactionVideo
-    ? 'render'
-    : reaction.state.hasMainVideo
-      ? 'reaction'
-      : 'main';
+  let reactionStepKey: 'main' | 'reaction' | 'render' = 'main';
+  if (reaction.state.hasReactionVideo) {
+    reactionStepKey = 'render';
+  } else if (reaction.state.hasMainVideo) {
+    reactionStepKey = 'reaction';
+  }
 
   useScrollToTopOnChange(reactionStepKey);
 
@@ -270,7 +271,10 @@ function ReactionPageHeader({
   readonly isSaving: boolean;
   readonly onTitleChange: (value: string) => void;
 }) {
-  const statusLabel = !hasMainVideo ? 'Draft baru' : isSaving ? 'Menyimpan...' : 'Auto-saved';
+  let statusLabel = 'Draft baru';
+  if (hasMainVideo) {
+    statusLabel = isSaving ? 'Menyimpan...' : 'Auto-saved';
+  }
 
   return (
     <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -300,7 +304,12 @@ function ReactionStepGuide({
   readonly hasMainVideo: boolean;
   readonly hasReactionVideo: boolean;
 }) {
-  const activeStep = hasReactionVideo ? 3 : hasMainVideo ? 2 : 1;
+  let activeStep = 1;
+  if (hasReactionVideo) {
+    activeStep = 3;
+  } else if (hasMainVideo) {
+    activeStep = 2;
+  }
   const steps = [
     { id: 1, shortTitle: 'Upload', title: 'Upload video utama' },
     { id: 2, shortTitle: 'Reaction', title: 'Record/Upload Reaction' },
@@ -458,55 +467,63 @@ function ReactionStage({
         )}
         style={{ aspectRatio: stageAspectRatio }}
       >
-        {document.layout.mode === 'pip' ? (
-          <>
-            <video
-              ref={mainVideoRef}
-              src={mainVideoUrl}
-              className="h-full w-full bg-black"
-              style={getVideoObjectStyle(document.layout.mainFraming)}
-              onClick={isBusyRecording ? undefined : onPlayPreview}
-              onEnded={() => {
-                reactionVideoRef.current?.pause();
-                onPreviewEnded();
-              }}
+        {(() => {
+          if (document.layout.mode === 'pip') {
+            return (
+              <>
+                <video
+                  ref={mainVideoRef}
+                  src={mainVideoUrl}
+                  className="h-full w-full bg-black"
+                  style={getVideoObjectStyle(document.layout.mainFraming)}
+                  onClick={isBusyRecording ? undefined : onPlayPreview}
+                  onEnded={() => {
+                    reactionVideoRef.current?.pause();
+                    onPreviewEnded();
+                  }}
+                >
+                  <track kind="captions" />
+                </video>
+                <ReactionPane
+                  document={document}
+                  isLive={isRecordingLive}
+                  liveVideoRef={liveVideoRef}
+                  reactionVideoRef={reactionVideoRef}
+                  reactionVideoUrl={reactionVideoUrl}
+                  variant="pip"
+                />
+              </>
+            );
+          }
+          if (document.layout.smoothBorder) {
+            return (
+              <FeatheredSplitPreview
+                document={document}
+                isBusyRecording={isBusyRecording}
+                isLive={isRecordingLive}
+                liveVideoRef={liveVideoRef}
+                mainVideoRef={mainVideoRef}
+                mainVideoUrl={mainVideoUrl}
+                reactionVideoRef={reactionVideoRef}
+                reactionVideoUrl={reactionVideoUrl}
+                onPlayPreview={onPlayPreview}
+                onPreviewEnded={onPreviewEnded}
+              />
+            );
+          }
+          return (
+            <div
+              className={cn(
+                'relative grid h-full w-full overflow-hidden bg-black',
+                isHorizontalSplit(document) ? 'grid-cols-2' : 'grid-rows-2',
+              )}
+              style={getSplitPreviewStyle(document)}
             >
-              <track kind="captions" />
-            </video>
-            <ReactionPane
-              document={document}
-              isLive={isRecordingLive}
-              liveVideoRef={liveVideoRef}
-              reactionVideoRef={reactionVideoRef}
-              reactionVideoUrl={reactionVideoUrl}
-              variant="pip"
-            />
-          </>
-        ) : document.layout.smoothBorder ? (
-          <FeatheredSplitPreview
-            document={document}
-            isBusyRecording={isBusyRecording}
-            isLive={isRecordingLive}
-            liveVideoRef={liveVideoRef}
-            mainVideoRef={mainVideoRef}
-            mainVideoUrl={mainVideoUrl}
-            reactionVideoRef={reactionVideoRef}
-            reactionVideoUrl={reactionVideoUrl}
-            onPlayPreview={onPlayPreview}
-            onPreviewEnded={onPreviewEnded}
-          />
-        ) : (
-          <div
-            className={cn(
-              'relative grid h-full w-full overflow-hidden bg-black',
-              isHorizontalSplit(document) ? 'grid-cols-2' : 'grid-rows-2',
-            )}
-            style={getSplitPreviewStyle(document)}
-          >
-            {splitPanes}
-            <SplitBoundaryOverlay document={document} />
-          </div>
-        )}
+              {splitPanes}
+              <SplitBoundaryOverlay document={document} />
+            </div>
+          );
+        })()}
 
         {recordingPhase === 'countdown' ? (
           <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/55">
@@ -516,46 +533,64 @@ function ReactionStage({
           </div>
         ) : null}
 
-        {!isPreviewPlaying && !isBusyRecording ? (
-          <button
-            type="button"
-            aria-label="Play preview"
-            className="absolute inset-0 z-50 flex items-center justify-center bg-black/0 text-white transition-colors hover:bg-black/10"
-            onClick={onPlayPreview}
-          >
-            <span className="flex h-16 w-16 items-center justify-center rounded-full bg-black/45 backdrop-blur">
-              <Play size={30} fill="currentColor" />
-            </span>
-          </button>
-        ) : isPreviewPlaying && !isBusyRecording ? (
-          <button
-            type="button"
-            aria-label="Pause preview"
-            className="absolute inset-0 z-50 cursor-pointer bg-transparent"
-            onClick={onPlayPreview}
-          />
-        ) : null}
+        {(() => {
+          if (!isBusyRecording) {
+            if (!isPreviewPlaying) {
+              return (
+                <button
+                  type="button"
+                  aria-label="Play preview"
+                  className="absolute inset-0 z-50 flex items-center justify-center bg-black/0 text-white transition-colors hover:bg-black/10"
+                  onClick={onPlayPreview}
+                >
+                  <span className="flex h-16 w-16 items-center justify-center rounded-full bg-black/45 backdrop-blur">
+                    <Play size={30} fill="currentColor" />
+                  </span>
+                </button>
+              );
+            }
+            return (
+              <button
+                type="button"
+                aria-label="Pause preview"
+                className="absolute inset-0 z-50 cursor-pointer bg-transparent"
+                onClick={onPlayPreview}
+              />
+            );
+          }
+          return null;
+        })()}
 
-        {recordingPhase === 'recording' ? (
-          <div className="absolute inset-x-4 bottom-4 z-60 flex flex-wrap items-center gap-2">
-            <Button
-              type="button"
-              variant="destructive"
-              className="h-11 rounded-xl font-black"
-              onClick={onStopRecording}
-            >
-              <StopCircle size={17} />
-              Stop
-            </Button>
-          </div>
-        ) : recordingPhase === 'requesting' || recordingPhase === 'saving' ? (
-          <div className="absolute inset-x-4 bottom-4 z-60 flex flex-wrap items-center gap-2">
-            <div className="flex h-11 items-center gap-2 rounded-xl border border-primary/25 bg-background/85 px-4 text-sm font-black text-primary backdrop-blur">
-              <Loader2 size={16} className="animate-spin" />
-              {recordingPhase === 'requesting' ? 'Membuka camera...' : 'Menyiapkan recording...'}
-            </div>
-          </div>
-        ) : null}
+        {(() => {
+          if (recordingPhase === 'recording') {
+            return (
+              <div className="absolute inset-x-4 bottom-4 z-60 flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  variant="destructive"
+                  className="h-11 rounded-xl font-black"
+                  onClick={onStopRecording}
+                >
+                  <StopCircle size={17} />
+                  Stop
+                </Button>
+              </div>
+            );
+          }
+          if (recordingPhase === 'requesting' || recordingPhase === 'saving') {
+            return (
+              <div className="absolute inset-x-4 bottom-4 z-60 flex flex-wrap items-center gap-2">
+                <div className="flex h-11 items-center gap-2 rounded-xl border border-primary/25 bg-background/85 px-4 text-sm font-black text-primary backdrop-blur">
+                  <Loader2 size={16} className="animate-spin" />
+                  {recordingPhase === 'requesting'
+                    ? 'Membuka camera...'
+                    : 'Menyiapkan recording...'}
+                </div>
+              </div>
+            );
+          }
+          return null;
+        })()}
 
         {recordingError ? (
           <div className="absolute left-4 right-4 top-4 z-40 rounded-xl border border-destructive/30 bg-destructive/15 px-3 py-2 text-sm font-semibold text-destructive backdrop-blur">
@@ -771,31 +806,39 @@ function FeatheredSplitPreview({
         </video>
       </div>
       <div className="absolute overflow-hidden bg-black" style={reactionStyle}>
-        {isLive ? (
-          <video
-            ref={liveVideoRef}
-            muted
-            autoPlay
-            playsInline
-            className="h-full w-full"
-            style={getVideoObjectStyle(document.layout.reactionFraming)}
-          >
-            <track kind="captions" />
-          </video>
-        ) : reactionVideoUrl ? (
-          <video
-            ref={reactionVideoRef}
-            src={reactionVideoUrl}
-            className="h-full w-full"
-            style={getVideoObjectStyle(document.layout.reactionFraming)}
-          >
-            <track kind="captions" />
-          </video>
-        ) : (
-          <div className="flex h-full w-full items-center justify-center border border-dashed border-white/20 text-center text-sm font-bold text-muted-foreground">
-            <span className="px-4">Reaction belum ada</span>
-          </div>
-        )}
+        {(() => {
+          if (isLive) {
+            return (
+              <video
+                ref={liveVideoRef}
+                muted
+                autoPlay
+                playsInline
+                className="h-full w-full"
+                style={getVideoObjectStyle(document.layout.reactionFraming)}
+              >
+                <track kind="captions" />
+              </video>
+            );
+          }
+          if (reactionVideoUrl) {
+            return (
+              <video
+                ref={reactionVideoRef}
+                src={reactionVideoUrl}
+                className="h-full w-full"
+                style={getVideoObjectStyle(document.layout.reactionFraming)}
+              >
+                <track kind="captions" />
+              </video>
+            );
+          }
+          return (
+            <div className="flex h-full w-full items-center justify-center border border-dashed border-white/20 text-center text-sm font-bold text-muted-foreground">
+              <span className="px-4">Reaction belum ada</span>
+            </div>
+          );
+        })()}
       </div>
       <SplitBoundaryOverlay document={document} />
     </div>
@@ -979,258 +1022,31 @@ function ReactionSettingsPanel({
 
       <div className="min-h-105 space-y-5">
         {activeTab === 'layout' ? (
-          <>
-            <section>
-              <p className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-muted-foreground">
-                Layout
-              </p>
-              <div className="grid gap-2">
-                {LAYOUTS.map((layout) => (
-                  <button
-                    key={layout.id}
-                    type="button"
-                    disabled={disabled}
-                    onClick={() => update({ layout: { ...document.layout, mode: layout.id } })}
-                    className={cn(
-                      'rounded-xl border p-3 text-left transition-colors',
-                      activeLayoutMode === layout.id
-                        ? 'border-primary/70 bg-primary/5 text-foreground'
-                        : 'border-border/55 bg-muted/10 text-muted-foreground hover:border-primary/40',
-                    )}
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="font-black">{layout.label}</span>
-                      {activeLayoutMode === layout.id ? <Check size={16} /> : null}
-                    </div>
-                    <p className="mt-1 text-xs font-semibold text-muted-foreground">
-                      {layout.description}
-                    </p>
-                  </button>
-                ))}
-              </div>
-            </section>
-
-            <section>
-              <p className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-muted-foreground">
-                Format
-              </p>
-              <div className="grid grid-cols-2 gap-2">
-                {ASPECT_RATIOS.map((ratio) => (
-                  <FormatOptionButton
-                    key={ratio.id}
-                    active={document.output.aspectRatio === ratio.id}
-                    disabled={disabled}
-                    helper={ratio.helper}
-                    label={ratio.label}
-                    previewClassName={ratio.previewClassName}
-                    onClick={() => update({ output: { aspectRatio: ratio.id } })}
-                  />
-                ))}
-              </div>
-            </section>
-
-            {document.layout.mode === 'pip' ? (
-              <section className="space-y-4">
-                <div>
-                  <p className="mb-2 text-sm font-black">PiP Position</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {PIP_POSITIONS.map((position) => (
-                      <button
-                        key={position.id}
-                        type="button"
-                        disabled={disabled}
-                        onClick={() =>
-                          update({ layout: { ...document.layout, pipPosition: position.id } })
-                        }
-                        className={cn(
-                          'h-11 rounded-xl border text-sm font-black transition-colors',
-                          document.layout.pipPosition === position.id
-                            ? 'border-primary/70 bg-primary/5 text-primary'
-                            : 'border-border/55 bg-muted/10 text-muted-foreground hover:border-primary/40',
-                        )}
-                      >
-                        {position.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <LabeledSlider
-                  disabled={disabled}
-                  label="PiP Size"
-                  value={Math.round(document.layout.pipScale * 100)}
-                  min={12}
-                  max={50}
-                  unit="%"
-                  onChange={(value) =>
-                    update({ layout: { ...document.layout, pipScale: value / 100 } })
-                  }
-                />
-                <button
-                  type="button"
-                  disabled={disabled}
-                  className={cn(
-                    'h-11 w-full rounded-xl border text-sm font-black transition-colors',
-                    document.layout.circular
-                      ? 'border-primary/70 bg-primary/5 text-primary'
-                      : 'border-border/55 bg-muted/10 text-muted-foreground',
-                  )}
-                  onClick={() =>
-                    update({ layout: { ...document.layout, circular: !document.layout.circular } })
-                  }
-                >
-                  Circular PiP
-                </button>
-              </section>
-            ) : null}
-
-            {activeLayoutMode === 'side-by-side' ? (
-              <section className="space-y-4">
-                <div className="grid grid-cols-2 gap-2">
-                  {(['horizontal', 'vertical'] as const).map((orientation) => (
-                    <button
-                      key={orientation}
-                      type="button"
-                      disabled={disabled}
-                      onClick={() =>
-                        update({ layout: { ...document.layout, splitOrientation: orientation } })
-                      }
-                      className={cn(
-                        'h-11 rounded-xl border text-sm font-black capitalize transition-colors',
-                        document.layout.splitOrientation === orientation
-                          ? 'border-primary/70 bg-primary/5 text-primary'
-                          : 'border-border/55 bg-muted/10 text-muted-foreground hover:border-primary/40',
-                      )}
-                    >
-                      {orientation}
-                    </button>
-                  ))}
-                </div>
-                <SplitPlacementControl
-                  disabled={disabled}
-                  mainPlacement={document.layout.mainPlacement}
-                  orientation={document.layout.splitOrientation}
-                  onChange={(mainPlacement) =>
-                    update({ layout: { ...document.layout, mainPlacement } })
-                  }
-                />
-                <LabeledSlider
-                  disabled={disabled}
-                  label="Split Ratio"
-                  value={Math.round(document.layout.splitRatio * 100)}
-                  min={30}
-                  max={70}
-                  unit="%"
-                  onChange={(value) =>
-                    update({ layout: { ...document.layout, splitRatio: value / 100 } })
-                  }
-                />
-                <div className="grid gap-2">
-                  <ToggleSetting
-                    active={document.layout.smoothBorder}
-                    description="Gradasi halus di batas video"
-                    label="Faded Border"
-                    onClick={() =>
-                      update({
-                        layout: {
-                          ...document.layout,
-                          smoothBorder: !document.layout.smoothBorder,
-                        },
-                      })
-                    }
-                  />
-                  <ToggleSetting
-                    active={document.layout.blurOverlay ?? false}
-                    description="Blur area belakang supaya kedua video terasa menyatu"
-                    label="Blur Overlay"
-                    onClick={() =>
-                      update({
-                        layout: {
-                          ...document.layout,
-                          blurOverlay: !(document.layout.blurOverlay ?? false),
-                        },
-                      })
-                    }
-                  />
-                </div>
-              </section>
-            ) : null}
-          </>
+          <ReactionSettingsLayoutTab
+            document={document}
+            disabled={disabled}
+            activeLayoutMode={activeLayoutMode}
+            update={update}
+          />
         ) : null}
 
         {activeTab === 'framing' ? (
-          <section className="space-y-4">
-            {hasMainVideo ? (
-              <FramingControls
-                disabled={disabled}
-                label="Main Video"
-                value={document.layout.mainFraming}
-                onChange={(mainFraming) => update({ layout: { ...document.layout, mainFraming } })}
-              />
-            ) : null}
-            {hasReactionVideo ? (
-              <FramingControls
-                disabled={disabled}
-                label="Reaction"
-                value={document.layout.reactionFraming}
-                onChange={(reactionFraming) =>
-                  update({ layout: { ...document.layout, reactionFraming } })
-                }
-              />
-            ) : null}
-            {!hasMainVideo && !hasReactionVideo ? (
-              <PanelEmptyState text="Upload video dulu untuk mengatur framing." />
-            ) : null}
-          </section>
+          <ReactionSettingsFramingTab
+            document={document}
+            disabled={disabled}
+            hasMainVideo={hasMainVideo}
+            hasReactionVideo={hasReactionVideo}
+            update={update}
+          />
         ) : null}
 
         {activeTab === 'audio' ? (
-          <section className="space-y-5">
-            {hasMainVideo ? (
-              <LabeledSlider
-                label="Main"
-                value={Math.round(document.audio.mainVolume * 100)}
-                min={0}
-                max={100}
-                unit="%"
-                onChange={(value) =>
-                  update({
-                    audio: { ...document.audio, mainVolume: value / 100, muteMain: value === 0 },
-                  })
-                }
-              />
-            ) : null}
-            {hasReactionVideo ? (
-              <>
-                <LabeledSlider
-                  label="Reaction Mic"
-                  value={Math.round(document.audio.reactionVolume * 100)}
-                  min={0}
-                  max={100}
-                  unit="%"
-                  onChange={(value) =>
-                    update({
-                      audio: {
-                        ...document.audio,
-                        reactionVolume: value / 100,
-                        muteReaction: value === 0,
-                      },
-                    })
-                  }
-                />
-                <LabeledSlider
-                  label="Sync Reaction"
-                  value={document.sync.reactionOffsetMs}
-                  min={-2000}
-                  max={2000}
-                  unit="ms"
-                  onChange={(value) => update({ sync: { reactionOffsetMs: value } })}
-                />
-              </>
-            ) : null}
-            {!hasMainVideo && !hasReactionVideo ? (
-              <PanelEmptyState text="Audio dan sync akan muncul setelah video ditambahkan." />
-            ) : null}
-          </section>
+          <ReactionSettingsAudioTab
+            document={document}
+            hasMainVideo={hasMainVideo}
+            hasReactionVideo={hasReactionVideo}
+            update={update}
+          />
         ) : null}
       </div>
 
@@ -1302,6 +1118,295 @@ function PanelEmptyState({ text }: { readonly text: string }) {
     <div className="rounded-2xl border border-dashed border-border/60 bg-muted/10 px-4 py-8 text-center">
       <p className="text-sm font-semibold text-muted-foreground">{text}</p>
     </div>
+  );
+}
+
+function ReactionSettingsLayoutTab({
+  document,
+  disabled,
+  activeLayoutMode,
+  update,
+}: {
+  readonly document: ReactionCreatorProjectDocument;
+  readonly disabled: boolean;
+  readonly activeLayoutMode: string;
+  readonly update: (patch: Partial<ReactionCreatorProjectDocument>) => void;
+}) {
+  return (
+    <>
+      <section>
+        <p className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-muted-foreground">
+          Layout
+        </p>
+        <div className="grid gap-2">
+          {LAYOUTS.map((layout) => (
+            <button
+              key={layout.id}
+              type="button"
+              disabled={disabled}
+              onClick={() => update({ layout: { ...document.layout, mode: layout.id } })}
+              className={cn(
+                'rounded-xl border p-3 text-left transition-colors',
+                activeLayoutMode === layout.id
+                  ? 'border-primary/70 bg-primary/5 text-foreground'
+                  : 'border-border/55 bg-muted/10 text-muted-foreground hover:border-primary/40',
+              )}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <span className="font-black">{layout.label}</span>
+                {activeLayoutMode === layout.id ? <Check size={16} /> : null}
+              </div>
+              <p className="mt-1 text-xs font-semibold text-muted-foreground">
+                {layout.description}
+              </p>
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section>
+        <p className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-muted-foreground">
+          Format
+        </p>
+        <div className="grid grid-cols-2 gap-2">
+          {ASPECT_RATIOS.map((ratio) => (
+            <FormatOptionButton
+              key={ratio.id}
+              active={document.output.aspectRatio === ratio.id}
+              disabled={disabled}
+              helper={ratio.helper}
+              label={ratio.label}
+              previewClassName={ratio.previewClassName}
+              onClick={() => update({ output: { aspectRatio: ratio.id } })}
+            />
+          ))}
+        </div>
+      </section>
+
+      {document.layout.mode === 'pip' ? (
+        <section className="space-y-4">
+          <div>
+            <p className="mb-2 text-sm font-black">PiP Position</p>
+            <div className="grid grid-cols-2 gap-2">
+              {PIP_POSITIONS.map((position) => (
+                <button
+                  key={position.id}
+                  type="button"
+                  disabled={disabled}
+                  onClick={() =>
+                    update({ layout: { ...document.layout, pipPosition: position.id } })
+                  }
+                  className={cn(
+                    'h-11 rounded-xl border text-sm font-black transition-colors',
+                    document.layout.pipPosition === position.id
+                      ? 'border-primary/70 bg-primary/5 text-primary'
+                      : 'border-border/55 bg-muted/10 text-muted-foreground hover:border-primary/40',
+                  )}
+                >
+                  {position.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <LabeledSlider
+            disabled={disabled}
+            label="PiP Size"
+            value={Math.round(document.layout.pipScale * 100)}
+            min={12}
+            max={50}
+            unit="%"
+            onChange={(value) => update({ layout: { ...document.layout, pipScale: value / 100 } })}
+          />
+          <button
+            type="button"
+            disabled={disabled}
+            className={cn(
+              'h-11 w-full rounded-xl border text-sm font-black transition-colors',
+              document.layout.circular
+                ? 'border-primary/70 bg-primary/5 text-primary'
+                : 'border-border/55 bg-muted/10 text-muted-foreground',
+            )}
+            onClick={() =>
+              update({ layout: { ...document.layout, circular: !document.layout.circular } })
+            }
+          >
+            Circular PiP
+          </button>
+        </section>
+      ) : null}
+
+      {activeLayoutMode === 'side-by-side' ? (
+        <section className="space-y-4">
+          <div className="grid grid-cols-2 gap-2">
+            {(['horizontal', 'vertical'] as const).map((orientation) => (
+              <button
+                key={orientation}
+                type="button"
+                disabled={disabled}
+                onClick={() =>
+                  update({ layout: { ...document.layout, splitOrientation: orientation } })
+                }
+                className={cn(
+                  'h-11 rounded-xl border text-sm font-black capitalize transition-colors',
+                  document.layout.splitOrientation === orientation
+                    ? 'border-primary/70 bg-primary/5 text-primary'
+                    : 'border-border/55 bg-muted/10 text-muted-foreground hover:border-primary/40',
+                )}
+              >
+                {orientation}
+              </button>
+            ))}
+          </div>
+          <SplitPlacementControl
+            disabled={disabled}
+            mainPlacement={document.layout.mainPlacement}
+            orientation={document.layout.splitOrientation}
+            onChange={(mainPlacement) => update({ layout: { ...document.layout, mainPlacement } })}
+          />
+          <LabeledSlider
+            disabled={disabled}
+            label="Split Ratio"
+            value={Math.round(document.layout.splitRatio * 100)}
+            min={30}
+            max={70}
+            unit="%"
+            onChange={(value) =>
+              update({ layout: { ...document.layout, splitRatio: value / 100 } })
+            }
+          />
+          <div className="grid gap-2">
+            <ToggleSetting
+              active={document.layout.smoothBorder}
+              description="Gradasi halus di batas video"
+              label="Faded Border"
+              onClick={() =>
+                update({
+                  layout: {
+                    ...document.layout,
+                    smoothBorder: !document.layout.smoothBorder,
+                  },
+                })
+              }
+            />
+            <ToggleSetting
+              active={document.layout.blurOverlay ?? false}
+              description="Blur area belakang supaya kedua video terasa menyatu"
+              label="Blur Overlay"
+              onClick={() =>
+                update({
+                  layout: {
+                    ...document.layout,
+                    blurOverlay: !(document.layout.blurOverlay ?? false),
+                  },
+                })
+              }
+            />
+          </div>
+        </section>
+      ) : null}
+    </>
+  );
+}
+
+function ReactionSettingsFramingTab({
+  document,
+  disabled,
+  hasMainVideo,
+  hasReactionVideo,
+  update,
+}: {
+  readonly document: ReactionCreatorProjectDocument;
+  readonly disabled: boolean;
+  readonly hasMainVideo: boolean;
+  readonly hasReactionVideo: boolean;
+  readonly update: (patch: Partial<ReactionCreatorProjectDocument>) => void;
+}) {
+  return (
+    <section className="space-y-4">
+      {hasMainVideo ? (
+        <FramingControls
+          disabled={disabled}
+          label="Main Video"
+          value={document.layout.mainFraming}
+          onChange={(mainFraming) => update({ layout: { ...document.layout, mainFraming } })}
+        />
+      ) : null}
+      {hasReactionVideo ? (
+        <FramingControls
+          disabled={disabled}
+          label="Reaction"
+          value={document.layout.reactionFraming}
+          onChange={(reactionFraming) =>
+            update({ layout: { ...document.layout, reactionFraming } })
+          }
+        />
+      ) : null}
+      {!hasMainVideo && !hasReactionVideo ? (
+        <PanelEmptyState text="Upload video dulu untuk mengatur framing." />
+      ) : null}
+    </section>
+  );
+}
+
+function ReactionSettingsAudioTab({
+  document,
+  hasMainVideo,
+  hasReactionVideo,
+  update,
+}: {
+  readonly document: ReactionCreatorProjectDocument;
+  readonly hasMainVideo: boolean;
+  readonly hasReactionVideo: boolean;
+  readonly update: (patch: Partial<ReactionCreatorProjectDocument>) => void;
+}) {
+  return (
+    <section className="space-y-5">
+      {hasMainVideo ? (
+        <LabeledSlider
+          label="Main"
+          value={Math.round(document.audio.mainVolume * 100)}
+          min={0}
+          max={100}
+          unit="%"
+          onChange={(value) =>
+            update({
+              audio: { ...document.audio, mainVolume: value / 100, muteMain: value === 0 },
+            })
+          }
+        />
+      ) : null}
+      {hasReactionVideo ? (
+        <>
+          <LabeledSlider
+            label="Reaction Mic"
+            value={Math.round(document.audio.reactionVolume * 100)}
+            min={0}
+            max={100}
+            unit="%"
+            onChange={(value) =>
+              update({
+                audio: {
+                  ...document.audio,
+                  reactionVolume: value / 100,
+                  muteReaction: value === 0,
+                },
+              })
+            }
+          />
+          <LabeledSlider
+            label="Sync Reaction"
+            value={document.sync.reactionOffsetMs}
+            min={-2000}
+            max={2000}
+            unit="ms"
+            onChange={(value) => update({ sync: { reactionOffsetMs: value } })}
+          />
+        </>
+      ) : null}
+      {!hasMainVideo && !hasReactionVideo ? (
+        <PanelEmptyState text="Audio dan sync akan muncul setelah video ditambahkan." />
+      ) : null}
+    </section>
   );
 }
 

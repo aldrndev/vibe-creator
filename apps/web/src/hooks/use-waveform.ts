@@ -144,7 +144,7 @@ export function getCachedWaveform(assetId: string): WaveformData | null {
  * Clear waveform cache
  */
 export function clearWaveformCache() {
-  Object.keys(waveformCache).forEach((key) => {
+  for (const key of Object.keys(waveformCache)) {
     delete waveformCache[key];
-  });
+  }
 }

@@ -62,6 +62,65 @@ const promptTypeLabels: Record<
   LOOP_SOURCE: { label: 'Loop Source' },
 };
 
+function getEmptyStateMessage(type: PromptType | 'all') {
+  switch (type) {
+    case 'SCRIPT':
+      return 'Arsiteki script storytelling yang menghipnotis audiens anda.';
+    case 'VOICE':
+      return 'Rancang karakter suara yang sempurna untuk narasi video anda.';
+    case 'VIDEO_GEN':
+      return 'Wujudkan imajinasi visual terbaik dengan prompt video AI yang kaya.';
+    case 'IMAGE':
+      return 'Ciptakan visual artistik dan thumbnail yang klik-worthy.';
+    case 'RELAXING':
+      return 'Susun mood audio ambient yang menenangkan jiwa.';
+    case 'CREATIVE_SCAN':
+      return 'Bongkar strategi kreatif video viral kompetitor anda.';
+    case 'TIMELAPSE':
+      return 'Buat mahakarya timelapse cinematic dengan kekuatan Sora AI.';
+    case 'LOOP_SOURCE':
+      return 'Buat source ambience dengan visual dan audio natural untuk loop seamless.';
+    default:
+      return '';
+  }
+}
+
+function EmptyState({ selectedType }: { selectedType: PromptType | 'all' }) {
+  if (selectedType === 'all') {
+    return (
+      <div className="space-y-6 max-w-sm mx-auto">
+        <div className="w-20 h-20 rounded-3xl bg-primary/10 flex items-center justify-center mx-auto border border-primary/20">
+          <Sparkles className="text-primary w-10 h-10" />
+        </div>
+        <div className="space-y-2">
+          <h2 className="text-xl font-black uppercase tracking-widest">Belum Ada Prompt</h2>
+          <p className="text-muted-foreground font-medium text-sm">
+            Mulai arsiteki prompt berkualitas untuk meningkatkan kualitas konten anda sekarang.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const TypeIcon = promptTypes.find((t) => t.key === selectedType)?.icon || Sparkles;
+
+  return (
+    <div className="space-y-6 max-w-sm mx-auto">
+      <div className="w-20 h-20 rounded-3xl bg-muted/10 flex items-center justify-center mx-auto border border-border/50">
+        <TypeIcon className="text-muted-foreground w-10 h-10" />
+      </div>
+      <div className="space-y-2">
+        <h2 className="text-xl font-black uppercase tracking-widest italic">
+          Prompt {promptTypeLabels[selectedType]?.label} Kosong
+        </h2>
+        <p className="text-muted-foreground font-medium text-sm">
+          {getEmptyStateMessage(selectedType)}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export function PromptsPage() {
   const navigate = useNavigate();
   const [selectedType, setSelectedType] = useState<PromptType | 'all'>('all');
@@ -178,55 +237,7 @@ export function PromptsPage() {
       <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}>
         <Card className="bg-card/30 backdrop-blur-xl border-dashed border-2 border-border/50">
           <CardBody className="p-16 text-center">
-            {selectedType === 'all' ? (
-              <div className="space-y-6 max-w-sm mx-auto">
-                <div className="w-20 h-20 rounded-3xl bg-primary/10 flex items-center justify-center mx-auto border border-primary/20">
-                  <Sparkles className="text-primary w-10 h-10" />
-                </div>
-                <div className="space-y-2">
-                  <h2 className="text-xl font-black uppercase tracking-widest">Belum Ada Prompt</h2>
-                  <p className="text-muted-foreground font-medium text-sm">
-                    Mulai arsiteki prompt berkualitas untuk meningkatkan kualitas konten anda
-                    sekarang.
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-6 max-w-sm mx-auto">
-                {(() => {
-                  const TypeIcon =
-                    promptTypes.find((t) => t.key === selectedType)?.icon || Sparkles;
-                  return (
-                    <div className="w-20 h-20 rounded-3xl bg-muted/10 flex items-center justify-center mx-auto border border-border/50">
-                      <TypeIcon className="text-muted-foreground w-10 h-10" />
-                    </div>
-                  );
-                })()}
-                <div className="space-y-2">
-                  <h2 className="text-xl font-black uppercase tracking-widest italic">
-                    Prompt {promptTypeLabels[selectedType]?.label} Kosong
-                  </h2>
-                  <p className="text-muted-foreground font-medium text-sm">
-                    {selectedType === 'SCRIPT' &&
-                      'Arsiteki script storytelling yang menghipnotis audiens anda.'}
-                    {selectedType === 'VOICE' &&
-                      'Rancang karakter suara yang sempurna untuk narasi video anda.'}
-                    {selectedType === 'VIDEO_GEN' &&
-                      'Wujudkan imajinasi visual terbaik dengan prompt video AI yang kaya.'}
-                    {selectedType === 'IMAGE' &&
-                      'Ciptakan visual artistik dan thumbnail yang klik-worthy.'}
-                    {selectedType === 'RELAXING' &&
-                      'Susun mood audio ambient yang menenangkan jiwa.'}
-                    {selectedType === 'CREATIVE_SCAN' &&
-                      'Bongkar strategi kreatif video viral kompetitor anda.'}
-                    {selectedType === 'TIMELAPSE' &&
-                      'Buat mahakarya timelapse cinematic dengan kekuatan Sora AI.'}
-                    {selectedType === 'LOOP_SOURCE' &&
-                      'Buat source ambience dengan visual dan audio natural untuk loop seamless.'}
-                  </p>
-                </div>
-              </div>
-            )}
+            <EmptyState selectedType={selectedType} />
             <Button
               size="lg"
               asChild

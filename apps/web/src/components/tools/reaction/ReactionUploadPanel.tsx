@@ -81,7 +81,32 @@ export function ReactionUploadPanel({
 
         <CardBody className="p-6">
           <div className="relative min-h-[350px] md:min-h-[500px] bg-muted/20 flex items-center justify-center p-4 md:p-8 overflow-hidden rounded-[2rem] border border-border/50 shadow-inner group">
-            {!hasBothVideos ? (
+            {hasBothVideos ? (
+              /* PREVIEW MODE */
+              <div className="w-full h-full flex items-center justify-center">
+                <ReactionPreview
+                  mainVideoUrl={mainVideoUrl}
+                  reactionVideoUrl={reactionVideoUrl}
+                  aspectRatio={aspectRatio}
+                  pipScale={pipScale}
+                  circular={circular}
+                  onPositionChange={(x, y) => {
+                    const res = RESOLUTIONS[aspectRatio];
+                    if (res) {
+                      setCustomPosition({
+                        x: Math.round(x * res.w),
+                        y: Math.round(y * res.h),
+                      });
+                    }
+                  }}
+                  layoutMode={layoutMode}
+                  sideBySideLayout={sideBySideLayout}
+                  splitRatio={splitRatio}
+                  smoothBorder={smoothBorder}
+                  overlayMode={overlayMode}
+                />
+              </div>
+            ) : (
               <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 gap-4 w-full max-w-4xl">
                 {/* Main Upload Zone */}
                 <button
@@ -170,31 +195,6 @@ export function ReactionUploadPanel({
                     </>
                   )}
                 </button>
-              </div>
-            ) : (
-              /* PREVIEW MODE */
-              <div className="w-full h-full flex items-center justify-center">
-                <ReactionPreview
-                  mainVideoUrl={mainVideoUrl}
-                  reactionVideoUrl={reactionVideoUrl}
-                  aspectRatio={aspectRatio}
-                  pipScale={pipScale}
-                  circular={circular}
-                  onPositionChange={(x, y) => {
-                    const res = RESOLUTIONS[aspectRatio];
-                    if (res) {
-                      setCustomPosition({
-                        x: Math.round(x * res.w),
-                        y: Math.round(y * res.h),
-                      });
-                    }
-                  }}
-                  layoutMode={layoutMode}
-                  sideBySideLayout={sideBySideLayout}
-                  splitRatio={splitRatio}
-                  smoothBorder={smoothBorder}
-                  overlayMode={overlayMode}
-                />
               </div>
             )}
 

@@ -197,16 +197,22 @@ export function UsersTable({
         </div>
 
         <div className="md:hidden divide-y divide-border/40">
-          {isLoading ? (
-            <div className="p-6 text-center text-xs font-bold text-muted-foreground">
-              Memuat user...
-            </div>
-          ) : users.length === 0 ? (
-            <div className="p-6 text-center text-xs font-bold text-muted-foreground">
-              Tidak ada user.
-            </div>
-          ) : (
-            users.map((user) => (
+          {(() => {
+            if (isLoading) {
+              return (
+                <div className="p-6 text-center text-xs font-bold text-muted-foreground">
+                  Memuat user...
+                </div>
+              );
+            }
+            if (users.length === 0) {
+              return (
+                <div className="p-6 text-center text-xs font-bold text-muted-foreground">
+                  Tidak ada user.
+                </div>
+              );
+            }
+            return users.map((user) => (
               <UserMobileCard
                 key={user.id}
                 user={user}
@@ -216,8 +222,8 @@ export function UsersTable({
                 onChangeStatus={onChangeStatus}
                 onSoftDelete={onSoftDelete}
               />
-            ))
-          )}
+            ));
+          })()}
         </div>
 
         <div className="border-t border-border/40 p-4">

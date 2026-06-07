@@ -96,7 +96,7 @@ export const TIER_LIMITS: Record<
     maxDurationMs: 120 * 60 * 1000, // 2 hours
     hasWatermark: false,
     maxConcurrentJobs: 10,
-    maxJobsPerDay: Infinity,
+    maxJobsPerDay: Number.POSITIVE_INFINITY,
   },
 };
 

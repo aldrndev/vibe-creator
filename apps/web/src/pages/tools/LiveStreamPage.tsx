@@ -46,7 +46,12 @@ export function LiveStreamPage() {
     handleStopStream,
   } = useLiveStream({ sessionId });
 
-  const liveStreamStepKey = isStreaming ? 'live' : hasSourceVideo ? 'destination' : 'source';
+  let liveStreamStepKey = 'source';
+  if (isStreaming) {
+    liveStreamStepKey = 'live';
+  } else if (hasSourceVideo) {
+    liveStreamStepKey = 'destination';
+  }
   useScrollToTopOnChange(liveStreamStepKey);
 
   useEffect(() => {

@@ -7,6 +7,86 @@ import { useCallback, useState } from 'react';
 import { logger } from '@/lib/logger';
 import { exportApi } from '@/services/export-api';
 
+async function uploadFilesForExport(clips: ClipData[], onProgress: (progress: number) => void) {
+  const uploadedFiles: Array<{
+    localPath: string;
+    startTime: number;
+    endTime: number;
+    transforms?: ClipTransforms;
+    effects?: ClipEffects;
+  }> = [];
+
+  for (let i = 0; i < clips.length; i++) {
+    const clipFile = clips[i];
+    if (!clipFile) continue;
+
+    onProgress((i / clips.length) * 0.3);
+    const uploaded = await exportApi.uploadVideo(clipFile.file);
+    uploadedFiles.push({
+      localPath: uploaded.uploadToken,
+      startTime: clipFile.startTime,
+      endTime: clipFile.endTime,
+      transforms: clipFile.transforms,
+      effects: clipFile.effects,
+    });
+  }
+  return uploadedFiles;
+}
+
+async function downloadExportedFile(downloadUrl: string) {
+  const { authFetch } = await import('@/services/api');
+  const response = await authFetch(downloadUrl);
+
+  if (!response.ok) {
+    throw new Error('Failed to download export file');
+  }
+
+  const blob = await response.blob();
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `export-${Date.now()}.mp4`;
+  a.click();
+  window.URL.revokeObjectURL(url);
+}
+
+async function createExportJobFromFiles(
+  projectId: string,
+  exportOptions:
+    | {
+        format: 'MP4' | 'WEBM' | 'MOV';
+        resolution: 'SD' | 'HD' | 'UHD';
+        width?: number;
+        height?: number;
+        fps?: number;
+      }
+    | undefined,
+  uploadedFiles: Array<{
+    localPath: string;
+    startTime: number;
+    endTime: number;
+    transforms?: ClipTransforms;
+    effects?: ClipEffects;
+  }>,
+  textOverlays: TextOverlayData[] | undefined,
+) {
+  return await exportApi.createExportJob({
+    projectId: projectId || 'default',
+    format: exportOptions?.format || 'MP4',
+    resolution: exportOptions?.resolution || 'HD',
+    addWatermark: false, // No watermark by default
+    timelineData: {
+      clips: uploadedFiles,
+      textOverlays: textOverlays || [],
+      settings: {
+        width: exportOptions?.width || 1920,
+        height: exportOptions?.height || 1080,
+        fps: exportOptions?.fps || 30,
+      },
+    },
+  });
+}
+
 // Full clip data with transforms and effects for server-side processing
 export interface ClipTransforms {
   x: number;
@@ -135,47 +215,16 @@ export function useExport(options: UseExportOptions = {}) {
         setExportProgress(0);
 
         // Step 1: Upload video files with transforms/effects
-        const uploadedFiles: Array<{
-          localPath: string;
-          startTime: number;
-          endTime: number;
-          transforms?: ClipTransforms;
-          effects?: ClipEffects;
-        }> = [];
-
-        for (let i = 0; i < clips.length; i++) {
-          const clipFile = clips[i];
-          if (!clipFile) continue;
-
-          setExportProgress((i / clips.length) * 0.3);
-          const uploaded = await exportApi.uploadVideo(clipFile.file);
-          uploadedFiles.push({
-            localPath: uploaded.uploadToken,
-            startTime: clipFile.startTime,
-            endTime: clipFile.endTime,
-            transforms: clipFile.transforms,
-            effects: clipFile.effects,
-          });
-        }
-
+        const uploadedFiles = await uploadFilesForExport(clips, setExportProgress);
         setExportProgress(0.3);
 
         // Step 2: Create export job with backend-compatible settings
-        const job = await exportApi.createExportJob({
-          projectId: projectId || 'default',
-          format: exportOptions?.format || 'MP4',
-          resolution: exportOptions?.resolution || 'HD',
-          addWatermark: false, // No watermark by default
-          timelineData: {
-            clips: uploadedFiles,
-            textOverlays: textOverlays || [],
-            settings: {
-              width: exportOptions?.width || 1920,
-              height: exportOptions?.height || 1080,
-              fps: exportOptions?.fps || 30,
-            },
-          },
-        });
+        const job = await createExportJobFromFiles(
+          projectId || 'default',
+          exportOptions,
+          uploadedFiles,
+          textOverlays,
+        );
 
         setExportJobId(job.jobId);
         setExportProgress(0.4);
@@ -192,21 +241,7 @@ export function useExport(options: UseExportOptions = {}) {
           throw new Error('Download URL not available');
         }
 
-        // Use authFetch to get the file with authentication
-        const { authFetch } = await import('@/services/api');
-        const response = await authFetch(finalStatus.downloadUrl);
-
-        if (!response.ok) {
-          throw new Error('Failed to download export file');
-        }
-
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `export-${Date.now()}.mp4`;
-        a.click();
-        window.URL.revokeObjectURL(url);
+        await downloadExportedFile(finalStatus.downloadUrl);
 
         setExportSuccess(true);
       } catch (e) {

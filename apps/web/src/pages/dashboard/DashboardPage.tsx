@@ -205,7 +205,7 @@ function WorkspaceRow({ item }: WorkspaceRowProps) {
       <DashboardThumbnail thumbnailUrl={item.thumbnailUrl} tool={item.tool} className="h-16 w-24" />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <Badge variant="default" className="gap-1 border-border/70 px-2 py-0 text-[10px]">
+          <Badge variant="outline" className="gap-1 border-border/70 px-2 py-0 text-[10px]">
             <ToolIcon size={12} />
             {getDashboardToolLabel(item.tool)}
           </Badge>

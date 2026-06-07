@@ -284,6 +284,25 @@ export class TranscribeNormalizer {
     return merged;
   }
 
+  private clampWordsWithinSegment(seg: SubtitleSegment): boolean {
+    if (!seg.words?.length) return true;
+
+    seg.words = seg.words
+      .map((word) => ({
+        ...word,
+        startMs: Math.max(seg.startMs, word.startMs),
+        endMs: Math.min(seg.endMs, word.endMs),
+      }))
+      .filter((word) => word.endMs > word.startMs);
+
+    if (seg.words.length === 0) {
+      return false;
+    }
+
+    seg.text = this.rebuildTextFromWords(seg.words);
+    return true;
+  }
+
   private clampAndEnsureMonotonicity(merged: SubtitleSegment[]): SubtitleSegment[] {
     const finalSegments: SubtitleSegment[] = [];
 
@@ -305,22 +324,8 @@ export class TranscribeNormalizer {
         }
       }
 
-      if (seg.words?.length) {
-        seg.words = seg.words
-          .map((word) => ({
-            ...word,
-            startMs: Math.max(seg.startMs, word.startMs),
-            endMs: Math.min(seg.endMs, word.endMs),
-          }))
-          .filter((word) => word.endMs > word.startMs);
-
-        // Rebuild segment text from surviving words to prevent text/timing mismatch.
-        // If all words were filtered out, drop the segment entirely.
-        if (seg.words.length === 0) {
-          continue;
-        }
-
-        seg.text = this.rebuildTextFromWords(seg.words);
+      if (!this.clampWordsWithinSegment(seg)) {
+        continue;
       }
 
       finalSegments.push(seg);

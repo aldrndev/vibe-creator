@@ -38,18 +38,26 @@ export function ReactionRenderDialog({
       >
         <div className="flex items-center gap-4 border-b border-border/45 p-5 pr-14">
           <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-primary/25 bg-primary/10 text-primary">
-            {ready ? <CheckCircle2 /> : phase === 'failed' ? <AlertTriangle /> : <Video />}
+            {(() => {
+              if (ready) return <CheckCircle2 />;
+              if (phase === 'failed') return <AlertTriangle />;
+              return <Video />;
+            })()}
           </div>
           <div>
             <h2 className="text-xl font-black">
-              {ready ? 'Reaction siap' : phase === 'failed' ? 'Render gagal' : 'Render reaction'}
+              {(() => {
+                if (ready) return 'Reaction siap';
+                if (phase === 'failed') return 'Render gagal';
+                return 'Render reaction';
+              })()}
             </h2>
             <p className="mt-1 text-sm font-semibold text-muted-foreground">
-              {ready
-                ? 'Preview hasil sudah tersedia.'
-                : working
-                  ? getPhaseLabel(phase)
-                  : 'Coba render ulang.'}
+              {(() => {
+                if (ready) return 'Preview hasil sudah tersedia.';
+                if (working) return getPhaseLabel(phase);
+                return 'Coba render ulang.';
+              })()}
             </p>
           </div>
         </div>
@@ -101,29 +109,37 @@ export function ReactionRenderDialog({
         </div>
 
         <div className="flex justify-end gap-3 border-t border-border/45 p-5">
-          {ready ? (
-            <>
-              <Button variant="outline" className="h-11 rounded-xl" onClick={onEditBack}>
-                <Pencil size={16} />
-                Kembali Edit
-              </Button>
-              <Button className="h-11 rounded-xl px-6 font-black" onClick={onDownload}>
-                <Download size={16} />
-                Download
-              </Button>
-            </>
-          ) : phase === 'failed' ? (
-            <>
-              <Button variant="outline" onClick={onEditBack}>
-                Kembali Edit
-              </Button>
-              <Button onClick={onRetry}>Coba Lagi</Button>
-            </>
-          ) : (
-            <p className="text-sm font-semibold text-muted-foreground">
-              Render tetap berjalan di server.
-            </p>
-          )}
+          {(() => {
+            if (ready) {
+              return (
+                <>
+                  <Button variant="outline" className="h-11 rounded-xl" onClick={onEditBack}>
+                    <Pencil size={16} />
+                    Kembali Edit
+                  </Button>
+                  <Button className="h-11 rounded-xl px-6 font-black" onClick={onDownload}>
+                    <Download size={16} />
+                    Download
+                  </Button>
+                </>
+              );
+            }
+            if (phase === 'failed') {
+              return (
+                <>
+                  <Button variant="outline" onClick={onEditBack}>
+                    Kembali Edit
+                  </Button>
+                  <Button onClick={onRetry}>Coba Lagi</Button>
+                </>
+              );
+            }
+            return (
+              <p className="text-sm font-semibold text-muted-foreground">
+                Render tetap berjalan di server.
+              </p>
+            );
+          })()}
         </div>
       </DialogContent>
     </Dialog>

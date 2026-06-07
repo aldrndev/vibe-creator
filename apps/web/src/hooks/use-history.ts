@@ -1,6 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useEditorStore } from '@/stores/editor-store';
 
+function isUndoShortcut(e: KeyboardEvent) {
+  return (e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey;
+}
+
+function isRedoShortcut(e: KeyboardEvent) {
+  return (
+    ((e.metaKey || e.ctrlKey) && e.key === 'z' && e.shiftKey) ||
+    ((e.metaKey || e.ctrlKey) && e.key === 'y')
+  );
+}
+
 // Performance constants
 const MAX_HISTORY_SIZE_MB = 10;
 const MAX_HISTORY_STATES = 50;
@@ -202,20 +213,10 @@ export function useHistory(): UseHistoryReturn {
         return;
       }
 
-      // Cmd/Ctrl + Z = Undo
-      if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey) {
+      if (isUndoShortcut(e)) {
         e.preventDefault();
         undo();
-      }
-
-      // Cmd/Ctrl + Shift + Z = Redo
-      if ((e.metaKey || e.ctrlKey) && e.key === 'z' && e.shiftKey) {
-        e.preventDefault();
-        redo();
-      }
-
-      // Cmd/Ctrl + Y = Redo (Windows style)
-      if ((e.metaKey || e.ctrlKey) && e.key === 'y') {
+      } else if (isRedoShortcut(e)) {
         e.preventDefault();
         redo();
       }

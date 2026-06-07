@@ -142,33 +142,9 @@ export function TrendingPage() {
   const regionLabel = metadata?.regionLabel ?? getTrendingRegionLabel(activeRegion);
   const lastUpdatedAt = metadata?.lastUpdatedAt ?? status?.lastSuccessAt;
   const latestUpdateLabel = getUpdateTimeLabel(lastUpdatedAt);
-  const heroItem = items[0];
-  const bentoItems = items.slice(1, 5);
-  const billboardItems = items.slice(5, 20);
-  const feedItems = items.slice(20, TRENDING_MAX_RESULTS);
-  const topCategory = getTopCategory(items);
   const returnedCount = metadata?.returnedCount ?? items.length;
   const maxResults = metadata?.maxResults ?? TRENDING_MAX_RESULTS;
-  const insightCards = [
-    {
-      label: 'Video Tersedia',
-      value: `${returnedCount}/${maxResults}`,
-      detail: `Top trending YouTube ${regionLabel}`,
-      icon: Clapperboard,
-    },
-    {
-      label: 'Kategori Dominan',
-      value: topCategory,
-      detail: 'Tema video yang paling sering muncul',
-      icon: Flame,
-    },
-    {
-      label: 'Siap Jadi Short',
-      value: `${returnedCount} ide`,
-      detail: 'Klik Buat Short untuk impor ide dan link video',
-      icon: Wand2,
-    },
-  ];
+  const topCategory = getTopCategory(items);
 
   const handleRegionChange = (value: string) => {
     if (!isTrendingRegionCode(value)) {
@@ -244,11 +220,11 @@ export function TrendingPage() {
                   className={cn((isFetching || sourceRefreshMutation.isPending) && 'animate-spin')}
                 />
                 <span className="hidden sm:inline">
-                  {isFetching || sourceRefreshMutation.isPending
-                    ? 'Memuat...'
-                    : isAdmin
-                      ? 'Refresh Data Sumber'
-                      : 'Refresh Tampilan'}
+                  {(() => {
+                    if (isFetching || sourceRefreshMutation.isPending) return 'Memuat...';
+                    if (isAdmin) return 'Refresh Data Sumber';
+                    return 'Refresh Tampilan';
+                  })()}
                 </span>
               </Button>
             </div>
@@ -267,93 +243,157 @@ export function TrendingPage() {
           </div>
         ) : null}
 
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
-          {insightCards.map(({ label, value, detail, icon: Icon }) => (
-            <Card key={label} className="border-border/40 bg-card/50 backdrop-blur-sm">
-              <CardBody className="flex items-start gap-3 p-4">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 text-primary">
-                  <Icon size={18} />
-                </div>
-                <div className="min-w-0 space-y-1">
-                  <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-muted-foreground">
-                    {label}
-                  </p>
-                  <p className="truncate text-lg font-black tracking-tight text-foreground">
-                    {value}
-                  </p>
-                  <p className="text-xs text-muted-foreground">{detail}</p>
-                </div>
-              </CardBody>
-            </Card>
-          ))}
-        </div>
+        <TrendingInsights
+          returnedCount={returnedCount}
+          maxResults={maxResults}
+          regionLabel={regionLabel}
+          topCategory={topCategory}
+        />
 
-        {isError ? (
-          <Card className="border-red-500/20 bg-red-500/5">
-            <CardBody className="p-6 text-center">
-              <XCircle className="mx-auto mb-3 text-red-500" size={32} />
-              <p className="text-sm font-medium text-red-500">Gagal memuat data trending.</p>
-              <Button
-                variant="outline"
-                size="sm"
-                className="mt-4"
-                onClick={() => {
-                  void refetch();
-                }}
-              >
-                Coba Lagi
-              </Button>
-            </CardBody>
-          </Card>
-        ) : null}
-
-        {isLoading ? <TrendingSkeleton /> : null}
-
-        {!isLoading && !isError && items.length === 0 ? (
-          <div className="rounded-3xl border border-dashed border-border bg-muted/10 px-6 py-20 text-center">
-            <h3 className="text-lg font-medium text-muted-foreground">
-              Data negara ini belum tersedia.
-            </h3>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Coba lagi setelah pembaruan berikutnya.
-            </p>
-          </div>
-        ) : null}
-
-        {!isLoading && !isError && items.length > 0 ? (
-          <div className="space-y-10 animate-in fade-in slide-in-from-bottom-8 duration-700 md:space-y-12">
-            <section className="space-y-4">
-              {heroItem ? <TrendingHero item={heroItem} /> : null}
-              {bentoItems.length > 0 ? <TrendingBento items={bentoItems} /> : null}
-            </section>
-
-            {billboardItems.length > 0 ? (
-              <section>
-                <TrendingBillboard items={billboardItems} />
-              </section>
-            ) : null}
-
-            {feedItems.length > 0 ? (
-              <section className="space-y-4">
-                <div className="flex flex-col gap-1 px-1 sm:flex-row sm:items-end sm:justify-between">
-                  <h3 className="flex items-center gap-2 text-lg font-bold">
-                    <Flame size={16} className="text-orange-500" />
-                    Tren Lainnya
-                  </h3>
-                  <p className="text-xs font-semibold text-muted-foreground">
-                    Rank #21-{returnedCount}
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  {feedItems.map((item, index) => (
-                    <TrendingFeedItem key={item.id} item={item} index={index + 21} />
-                  ))}
-                </div>
-              </section>
-            ) : null}
-          </div>
-        ) : null}
+        <TrendingContent
+          isLoading={isLoading}
+          isError={isError}
+          items={items}
+          refetch={() => void refetch()}
+          returnedCount={returnedCount}
+        />
       </div>
     </PageTransition>
+  );
+}
+
+function TrendingInsights({
+  returnedCount,
+  maxResults,
+  regionLabel,
+  topCategory,
+}: {
+  returnedCount: number;
+  maxResults: number;
+  regionLabel: string;
+  topCategory: string;
+}) {
+  const insightCards = [
+    {
+      label: 'Video Tersedia',
+      value: `${returnedCount}/${maxResults}`,
+      detail: `Top trending YouTube ${regionLabel}`,
+      icon: Clapperboard,
+    },
+    {
+      label: 'Kategori Dominan',
+      value: topCategory,
+      detail: 'Tema video yang paling sering muncul',
+      icon: Flame,
+    },
+    {
+      label: 'Siap Jadi Short',
+      value: `${returnedCount} ide`,
+      detail: 'Klik Buat Short untuk impor ide dan link video',
+      icon: Wand2,
+    },
+  ];
+
+  return (
+    <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+      {insightCards.map(({ label, value, detail, icon: Icon }) => (
+        <Card key={label} className="border-border/40 bg-card/50 backdrop-blur-sm">
+          <CardBody className="flex items-start gap-3 p-4">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 text-primary">
+              <Icon size={18} />
+            </div>
+            <div className="min-w-0 space-y-1">
+              <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-muted-foreground">
+                {label}
+              </p>
+              <p className="truncate text-lg font-black tracking-tight text-foreground">{value}</p>
+              <p className="text-xs text-muted-foreground">{detail}</p>
+            </div>
+          </CardBody>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+function TrendingContent({
+  isLoading,
+  isError,
+  items,
+  refetch,
+  returnedCount,
+}: {
+  isLoading: boolean;
+  isError: boolean;
+  items: TrendingResponse['items'];
+  refetch: () => void;
+  returnedCount: number;
+}) {
+  if (isError) {
+    return (
+      <Card className="border-red-500/20 bg-red-500/5">
+        <CardBody className="p-6 text-center">
+          <XCircle className="mx-auto mb-3 text-red-500" size={32} />
+          <p className="text-sm font-medium text-red-500">Gagal memuat data trending.</p>
+          <Button variant="outline" size="sm" className="mt-4" onClick={refetch}>
+            Coba Lagi
+          </Button>
+        </CardBody>
+      </Card>
+    );
+  }
+
+  if (isLoading) {
+    return <TrendingSkeleton />;
+  }
+
+  if (items.length === 0) {
+    return (
+      <div className="rounded-3xl border border-dashed border-border bg-muted/10 px-6 py-20 text-center">
+        <h3 className="text-lg font-medium text-muted-foreground">
+          Data negara ini belum tersedia.
+        </h3>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Coba lagi setelah pembaruan berikutnya.
+        </p>
+      </div>
+    );
+  }
+
+  const heroItem = items[0];
+  const bentoItems = items.slice(1, 5);
+  const billboardItems = items.slice(5, 20);
+  const feedItems = items.slice(20, TRENDING_MAX_RESULTS);
+
+  return (
+    <div className="space-y-10 animate-in fade-in slide-in-from-bottom-8 duration-700 md:space-y-12">
+      <section className="space-y-4">
+        {heroItem ? <TrendingHero item={heroItem} /> : null}
+        {bentoItems.length > 0 ? <TrendingBento items={bentoItems} /> : null}
+      </section>
+
+      {billboardItems.length > 0 ? (
+        <section>
+          <TrendingBillboard items={billboardItems} />
+        </section>
+      ) : null}
+
+      {feedItems.length > 0 ? (
+        <section className="space-y-4">
+          <div className="flex flex-col gap-1 px-1 sm:flex-row sm:items-end sm:justify-between">
+            <h3 className="flex items-center gap-2 text-lg font-bold">
+              <Flame size={16} className="text-orange-500" />
+              Tren Lainnya
+            </h3>
+            <p className="text-xs font-semibold text-muted-foreground">Rank #21-{returnedCount}</p>
+          </div>
+          <div className="space-y-2">
+            {feedItems.map((item, index) => (
+              <TrendingFeedItem key={item.id} item={item} index={index + 21} />
+            ))}
+          </div>
+        </section>
+      ) : null}
+    </div>
   );
 }

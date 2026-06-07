@@ -97,13 +97,19 @@ function TrendingActions({ item, compact = false, tone = 'primary' }: TrendingAc
         )}
         onClick={() => navigate({ to: getDirectorTopicUrl(item) })}
       >
-        <Wand2 size={isMinimal ? 12 : compact ? 13 : 16} />
+        <Wand2
+          size={(() => {
+            if (isMinimal) return 12;
+            if (compact) return 13;
+            return 16;
+          })()}
+        />
         Buat Short
       </Button>
       {item.externalUrl ? (
         <Button
           variant="outline"
-          size={isMinimal ? 'sm' : compact ? 'sm' : 'sm'}
+          size="sm"
           className={cn(
             'rounded-xl gap-2',
             compact && 'h-8 px-3 text-xs',

@@ -172,81 +172,78 @@ export function buildBackgroundInputSource(
     ].join(':');
   }
 
-  const backgroundColor =
-    settings.backgroundMode === 'solid'
-      ? blendHexColorWithBlack(settings.backgroundColor, getBackgroundOpacity(settings))
-      : settings.backgroundMode === 'image'
-        ? normalizeHexColor(settings.backgroundColor, '#000000')
-        : '#000000';
+  let backgroundColor = '#000000';
+  if (settings.backgroundMode === 'solid') {
+    backgroundColor = blendHexColorWithBlack(
+      settings.backgroundColor,
+      getBackgroundOpacity(settings),
+    );
+  } else if (settings.backgroundMode === 'image') {
+    backgroundColor = normalizeHexColor(settings.backgroundColor, '#000000');
+  }
 
   return `color=c=${toFFmpegColor(backgroundColor, 'black')}:s=${settings.width}x${settings.height}:r=${settings.fps}:d=${durationSec}`;
 }
 
-export function buildBackgroundBaseFilters({
-  backgroundImageInputIndex,
-  settings,
-  visualClips,
-}: {
-  backgroundImageInputIndex?: number;
-  settings: ModernBackgroundSettings;
-  visualClips: readonly ModernBackgroundVisualClip[];
-}): BackgroundBaseResult {
-  const filters = ['[0:v]format=rgba[base0]'];
+function buildImageBackgroundFilters(
+  backgroundImageInputIndex: number,
+  settings: ModernBackgroundSettings,
+  filters: string[],
+): BackgroundBaseResult {
+  const fit = settings.backgroundImageFit ?? 'cover';
+  const blurAmount = clamp(settings.backgroundImageBlurAmount ?? 0, 0, 40);
+  const dim = clamp(settings.backgroundImageDim ?? 0, 0, 0.6);
+  const opacity = getBackgroundOpacity(settings);
+  const positionX = clamp(settings.backgroundImagePositionX ?? 50, 0, 100) / 100;
+  const positionY = clamp(settings.backgroundImagePositionY ?? 50, 0, 100) / 100;
+  const scale = clamp(settings.backgroundImageScale ?? 1, 1, 2);
+  const targetWidth = Math.max(2, Math.round(settings.width * scale));
+  const targetHeight = Math.max(2, Math.round(settings.height * scale));
+  const imageFilters = [
+    `[${backgroundImageInputIndex}:v]setpts=PTS-STARTPTS`,
+    `scale=${targetWidth}:${targetHeight}:force_original_aspect_ratio=${
+      fit === 'cover' ? 'increase' : 'decrease'
+    }`,
+  ];
 
-  if (settings.backgroundMode === 'image' && backgroundImageInputIndex !== undefined) {
-    const fit = settings.backgroundImageFit ?? 'cover';
-    const blurAmount = clamp(settings.backgroundImageBlurAmount ?? 0, 0, 40);
-    const dim = clamp(settings.backgroundImageDim ?? 0, 0, 0.6);
-    const opacity = getBackgroundOpacity(settings);
-    const positionX = clamp(settings.backgroundImagePositionX ?? 50, 0, 100) / 100;
-    const positionY = clamp(settings.backgroundImagePositionY ?? 50, 0, 100) / 100;
-    const scale = clamp(settings.backgroundImageScale ?? 1, 1, 2);
-    const targetWidth = Math.max(2, Math.round(settings.width * scale));
-    const targetHeight = Math.max(2, Math.round(settings.height * scale));
-    const imageFilters = [
-      `[${backgroundImageInputIndex}:v]setpts=PTS-STARTPTS`,
-      `scale=${targetWidth}:${targetHeight}:force_original_aspect_ratio=${
-        fit === 'cover' ? 'increase' : 'decrease'
-      }`,
-    ];
-
-    if (fit === 'cover') {
-      imageFilters.push(
-        `crop=${settings.width}:${settings.height}:(in_w-${settings.width})*${positionX.toFixed(
-          2,
-        )}:(in_h-${settings.height})*${positionY.toFixed(2)}`,
-      );
-    } else {
-      imageFilters.push(
-        `crop='min(iw,${settings.width})':'min(ih,${settings.height})':(in_w-out_w)*${positionX.toFixed(
-          2,
-        )}:(in_h-out_h)*${positionY.toFixed(2)}`,
-        `pad=${settings.width}:${settings.height}:(ow-iw)*${positionX.toFixed(
-          2,
-        )}:(oh-ih)*${positionY.toFixed(2)}:color=black@0`,
-      );
-    }
-
-    if (blurAmount > 0) {
-      imageFilters.push(`gblur=sigma=${blurAmount}`);
-    }
-    if (dim > 0) {
-      imageFilters.push(`drawbox=color=black@${dim}:t=fill`);
-    }
-    imageFilters.push('format=rgba');
-    if (opacity < 1) {
-      imageFilters.push(`colorchannelmixer=aa=${opacity}`);
-    }
-
-    filters.push(`${imageFilters.join(',')}[imageBg]`);
-    filters.push('[base0][imageBg]overlay=0:0[baseImage]');
-    return { label: 'baseImage', filters };
+  if (fit === 'cover') {
+    imageFilters.push(
+      `crop=${settings.width}:${settings.height}:(in_w-${settings.width})*${positionX.toFixed(
+        2,
+      )}:(in_h-${settings.height})*${positionY.toFixed(2)}`,
+    );
+  } else {
+    imageFilters.push(
+      `crop='min(iw,${settings.width})':'min(ih,${settings.height})':(in_w-out_w)*${positionX.toFixed(
+        2,
+      )}:(in_h-out_h)*${positionY.toFixed(2)}`,
+      `pad=${settings.width}:${settings.height}:(ow-iw)*${positionX.toFixed(
+        2,
+      )}:(oh-ih)*${positionY.toFixed(2)}:color=black@0`,
+    );
   }
 
-  if (settings.backgroundMode !== 'blur') {
-    return { label: 'base0', filters };
+  if (blurAmount > 0) {
+    imageFilters.push(`gblur=sigma=${blurAmount}`);
+  }
+  if (dim > 0) {
+    imageFilters.push(`drawbox=color=black@${dim}:t=fill`);
+  }
+  imageFilters.push('format=rgba');
+  if (opacity < 1) {
+    imageFilters.push(`colorchannelmixer=aa=${opacity}`);
   }
 
+  filters.push(`${imageFilters.join(',')}[imageBg]`);
+  filters.push('[base0][imageBg]overlay=0:0[baseImage]');
+  return { label: 'baseImage', filters };
+}
+
+function buildBlurBackgroundFilters(
+  settings: ModernBackgroundSettings,
+  visualClips: readonly ModernBackgroundVisualClip[],
+  filters: string[],
+): BackgroundBaseResult {
   const blurAmount = clamp(settings.backgroundBlurAmount ?? 18, 0, 50);
   const blurZoom = clamp(settings.backgroundBlurZoom ?? 1.08, 1, 1.5);
   const dim = clamp(settings.backgroundDim ?? 0.08, 0, 0.6);
@@ -283,4 +280,26 @@ export function buildBackgroundBaseFilters({
     });
 
   return { label: currentLabel, filters };
+}
+
+export function buildBackgroundBaseFilters({
+  backgroundImageInputIndex,
+  settings,
+  visualClips,
+}: {
+  backgroundImageInputIndex?: number;
+  settings: ModernBackgroundSettings;
+  visualClips: readonly ModernBackgroundVisualClip[];
+}): BackgroundBaseResult {
+  const filters = ['[0:v]format=rgba[base0]'];
+
+  if (settings.backgroundMode === 'image' && backgroundImageInputIndex !== undefined) {
+    return buildImageBackgroundFilters(backgroundImageInputIndex, settings, filters);
+  }
+
+  if (settings.backgroundMode !== 'blur') {
+    return { label: 'base0', filters };
+  }
+
+  return buildBlurBackgroundFilters(settings, visualClips, filters);
 }

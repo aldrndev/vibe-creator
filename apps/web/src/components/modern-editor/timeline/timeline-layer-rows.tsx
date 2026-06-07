@@ -105,68 +105,141 @@ export function TimelineLayerRows({
             : 0;
 
         return (
-          <div
+          <TimelineLayerRow
             key={layer.id}
-            className="relative isolate flex"
-            style={{ height: rowHeightPx, width: headerWidthPx + timelineWidthPx }}
-          >
-            <button
-              type="button"
-              draggable
-              className={cn(
-                'sticky left-0 z-[70] flex shrink-0 items-center gap-2 overflow-hidden border-r border-t border-border/30 bg-card/95 px-2.5 text-left text-[11px] font-black shadow-[8px_0_18px_rgba(0,0,0,0.18)] backdrop-blur transition-colors',
-                selectedLayerIds.includes(layer.id)
-                  ? 'text-primary'
-                  : 'text-muted-foreground hover:bg-muted/30 hover:text-foreground',
-                reorderingLayerId === layer.id && 'opacity-55',
-              )}
-              style={{ width: headerWidthPx, height: rowHeightPx }}
-              onClick={(event) => onSelectLayer(event, layer.id)}
-              onDragStart={(event) => onDragStart(event, layer.id)}
-              onDragOver={onDragOver}
-              onDrop={(event) => onDrop(event, layer.id)}
-              onDragEnd={onDragEnd}
-              aria-label={`Geser urutan layer ${getTimelineLayerLabel(layer)}`}
-            >
-              <GripVertical
-                size={14}
-                className="shrink-0 text-muted-foreground/35 transition-colors"
-                aria-hidden="true"
-              />
-              <span className="min-w-0 flex-1 truncate">{getTimelineLayerLabel(layer)}</span>
-            </button>
-
-            <div
-              className={cn(
-                'relative z-0 cursor-ew-resize overflow-hidden border-t border-border/30 bg-background/20 hover:bg-muted/10',
-                isReorderTarget &&
-                  'bg-primary/10 outline outline-1 -outline-offset-1 outline-primary/45',
-                reorderingLayerId &&
-                  reorderingLayerId !== layer.id &&
-                  'outline outline-1 -outline-offset-1 outline-primary/20',
-              )}
-              style={{ height: rowHeightPx, width: timelineWidthPx }}
-              onPointerDown={(event) => {
-                if (event.target === event.currentTarget) {
-                  onTrackBackgroundPointerDown(event, event.currentTarget);
-                }
-              }}
-            >
-              <TimelineClip
-                layer={layer}
-                viewModel={viewModel}
-                previewLeftPx={preview ? timelineMsToPx(preview.startMs, pxPerSecond) : null}
-                previewWidthPx={
-                  preview ? timelineMsToPx(preview.endMs - preview.startMs, pxPerSecond) : null
-                }
-                previewTranslateYPx={previewTranslateYPx}
-                onSelect={(event) => onSelectLayer(event, layer.id)}
-                onPointerStart={(event, mode) => onPointerStart(event, layer, mode)}
-              />
-            </div>
-          </div>
+            layer={layer}
+            viewModel={viewModel}
+            preview={preview}
+            isReorderTarget={isReorderTarget}
+            sourceIndex={sourceIndex}
+            targetIndex={targetIndex}
+            previewTranslateYPx={previewTranslateYPx}
+            rowHeightPx={rowHeightPx}
+            headerWidthPx={headerWidthPx}
+            timelineWidthPx={timelineWidthPx}
+            selectedLayerIds={selectedLayerIds}
+            reorderingLayerId={reorderingLayerId}
+            pxPerSecond={pxPerSecond}
+            onSelectLayer={onSelectLayer}
+            onDragStart={onDragStart}
+            onDragOver={onDragOver}
+            onDrop={onDrop}
+            onDragEnd={onDragEnd}
+            onTrackBackgroundPointerDown={onTrackBackgroundPointerDown}
+            onPointerStart={onPointerStart}
+          />
         );
       })}
+    </div>
+  );
+}
+
+function TimelineLayerRow({
+  layer,
+  viewModel,
+  preview,
+  isReorderTarget,
+  previewTranslateYPx,
+  rowHeightPx,
+  headerWidthPx,
+  timelineWidthPx,
+  selectedLayerIds,
+  reorderingLayerId,
+  pxPerSecond,
+  onSelectLayer,
+  onDragStart,
+  onDragOver,
+  onDrop,
+  onDragEnd,
+  onTrackBackgroundPointerDown,
+  onPointerStart,
+}: {
+  layer: Layer;
+  viewModel: TimelineClipViewModel;
+  preview: TimelineDragTiming | null;
+  isReorderTarget: boolean;
+  sourceIndex: number;
+  targetIndex: number | null | undefined;
+  previewTranslateYPx: number;
+  rowHeightPx: number;
+  headerWidthPx: number;
+  timelineWidthPx: number;
+  selectedLayerIds: readonly string[];
+  reorderingLayerId: string | null;
+  pxPerSecond: number;
+  onSelectLayer: (event: React.MouseEvent<HTMLButtonElement>, layerId: string) => void;
+  onDragStart: (event: React.DragEvent<HTMLElement>, layerId: string) => void;
+  onDragOver: (event: React.DragEvent<HTMLElement>) => void;
+  onDrop: (event: React.DragEvent<HTMLElement>, targetLayerId: string) => void;
+  onDragEnd: () => void;
+  onTrackBackgroundPointerDown: (
+    event: React.PointerEvent<HTMLElement>,
+    element: HTMLElement,
+  ) => void;
+  onPointerStart: (
+    event: React.PointerEvent<HTMLButtonElement>,
+    layer: Layer,
+    mode: TimelinePointerMode,
+  ) => void;
+}) {
+  return (
+    <div
+      className="relative isolate flex"
+      style={{ height: rowHeightPx, width: headerWidthPx + timelineWidthPx }}
+    >
+      <button
+        type="button"
+        draggable
+        className={cn(
+          'sticky left-0 z-70 flex shrink-0 items-center gap-2 overflow-hidden border-r border-t border-border/30 bg-card/95 px-2.5 text-left text-[11px] font-black shadow-[8px_0_18px_rgba(0,0,0,0.18)] backdrop-blur transition-colors',
+          selectedLayerIds.includes(layer.id)
+            ? 'text-primary'
+            : 'text-muted-foreground hover:bg-muted/30 hover:text-foreground',
+          reorderingLayerId === layer.id && 'opacity-55',
+        )}
+        style={{ width: headerWidthPx, height: rowHeightPx }}
+        onClick={(event) => onSelectLayer(event, layer.id)}
+        onDragStart={(event) => onDragStart(event, layer.id)}
+        onDragOver={onDragOver}
+        onDrop={(event) => onDrop(event, layer.id)}
+        onDragEnd={onDragEnd}
+        aria-label={`Geser urutan layer ${getTimelineLayerLabel(layer)}`}
+      >
+        <GripVertical
+          size={14}
+          className="shrink-0 text-muted-foreground/35 transition-colors"
+          aria-hidden="true"
+        />
+        <span className="min-w-0 flex-1 truncate">{getTimelineLayerLabel(layer)}</span>
+      </button>
+
+      <div
+        className={cn(
+          'relative z-0 cursor-ew-resize overflow-hidden border-t border-border/30 bg-background/20 hover:bg-muted/10',
+          isReorderTarget && 'bg-primary/10 outline-1 -outline-offset-1 outline-primary/45',
+          reorderingLayerId &&
+            reorderingLayerId !== layer.id &&
+            'outline-1 -outline-offset-1 outline-primary/20',
+        )}
+        style={{ height: rowHeightPx, width: timelineWidthPx }}
+        onPointerDown={(event) => {
+          if (event.target === event.currentTarget) {
+            onTrackBackgroundPointerDown(event, event.currentTarget);
+          }
+        }}
+      >
+        <TimelineClip
+          layer={layer}
+          viewModel={viewModel}
+          previewLeftPx={preview ? timelineMsToPx(preview.startMs, pxPerSecond) : null}
+          previewWidthPx={
+            preview ? timelineMsToPx(preview.endMs - preview.startMs, pxPerSecond) : null
+          }
+          previewTranslateYPx={previewTranslateYPx}
+          onSelect={(event) => onSelectLayer(event, layer.id)}
+          onPointerStart={(event, mode) => onPointerStart(event, layer, mode)}
+        />
+      </div>
     </div>
   );
 }

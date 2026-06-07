@@ -35,6 +35,65 @@ function respondError(error: unknown) {
   };
 }
 
+import type { FastifyReply } from 'fastify';
+
+function setupSseConnection(reply: FastifyReply) {
+  reply.raw.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-transform',
+    Connection: 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  });
+  reply.hijack();
+}
+
+function handleInitialPreviewStatus(
+  status: Awaited<ReturnType<typeof loopPreviewService.getStatus>>,
+  write: (event: LoopPreviewEvent) => void,
+): boolean {
+  write({
+    type: 'snapshot',
+    previewId: status.previewId,
+    status: status.status,
+    progress: status.progress,
+    phase: status.phase,
+  });
+
+  if (status.status === 'COMPLETED' && status.previewUrl && status.expiresAt) {
+    write({
+      type: 'completed',
+      previewId: status.previewId,
+      status: 'COMPLETED',
+      progress: 100,
+      previewUrl: status.previewUrl,
+      expiresAt: status.expiresAt,
+    });
+    return true;
+  }
+
+  if (status.status === 'FAILED') {
+    write({
+      type: 'failed',
+      previewId: status.previewId,
+      status: 'FAILED',
+      errorMessage: status.errorMessage ?? 'Preview loop tidak tersedia.',
+    });
+    return true;
+  }
+
+  if (status.status === 'EXPIRED') {
+    write({
+      type: 'expired',
+      previewId: status.previewId,
+      status: 'EXPIRED',
+      errorMessage: status.errorMessage ?? 'Preview loop tidak tersedia.',
+    });
+    return true;
+  }
+
+  return false;
+}
+
 export const loopPreviewRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post('/projects/:id/preview', { preHandler: [requireAuth] }, async (request, reply) => {
     const user = request.user;
@@ -131,13 +190,9 @@ export const loopPreviewRoutes: FastifyPluginAsync = async (fastify) => {
       try {
         const params = loopPreviewParamsSchema.parse(request.params);
         const status = await loopPreviewService.getStatus(params.previewId, userId);
-        reply.raw.writeHead(200, {
-          'Content-Type': 'text/event-stream',
-          'Cache-Control': 'no-cache, no-transform',
-          Connection: 'keep-alive',
-          'X-Accel-Buffering': 'no',
-        });
-        reply.hijack();
+
+        setupSseConnection(reply);
+
         const close = async () => {
           if (heartbeat) clearInterval(heartbeat);
           heartbeat = null;
@@ -152,42 +207,10 @@ export const loopPreviewRoutes: FastifyPluginAsync = async (fastify) => {
             void close();
           }
         };
-        write({
-          type: 'snapshot',
-          previewId: status.previewId,
-          status: status.status,
-          progress: status.progress,
-          phase: status.phase,
-        });
-        if (status.status === 'COMPLETED' && status.previewUrl && status.expiresAt) {
-          write({
-            type: 'completed',
-            previewId: status.previewId,
-            status: 'COMPLETED',
-            progress: 100,
-            previewUrl: status.previewUrl,
-            expiresAt: status.expiresAt,
-          });
-          return;
-        }
-        if (status.status === 'FAILED' || status.status === 'EXPIRED') {
-          if (status.status === 'FAILED') {
-            write({
-              type: 'failed',
-              previewId: status.previewId,
-              status: 'FAILED',
-              errorMessage: status.errorMessage ?? 'Preview loop tidak tersedia.',
-            });
-          } else {
-            write({
-              type: 'expired',
-              previewId: status.previewId,
-              status: 'EXPIRED',
-              errorMessage: status.errorMessage ?? 'Preview loop tidak tersedia.',
-            });
-          }
-          return;
-        }
+
+        const isFinished = handleInitialPreviewStatus(status, write);
+        if (isFinished) return;
+
         unsubscribe = await subscribeToLoopPreviewEvents(status.previewId, write);
         heartbeat = setInterval(
           () => reply.raw.write(': heartbeat\n\n'),

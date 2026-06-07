@@ -226,33 +226,15 @@ export function useLoopCreator(sessionId?: string) {
     [clearLoopPreview, projectId, replaceVideoUrl, resetResult, title],
   );
 
-  useEffect(() => {
-    clearLoopPreview();
-    if (!projectId || !document.sourceAssetId || document.transition.mode !== 'smooth') {
-      return;
-    }
-
-    const requestNumber = previewRequestRef.current;
-    let cancelled = false;
-    const setReadyPreview = async (previewId: string) => {
-      const url = await loadLoopCyclePreviewBlob(previewId);
-      if (cancelled || requestNumber !== previewRequestRef.current) {
-        URL.revokeObjectURL(url);
-        return;
-      }
-      if (loopPreviewUrlRef.current) URL.revokeObjectURL(loopPreviewUrlRef.current);
-      loopPreviewUrlRef.current = url;
-      setLoopPreviewUrl(url);
-      setLoopPreviewPhase('ready');
-      setLoopPreviewError(null);
-    };
-    const failPreview = (messageText: string) => {
-      if (cancelled || requestNumber !== previewRequestRef.current) return;
-      setLoopPreviewPhase('failed');
-      setLoopPreviewError(messageText);
-    };
-    const handlePreviewEvent = (event: LoopPreviewEvent) => {
-      if (cancelled || requestNumber !== previewRequestRef.current) return;
+  const handlePreviewEvent = useCallback(
+    (
+      event: LoopPreviewEvent,
+      requestNumber: number,
+      checkCancel: () => boolean,
+      setReadyPreview: (id: string) => Promise<void>,
+      failPreview: (msg: string) => void,
+    ) => {
+      if (checkCancel() || requestNumber !== previewRequestRef.current) return;
       if (event.type === 'snapshot' || event.type === 'progress') {
         setLoopPreviewPhase(event.status === 'QUEUED' ? 'queued' : 'rendering');
       }
@@ -266,9 +248,19 @@ export function useLoopCreator(sessionId?: string) {
       if (event.type === 'failed' || event.type === 'expired') {
         failPreview(event.errorMessage);
       }
-    };
-    const pollPreview = async (previewId: string) => {
-      while (!cancelled && requestNumber === previewRequestRef.current) {
+    },
+    [],
+  );
+
+  const pollPreview = useCallback(
+    async (
+      previewId: string,
+      requestNumber: number,
+      checkCancel: () => boolean,
+      setReadyPreview: (id: string) => Promise<void>,
+      failPreview: (msg: string) => void,
+    ) => {
+      while (!checkCancel() && requestNumber === previewRequestRef.current) {
         const status = await getLoopPreviewStatus(previewId);
         if (status.status === 'COMPLETED') {
           await setReadyPreview(previewId);
@@ -281,25 +273,63 @@ export function useLoopCreator(sessionId?: string) {
         setLoopPreviewPhase(status.status === 'QUEUED' ? 'queued' : 'rendering');
         await new Promise((resolve) => window.setTimeout(resolve, 1000));
       }
+    },
+    [],
+  );
+
+  useEffect(() => {
+    clearLoopPreview();
+    if (!projectId || !document.sourceAssetId || document.transition.mode !== 'smooth') {
+      return;
+    }
+
+    const requestNumber = previewRequestRef.current;
+    const cancelState = { cancelled: false };
+
+    const setReadyPreview = async (previewId: string) => {
+      const url = await loadLoopCyclePreviewBlob(previewId);
+      if (cancelState.cancelled || requestNumber !== previewRequestRef.current) {
+        URL.revokeObjectURL(url);
+        return;
+      }
+      if (loopPreviewUrlRef.current) URL.revokeObjectURL(loopPreviewUrlRef.current);
+      loopPreviewUrlRef.current = url;
+      setLoopPreviewUrl(url);
+      setLoopPreviewPhase('ready');
+      setLoopPreviewError(null);
     };
+
+    const failPreview = (messageText: string) => {
+      if (cancelState.cancelled || requestNumber !== previewRequestRef.current) return;
+      setLoopPreviewPhase('failed');
+      setLoopPreviewError(messageText);
+    };
+
+    const checkCancel = () => cancelState.cancelled;
+
     const timer = window.setTimeout(
       () => {
         setLoopPreviewPhase('queued');
         void saveLoopProject(projectId, titleRef.current, document)
           .then(() => createLoopPreview(projectId))
           .then(async (preview) => {
-            if (cancelled || requestNumber !== previewRequestRef.current) return;
+            if (cancelState.cancelled || requestNumber !== previewRequestRef.current) return;
             if (preview.status === 'COMPLETED') {
               await setReadyPreview(preview.previewId);
               return;
             }
             stopPreviewEventsRef.current = subscribeToLoopPreviewEvents(preview.previewId, {
-              onEvent: handlePreviewEvent,
+              onEvent: (event) =>
+                handlePreviewEvent(event, requestNumber, checkCancel, setReadyPreview, failPreview),
               onError: () => {
                 stopPreviewEventsRef.current = null;
-                void pollPreview(preview.previewId).catch(() =>
-                  failPreview('Preview loop belum dapat dibuat.'),
-                );
+                void pollPreview(
+                  preview.previewId,
+                  requestNumber,
+                  checkCancel,
+                  setReadyPreview,
+                  failPreview,
+                ).catch(() => failPreview('Preview loop belum dapat dibuat.'));
               },
             });
           })
@@ -309,12 +339,12 @@ export function useLoopCreator(sessionId?: string) {
     );
 
     return () => {
-      cancelled = true;
+      cancelState.cancelled = true;
       window.clearTimeout(timer);
       stopPreviewEventsRef.current?.();
       stopPreviewEventsRef.current = null;
     };
-  }, [clearLoopPreview, document, previewRefreshToken, projectId]);
+  }, [clearLoopPreview, document, previewRefreshToken, projectId, handlePreviewEvent, pollPreview]);
 
   const loadPreviewBlob = useCallback(async (jobId: string, filename: string, expiry?: string) => {
     const response = await authFetch(exportApi.getDownloadUrl(jobId));
@@ -348,6 +378,25 @@ export function useLoopCreator(sessionId?: string) {
     [loadPreviewBlob],
   );
 
+  const handleRenderError = useCallback((error: unknown) => {
+    logger.error('Loop render failed', error);
+    setRenderPhase('failed');
+    setRenderError(error instanceof Error ? error.message : 'Render gagal.');
+  }, []);
+
+  const handleRenderJobFallback = useCallback(
+    (jobId: string) => {
+      stopEventsRef.current?.();
+      void exportApi
+        .waitForCompletion(jobId, (progress) => setRenderProgress(progress * 100))
+        .then((status) =>
+          loadPreviewBlob(jobId, status.filename ?? 'loop-creator-result.mp4', status.urlExpiresAt),
+        )
+        .catch(handleRenderError);
+    },
+    [handleRenderError, loadPreviewBlob],
+  );
+
   const render = useCallback(async () => {
     if (!projectId || !document.sourceAssetId) return;
     setRenderOpen(true);
@@ -377,29 +426,20 @@ export function useLoopCreator(sessionId?: string) {
       }
       stopEventsRef.current = exportApi.subscribeToExportEvents(job.jobId, {
         onEvent: handleExportEvent,
-        onError: () => {
-          stopEventsRef.current?.();
-          void exportApi
-            .waitForCompletion(job.jobId, (progress) => setRenderProgress(progress * 100))
-            .then((status) =>
-              loadPreviewBlob(
-                job.jobId,
-                status.filename ?? 'loop-creator-result.mp4',
-                status.urlExpiresAt,
-              ),
-            )
-            .catch((error: unknown) => {
-              setRenderPhase('failed');
-              setRenderError(error instanceof Error ? error.message : 'Render gagal.');
-            });
-        },
+        onError: () => handleRenderJobFallback(job.jobId),
       });
     } catch (error) {
-      logger.error('Loop render failed', error);
-      setRenderPhase('failed');
-      setRenderError(error instanceof Error ? error.message : 'Render gagal.');
+      handleRenderError(error);
     }
-  }, [document, handleExportEvent, loadPreviewBlob, projectId, title]);
+  }, [
+    document,
+    handleExportEvent,
+    handleRenderError,
+    handleRenderJobFallback,
+    loadPreviewBlob,
+    projectId,
+    title,
+  ]);
 
   const downloadResult = useCallback(() => {
     if (!renderResult) return;

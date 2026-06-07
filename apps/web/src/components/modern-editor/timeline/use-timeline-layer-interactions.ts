@@ -68,6 +68,111 @@ function hasTimingChanged(original: TimelineDragTiming, preview: TimelineDragTim
   );
 }
 
+function applyMoveDrag(
+  dragState: TimelineDragState,
+  deltaMs: number,
+  snapPoints: readonly number[],
+  anchorLayer: Layer,
+  anchorTiming: TimelineDragTiming,
+  event: PointerEvent,
+  rowsElement: HTMLElement | null,
+  rowHeightPx: number,
+  displayLayerIds: readonly string[],
+): Partial<TimelineDragState> {
+  const selectedIds = Object.keys(dragState.originalByLayerId);
+  const reorderTargetLayerId = rowsElement
+    ? getTimelineReorderTargetLayerId({
+        clientY: event.clientY,
+        containerTopPx: rowsElement.getBoundingClientRect().top,
+        rowHeightPx,
+        layerIds: displayLayerIds,
+        draggedLayerId: dragState.layerId,
+        pointerStartY: dragState.pointerStartY,
+      })
+    : null;
+  const rawStartMs = anchorTiming.startMs + deltaMs;
+  const moved = calculateMovedLayerTiming({
+    layer: { ...anchorLayer, startMs: anchorTiming.startMs, endMs: anchorTiming.endMs },
+    deltaMs,
+    snapPoints,
+  });
+  const appliedDeltaMs = moved.startMs - anchorTiming.startMs;
+  const previewByLayerId = Object.fromEntries(
+    selectedIds.flatMap((layerId) => {
+      const timing = dragState.originalByLayerId[layerId];
+      return timing
+        ? [
+            [
+              layerId,
+              {
+                startMs: Math.max(0, timing.startMs + appliedDeltaMs),
+                endMs: Math.max(0, timing.endMs + appliedDeltaMs),
+              },
+            ],
+          ]
+        : [];
+    }),
+  );
+
+  return {
+    previewByLayerId,
+    snapGuideMs: moved.startMs === rawStartMs ? null : moved.startMs,
+    reorderTargetLayerId,
+  };
+}
+
+function applyTrimDrag(
+  dragState: TimelineDragState,
+  deltaMs: number,
+  snapPoints: readonly number[],
+  anchorLayer: Layer,
+  anchorTiming: TimelineDragTiming,
+): Partial<TimelineDragState> {
+  const edge = dragState.mode === 'trim-start' ? 'start' : 'end';
+  const rawTargetMs =
+    edge === 'start' ? anchorTiming.startMs + deltaMs : anchorTiming.endMs + deltaMs;
+  const trimmed = calculateTrimmedLayerTiming({
+    layer: { ...anchorLayer, startMs: anchorTiming.startMs, endMs: anchorTiming.endMs },
+    edge,
+    targetMs: rawTargetMs,
+    snapPoints,
+  });
+  const snappedTargetMs = edge === 'start' ? trimmed.startMs : trimmed.endMs;
+
+  return {
+    previewByLayerId: { [dragState.layerId]: trimmed },
+    snapGuideMs: snappedTargetMs === rawTargetMs ? null : snappedTargetMs,
+  };
+}
+
+function handlePointerUpAction(
+  dragState: TimelineDragState,
+  layerOrder: readonly string[],
+  moveLayerTiming: (layerId: string, deltaMs: number) => void,
+  trimLayerTiming: (layerId: string, edge: TimelineTrimEdge, targetMs: number) => void,
+  reorderLayer: (layerId: string, newZIndex: number) => void,
+) {
+  const anchorTiming = dragState.originalByLayerId[dragState.layerId];
+  const previewTiming = dragState.previewByLayerId[dragState.layerId];
+
+  if (anchorTiming && previewTiming && hasTimingChanged(anchorTiming, previewTiming)) {
+    if (dragState.mode === 'move') {
+      moveLayerTiming(dragState.layerId, previewTiming.startMs - anchorTiming.startMs);
+    } else if (dragState.mode === 'trim-start') {
+      trimLayerTiming(dragState.layerId, 'start', previewTiming.startMs);
+    } else {
+      trimLayerTiming(dragState.layerId, 'end', previewTiming.endMs);
+    }
+  }
+
+  if (dragState.mode === 'move' && dragState.reorderTargetLayerId) {
+    const targetIndex = layerOrder.indexOf(dragState.reorderTargetLayerId);
+    if (targetIndex !== -1) {
+      reorderLayer(dragState.layerId, targetIndex);
+    }
+  }
+}
+
 /**
  * Owns layer timing drag, trim, and vertical reorder interactions for the timeline.
  */
@@ -111,91 +216,35 @@ export function useTimelineLayerInteractions({
       const snapPoints = collectTimelineSnapPoints(layers, currentTimeMs, selectedSet);
 
       if (dragState.mode === 'move') {
-        const rowsElement = rowsRef.current;
-        const reorderTargetLayerId = rowsElement
-          ? getTimelineReorderTargetLayerId({
-              clientY: event.clientY,
-              containerTopPx: rowsElement.getBoundingClientRect().top,
-              rowHeightPx,
-              layerIds: displayLayerIds,
-              draggedLayerId: dragState.layerId,
-              pointerStartY: dragState.pointerStartY,
-            })
-          : null;
-        const rawStartMs = anchorTiming.startMs + deltaMs;
-        const moved = calculateMovedLayerTiming({
-          layer: { ...anchorLayer, startMs: anchorTiming.startMs, endMs: anchorTiming.endMs },
+        const moveUpdates = applyMoveDrag(
+          dragState,
           deltaMs,
           snapPoints,
-        });
-        const appliedDeltaMs = moved.startMs - anchorTiming.startMs;
-        const previewByLayerId = Object.fromEntries(
-          selectedIds.flatMap((layerId) => {
-            const timing = dragState.originalByLayerId[layerId];
-            return timing
-              ? [
-                  [
-                    layerId,
-                    {
-                      startMs: Math.max(0, timing.startMs + appliedDeltaMs),
-                      endMs: Math.max(0, timing.endMs + appliedDeltaMs),
-                    },
-                  ],
-                ]
-              : [];
-          }),
+          anchorLayer,
+          anchorTiming,
+          event,
+          rowsRef.current,
+          rowHeightPx,
+          displayLayerIds,
         );
-
-        setDragState({
-          ...dragState,
-          previewByLayerId,
-          snapGuideMs: moved.startMs !== rawStartMs ? moved.startMs : null,
-          reorderTargetLayerId,
-        });
+        setDragState({ ...dragState, ...moveUpdates });
         return;
       }
 
       if (isTrimMode(dragState.mode)) {
-        const edge = dragState.mode === 'trim-start' ? 'start' : 'end';
-        const rawTargetMs =
-          edge === 'start' ? anchorTiming.startMs + deltaMs : anchorTiming.endMs + deltaMs;
-        const trimmed = calculateTrimmedLayerTiming({
-          layer: { ...anchorLayer, startMs: anchorTiming.startMs, endMs: anchorTiming.endMs },
-          edge,
-          targetMs: rawTargetMs,
+        const trimUpdates = applyTrimDrag(
+          dragState,
+          deltaMs,
           snapPoints,
-        });
-        const snappedTargetMs = edge === 'start' ? trimmed.startMs : trimmed.endMs;
-
-        setDragState({
-          ...dragState,
-          previewByLayerId: { [dragState.layerId]: trimmed },
-          snapGuideMs: snappedTargetMs !== rawTargetMs ? snappedTargetMs : null,
-        });
+          anchorLayer,
+          anchorTiming,
+        );
+        setDragState({ ...dragState, ...trimUpdates });
       }
     };
 
     const handlePointerUp = () => {
-      const anchorTiming = dragState.originalByLayerId[dragState.layerId];
-      const previewTiming = dragState.previewByLayerId[dragState.layerId];
-
-      if (anchorTiming && previewTiming && hasTimingChanged(anchorTiming, previewTiming)) {
-        if (dragState.mode === 'move') {
-          moveLayerTiming(dragState.layerId, previewTiming.startMs - anchorTiming.startMs);
-        } else if (dragState.mode === 'trim-start') {
-          trimLayerTiming(dragState.layerId, 'start', previewTiming.startMs);
-        } else {
-          trimLayerTiming(dragState.layerId, 'end', previewTiming.endMs);
-        }
-      }
-
-      if (dragState.mode === 'move' && dragState.reorderTargetLayerId) {
-        const targetIndex = layerOrder.indexOf(dragState.reorderTargetLayerId);
-        if (targetIndex !== -1) {
-          reorderLayer(dragState.layerId, targetIndex);
-        }
-      }
-
+      handlePointerUpAction(dragState, layerOrder, moveLayerTiming, trimLayerTiming, reorderLayer);
       setDragState(null);
     };
 

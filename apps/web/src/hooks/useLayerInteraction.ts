@@ -1,6 +1,140 @@
 import type { Layer, TextLayer } from '@vibe-creator/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+function calculateRotation(clientX: number, clientY: number, layerElement: HTMLElement) {
+  const rect = layerElement.getBoundingClientRect();
+  const centerX = rect.left + rect.width / 2;
+  const centerY = rect.top + rect.height / 2;
+
+  const angleRad = Math.atan2(clientY - centerY, clientX - centerX);
+  let angleDeg = angleRad * (180 / Math.PI);
+  angleDeg += 90;
+  return angleDeg;
+}
+
+interface LayerStart {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotation: number;
+  fontSize: number;
+}
+
+function calculateCornerResize(
+  isResizing: string,
+  dx: number,
+  layerStart: LayerStart,
+  layer: Layer,
+  onUpdate: (updates: Partial<Layer>) => void,
+) {
+  const widthChange = isResizing.includes('e') ? dx : -dx;
+  const scaleFactor = Math.max(0.1, (layerStart.width + widthChange) / layerStart.width);
+  const newWidth = layerStart.width * scaleFactor;
+  const newHeight = layerStart.height * scaleFactor;
+
+  const updates: Partial<Layer> = { width: newWidth, height: newHeight };
+  if (layer.type === 'text') {
+    const newFontSize = layerStart.fontSize * scaleFactor;
+    if (Math.abs(newFontSize - layerStart.fontSize) > 0.1) {
+      (updates as Partial<TextLayer>).data = { ...layer.data, fontSize: newFontSize };
+    }
+  }
+  onUpdate(updates);
+}
+
+function calculateSideResize(
+  isResizing: string,
+  dx: number,
+  dy: number,
+  layerStart: LayerStart,
+  onUpdate: (updates: Partial<Layer>) => void,
+) {
+  let newWidth = layerStart.width;
+  let newHeight = layerStart.height;
+
+  if (isResizing === 'e') {
+    newWidth = Math.max(1, layerStart.width + dx);
+    onUpdate({ x: layerStart.x + dx / 2, width: newWidth });
+  } else if (isResizing === 'w') {
+    newWidth = Math.max(1, layerStart.width - dx);
+    onUpdate({ x: layerStart.x + dx / 2, width: newWidth });
+  } else if (isResizing === 's') {
+    newHeight = Math.max(1, layerStart.height + dy);
+    onUpdate({ y: layerStart.y + dy / 2, height: newHeight });
+  } else if (isResizing === 'n') {
+    newHeight = Math.max(1, layerStart.height - dy);
+    onUpdate({ y: layerStart.y + dy / 2, height: newHeight });
+  }
+}
+
+function calculateResize(
+  isResizing: string,
+  dx: number,
+  dy: number,
+  layerStart: LayerStart,
+  layer: Layer,
+  onUpdate: (updates: Partial<Layer>) => void,
+) {
+  if (['nw', 'ne', 'sw', 'se'].includes(isResizing)) {
+    calculateCornerResize(isResizing, dx, layerStart, layer, onUpdate);
+  } else {
+    calculateSideResize(isResizing, dx, dy, layerStart, onUpdate);
+  }
+}
+
+function processInteraction(
+  clientX: number,
+  clientY: number,
+  state: {
+    isRotating: boolean;
+    isDragging: boolean;
+    isResizing: string | null;
+    dragStart: { x: number; y: number };
+    layerStart: LayerStart;
+    layerElement: HTMLElement | null;
+    canvasWidth: number;
+    canvasHeight: number;
+    scale: number;
+    layer: Layer;
+  },
+  onUpdate: (updates: Partial<Layer>) => void,
+) {
+  const {
+    isRotating,
+    isDragging,
+    isResizing,
+    dragStart,
+    layerStart,
+    layerElement,
+    canvasWidth,
+    canvasHeight,
+    scale,
+    layer,
+  } = state;
+
+  if (isRotating && layerElement) {
+    onUpdate({ rotation: calculateRotation(clientX, clientY, layerElement) });
+    return;
+  }
+
+  if (!isDragging && !isResizing) return;
+
+  const dxPx = clientX - dragStart.x;
+  const dyPx = clientY - dragStart.y;
+  const dx = (dxPx / (canvasWidth * scale)) * 100;
+  const dy = (dyPx / (canvasHeight * scale)) * 100;
+
+  if (isDragging) {
+    onUpdate({
+      x: layerStart.x + dx,
+      y: layerStart.y + dy,
+    });
+  } else if (isResizing) {
+    calculateResize(isResizing, dx, dy, layerStart, layer, onUpdate);
+  }
+}
+
 interface UseLayerInteractionProps {
   layer: Layer;
   scale: number;
@@ -105,85 +239,23 @@ export function useLayerInteraction({
 
   const handleMouseMove = useCallback(
     (e: MouseEvent) => {
-      // Rotation Logic
-      if (isRotating && layerRef.current) {
-        const rect = layerRef.current.getBoundingClientRect();
-        const centerX = rect.left + rect.width / 2;
-        const centerY = rect.top + rect.height / 2;
-
-        const angleRad = Math.atan2(e.clientY - centerY, e.clientX - centerX);
-        let angleDeg = angleRad * (180 / Math.PI);
-
-        angleDeg += 90;
-
-        onUpdate({ rotation: angleDeg });
-        return;
-      }
-
-      if (!isDragging && !isResizing) return;
-
-      const dxPx = e.clientX - dragStart.x;
-      const dyPx = e.clientY - dragStart.y;
-
-      const dx = (dxPx / (canvasWidth * scale)) * 100;
-      const dy = (dyPx / (canvasHeight * scale)) * 100;
-
-      if (isDragging) {
-        onUpdate({
-          x: layerStart.x + dx,
-          y: layerStart.y + dy,
-        });
-      } else if (isResizing) {
-        let newWidth = layerStart.width;
-        let newHeight = layerStart.height;
-        let newFontSize = layerStart.fontSize;
-
-        // Corner scaling
-        if (['nw', 'ne', 'sw', 'se'].includes(isResizing)) {
-          let widthChange = 0;
-          if (isResizing.includes('e')) widthChange = dx;
-          else widthChange = -dx;
-
-          const scaleFactor = Math.max(0.1, (layerStart.width + widthChange) / layerStart.width);
-
-          newWidth = layerStart.width * scaleFactor;
-          newHeight = layerStart.height * scaleFactor;
-
-          if (layer.type === 'text') {
-            newFontSize = layerStart.fontSize * scaleFactor;
-          }
-        }
-        // Side stretching
-        else {
-          if (isResizing === 'e') {
-            newWidth = Math.max(1, layerStart.width + dx);
-            onUpdate({ x: layerStart.x + dx / 2 });
-          } else if (isResizing === 'w') {
-            newWidth = Math.max(1, layerStart.width - dx);
-            onUpdate({ x: layerStart.x + dx / 2 });
-          } else if (isResizing === 's') {
-            newHeight = Math.max(1, layerStart.height + dy);
-            onUpdate({ y: layerStart.y + dy / 2 });
-          } else if (isResizing === 'n') {
-            newHeight = Math.max(1, layerStart.height - dy);
-            onUpdate({ y: layerStart.y + dy / 2 });
-          }
-        }
-
-        const updates: Partial<Layer> = {
-          width: newWidth,
-          height: newHeight,
-        };
-
-        if (layer.type === 'text' && Math.abs(newFontSize - layerStart.fontSize) > 0.1) {
-          (updates as Partial<TextLayer>).data = {
-            ...layer.data,
-            fontSize: newFontSize,
-          };
-        }
-
-        onUpdate(updates);
-      }
+      processInteraction(
+        e.clientX,
+        e.clientY,
+        {
+          isRotating,
+          isDragging,
+          isResizing,
+          dragStart,
+          layerStart,
+          layerElement: layerRef.current,
+          canvasWidth,
+          canvasHeight,
+          scale,
+          layer,
+        },
+        onUpdate,
+      );
     },
     [
       isDragging,
@@ -195,8 +267,7 @@ export function useLayerInteraction({
       canvasHeight,
       scale,
       onUpdate,
-      layer.type,
-      layer.data,
+      layer,
     ],
   );
 
@@ -210,82 +281,23 @@ export function useLayerInteraction({
     (e: TouchEvent) => {
       const touch = e.touches[0];
       if (!touch) return;
-
-      if (isRotating && layerRef.current) {
-        const rect = layerRef.current.getBoundingClientRect();
-        const centerX = rect.left + rect.width / 2;
-        const centerY = rect.top + rect.height / 2;
-        const angleRad = Math.atan2(touch.clientY - centerY, touch.clientX - centerX);
-        let angleDeg = angleRad * (180 / Math.PI);
-        angleDeg += 90;
-        onUpdate({ rotation: angleDeg });
-        return;
-      }
-
-      if (!isDragging && !isResizing) return;
-
-      const dxPx = touch.clientX - dragStart.x;
-      const dyPx = touch.clientY - dragStart.y;
-      const dx = (dxPx / (canvasWidth * scale)) * 100;
-      const dy = (dyPx / (canvasHeight * scale)) * 100;
-
-      if (isDragging) {
-        onUpdate({
-          x: layerStart.x + dx,
-          y: layerStart.y + dy,
-        });
-      } else if (isResizing) {
-        // ... (Similar touch logic for resize - simplification: reusing logic via abstraction or copy)
-        // For brevity and robustness, we'll conceptually reuse the same logic block.
-        // But to keep hooks clean, let's just copy the block for now or assume identical behavior to mouse.
-        // (Copying minimal version for safety)
-        let newWidth = layerStart.width;
-        let newHeight = layerStart.height;
-        let newFontSize = layerStart.fontSize;
-
-        if (
-          isResizing === 'nw' ||
-          isResizing === 'ne' ||
-          isResizing === 'sw' ||
-          isResizing === 'se'
-        ) {
-          let widthChange = 0;
-          if (isResizing.includes('e')) widthChange = dx;
-          else widthChange = -dx;
-          const scaleFactor = Math.max(0.1, (layerStart.width + widthChange) / layerStart.width);
-          newWidth = layerStart.width * scaleFactor;
-          newHeight = layerStart.height * scaleFactor;
-          if (layer.type === 'text') newFontSize = layerStart.fontSize * scaleFactor;
-        } else {
-          if (isResizing === 'e') {
-            newWidth = Math.max(1, layerStart.width + dx);
-            onUpdate({ x: layerStart.x + dx / 2 });
-          } else if (isResizing === 'w') {
-            newWidth = Math.max(1, layerStart.width - dx);
-            onUpdate({ x: layerStart.x + dx / 2 });
-          } else if (isResizing === 's') {
-            newHeight = Math.max(1, layerStart.height + dy);
-            onUpdate({ y: layerStart.y + dy / 2 });
-          } else if (isResizing === 'n') {
-            newHeight = Math.max(1, layerStart.height - dy);
-            onUpdate({ y: layerStart.y + dy / 2 });
-          }
-        }
-
-        const updates: Partial<Layer> = {
-          width: newWidth,
-          height: newHeight,
-        };
-
-        if (layer.type === 'text' && Math.abs(newFontSize - layerStart.fontSize) > 0.1) {
-          (updates as Partial<TextLayer>).data = {
-            ...layer.data,
-            fontSize: newFontSize,
-          };
-        }
-
-        onUpdate(updates);
-      }
+      processInteraction(
+        touch.clientX,
+        touch.clientY,
+        {
+          isRotating,
+          isDragging,
+          isResizing,
+          dragStart,
+          layerStart,
+          layerElement: layerRef.current,
+          canvasWidth,
+          canvasHeight,
+          scale,
+          layer,
+        },
+        onUpdate,
+      );
     },
     [
       isDragging,
@@ -297,8 +309,7 @@ export function useLayerInteraction({
       canvasHeight,
       scale,
       onUpdate,
-      layer.type,
-      layer.data,
+      layer,
     ],
   );
 

@@ -150,6 +150,427 @@ function sortRecentItems(left: WorkspaceRecentItem, right: WorkspaceRecentItem):
   return right.updatedAt.getTime() - left.updatedAt.getTime() || right.id.localeCompare(left.id);
 }
 
+function resolveProjectKind(storyData: Prisma.JsonValue | null | undefined): WorkspaceKind | null {
+  if (isVideoStudioProjectStoryData(storyData)) return 'video-studio';
+  if (isLoopCreatorProjectStoryData(storyData)) return 'loop-creator';
+  if (isReactionCreatorProjectStoryData(storyData)) return 'reaction-video';
+  if (isLiveStreamProjectStoryData(storyData)) return 'live-stream';
+  return null;
+}
+
+async function fetchRecentProjects(
+  userId: string,
+  cursor: Date | null,
+  take: number,
+  queryTool: string | undefined,
+  queryStatus: RecentWorkspacesQuery['status'],
+  now: Date,
+): Promise<WorkspaceRecentItem[]> {
+  const items: WorkspaceRecentItem[] = [];
+  const projects = await prisma.project.findMany({
+    where: {
+      userId,
+      deletedAt: null,
+      ...(cursor ? { updatedAt: { lt: cursor } } : {}),
+    },
+    orderBy: { updatedAt: 'desc' },
+    take,
+  });
+
+  for (const project of projects) {
+    const kind = resolveProjectKind(project.storyData);
+    if (!kind || (queryTool && queryTool !== kind)) {
+      continue;
+    }
+
+    const expiresAt = resolveWorkspaceExpiresAt(project);
+    const lifecycleStatus = isWorkspaceExpired(project.lifecycleStatus, expiresAt, now)
+      ? LifecycleStatus.EXPIRED
+      : project.lifecycleStatus;
+
+    const item: WorkspaceRecentItem = {
+      id: project.id,
+      kind,
+      tool: kind,
+      title: kind === 'video-studio' ? getVideoStudioTitle(project) : project.title,
+      status: project.status,
+      lifecycleStatus,
+      updatedAt: project.updatedAt,
+      createdAt: project.createdAt,
+      expiresAt,
+      completedAt: project.completedAt,
+      lastOpenedAt: project.lastOpenedAt,
+    };
+
+    if (itemMatchesStatus(item, queryStatus)) {
+      items.push(item);
+    }
+  }
+  return items;
+}
+
+async function fetchRecentDirectorSessions(
+  userId: string,
+  cursor: Date | null,
+  take: number,
+  queryStatus: RecentWorkspacesQuery['status'],
+  now: Date,
+): Promise<WorkspaceRecentItem[]> {
+  const items: WorkspaceRecentItem[] = [];
+  const sessions = await prisma.directorSession.findMany({
+    where: {
+      userId,
+      deletedAt: null,
+      ...(cursor ? { updatedAt: { lt: cursor } } : {}),
+    },
+    include: { asset: true },
+    orderBy: { updatedAt: 'desc' },
+    take,
+  });
+
+  for (const session of sessions) {
+    const expiresAt = resolveWorkspaceExpiresAt(session);
+    const lifecycleStatus = isWorkspaceExpired(session.lifecycleStatus, expiresAt, now)
+      ? LifecycleStatus.EXPIRED
+      : session.lifecycleStatus;
+
+    const item: WorkspaceRecentItem = {
+      id: session.id,
+      kind: 'ai-director',
+      tool: 'ai-director',
+      title: getDirectorTitle(session),
+      status: session.step,
+      lifecycleStatus,
+      updatedAt: session.updatedAt,
+      createdAt: session.createdAt,
+      expiresAt,
+      completedAt: session.completedAt,
+      lastOpenedAt: session.lastOpenedAt,
+    };
+
+    if (itemMatchesStatus(item, queryStatus)) {
+      items.push(item);
+    }
+  }
+  return items;
+}
+
+function mapDirectorExportToRecentItem(
+  exportJob: {
+    id: string;
+    status: string;
+    completedAt: Date | null;
+    outputDeletedAt: Date | null;
+    downloadExpiresAt: Date | null;
+    sessionId: string;
+    session: {
+      updatedAt: Date;
+      expiresAt: Date | null;
+      lastOpenedAt: Date | null;
+      id: string;
+      asset: { metadata: Prisma.JsonValue; storageKey: string } | null;
+    };
+  },
+  now: Date,
+  queryStatus: RecentWorkspacesQuery['status'],
+): WorkspaceRecentItem | null {
+  const completedAt = exportJob.completedAt ?? exportJob.session.updatedAt;
+  const lifecycleStatus =
+    exportJob.outputDeletedAt ||
+    (exportJob.downloadExpiresAt && exportJob.downloadExpiresAt.getTime() <= now.getTime())
+      ? 'DOWNLOAD_EXPIRED'
+      : LifecycleStatus.COMPLETED;
+
+  const item: WorkspaceRecentItem = {
+    id: exportJob.id,
+    kind: 'export',
+    tool: 'exports',
+    title: `${getDirectorTitle(exportJob.session)} export`,
+    status: exportJob.status,
+    lifecycleStatus,
+    updatedAt: completedAt,
+    createdAt: completedAt,
+    expiresAt: exportJob.session.expiresAt,
+    completedAt,
+    lastOpenedAt: exportJob.session.lastOpenedAt,
+    downloadExpiresAt: exportJob.downloadExpiresAt,
+    sourceId: exportJob.sessionId,
+    sourceKind: 'ai-director',
+  };
+
+  return itemMatchesStatus(item, queryStatus) ? item : null;
+}
+
+function mapGenericExportToRecentItem(
+  exportJob: {
+    id: string;
+    status: string;
+    completedAt: Date | null;
+    createdAt: Date;
+    urlExpiresAt: Date | null;
+    expiresAt: Date | null;
+    projectId: string | null;
+    project: { title: string; storyData: Prisma.JsonValue | null } | null;
+  },
+  now: Date,
+  queryStatus: RecentWorkspacesQuery['status'],
+): WorkspaceRecentItem | null {
+  const completedAt = exportJob.completedAt ?? exportJob.createdAt;
+  const lifecycleStatus =
+    exportJob.urlExpiresAt && exportJob.urlExpiresAt.getTime() <= now.getTime()
+      ? 'DOWNLOAD_EXPIRED'
+      : LifecycleStatus.COMPLETED;
+  const sourceKind = resolveProjectKind(exportJob.project?.storyData) ?? 'video-studio';
+
+  const item: WorkspaceRecentItem = {
+    id: exportJob.id,
+    kind: 'export',
+    tool: 'exports',
+    title: `${exportJob.project?.title ?? 'Video export'} export`,
+    status: exportJob.status,
+    lifecycleStatus,
+    updatedAt: completedAt,
+    createdAt: exportJob.createdAt,
+    expiresAt: exportJob.expiresAt,
+    completedAt,
+    lastOpenedAt: null,
+    downloadExpiresAt: exportJob.urlExpiresAt,
+    sourceId: exportJob.projectId,
+    sourceKind,
+  };
+
+  return itemMatchesStatus(item, queryStatus) ? item : null;
+}
+
+async function fetchRecentExports(
+  userId: string,
+  cursor: Date | null,
+  limit: number,
+  queryStatus: RecentWorkspacesQuery['status'],
+  now: Date,
+): Promise<WorkspaceRecentItem[]> {
+  const items: WorkspaceRecentItem[] = [];
+  const [directorExports, genericExports] = await Promise.all([
+    prisma.directorExportJob.findMany({
+      where: {
+        status: 'COMPLETED',
+        session: { userId, deletedAt: null },
+        ...(cursor ? { completedAt: { lt: cursor } } : {}),
+      },
+      include: { session: { include: { asset: true } } },
+      orderBy: { completedAt: 'desc' },
+      take: limit,
+    }),
+    prisma.exportHistory.findMany({
+      where: {
+        userId,
+        status: 'COMPLETED',
+        ...(cursor ? { completedAt: { lt: cursor } } : {}),
+      },
+      include: { project: true },
+      orderBy: { completedAt: 'desc' },
+      take: limit,
+    }),
+  ]);
+
+  for (const exportJob of directorExports) {
+    const item = mapDirectorExportToRecentItem(exportJob, now, queryStatus);
+    if (item) {
+      items.push(item);
+    }
+  }
+
+  for (const exportJob of genericExports) {
+    const item = mapGenericExportToRecentItem(exportJob, now, queryStatus);
+    if (item) {
+      items.push(item);
+    }
+  }
+
+  return items;
+}
+
+async function getLastActiveProject(
+  userId: string,
+  tool: Exclude<WorkspaceTool, 'exports'>,
+  now: Date,
+) {
+  const projects = await prisma.project.findMany({
+    where: {
+      userId,
+      lifecycleStatus: LifecycleStatus.ACTIVE,
+      deletedAt: null,
+      OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+    },
+    orderBy: { updatedAt: 'desc' },
+    take: 20,
+  });
+
+  for (const project of projects) {
+    const matchesTool = resolveProjectKind(project.storyData) === tool;
+    if (!matchesTool) {
+      continue;
+    }
+
+    const expiresAt = resolveWorkspaceExpiresAt(project);
+    if (isWorkspaceExpired(project.lifecycleStatus, expiresAt, now)) {
+      continue;
+    }
+
+    return {
+      id: project.id,
+      kind: tool,
+      tool,
+      title: tool === 'video-studio' ? getVideoStudioTitle(project) : project.title,
+      status: project.status,
+      lifecycleStatus: project.lifecycleStatus,
+      updatedAt: project.updatedAt,
+      createdAt: project.createdAt,
+      expiresAt,
+      completedAt: project.completedAt,
+      lastOpenedAt: project.lastOpenedAt,
+    };
+  }
+
+  return null;
+}
+
+async function getLastActiveDirectorSession(userId: string, now: Date) {
+  const sessions = await prisma.directorSession.findMany({
+    where: {
+      userId,
+      lifecycleStatus: LifecycleStatus.ACTIVE,
+      deletedAt: null,
+      OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+    },
+    include: { asset: true },
+    orderBy: { updatedAt: 'desc' },
+    take: 20,
+  });
+
+  for (const session of sessions) {
+    const expiresAt = resolveWorkspaceExpiresAt(session);
+    if (isWorkspaceExpired(session.lifecycleStatus, expiresAt, now)) {
+      continue;
+    }
+
+    return {
+      id: session.id,
+      kind: 'ai-director' as const,
+      tool: 'ai-director' as const,
+      title: getDirectorTitle(session),
+      status: session.step,
+      lifecycleStatus: session.lifecycleStatus,
+      updatedAt: session.updatedAt,
+      createdAt: session.createdAt,
+      expiresAt,
+      completedAt: session.completedAt,
+      lastOpenedAt: session.lastOpenedAt,
+    };
+  }
+
+  return null;
+}
+
+async function duplicateProjectWorkspace(
+  userId: string,
+  kind: WorkspaceKind,
+  id: string,
+  expiresAt: Date,
+) {
+  const source = await prisma.project.findFirst({
+    where: { id, userId, deletedAt: null },
+    include: { assets: true },
+  });
+  const validStory = resolveProjectKind(source?.storyData) === kind;
+  if (!source || !validStory) {
+    return null;
+  }
+
+  const title = source.title.startsWith('Copy of ') ? source.title : `Copy of ${source.title}`;
+  if (kind === 'loop-creator') {
+    return duplicateLoopCreatorProject(source, userId, title, expiresAt);
+  }
+  if (kind === 'reaction-video') {
+    return duplicateReactionCreatorProject(source, userId, title, expiresAt);
+  }
+  const project = await prisma.project.create({
+    data: {
+      userId,
+      title,
+      description: source.description,
+      mode: source.mode,
+      settings: toInputJson(source.settings),
+      status: ProjectStatus.DRAFT,
+      storyData: source.storyData === null ? undefined : toInputJson(source.storyData),
+      lifecycleStatus: LifecycleStatus.ACTIVE,
+      expiresAt,
+      assets: {
+        create: source.assets.map((asset) => ({
+          type: asset.type,
+          name: asset.name,
+          sourceUrl: asset.sourceUrl,
+          r2Key: asset.r2Key,
+          metadata: toInputJson(asset.metadata),
+        })),
+      },
+    },
+  });
+
+  return project;
+}
+
+async function duplicateDirectorWorkspace(userId: string, id: string, expiresAt: Date) {
+  const source = await prisma.directorSession.findFirst({
+    where: { id, userId, deletedAt: null },
+    include: { asset: true, subtitleStyle: true },
+  });
+  if (!source) {
+    return null;
+  }
+
+  return prisma.directorSession.create({
+    data: {
+      userId,
+      step: source.asset ? DirectorStep.ANALYZING : DirectorStep.IMPORT,
+      schemaVersion: source.schemaVersion,
+      lifecycleStatus: LifecycleStatus.ACTIVE,
+      expiresAt,
+      asset: source.asset
+        ? {
+            create: {
+              storageKey: source.asset.storageKey,
+              contentHash: source.asset.contentHash,
+              mimeType: source.asset.mimeType,
+              sizeBytes: source.asset.sizeBytes,
+              origin: source.asset.origin,
+              sourceUrlNormalized: source.asset.sourceUrlNormalized,
+              ingestStatus: source.asset.ingestStatus,
+              durationMs: source.asset.durationMs,
+              thumbnailStorageKey: source.asset.thumbnailStorageKey,
+              metadata: toInputJson(source.asset.metadata),
+            },
+          }
+        : undefined,
+      subtitleStyle: source.subtitleStyle
+        ? {
+            create: {
+              fontToken: source.subtitleStyle.fontToken,
+              textColorToken: source.subtitleStyle.textColorToken,
+              bgColorToken: source.subtitleStyle.bgColorToken,
+              fontSize: source.subtitleStyle.fontSize,
+              position: source.subtitleStyle.position,
+              animation: source.subtitleStyle.animation,
+              stylePreset: source.subtitleStyle.stylePreset,
+              speakerMode: source.subtitleStyle.speakerMode,
+              speakerStyles: toInputJson(source.subtitleStyle.speakerStyles),
+            },
+          }
+        : undefined,
+    },
+  });
+}
+
 export const workspaceService = {
   async listRecent(userId: string, query: RecentWorkspacesQuery) {
     const limit = clampRecentLimit(query.limit);
@@ -160,185 +581,19 @@ export const workspaceService = {
 
     if (
       !query.tool ||
-      query.tool === 'video-studio' ||
-      query.tool === 'loop-creator' ||
-      query.tool === 'reaction-video' ||
-      query.tool === 'live-stream'
+      ['video-studio', 'loop-creator', 'reaction-video', 'live-stream'].includes(query.tool)
     ) {
-      const projects = await prisma.project.findMany({
-        where: {
-          userId,
-          deletedAt: null,
-          ...(cursor ? { updatedAt: { lt: cursor } } : {}),
-        },
-        orderBy: { updatedAt: 'desc' },
-        take,
-      });
-
-      for (const project of projects) {
-        const kind = isVideoStudioProjectStoryData(project.storyData)
-          ? 'video-studio'
-          : isLoopCreatorProjectStoryData(project.storyData)
-            ? 'loop-creator'
-            : isReactionCreatorProjectStoryData(project.storyData)
-              ? 'reaction-video'
-              : isLiveStreamProjectStoryData(project.storyData)
-                ? 'live-stream'
-                : null;
-        if (!kind || (query.tool && query.tool !== kind)) {
-          continue;
-        }
-
-        const expiresAt = resolveWorkspaceExpiresAt(project);
-        const lifecycleStatus = isWorkspaceExpired(project.lifecycleStatus, expiresAt, now)
-          ? LifecycleStatus.EXPIRED
-          : project.lifecycleStatus;
-
-        const item: WorkspaceRecentItem = {
-          id: project.id,
-          kind,
-          tool: kind,
-          title: kind === 'video-studio' ? getVideoStudioTitle(project) : project.title,
-          status: project.status,
-          lifecycleStatus,
-          updatedAt: project.updatedAt,
-          createdAt: project.createdAt,
-          expiresAt,
-          completedAt: project.completedAt,
-          lastOpenedAt: project.lastOpenedAt,
-        };
-
-        if (itemMatchesStatus(item, query.status)) {
-          items.push(item);
-        }
-      }
+      items.push(
+        ...(await fetchRecentProjects(userId, cursor, take, query.tool, query.status, now)),
+      );
     }
 
     if (!query.tool || query.tool === 'ai-director') {
-      const sessions = await prisma.directorSession.findMany({
-        where: {
-          userId,
-          deletedAt: null,
-          ...(cursor ? { updatedAt: { lt: cursor } } : {}),
-        },
-        include: { asset: true },
-        orderBy: { updatedAt: 'desc' },
-        take,
-      });
-
-      for (const session of sessions) {
-        const expiresAt = resolveWorkspaceExpiresAt(session);
-        const lifecycleStatus = isWorkspaceExpired(session.lifecycleStatus, expiresAt, now)
-          ? LifecycleStatus.EXPIRED
-          : session.lifecycleStatus;
-
-        const item: WorkspaceRecentItem = {
-          id: session.id,
-          kind: 'ai-director',
-          tool: 'ai-director',
-          title: getDirectorTitle(session),
-          status: session.step,
-          lifecycleStatus,
-          updatedAt: session.updatedAt,
-          createdAt: session.createdAt,
-          expiresAt,
-          completedAt: session.completedAt,
-          lastOpenedAt: session.lastOpenedAt,
-        };
-
-        if (itemMatchesStatus(item, query.status)) {
-          items.push(item);
-        }
-      }
+      items.push(...(await fetchRecentDirectorSessions(userId, cursor, take, query.status, now)));
     }
 
     if (!query.tool || query.tool === 'exports') {
-      const [directorExports, genericExports] = await Promise.all([
-        prisma.directorExportJob.findMany({
-          where: {
-            status: 'COMPLETED',
-            session: { userId, deletedAt: null },
-            ...(cursor ? { completedAt: { lt: cursor } } : {}),
-          },
-          include: { session: { include: { asset: true } } },
-          orderBy: { completedAt: 'desc' },
-          take: limit,
-        }),
-        prisma.exportHistory.findMany({
-          where: {
-            userId,
-            status: 'COMPLETED',
-            ...(cursor ? { completedAt: { lt: cursor } } : {}),
-          },
-          include: { project: true },
-          orderBy: { completedAt: 'desc' },
-          take: limit,
-        }),
-      ]);
-
-      for (const exportJob of directorExports) {
-        const completedAt = exportJob.completedAt ?? exportJob.session.updatedAt;
-        const lifecycleStatus =
-          exportJob.outputDeletedAt ||
-          (exportJob.downloadExpiresAt && exportJob.downloadExpiresAt.getTime() <= now.getTime())
-            ? 'DOWNLOAD_EXPIRED'
-            : LifecycleStatus.COMPLETED;
-
-        const item: WorkspaceRecentItem = {
-          id: exportJob.id,
-          kind: 'export',
-          tool: 'exports',
-          title: `${getDirectorTitle(exportJob.session)} export`,
-          status: exportJob.status,
-          lifecycleStatus,
-          updatedAt: completedAt,
-          createdAt: completedAt,
-          expiresAt: exportJob.session.expiresAt,
-          completedAt,
-          lastOpenedAt: exportJob.session.lastOpenedAt,
-          downloadExpiresAt: exportJob.downloadExpiresAt,
-          sourceId: exportJob.sessionId,
-          sourceKind: 'ai-director',
-        };
-
-        if (itemMatchesStatus(item, query.status)) {
-          items.push(item);
-        }
-      }
-
-      for (const exportJob of genericExports) {
-        const completedAt = exportJob.completedAt ?? exportJob.createdAt;
-        const lifecycleStatus =
-          exportJob.urlExpiresAt && exportJob.urlExpiresAt.getTime() <= now.getTime()
-            ? 'DOWNLOAD_EXPIRED'
-            : LifecycleStatus.COMPLETED;
-        const item: WorkspaceRecentItem = {
-          id: exportJob.id,
-          kind: 'export',
-          tool: 'exports',
-          title: `${exportJob.project?.title ?? 'Video export'} export`,
-          status: exportJob.status,
-          lifecycleStatus,
-          updatedAt: completedAt,
-          createdAt: exportJob.createdAt,
-          expiresAt: exportJob.expiresAt,
-          completedAt,
-          lastOpenedAt: null,
-          downloadExpiresAt: exportJob.urlExpiresAt,
-          sourceId: exportJob.projectId,
-          sourceKind: isLoopCreatorProjectStoryData(exportJob.project?.storyData)
-            ? 'loop-creator'
-            : isReactionCreatorProjectStoryData(exportJob.project?.storyData)
-              ? 'reaction-video'
-              : isLiveStreamProjectStoryData(exportJob.project?.storyData)
-                ? 'live-stream'
-                : 'video-studio',
-        };
-
-        if (itemMatchesStatus(item, query.status)) {
-          items.push(item);
-        }
-      }
+      items.push(...(await fetchRecentExports(userId, cursor, limit, query.status, now)));
     }
 
     const sorted = items.sort(sortRecentItems).slice(0, limit);
@@ -352,93 +607,11 @@ export const workspaceService = {
   async getLastActive(userId: string, tool: Exclude<WorkspaceTool, 'exports'>) {
     const now = new Date();
 
-    if (
-      tool === 'video-studio' ||
-      tool === 'loop-creator' ||
-      tool === 'reaction-video' ||
-      tool === 'live-stream'
-    ) {
-      const projects = await prisma.project.findMany({
-        where: {
-          userId,
-          lifecycleStatus: LifecycleStatus.ACTIVE,
-          deletedAt: null,
-          OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
-        },
-        orderBy: { updatedAt: 'desc' },
-        take: 20,
-      });
-
-      for (const project of projects) {
-        const matchesTool =
-          tool === 'video-studio'
-            ? isVideoStudioProjectStoryData(project.storyData)
-            : tool === 'loop-creator'
-              ? isLoopCreatorProjectStoryData(project.storyData)
-              : tool === 'reaction-video'
-                ? isReactionCreatorProjectStoryData(project.storyData)
-                : isLiveStreamProjectStoryData(project.storyData);
-        if (!matchesTool) {
-          continue;
-        }
-
-        const expiresAt = resolveWorkspaceExpiresAt(project);
-        if (isWorkspaceExpired(project.lifecycleStatus, expiresAt, now)) {
-          continue;
-        }
-
-        return {
-          id: project.id,
-          kind: tool,
-          tool,
-          title: tool === 'video-studio' ? getVideoStudioTitle(project) : project.title,
-          status: project.status,
-          lifecycleStatus: project.lifecycleStatus,
-          updatedAt: project.updatedAt,
-          createdAt: project.createdAt,
-          expiresAt,
-          completedAt: project.completedAt,
-          lastOpenedAt: project.lastOpenedAt,
-        };
-      }
-
-      return null;
+    if (['video-studio', 'loop-creator', 'reaction-video', 'live-stream'].includes(tool)) {
+      return getLastActiveProject(userId, tool, now);
     }
 
-    const sessions = await prisma.directorSession.findMany({
-      where: {
-        userId,
-        lifecycleStatus: LifecycleStatus.ACTIVE,
-        deletedAt: null,
-        OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
-      },
-      include: { asset: true },
-      orderBy: { updatedAt: 'desc' },
-      take: 20,
-    });
-
-    for (const session of sessions) {
-      const expiresAt = resolveWorkspaceExpiresAt(session);
-      if (isWorkspaceExpired(session.lifecycleStatus, expiresAt, now)) {
-        continue;
-      }
-
-      return {
-        id: session.id,
-        kind: 'ai-director' as const,
-        tool: 'ai-director' as const,
-        title: getDirectorTitle(session),
-        status: session.step,
-        lifecycleStatus: session.lifecycleStatus,
-        updatedAt: session.updatedAt,
-        createdAt: session.createdAt,
-        expiresAt,
-        completedAt: session.completedAt,
-        lastOpenedAt: session.lastOpenedAt,
-      };
-    }
-
-    return null;
+    return getLastActiveDirectorSession(userId, now);
   },
 
   async completeWorkspace(userId: string, kind: WorkspaceKind, id: string) {
@@ -491,109 +664,11 @@ export const workspaceService = {
     const now = new Date();
     const expiresAt = getActiveDraftExpiresAt(now);
 
-    if (
-      kind === 'video-studio' ||
-      kind === 'loop-creator' ||
-      kind === 'reaction-video' ||
-      kind === 'live-stream'
-    ) {
-      const source = await prisma.project.findFirst({
-        where: { id, userId, deletedAt: null },
-        include: { assets: true },
-      });
-      const validStory =
-        kind === 'video-studio'
-          ? isVideoStudioProjectStoryData(source?.storyData)
-          : kind === 'loop-creator'
-            ? isLoopCreatorProjectStoryData(source?.storyData)
-            : kind === 'reaction-video'
-              ? isReactionCreatorProjectStoryData(source?.storyData)
-              : isLiveStreamProjectStoryData(source?.storyData);
-      if (!source || !validStory) {
-        return null;
-      }
-
-      const title = source.title.startsWith('Copy of ') ? source.title : `Copy of ${source.title}`;
-      if (kind === 'loop-creator') {
-        return duplicateLoopCreatorProject(source, userId, title, expiresAt);
-      }
-      if (kind === 'reaction-video') {
-        return duplicateReactionCreatorProject(source, userId, title, expiresAt);
-      }
-      const project = await prisma.project.create({
-        data: {
-          userId,
-          title,
-          description: source.description,
-          mode: source.mode,
-          settings: toInputJson(source.settings),
-          status: ProjectStatus.DRAFT,
-          storyData: source.storyData === null ? undefined : toInputJson(source.storyData),
-          lifecycleStatus: LifecycleStatus.ACTIVE,
-          expiresAt,
-          assets: {
-            create: source.assets.map((asset) => ({
-              type: asset.type,
-              name: asset.name,
-              sourceUrl: asset.sourceUrl,
-              r2Key: asset.r2Key,
-              metadata: toInputJson(asset.metadata),
-            })),
-          },
-        },
-      });
-
-      return project;
+    if (['video-studio', 'loop-creator', 'reaction-video', 'live-stream'].includes(kind)) {
+      return duplicateProjectWorkspace(userId, kind, id, expiresAt);
     }
 
-    const source = await prisma.directorSession.findFirst({
-      where: { id, userId, deletedAt: null },
-      include: { asset: true, subtitleStyle: true },
-    });
-    if (!source) {
-      return null;
-    }
-
-    return prisma.directorSession.create({
-      data: {
-        userId,
-        step: source.asset ? DirectorStep.ANALYZING : DirectorStep.IMPORT,
-        schemaVersion: source.schemaVersion,
-        lifecycleStatus: LifecycleStatus.ACTIVE,
-        expiresAt,
-        asset: source.asset
-          ? {
-              create: {
-                storageKey: source.asset.storageKey,
-                contentHash: source.asset.contentHash,
-                mimeType: source.asset.mimeType,
-                sizeBytes: source.asset.sizeBytes,
-                origin: source.asset.origin,
-                sourceUrlNormalized: source.asset.sourceUrlNormalized,
-                ingestStatus: source.asset.ingestStatus,
-                durationMs: source.asset.durationMs,
-                thumbnailStorageKey: source.asset.thumbnailStorageKey,
-                metadata: toInputJson(source.asset.metadata),
-              },
-            }
-          : undefined,
-        subtitleStyle: source.subtitleStyle
-          ? {
-              create: {
-                fontToken: source.subtitleStyle.fontToken,
-                textColorToken: source.subtitleStyle.textColorToken,
-                bgColorToken: source.subtitleStyle.bgColorToken,
-                fontSize: source.subtitleStyle.fontSize,
-                position: source.subtitleStyle.position,
-                animation: source.subtitleStyle.animation,
-                stylePreset: source.subtitleStyle.stylePreset,
-                speakerMode: source.subtitleStyle.speakerMode,
-                speakerStyles: toInputJson(source.subtitleStyle.speakerStyles),
-              },
-            }
-          : undefined,
-      },
-    });
+    return duplicateDirectorWorkspace(userId, id, expiresAt);
   },
 
   async softDeleteWorkspace(userId: string, kind: WorkspaceDeleteKind, id: string) {

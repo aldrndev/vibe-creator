@@ -12,8 +12,12 @@ export function ExportPresetControl() {
     <div className="hidden items-center gap-1 rounded-xl border border-border/60 bg-muted/30 p-1 md:flex">
       {videoStudioCanvasPresets.map((preset) => {
         const isActive = settings.width === preset.width && settings.height === preset.height;
-        const Icon =
-          preset.id === 'landscape' ? Monitor : preset.id === 'square' ? Square : Smartphone;
+        let Icon = Smartphone;
+        if (preset.id === 'landscape') {
+          Icon = Monitor;
+        } else if (preset.id === 'square') {
+          Icon = Square;
+        }
 
         return (
           <Tooltip key={preset.id}>

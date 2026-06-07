@@ -82,12 +82,12 @@ export function updateTranscribeProgressMeta(
     failedClipCount: patch.failedClipCount ?? current?.failedClipCount ?? 0,
     cacheHitCount: patch.cacheHitCount ?? current?.cacheHitCount ?? 0,
     currentClipId:
-      patch.currentClipId !== undefined ? patch.currentClipId : (current?.currentClipId ?? null),
+      patch.currentClipId === undefined ? (current?.currentClipId ?? null) : patch.currentClipId,
     subtitleMode: patch.subtitleMode ?? current?.subtitleMode ?? 'original',
     subtitleTargetLanguage:
-      patch.subtitleTargetLanguage !== undefined
-        ? patch.subtitleTargetLanguage
-        : (current?.subtitleTargetLanguage ?? null),
+      patch.subtitleTargetLanguage === undefined
+        ? (current?.subtitleTargetLanguage ?? null)
+        : patch.subtitleTargetLanguage,
   };
 }
 

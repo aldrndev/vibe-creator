@@ -109,11 +109,11 @@ describe('Input Validation Security', () => {
     });
 
     it('should reject NaN', () => {
-      expect(() => positiveIntSchema.parse(NaN)).toThrow();
+      expect(() => positiveIntSchema.parse(Number.NaN)).toThrow();
     });
 
     it('should reject Infinity', () => {
-      expect(() => positiveIntSchema.parse(Infinity)).toThrow();
+      expect(() => positiveIntSchema.parse(Number.POSITIVE_INFINITY)).toThrow();
     });
 
     it('should reject numbers outside range', () => {

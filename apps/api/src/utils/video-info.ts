@@ -53,7 +53,7 @@ export async function getVideoDuration(inputPath: string): Promise<number> {
     'Failed to get video duration',
   );
 
-  const durationSec = parseFloat(stdout);
+  const durationSec = Number.parseFloat(stdout);
   if (Number.isNaN(durationSec)) {
     throw new Error('Invalid duration returned by ffprobe');
   }
@@ -87,8 +87,8 @@ export async function getVideoResolution(
     throw new Error('Invalid resolution format');
   }
 
-  const width = parseInt(parts[0] || '0', 10);
-  const height = parseInt(parts[1] || '0', 10);
+  const width = Number.parseInt(parts[0] || '0', 10);
+  const height = Number.parseInt(parts[1] || '0', 10);
 
   if (Number.isNaN(width) || Number.isNaN(height)) {
     throw new Error('Invalid width/height');

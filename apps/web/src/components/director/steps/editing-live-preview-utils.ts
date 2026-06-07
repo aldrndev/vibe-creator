@@ -182,6 +182,16 @@ function getTrailingTrimMs(
   return trailingTrimMs;
 }
 
+function getSubtitleAnimationLabel(animation: SubtitleStyle['animation']): string {
+  if (animation === 'pop-word') return 'Viral Pop';
+  if (animation === 'word') return 'Word by Word';
+  if (animation === 'typewriter') return 'Karaoke';
+  if (animation === 'phrase') return 'Cinema';
+  if (animation === 'line') return 'Line';
+  if (animation === 'fade') return 'Fade';
+  return 'Static';
+}
+
 function getAppliedFeatureLabels(
   exportSettings: ExportSettings,
   subtitleStyle: SubtitleStyle,
@@ -196,20 +206,7 @@ function getAppliedFeatureLabels(
   }
 
   if (exportSettings.includeSubtitles) {
-    const subtitleAnimationLabel =
-      subtitleStyle.animation === 'pop-word'
-        ? 'Viral Pop'
-        : subtitleStyle.animation === 'word'
-          ? 'Word by Word'
-          : subtitleStyle.animation === 'typewriter'
-            ? 'Karaoke'
-            : subtitleStyle.animation === 'phrase'
-              ? 'Cinema'
-              : subtitleStyle.animation === 'line'
-                ? 'Line'
-                : subtitleStyle.animation === 'fade'
-                  ? 'Fade'
-                  : 'Static';
+    const subtitleAnimationLabel = getSubtitleAnimationLabel(subtitleStyle.animation);
     labels.push(
       clip?.transcript?.segments?.length ? `Subtitle ${subtitleAnimationLabel}` : 'Subtitle Aktif',
     );
@@ -443,6 +440,33 @@ function buildSpeakerTurnSegments(
   return grouped;
 }
 
+function getWordAnimationText(
+  activeSegment: NonNullable<LivePreviewDraft['transcriptSegments']>[number],
+  currentTimeMs: number,
+): string {
+  const sourceWords = activeSegment.words?.filter((word) => word.endMs > word.startMs) ?? [];
+  const wordTrack =
+    sourceWords.length > 0 ? sourceWords : buildSyntheticWordsForTypewriter(activeSegment);
+  return getCurrentWordText(wordTrack, currentTimeMs);
+}
+
+function getTypewriterAnimationText(
+  activeSegment: NonNullable<LivePreviewDraft['transcriptSegments']>[number],
+  currentTimeMs: number,
+): string {
+  const sourceWords = activeSegment.words?.filter((word) => word.endMs > word.startMs) ?? [];
+  const words =
+    sourceWords.length > 0 ? sourceWords : buildSyntheticWordsForTypewriter(activeSegment);
+
+  const phraseWords = getPhraseGroupWords(words, currentTimeMs);
+  const visibleWords = phraseWords.filter((word) => currentTimeMs >= word.startMs);
+  if (visibleWords.length === 0) {
+    return '';
+  }
+
+  return visibleWords.map((word) => word.text).join(' ');
+}
+
 export function getLivePreviewSubtitleText(
   draft: LivePreviewDraft | null,
   currentTimeMs: number,
@@ -462,35 +486,11 @@ export function getLivePreviewSubtitleText(
   }
 
   if (animation === 'word' || animation === 'pop-word') {
-    const sourceWords = activeSegment.words?.filter((word) => word.endMs > word.startMs) ?? [];
-    const wordTrack =
-      sourceWords.length > 0 ? sourceWords : buildSyntheticWordsForTypewriter(activeSegment);
-    return getCurrentWordText(wordTrack, currentTimeMs);
-  }
-
-  if (animation === 'typewriter' && activeSegment.words?.length) {
-    const sourceWords = activeSegment.words?.filter((word) => word.endMs > word.startMs) ?? [];
-    const phraseWords = getPhraseGroupWords(
-      sourceWords.length > 0 ? sourceWords : buildSyntheticWordsForTypewriter(activeSegment),
-      currentTimeMs,
-    );
-    const visibleWords = phraseWords.filter((word) => currentTimeMs >= word.startMs);
-    if (visibleWords.length === 0) {
-      return '';
-    }
-
-    return visibleWords.map((word) => word.text).join(' ');
+    return getWordAnimationText(activeSegment, currentTimeMs);
   }
 
   if (animation === 'typewriter') {
-    const syntheticWords = buildSyntheticWordsForTypewriter(activeSegment);
-    const phraseWords = getPhraseGroupWords(syntheticWords, currentTimeMs);
-    const visibleWords = phraseWords.filter((word) => currentTimeMs >= word.startMs);
-    if (visibleWords.length === 0) {
-      return '';
-    }
-
-    return visibleWords.map((word) => word.text).join(' ');
+    return getTypewriterAnimationText(activeSegment, currentTimeMs);
   }
 
   return activeSegment.text;
@@ -659,11 +659,14 @@ export function deriveLivePreviewScene(
   const isPortrait = exportSettings.aspectRatio === '9:16';
   const useFocusSubject = isPortrait && effectiveRefineSettings?.faceTracking;
   const aspectClass = getAspectClass(exportSettings.aspectRatio);
-  const baseMediaClass = isPortrait
-    ? useFocusSubject
-      ? 'object-cover scale-[1.06]'
-      : 'object-cover'
-    : 'object-contain';
+  let baseMediaClass = 'object-contain';
+  if (isPortrait) {
+    if (useFocusSubject) {
+      baseMediaClass = 'object-cover scale-[1.06]';
+    } else {
+      baseMediaClass = 'object-cover';
+    }
+  }
   const mediaClass = effectiveRefineSettings?.stabilize
     ? `${baseMediaClass} will-change-transform`
     : baseMediaClass;
@@ -673,14 +676,17 @@ export function deriveLivePreviewScene(
   const subtitleTextClass = getSubtitleAnimationClass(subtitleStyle.animation);
   const subtitleTextStyle = getSubtitleTextStyle(subtitleStyle);
 
+  let frameClass = 'bg-gradient-to-b from-black/80 to-zinc-900';
+  if (effectiveRefineSettings?.stabilize) {
+    frameClass = 'bg-black shadow-[inset_0_0_0_1px_rgba(255,102,39,0.35)]';
+  } else if (useFocusSubject) {
+    frameClass = 'bg-black';
+  }
+
   return {
     aspectClass,
     mediaClass,
-    frameClass: effectiveRefineSettings?.stabilize
-      ? 'bg-black shadow-[inset_0_0_0_1px_rgba(255,102,39,0.35)]'
-      : useFocusSubject
-        ? 'bg-black'
-        : 'bg-gradient-to-b from-black/80 to-zinc-900',
+    frameClass,
     subtitleContainerClass,
     subtitleTextClass,
     subtitleTextStyle,

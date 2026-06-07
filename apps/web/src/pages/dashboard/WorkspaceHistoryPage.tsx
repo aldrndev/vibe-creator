@@ -257,30 +257,7 @@ export function WorkspaceHistoryPage() {
             </p>
           </div>
 
-          <div className="w-full sm:w-64">
-            <p className="mb-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">
-              Filter
-            </p>
-            <Select
-              value={selectedFilter.value}
-              onValueChange={(value) => {
-                if (isHistoryFilter(value)) {
-                  setFilter(value);
-                }
-              }}
-            >
-              <SelectTrigger className="h-11 rounded-xl border-border/70 bg-card/70 font-semibold">
-                <SelectValue placeholder={selectedFilter.label} />
-              </SelectTrigger>
-              <SelectContent>
-                {filters.map((item) => (
-                  <SelectItem key={item.value} value={item.value}>
-                    {item.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <HistoryFilterSelect selectedFilter={selectedFilter} setFilter={setFilter} />
         </div>
 
         {error ? (
@@ -313,41 +290,18 @@ export function WorkspaceHistoryPage() {
           </Card>
         ) : null}
 
-        {availableItems.length > 0 ? (
-          <div className="grid gap-3 md:grid-cols-2">
-            {availableItems.map((item) => (
-              <WorkspaceHistoryCard
-                key={`${item.kind}-${item.id}`}
-                item={item}
-                relatedExports={item.kind === 'export' ? [] : (groupedExports.get(item.id) ?? [])}
-                onDuplicate={() => duplicateMutation.mutate(item)}
-                onDelete={() => deleteMutation.mutate(item)}
-              />
-            ))}
-          </div>
-        ) : null}
+        <HistoryAvailableList
+          items={availableItems}
+          groupedExports={groupedExports}
+          onDuplicate={(item) => duplicateMutation.mutate(item)}
+          onDelete={(item) => deleteMutation.mutate(item)}
+        />
 
-        {endedItems.length > 0 ? (
-          <section className="space-y-3">
-            {filter === 'expired' ? null : (
-              <div className="flex items-center justify-between border-t border-border/50 pt-5">
-                <h2 className="text-sm font-black text-foreground">Sudah berakhir</h2>
-                <p className="text-xs font-semibold text-muted-foreground">
-                  Tidak lagi memakai ruang kerja aktif
-                </p>
-              </div>
-            )}
-            <div className="space-y-2">
-              {endedItems.map((item) => (
-                <ExpiredWorkspaceRow
-                  key={`${item.kind}-${item.id}`}
-                  item={item}
-                  onDelete={() => deleteMutation.mutate(item)}
-                />
-              ))}
-            </div>
-          </section>
-        ) : null}
+        <HistoryEndedList
+          items={endedItems}
+          filter={filter}
+          onDelete={(item) => deleteMutation.mutate(item)}
+        />
 
         {hasNextPage ? (
           <div className="flex justify-center pt-2">
@@ -512,5 +466,102 @@ function ExpiredWorkspaceRow({
         </div>
       </CardBody>
     </Card>
+  );
+}
+
+function HistoryFilterSelect({
+  selectedFilter,
+  setFilter,
+}: {
+  selectedFilter: { value: HistoryFilter; label: string };
+  setFilter: (val: HistoryFilter) => void;
+}) {
+  return (
+    <div className="w-full sm:w-64">
+      <p className="mb-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">
+        Filter
+      </p>
+      <Select
+        value={selectedFilter.value}
+        onValueChange={(value) => {
+          if (isHistoryFilter(value)) {
+            setFilter(value as HistoryFilter);
+          }
+        }}
+      >
+        <SelectTrigger className="h-11 rounded-xl border-border/70 bg-card/70 font-semibold">
+          <SelectValue placeholder={selectedFilter.label} />
+        </SelectTrigger>
+        <SelectContent>
+          {filters.map((item) => (
+            <SelectItem key={item.value} value={item.value}>
+              {item.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
+
+function HistoryAvailableList({
+  items,
+  groupedExports,
+  onDuplicate,
+  onDelete,
+}: {
+  items: WorkspaceItem[];
+  groupedExports: Map<string, WorkspaceItem[]>;
+  onDuplicate: (item: WorkspaceItem) => void;
+  onDelete: (item: WorkspaceItem) => void;
+}) {
+  if (items.length === 0) return null;
+
+  return (
+    <div className="grid gap-3 md:grid-cols-2">
+      {items.map((item) => (
+        <WorkspaceHistoryCard
+          key={`${item.kind}-${item.id}`}
+          item={item}
+          relatedExports={item.kind === 'export' ? [] : (groupedExports.get(item.id) ?? [])}
+          onDuplicate={() => onDuplicate(item)}
+          onDelete={() => onDelete(item)}
+        />
+      ))}
+    </div>
+  );
+}
+
+function HistoryEndedList({
+  items,
+  filter,
+  onDelete,
+}: {
+  items: WorkspaceItem[];
+  filter: HistoryFilter;
+  onDelete: (item: WorkspaceItem) => void;
+}) {
+  if (items.length === 0) return null;
+
+  return (
+    <section className="space-y-3">
+      {filter === 'expired' ? null : (
+        <div className="flex items-center justify-between border-t border-border/50 pt-5">
+          <h2 className="text-sm font-black text-foreground">Sudah berakhir</h2>
+          <p className="text-xs font-semibold text-muted-foreground">
+            Tidak lagi memakai ruang kerja aktif
+          </p>
+        </div>
+      )}
+      <div className="space-y-2">
+        {items.map((item) => (
+          <ExpiredWorkspaceRow
+            key={`${item.kind}-${item.id}`}
+            item={item}
+            onDelete={() => onDelete(item)}
+          />
+        ))}
+      </div>
+    </section>
   );
 }

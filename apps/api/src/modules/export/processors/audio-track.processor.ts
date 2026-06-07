@@ -213,9 +213,9 @@ export async function mixAudioTracks({
     );
   }
 
-  usableTracks.forEach((track) => {
+  for (const track of usableTracks) {
     inputArgs.push('-i', track.localPath);
-  });
+  }
 
   await runFFmpeg({
     args: [

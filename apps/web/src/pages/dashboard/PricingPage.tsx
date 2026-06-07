@@ -100,6 +100,86 @@ function getPaymentErrorMessage(payload: unknown, fallback: string): string {
   return error?.message || fallback;
 }
 
+function StatusMessages({
+  paymentStatus,
+  successMessage,
+  error,
+}: {
+  paymentStatus: string | null;
+  successMessage: string | null;
+  error: string | null;
+}) {
+  return (
+    <>
+      {paymentStatus === 'success' && (
+        <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-center text-sm font-bold text-emerald-400">
+          Pembayaran berhasil. Subscription kamu sudah di-upgrade.
+        </div>
+      )}
+      {paymentStatus === 'failed' && (
+        <div className="rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-center text-sm font-bold text-rose-400">
+          Pembayaran gagal atau dibatalkan. Silakan coba lagi.
+        </div>
+      )}
+      {successMessage && (
+        <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-center text-sm font-bold text-emerald-400">
+          {successMessage}
+        </div>
+      )}
+      {error && (
+        <div className="rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-center text-sm font-bold text-rose-400">
+          {error}
+        </div>
+      )}
+    </>
+  );
+}
+
+function TierActionButton({
+  tier,
+  isAdmin,
+  currentTier,
+  isLoading,
+  onUpgrade,
+}: {
+  tier: PricingTier;
+  isAdmin: boolean;
+  currentTier: string;
+  isLoading: string | null;
+  onUpgrade: (tier: 'CREATOR' | 'PRO') => void;
+}) {
+  if (isAdmin) {
+    return (
+      <Button className="w-full rounded-xl" variant="secondary" disabled>
+        Admin Access
+      </Button>
+    );
+  }
+
+  if (tier.id === 'FREE') {
+    return (
+      <Button className="w-full rounded-xl" variant="secondary" disabled>
+        {currentTier === 'FREE' ? 'Plan Saat Ini' : 'Free'}
+      </Button>
+    );
+  }
+
+  const upgradeTier = tier.id === 'CREATOR' ? 'CREATOR' : 'PRO';
+  const isCurrent = currentTier === upgradeTier;
+
+  return (
+    <Button
+      className="w-full rounded-xl font-black"
+      variant={isCurrent ? 'secondary' : 'default'}
+      disabled={isCurrent}
+      isLoading={isLoading === upgradeTier}
+      onClick={() => onUpgrade(upgradeTier)}
+    >
+      {isCurrent ? 'Plan Saat Ini' : `Upgrade ke ${tier.name}`}
+    </Button>
+  );
+}
+
 export function PricingPage() {
   const [searchParams] = useMutableSearchParams();
   const { subscription, user } = useAuthStore();
@@ -169,41 +249,6 @@ export function PricingPage() {
     }).format(price);
   };
 
-  const renderTierAction = (tier: PricingTier) => {
-    if (isAdmin) {
-      return (
-        <Button className="w-full rounded-xl" variant="secondary" disabled>
-          Admin Access
-        </Button>
-      );
-    }
-
-    switch (tier.id) {
-      case 'FREE':
-        return (
-          <Button className="w-full rounded-xl" variant="secondary" disabled>
-            {currentTier === 'FREE' ? 'Plan Saat Ini' : 'Free'}
-          </Button>
-        );
-      case 'CREATOR':
-      case 'PRO': {
-        const upgradeTier = tier.id === 'CREATOR' ? 'CREATOR' : 'PRO';
-
-        return (
-          <Button
-            className="w-full rounded-xl font-black"
-            variant={currentTier === upgradeTier ? 'secondary' : 'default'}
-            disabled={currentTier === upgradeTier}
-            isLoading={isLoading === upgradeTier}
-            onClick={() => handleUpgrade(upgradeTier)}
-          >
-            {currentTier === upgradeTier ? 'Plan Saat Ini' : `Upgrade ke ${tier.name}`}
-          </Button>
-        );
-      }
-    }
-  };
-
   return (
     <div className="min-h-screen bg-background px-4 py-6 pb-24 md:px-8 lg:pb-10">
       <div className="mx-auto max-w-7xl space-y-8">
@@ -241,27 +286,11 @@ export function PricingPage() {
           </Button>
         </div>
 
-        {/* Payment Status */}
-        {paymentStatus === 'success' && (
-          <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-center text-sm font-bold text-emerald-400">
-            Pembayaran berhasil. Subscription kamu sudah di-upgrade.
-          </div>
-        )}
-        {paymentStatus === 'failed' && (
-          <div className="rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-center text-sm font-bold text-rose-400">
-            Pembayaran gagal atau dibatalkan. Silakan coba lagi.
-          </div>
-        )}
-        {successMessage && (
-          <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-center text-sm font-bold text-emerald-400">
-            {successMessage}
-          </div>
-        )}
-        {error && (
-          <div className="rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-center text-sm font-bold text-rose-400">
-            {error}
-          </div>
-        )}
+        <StatusMessages
+          paymentStatus={paymentStatus}
+          successMessage={successMessage}
+          error={error}
+        />
 
         <Card className="overflow-hidden rounded-2xl border-border/50 bg-card/70">
           <CardBody className="grid gap-6 p-5 md:grid-cols-[1fr_auto] md:items-center md:p-6">
@@ -370,7 +399,13 @@ export function PricingPage() {
                     ))}
                   </ul>
 
-                  {renderTierAction(tier)}
+                  <TierActionButton
+                    tier={tier}
+                    isAdmin={isAdmin}
+                    currentTier={currentTier}
+                    isLoading={isLoading}
+                    onUpgrade={handleUpgrade}
+                  />
                 </CardBody>
               </Card>
             </motion.div>

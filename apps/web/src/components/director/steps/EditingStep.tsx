@@ -655,7 +655,7 @@ export const EditingStep = () => {
 
   return (
     <div className="relative mx-auto w-full max-w-380 animate-in fade-in slide-in-from-bottom-4 duration-500 flex flex-col xl:flex-row gap-7 xl:gap-9 items-start">
-      <div className="min-w-0 flex-1 bg-card/70 rounded-[2rem] border border-border/50 backdrop-blur-xl p-5 sm:p-7 xl:p-8 flex flex-col gap-5 relative pb-0">
+      <div className="min-w-0 flex-1 bg-card/70 rounded-4xl border border-border/50 backdrop-blur-xl p-5 sm:p-7 xl:p-8 flex flex-col gap-5 relative pb-0">
         <div className="relative z-10 space-y-3">
           <div className="flex flex-col gap-1 sm:flex-row sm:flex-wrap sm:items-baseline sm:gap-x-2">
             <h3 className="text-sm font-black uppercase tracking-[0.16em] text-foreground">

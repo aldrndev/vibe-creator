@@ -147,7 +147,7 @@ export const videoStudioRoutes: FastifyPluginAsync = async (fastify) => {
       const params = studioAssetParamsSchema.parse(request.params);
       const asset = getStudioAsset(params.id);
 
-      if (!asset || asset.kind !== 'audio') {
+      if (asset?.kind !== 'audio') {
         return reply.status(404).send({
           success: false,
           error: { code: 'NOT_FOUND', message: 'Studio audio asset not found' },

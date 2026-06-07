@@ -33,7 +33,9 @@ export const videoMetadataService = {
           }
 
           const duration =
-            parseFloat(hours) * 3600 + parseFloat(minutes) * 60 + parseFloat(seconds);
+            Number.parseFloat(hours) * 3600 +
+            Number.parseFloat(minutes) * 60 +
+            Number.parseFloat(seconds);
           resolve({ duration });
         } else {
           resolve({ duration: 0 });

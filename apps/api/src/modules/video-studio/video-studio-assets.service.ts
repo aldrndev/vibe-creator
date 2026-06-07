@@ -32,7 +32,7 @@ function getStudioAssetFileName(assetId: string): string {
 }
 
 function assertStudioAudioAsset(asset: StudioAsset | null): StudioAsset {
-  if (!asset || asset.kind !== 'audio') {
+  if (asset?.kind !== 'audio') {
     throw new Error('Studio audio asset not found');
   }
 

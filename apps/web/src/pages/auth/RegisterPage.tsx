@@ -2,6 +2,7 @@ import { Link, useNavigate } from '@tanstack/react-router';
 import { AlertCircle, Eye, EyeOff, Lock, Mail, User, UserPlus } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
+import type { z } from 'zod';
 import { Button, Input } from '@/components/ui';
 import { TurnstileWidget, type TurnstileWidgetRef } from '@/components/ui/turnstile-widget';
 import { type RegisterForm, registerFormSchema } from '@/lib/auth-form-schemas';
@@ -53,10 +54,9 @@ export function RegisterPage() {
   const onSubmit = async (data: RegisterForm) => {
     setErrorMessage(null);
 
-    const parsedData = registerFormSchema.safeParse(data);
-    if (!parsedData.success) {
-      for (const issue of parsedData.error.issues) {
-        const field = issue.path[0];
+    const handleValidationErrors = (issues: z.ZodIssue[]) => {
+      for (const issue of issues) {
+        const field = issue.path[0] as keyof RegisterForm;
         if (
           field === 'name' ||
           field === 'email' ||
@@ -66,6 +66,11 @@ export function RegisterPage() {
           setError(field, { message: issue.message });
         }
       }
+    };
+
+    const parsedData = registerFormSchema.safeParse(data);
+    if (!parsedData.success) {
+      handleValidationErrors(parsedData.error.issues);
       return;
     }
 

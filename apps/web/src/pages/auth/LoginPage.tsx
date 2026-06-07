@@ -2,6 +2,7 @@ import { Link, useNavigate } from '@tanstack/react-router';
 import { AlertCircle, Eye, EyeOff, Lock, LogIn, Mail } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
+import type { z } from 'zod';
 import { Button, Input } from '@/components/ui';
 import { TurnstileWidget, type TurnstileWidgetRef } from '@/components/ui/turnstile-widget';
 import { type LoginForm, loginFormSchema } from '@/lib/auth-form-schemas';
@@ -51,14 +52,18 @@ export function LoginPage() {
   const onSubmit = async (data: LoginForm) => {
     setErrorMessage(null);
 
-    const parsedData = loginFormSchema.safeParse(data);
-    if (!parsedData.success) {
-      for (const issue of parsedData.error.issues) {
+    const handleValidationErrors = (issues: z.ZodIssue[]) => {
+      for (const issue of issues) {
         const field = issue.path[0];
         if (field === 'email' || field === 'password') {
-          setError(field, { message: issue.message });
+          setError(field as 'email' | 'password', { message: issue.message });
         }
       }
+    };
+
+    const parsedData = loginFormSchema.safeParse(data);
+    if (!parsedData.success) {
+      handleValidationErrors(parsedData.error.issues);
       return;
     }
 

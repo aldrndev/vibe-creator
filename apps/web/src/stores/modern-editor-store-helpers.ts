@@ -71,6 +71,18 @@ function resolveFps(
   return fallback;
 }
 
+function mergeValue<T>(update: T | undefined, base: T | undefined, fallback: T): T {
+  return update ?? base ?? fallback;
+}
+
+function mergeString(
+  update: string | undefined,
+  base: string | undefined,
+  fallback: string,
+): string {
+  return update?.trim() || base || fallback;
+}
+
 export function mergeModernProjectSettings(
   baseSettings: ModernProjectSettings,
   updates: Partial<ModernProjectSettings> = {},
@@ -83,40 +95,76 @@ export function mergeModernProjectSettings(
     durationMs: normalizedUpdates.durationMs ?? baseSettings.durationMs,
     backgroundColor: normalizedUpdates.backgroundColor?.trim() || baseSettings.backgroundColor,
     backgroundMode: normalizedUpdates.backgroundMode ?? baseSettings.backgroundMode,
-    backgroundOpacity: normalizedUpdates.backgroundOpacity ?? baseSettings.backgroundOpacity ?? 1,
-    backgroundBlurAmount:
-      normalizedUpdates.backgroundBlurAmount ?? baseSettings.backgroundBlurAmount ?? 18,
-    backgroundBlurZoom:
-      normalizedUpdates.backgroundBlurZoom ?? baseSettings.backgroundBlurZoom ?? 1.08,
-    backgroundDim: normalizedUpdates.backgroundDim ?? baseSettings.backgroundDim ?? 0.08,
-    backgroundSaturation:
-      normalizedUpdates.backgroundSaturation ?? baseSettings.backgroundSaturation ?? 1.05,
-    backgroundGradientFrom:
-      normalizedUpdates.backgroundGradientFrom?.trim() ||
-      baseSettings.backgroundGradientFrom ||
+    backgroundOpacity: mergeValue(
+      normalizedUpdates.backgroundOpacity,
+      baseSettings.backgroundOpacity,
+      1,
+    ),
+    backgroundBlurAmount: mergeValue(
+      normalizedUpdates.backgroundBlurAmount,
+      baseSettings.backgroundBlurAmount,
+      18,
+    ),
+    backgroundBlurZoom: mergeValue(
+      normalizedUpdates.backgroundBlurZoom,
+      baseSettings.backgroundBlurZoom,
+      1.08,
+    ),
+    backgroundDim: mergeValue(normalizedUpdates.backgroundDim, baseSettings.backgroundDim, 0.08),
+    backgroundSaturation: mergeValue(
+      normalizedUpdates.backgroundSaturation,
+      baseSettings.backgroundSaturation,
+      1.05,
+    ),
+    backgroundGradientFrom: mergeString(
+      normalizedUpdates.backgroundGradientFrom,
+      baseSettings.backgroundGradientFrom,
       '#111827',
-    backgroundGradientTo:
-      normalizedUpdates.backgroundGradientTo?.trim() ||
-      baseSettings.backgroundGradientTo ||
+    ),
+    backgroundGradientTo: mergeString(
+      normalizedUpdates.backgroundGradientTo,
+      baseSettings.backgroundGradientTo,
       '#ff4b1f',
-    backgroundGradientAngle:
-      normalizedUpdates.backgroundGradientAngle ?? baseSettings.backgroundGradientAngle ?? 135,
+    ),
+    backgroundGradientAngle: mergeValue(
+      normalizedUpdates.backgroundGradientAngle,
+      baseSettings.backgroundGradientAngle,
+      135,
+    ),
     backgroundImageAssetId:
-      normalizedUpdates.backgroundImageAssetId !== undefined
-        ? normalizedUpdates.backgroundImageAssetId
-        : (baseSettings.backgroundImageAssetId ?? null),
-    backgroundImageFit:
-      normalizedUpdates.backgroundImageFit ?? baseSettings.backgroundImageFit ?? 'cover',
-    backgroundImageBlurAmount:
-      normalizedUpdates.backgroundImageBlurAmount ?? baseSettings.backgroundImageBlurAmount ?? 0,
-    backgroundImageDim:
-      normalizedUpdates.backgroundImageDim ?? baseSettings.backgroundImageDim ?? 0,
-    backgroundImagePositionX:
-      normalizedUpdates.backgroundImagePositionX ?? baseSettings.backgroundImagePositionX ?? 50,
-    backgroundImagePositionY:
-      normalizedUpdates.backgroundImagePositionY ?? baseSettings.backgroundImagePositionY ?? 50,
-    backgroundImageScale:
-      normalizedUpdates.backgroundImageScale ?? baseSettings.backgroundImageScale ?? 1,
+      normalizedUpdates.backgroundImageAssetId === undefined
+        ? (baseSettings.backgroundImageAssetId ?? null)
+        : normalizedUpdates.backgroundImageAssetId,
+    backgroundImageFit: mergeValue(
+      normalizedUpdates.backgroundImageFit,
+      baseSettings.backgroundImageFit,
+      'cover',
+    ),
+    backgroundImageBlurAmount: mergeValue(
+      normalizedUpdates.backgroundImageBlurAmount,
+      baseSettings.backgroundImageBlurAmount,
+      0,
+    ),
+    backgroundImageDim: mergeValue(
+      normalizedUpdates.backgroundImageDim,
+      baseSettings.backgroundImageDim,
+      0,
+    ),
+    backgroundImagePositionX: mergeValue(
+      normalizedUpdates.backgroundImagePositionX,
+      baseSettings.backgroundImagePositionX,
+      50,
+    ),
+    backgroundImagePositionY: mergeValue(
+      normalizedUpdates.backgroundImagePositionY,
+      baseSettings.backgroundImagePositionY,
+      50,
+    ),
+    backgroundImageScale: mergeValue(
+      normalizedUpdates.backgroundImageScale,
+      baseSettings.backgroundImageScale,
+      1,
+    ),
   };
 }
 
@@ -185,65 +233,36 @@ function roundLayerTransformNumber(value: number): number {
   return Math.round(value * LAYER_TRANSFORM_DECIMAL_FACTOR) / LAYER_TRANSFORM_DECIMAL_FACTOR;
 }
 
+function normalizeValue(
+  value: number | undefined,
+  min: number,
+  max: number,
+  round = false,
+): number | undefined {
+  if (value === undefined) return undefined;
+  const clamped = clamp(value, min, max);
+  return round ? Math.round(clamped) : clamped;
+}
+
 export function normalizeSettings(
   settings: Partial<ModernProjectSettings>,
 ): Partial<ModernProjectSettings> {
   return {
     ...settings,
-    width:
-      settings.width === undefined
-        ? undefined
-        : Math.round(clamp(settings.width, MIN_CANVAS_SIZE, MAX_CANVAS_SIZE)),
-    height:
-      settings.height === undefined
-        ? undefined
-        : Math.round(clamp(settings.height, MIN_CANVAS_SIZE, MAX_CANVAS_SIZE)),
-    durationMs:
-      settings.durationMs === undefined
-        ? undefined
-        : clamp(settings.durationMs, 0, MODERN_LIMITS.MAX_DURATION_MS),
-    backgroundOpacity:
-      settings.backgroundOpacity === undefined
-        ? undefined
-        : clamp(settings.backgroundOpacity, 0, 1),
-    backgroundBlurAmount:
-      settings.backgroundBlurAmount === undefined
-        ? undefined
-        : clamp(settings.backgroundBlurAmount, 0, 50),
-    backgroundBlurZoom:
-      settings.backgroundBlurZoom === undefined
-        ? undefined
-        : clamp(settings.backgroundBlurZoom, 1, 1.5),
-    backgroundDim:
-      settings.backgroundDim === undefined ? undefined : clamp(settings.backgroundDim, 0, 0.6),
-    backgroundSaturation:
-      settings.backgroundSaturation === undefined
-        ? undefined
-        : clamp(settings.backgroundSaturation, 0, 2),
-    backgroundGradientAngle:
-      settings.backgroundGradientAngle === undefined
-        ? undefined
-        : clamp(settings.backgroundGradientAngle, 0, 360),
-    backgroundImageBlurAmount:
-      settings.backgroundImageBlurAmount === undefined
-        ? undefined
-        : clamp(settings.backgroundImageBlurAmount, 0, 40),
-    backgroundImageDim:
-      settings.backgroundImageDim === undefined
-        ? undefined
-        : clamp(settings.backgroundImageDim, 0, 0.6),
-    backgroundImagePositionX:
-      settings.backgroundImagePositionX === undefined
-        ? undefined
-        : clamp(settings.backgroundImagePositionX, 0, 100),
-    backgroundImagePositionY:
-      settings.backgroundImagePositionY === undefined
-        ? undefined
-        : clamp(settings.backgroundImagePositionY, 0, 100),
-    backgroundImageScale:
-      settings.backgroundImageScale === undefined
-        ? undefined
-        : clamp(settings.backgroundImageScale, 1, 2),
+    width: normalizeValue(settings.width, MIN_CANVAS_SIZE, MAX_CANVAS_SIZE, true),
+    height: normalizeValue(settings.height, MIN_CANVAS_SIZE, MAX_CANVAS_SIZE, true),
+    durationMs: normalizeValue(settings.durationMs, 0, MODERN_LIMITS.MAX_DURATION_MS),
+    backgroundOpacity: normalizeValue(settings.backgroundOpacity, 0, 1),
+    backgroundBlurAmount: normalizeValue(settings.backgroundBlurAmount, 0, 50),
+    backgroundBlurZoom: normalizeValue(settings.backgroundBlurZoom, 1, 1.5),
+    backgroundDim: normalizeValue(settings.backgroundDim, 0, 0.6),
+    backgroundSaturation: normalizeValue(settings.backgroundSaturation, 0, 2),
+    backgroundGradientAngle: normalizeValue(settings.backgroundGradientAngle, 0, 360),
+    backgroundImageBlurAmount: normalizeValue(settings.backgroundImageBlurAmount, 0, 40),
+    backgroundImageDim: normalizeValue(settings.backgroundImageDim, 0, 0.6),
+    backgroundImagePositionX: normalizeValue(settings.backgroundImagePositionX, 0, 100),
+    backgroundImagePositionY: normalizeValue(settings.backgroundImagePositionY, 0, 100),
+    backgroundImageScale: normalizeValue(settings.backgroundImageScale, 1, 2),
   };
 }
 

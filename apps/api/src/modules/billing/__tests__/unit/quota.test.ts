@@ -24,7 +24,7 @@ const TIER_LIMITS = {
     watermark: false,
   },
   ENTERPRISE: {
-    exportsPerMonth: Infinity,
+    exportsPerMonth: Number.POSITIVE_INFINITY,
     maxResolution: 'UHD' as const,
     watermark: false,
   },
@@ -40,7 +40,7 @@ function hasQuotaRemaining(tier: TierName, usedExports: number): boolean {
 
 function getQuotaRemaining(tier: TierName, usedExports: number): number {
   const limit = TIER_LIMITS[tier].exportsPerMonth;
-  if (limit === Infinity) return Infinity;
+  if (limit === Number.POSITIVE_INFINITY) return Number.POSITIVE_INFINITY;
   return Math.max(0, limit - usedExports);
 }
 
@@ -65,7 +65,7 @@ describe('quota enforcement', () => {
     });
 
     it('ENTERPRISE tier has unlimited exports', () => {
-      expect(TIER_LIMITS.ENTERPRISE.exportsPerMonth).toBe(Infinity);
+      expect(TIER_LIMITS.ENTERPRISE.exportsPerMonth).toBe(Number.POSITIVE_INFINITY);
     });
   });
 
@@ -100,7 +100,7 @@ describe('quota enforcement', () => {
     });
 
     it('should return Infinity for ENTERPRISE', () => {
-      expect(getQuotaRemaining('ENTERPRISE', 500)).toBe(Infinity);
+      expect(getQuotaRemaining('ENTERPRISE', 500)).toBe(Number.POSITIVE_INFINITY);
     });
   });
 
