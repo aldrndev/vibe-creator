@@ -27,11 +27,11 @@ description: Refactor code area following rules without changing behavior.
    - Follow architecture patterns in rules
    - Follow naming conventions
    - Split files if exceeding LOC limits
+   - After each significant change: `pnpm biome check --changed --diagnostic-level=warn`
 7. Verify:
    - All existing tests MUST still pass
    - No behavior change allowed without approval
-// turbo
-8. Run: `pnpm biome check .` + `pnpm tsc --noEmit` + `pnpm test`
+8. Final verification: `pnpm biome check --changed --diagnostic-level=warn` + `pnpm tsc --noEmit` + `pnpm test`
 
 ## Rules
 

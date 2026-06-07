@@ -1,4 +1,6 @@
 // Constants
+
+export * from './constants/director-source-limits';
 export * from './constants/editor-fonts';
 export * from './constants/loop-source-prompts';
 export * from './constants/model-registry'; // [NEW] Export Model Registry

@@ -2,7 +2,6 @@ import { z } from 'zod';
 import { env } from '@/config/env';
 
 const OPENAI_RERANK_MODEL = 'gpt-4.1-mini';
-const AI_RERANK_TIMEOUT_MS = 20000;
 /** Keep model loaded in Ollama for 5 minutes to avoid cold-start on sequential pipeline calls. */
 const OLLAMA_KEEP_ALIVE_SECONDS = 300;
 
@@ -54,6 +53,9 @@ export interface AnalysisAiPromptCandidate {
   dialogDensity: number;
   durationFit: number;
   visualPenalty: number;
+  completionScore?: number;
+  standaloneScore?: number;
+  reasonLabels?: string[];
 }
 
 export interface AnalysisAiRating {
@@ -67,11 +69,11 @@ export interface AnalysisAiRating {
 
 function getPreferredProviders(): AnalysisAiProvider[] {
   if (env.AI_COPY_PROVIDER === 'ollama') {
-    return ['ollama'];
+    return env.DIRECTOR_LOCAL_RERANK_ENABLED ? ['ollama'] : [];
   }
 
   if (env.AI_COPY_PROVIDER === 'auto') {
-    return ['ollama', 'openai'];
+    return env.DIRECTOR_LOCAL_RERANK_ENABLED ? ['ollama', 'openai'] : ['openai'];
   }
 
   return ['openai'];
@@ -91,6 +93,9 @@ function buildCandidateSummary(candidates: AnalysisAiPromptCandidate[]): string 
         `- dialogDensityScore: ${candidate.dialogDensity}`,
         `- durationFitScore: ${candidate.durationFit}`,
         `- visualPenalty: ${candidate.visualPenalty}`,
+        `- completionScore: ${candidate.completionScore ?? 'unknown'}`,
+        `- standaloneScore: ${candidate.standaloneScore ?? 'unknown'}`,
+        `- reasonLabels: ${candidate.reasonLabels?.join(', ') ?? 'unknown'}`,
       ].join('\n');
     })
     .join('\n\n');
@@ -200,7 +205,7 @@ async function requestOpenAiRatings(
         },
       },
     }),
-    signal: AbortSignal.timeout(AI_RERANK_TIMEOUT_MS),
+    signal: AbortSignal.timeout(env.DIRECTOR_LOCAL_RERANK_TIMEOUT_MS),
   });
 
   if (!response.ok) {
@@ -245,7 +250,7 @@ async function requestOllamaRatings(
         },
       ],
     }),
-    signal: AbortSignal.timeout(AI_RERANK_TIMEOUT_MS),
+    signal: AbortSignal.timeout(env.DIRECTOR_LOCAL_RERANK_TIMEOUT_MS),
   });
 
   if (!response.ok) {

@@ -1,6 +1,13 @@
 import { createWriteStream } from 'node:fs';
 import { stat, writeFile } from 'node:fs/promises';
 import { assertSafeUrl } from '@/utils/ssrf';
+import type { DownloadVideoOptions } from '../download.service';
+
+function assertWithinMaxBytes(bytes: number, maxBytes?: number): void {
+  if (typeof maxBytes === 'number' && bytes > maxBytes) {
+    throw new Error('Downloaded file exceeds the allowed size');
+  }
+}
 
 export const downloadDirectService = {
   /**
@@ -10,6 +17,7 @@ export const downloadDirectService = {
     url: string,
     outputPath: string,
     onProgress?: (percent: number) => void,
+    options?: DownloadVideoOptions,
   ): Promise<{ title: string; metadata: Record<string, unknown> }> {
     await assertSafeUrl(url);
     const response = await fetch(url);
@@ -19,6 +27,7 @@ export const downloadDirectService = {
 
     const contentLength = response.headers.get('content-length');
     const total = contentLength ? parseInt(contentLength, 10) : 0;
+    assertWithinMaxBytes(total, options?.maxBytes);
 
     // If we can't track progress or response.body is null, fallback to buffer
     if (!response.body || total === 0) {
@@ -26,6 +35,7 @@ export const downloadDirectService = {
       const arrayBuffer = await response.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
       if (buffer.length === 0) throw new Error('Downloaded file is empty');
+      assertWithinMaxBytes(buffer.length, options?.maxBytes);
       await writeFile(outputPath, buffer);
       if (onProgress) onProgress(100);
 
@@ -49,6 +59,7 @@ export const downloadDirectService = {
       if (done) break;
 
       loaded += value.length;
+      assertWithinMaxBytes(loaded, options?.maxBytes);
       if (onProgress && total > 0) {
         onProgress(Math.min((loaded / total) * 100, 99));
       }

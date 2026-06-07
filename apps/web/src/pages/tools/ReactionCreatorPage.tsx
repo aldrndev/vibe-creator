@@ -16,6 +16,7 @@ import { ReactionRenderDialog } from '@/components/tools/reaction/ReactionRender
 import { Button, Card, Slider } from '@/components/ui';
 import { PageTransition } from '@/components/ui/PageTransition';
 import { ContinueWorkspaceDialog } from '@/components/workspace/ContinueWorkspaceDialog';
+import { useScrollToTopOnChange } from '@/hooks/use-scroll-to-top-on-change';
 import { useReactionCreator } from '@/hooks/useReactionCreator';
 import { useMutableSearchParams } from '@/lib/route-search';
 import { cn } from '@/lib/utils';
@@ -68,6 +69,13 @@ export function ReactionCreatorPage() {
   const liveVideoRef = useRef<HTMLVideoElement>(null);
   const reactionPreviewRef = useRef<HTMLVideoElement>(null);
   const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
+  const reactionStepKey = reaction.state.hasReactionVideo
+    ? 'render'
+    : reaction.state.hasMainVideo
+      ? 'reaction'
+      : 'main';
+
+  useScrollToTopOnChange(reactionStepKey);
 
   useEffect(() => {
     if (!sessionId && reaction.state.projectId) {
@@ -267,7 +275,7 @@ function ReactionPageHeader({
   return (
     <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex items-center gap-4">
-        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-primary text-white shadow-lg shadow-primary/20">
+        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-linear-to-br from-orange-500 to-primary text-white shadow-lg shadow-primary/20">
           <Video size={24} />
         </div>
         <div>
@@ -300,7 +308,7 @@ function ReactionStepGuide({
   ] as const;
 
   return (
-    <div className="mx-auto grid w-full max-w-3xl grid-cols-3 gap-1.5 rounded-2xl border border-border/45 bg-card/75 p-1.5 shadow-sm sm:flex sm:items-center sm:px-3 sm:py-2.5">
+    <div className="mx-auto grid w-full max-w-3xl grid-cols-3 gap-1.5 rounded-2xl p-1.5 sm:flex sm:items-center sm:px-3 sm:py-2.5">
       {steps.map((step, index) => {
         const isActive = step.id === activeStep;
         const isDone = step.id < activeStep;
@@ -393,7 +401,7 @@ function ReactionStage({
       <button
         type="button"
         onClick={onUploadMain}
-        className="flex min-h-[400px] w-full flex-col items-center justify-center rounded-2xl border border-dashed border-border/60 bg-muted/10 text-center shadow-inner transition-colors hover:border-primary/50 hover:bg-primary/5"
+        className="flex min-h-100 w-full flex-col items-center justify-center rounded-2xl border border-dashed border-border/60 bg-muted/10 text-center shadow-inner transition-colors hover:border-primary/50 hover:bg-primary/5"
       >
         <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 text-primary">
           <Upload size={28} />
@@ -443,10 +451,10 @@ function ReactionStage({
     <div className="overflow-hidden rounded-2xl border border-border/45 bg-muted/10 p-2 shadow-inner md:p-3">
       <div
         className={cn(
-          'relative mx-auto max-h-[560px] w-full overflow-hidden rounded-xl border border-white/10 bg-black shadow-xl',
-          document.output.aspectRatio === '9:16' && 'aspect-[9/16] max-w-[340px]',
-          document.output.aspectRatio === '1:1' && 'aspect-square max-w-[520px]',
-          document.output.aspectRatio === '4:5' && 'aspect-[4/5] max-w-[420px]',
+          'relative mx-auto max-h-140 w-full overflow-hidden rounded-xl border border-white/10 bg-black shadow-xl',
+          document.output.aspectRatio === '9:16' && 'aspect-9/16 max-w-85',
+          document.output.aspectRatio === '1:1' && 'aspect-square max-w-130',
+          document.output.aspectRatio === '4:5' && 'aspect-4/5 max-w-105',
         )}
         style={{ aspectRatio: stageAspectRatio }}
       >
@@ -529,7 +537,7 @@ function ReactionStage({
         ) : null}
 
         {recordingPhase === 'recording' ? (
-          <div className="absolute inset-x-4 bottom-4 z-[60] flex flex-wrap items-center gap-2">
+          <div className="absolute inset-x-4 bottom-4 z-60 flex flex-wrap items-center gap-2">
             <Button
               type="button"
               variant="destructive"
@@ -541,7 +549,7 @@ function ReactionStage({
             </Button>
           </div>
         ) : recordingPhase === 'requesting' || recordingPhase === 'saving' ? (
-          <div className="absolute inset-x-4 bottom-4 z-[60] flex flex-wrap items-center gap-2">
+          <div className="absolute inset-x-4 bottom-4 z-60 flex flex-wrap items-center gap-2">
             <div className="flex h-11 items-center gap-2 rounded-xl border border-primary/25 bg-background/85 px-4 text-sm font-black text-primary backdrop-blur">
               <Loader2 size={16} className="animate-spin" />
               {recordingPhase === 'requesting' ? 'Membuka camera...' : 'Menyiapkan recording...'}
@@ -969,7 +977,7 @@ function ReactionSettingsPanel({
         ))}
       </div>
 
-      <div className="min-h-[420px] space-y-5">
+      <div className="min-h-105 space-y-5">
         {activeTab === 'layout' ? (
           <>
             <section>

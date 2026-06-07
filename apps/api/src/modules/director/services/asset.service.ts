@@ -16,45 +16,15 @@ import { resolveDirectorStoragePath, unlinkLocalFileIfExists } from '../asset-fi
 import { directorRepo } from '../director.repo';
 import { validateImportUrl } from '../director.utils';
 import { videoMetadataService } from '../processing/video-metadata.service';
+import {
+  type DirectorSourceActor,
+  DirectorSourceLimitError,
+  type DirectorSourceLimits,
+  resolveDirectorSourceLimitsForActor,
+  validateDirectorSourceVideo,
+} from '../source-limits';
 
 const REUSE_DURATION_TOLERANCE_MS = 2000;
-const MIN_DIRECTOR_VIDEO_DURATION_SEC = 5 * 60;
-const MAX_VIDEO_DURATION_TOLERANCE_SEC = 10;
-
-function validateDirectorVideoGuards(input: { durationSeconds: number; sizeBytes?: number }): void {
-  if (
-    Number.isFinite(input.durationSeconds) &&
-    input.durationSeconds > 0 &&
-    input.durationSeconds < MIN_DIRECTOR_VIDEO_DURATION_SEC
-  ) {
-    throw new Error(
-      'Video terlalu pendek (< 5 menit). AI Director dirancang untuk konten durasi panjang (minimal 5 menit).',
-    );
-  }
-
-  const maxDurationSec = env.MAX_VIDEO_DURATION_MS / 1000;
-  if (
-    Number.isFinite(input.durationSeconds) &&
-    input.durationSeconds > maxDurationSec + MAX_VIDEO_DURATION_TOLERANCE_SEC
-  ) {
-    throw new Error(
-      `Video is too long (${Math.round(input.durationSeconds / 60)}m). Limit is ${Math.round(
-        maxDurationSec / 60,
-      )}m.`,
-    );
-  }
-
-  if (
-    typeof input.sizeBytes === 'number' &&
-    input.sizeBytes > env.MAX_UPLOAD_SIZE_MB * 1024 * 1024
-  ) {
-    throw new Error(
-      `Video is too large (~${Math.round(
-        input.sizeBytes / 1024 / 1024,
-      )}MB). Limit is ${env.MAX_UPLOAD_SIZE_MB}MB.`,
-    );
-  }
-}
 
 async function cleanupLocalFile(filePath: string, context: Record<string, string>): Promise<void> {
   try {
@@ -70,15 +40,27 @@ async function cleanupLocalFile(filePath: string, context: Record<string, string
   }
 }
 
+function normalizeDirectorActor(actor: string | DirectorSourceActor): DirectorSourceActor {
+  if (typeof actor === 'string') {
+    return { id: actor, role: 'USER' };
+  }
+
+  return actor;
+}
+
 export const directorAssetService = {
   /**
    * Import video from URL or File
    */
   async importAsset(
     sessionId: string,
-    userId: string,
+    actorInput: string | DirectorSourceActor,
     input: { type: 'url' | 'file'; url?: string; filePath?: string },
   ) {
+    const actor = normalizeDirectorActor(actorInput);
+    const userId = actor.id;
+    const sourceLimits = await resolveDirectorSourceLimitsForActor(actor);
+
     // Validate ownership
     const session = await directorRepo.findSession(sessionId, userId);
 
@@ -103,7 +85,9 @@ export const directorAssetService = {
       // Validate URL
       const { valid, normalized } = validateImportUrl(input.url);
       if (!valid) {
-        throw new Error('URL not supported. Use YouTube, TikTok, Instagram, or Facebook.');
+        throw new Error(
+          'Sumber URL belum didukung. Gunakan YouTube, TikTok, Instagram, Facebook, atau upload file langsung.',
+        );
       }
 
       if (!normalized) {
@@ -112,9 +96,11 @@ export const directorAssetService = {
 
       // SMART VALIDATION: Check metadata before download (Intelligence Upgrade)
       const meta = await downloadService.getVideoMetadata(normalized);
-      validateDirectorVideoGuards({
+      validateDirectorSourceVideo({
         durationSeconds: meta.duration,
         sizeBytes: meta.size,
+        limits: sourceLimits,
+        origin: 'url',
       });
 
       const reusableAsset = await directorRepo.findLatestReusableUrlAsset(normalized);
@@ -169,7 +155,7 @@ export const directorAssetService = {
       });
 
       // Trigger background download
-      this.triggerUrlDownload(asset.id, storageKey, normalized).catch((err) => {
+      this.triggerUrlDownload(asset.id, storageKey, normalized, sourceLimits).catch((err) => {
         logger.error({ err, sessionId }, 'Background download failed');
       });
 
@@ -191,9 +177,11 @@ export const directorAssetService = {
 
         const fileStats = await stat(tempUploadPath);
         const fileMetadata = await videoMetadataService.getVideoMetadata(tempUploadPath);
-        validateDirectorVideoGuards({
+        validateDirectorSourceVideo({
           durationSeconds: fileMetadata.duration,
           sizeBytes: fileStats.size,
+          limits: sourceLimits,
+          origin: 'upload',
         });
         const contentHash = await this.computeFileHash(tempUploadPath);
 
@@ -302,7 +290,12 @@ export const directorAssetService = {
   /**
    * Background download helper
    */
-  async triggerUrlDownload(assetId: string, storageKey: string, url: string) {
+  async triggerUrlDownload(
+    assetId: string,
+    storageKey: string,
+    url: string,
+    sourceLimits?: DirectorSourceLimits,
+  ) {
     let outputPath: string | null = null;
     try {
       // Use env.MEDIA_INPUT_DIR which is correctly mapped (e.g. /app/uploads in Docker)
@@ -328,36 +321,45 @@ export const directorAssetService = {
       let lastProgressTime = Date.now();
       let lastProgress = 0;
 
-      await downloadService.downloadVideo(url, outputPath, async (percent) => {
-        const now = Date.now();
-        const roundedPercent = Math.round(percent);
+      await downloadService.downloadVideo(
+        url,
+        outputPath,
+        async (percent) => {
+          const now = Date.now();
+          const roundedPercent = Math.round(percent);
 
-        logger.debug(
-          { assetId, roundedPercent, lastProgress, lastProgressTime },
-          'Download progress callback invoked',
-        );
+          logger.debug(
+            { assetId, roundedPercent, lastProgress, lastProgressTime },
+            'Download progress callback invoked',
+          );
 
-        // Only update if: 500ms passed OR progress jumped 10%+ OR finished
-        if (
-          now - lastProgressTime > 500 ||
-          roundedPercent - lastProgress >= 10 ||
-          roundedPercent >= 100
-        ) {
-          lastProgressTime = now;
-          lastProgress = roundedPercent;
+          // Only update if: 500ms passed OR progress jumped 10%+ OR finished
+          if (
+            now - lastProgressTime > 500 ||
+            roundedPercent - lastProgress >= 10 ||
+            roundedPercent >= 100
+          ) {
+            lastProgressTime = now;
+            lastProgress = roundedPercent;
 
-          logger.info({ assetId, roundedPercent, progressKey }, 'Updating Redis with progress');
-          await redis.set(progressKey, roundedPercent, 'EX', 300);
-        }
-      });
+            logger.info({ assetId, roundedPercent, progressKey }, 'Updating Redis with progress');
+            await redis.set(progressKey, roundedPercent, 'EX', 300);
+          }
+        },
+        sourceLimits ? { maxBytes: sourceLimits.maxSizeBytes } : undefined,
+      );
 
       // Get file size
       const fileStats = await stat(outputPath);
       const fileMetadata = await videoMetadataService.getVideoMetadata(outputPath);
-      validateDirectorVideoGuards({
-        durationSeconds: fileMetadata.duration,
-        sizeBytes: fileStats.size,
-      });
+      if (sourceLimits) {
+        validateDirectorSourceVideo({
+          durationSeconds: fileMetadata.duration,
+          sizeBytes: fileStats.size,
+          limits: sourceLimits,
+          origin: 'url',
+        });
+      }
       const contentHash = await this.computeFileHash(outputPath);
 
       await directorRepo.updateAsset(assetId, {
@@ -382,7 +384,15 @@ export const directorAssetService = {
 
       // Set error state in Redis for frontend to see immediately
       const { redis: redisClient } = await import('@/lib/redis');
-      await redisClient.set(`director:asset:${assetId}:error`, (err as Error).message, 'EX', 60);
+      const userSafeMessage =
+        err instanceof DirectorSourceLimitError
+          ? err.message
+          : err instanceof Error && err.message.includes('allowed size') && sourceLimits
+            ? 'Video dari URL melebihi batas paket kamu. Pilih video yang lebih kecil, video yang lebih pendek, atau upgrade paket.'
+            : err instanceof Error
+              ? err.message
+              : 'Import gagal diproses';
+      await redisClient.set(`director:asset:${assetId}:error`, userSafeMessage, 'EX', 60);
     }
   },
 

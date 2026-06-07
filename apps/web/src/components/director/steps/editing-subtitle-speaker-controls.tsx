@@ -40,7 +40,7 @@ export function EditingSubtitleSpeakerControls({
   const handleToggleSpeakerMode = (checked: boolean) => {
     onUpdateSubtitleStyle({
       speakerMode: checked ? 'speaker-colors' : 'single',
-      speakerStyles: checked ? speakerStyles : subtitleStyle.speakerStyles,
+      speakerStyles: checked ? speakerStyles : [],
     });
   };
 
@@ -61,7 +61,7 @@ export function EditingSubtitleSpeakerControls({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
-            Speaker Colors
+            Warna Pembicara
           </div>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">
             Bedakan subtitle penanya dan penjawab untuk interview atau podcast.

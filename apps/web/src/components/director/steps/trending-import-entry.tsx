@@ -2,20 +2,13 @@ import { getTrendingRegionLabel, isTrendingRegionCode } from '@vibe-creator/shar
 import { ExternalLink, Link as LinkIcon, Sparkles, Wand2 } from 'lucide-react';
 import { Badge, Button } from '@/components/ui';
 import type { TrendingImportContext } from '@/lib/ai-director-trending-context';
-import {
-  type TargetDurationRange,
-  targetDurationRangeOptions,
-} from '@/lib/director-target-duration';
-import { cn } from '@/lib/utils';
 
 interface TrendingImportEntryProps {
   readonly context: TrendingImportContext;
-  readonly targetDurationRange: TargetDurationRange;
   readonly isSubmittingImport: boolean;
   readonly isWaitingForAsset: boolean;
   readonly isPreparingAnalysis: boolean;
   readonly downloadProgress: number;
-  readonly onTargetDurationRangeChange: (value: TargetDurationRange) => void;
   readonly onStartAnalysis: () => void;
   readonly onUseDefaultFlow: () => void;
 }
@@ -30,12 +23,10 @@ function getRegionLabel(region: string | null): string | null {
 
 export function TrendingImportEntry({
   context,
-  targetDurationRange,
   isSubmittingImport,
   isWaitingForAsset,
   isPreparingAnalysis,
   downloadProgress,
-  onTargetDurationRangeChange,
   onStartAnalysis,
   onUseDefaultFlow,
 }: TrendingImportEntryProps) {
@@ -118,8 +109,8 @@ export function TrendingImportEntry({
                 {context.topic ?? 'Video YouTube Trending'}
               </h2>
               <p className="text-sm font-medium leading-relaxed text-muted-foreground">
-                Pilih durasi short, lalu mulai analisis. AI Director akan mengimpor video ini dan
-                mencari potongan terbaik untuk short.
+                Mulai analisis untuk mengimpor video ini. AI Director akan mencari potongan yang
+                paling utuh dan siap dijadikan Short.
               </p>
             </div>
 
@@ -139,31 +130,12 @@ export function TrendingImportEntry({
           <div className="space-y-5">
             <div>
               <p className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground/60">
-                Target Durasi Short
+                Siap dianalisis
               </p>
               <p className="mt-1 text-xs font-medium text-muted-foreground">
-                Pilihan ini menentukan rentang kandidat short yang akan diprioritaskan.
+                Durasi klip dipilih otomatis berdasarkan hook, kelengkapan kalimat, dan kualitas
+                momen.
               </p>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
-              {targetDurationRangeOptions.map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => onTargetDurationRangeChange(option.value)}
-                  className={cn(
-                    'rounded-2xl border px-3 py-3 text-center transition-all',
-                    targetDurationRange === option.value
-                      ? 'border-primary/40 bg-primary/10 text-primary'
-                      : 'border-border/40 bg-card/40 text-muted-foreground hover:border-primary/30 hover:text-foreground',
-                  )}
-                  disabled={isBusy}
-                >
-                  <p className="text-xs font-black tracking-wide">{option.label}</p>
-                  <p className="mt-1 text-[10px] font-medium opacity-80">{option.helper}</p>
-                </button>
-              ))}
             </div>
           </div>
 

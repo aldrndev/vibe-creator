@@ -133,7 +133,7 @@ export function getContentModeLabel(mode: ResolvedContentMode): string {
     case 'podcast':
       return 'Podcast';
     case 'interview':
-      return 'Interview';
+      return 'Dialog';
     case 'talking-head':
       return 'Podcast';
     case 'product-review':

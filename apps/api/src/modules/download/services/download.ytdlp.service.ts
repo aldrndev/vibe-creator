@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import { logger } from '@/lib/logger';
 import { assertSafeUrl } from '@/utils/ssrf';
+import type { DownloadVideoOptions } from '../download.service';
 import { findAndRenameDownload } from '../download.utils';
 
 export const YT_DLP_INFO_ARGS = [
@@ -28,8 +29,9 @@ export function buildYtDlpDownloadArgs(
   url: string,
   outputPath: string,
   formatSelector: string,
+  options?: DownloadVideoOptions,
 ): string[] {
-  return [
+  const args = [
     '-f',
     formatSelector,
     '--merge-output-format',
@@ -43,6 +45,13 @@ export function buildYtDlpDownloadArgs(
     outputPath,
     url,
   ];
+
+  if (typeof options?.maxBytes === 'number') {
+    const maxMegabytes = Math.max(1, Math.floor(options.maxBytes / 1024 / 1024));
+    args.splice(args.length - 1, 0, '--max-filesize', `${maxMegabytes}M`);
+  }
+
+  return args;
 }
 
 export const downloadYtDlpService = {
@@ -53,6 +62,7 @@ export const downloadYtDlpService = {
     url: string,
     outputPath: string,
     onProgress?: (percent: number) => void,
+    options?: DownloadVideoOptions,
   ): Promise<{ title: string; metadata: Record<string, unknown> }> {
     await assertSafeUrl(url);
 
@@ -78,7 +88,7 @@ export const downloadYtDlpService = {
         // Then download with bypass options and PROGRESS
         const downloadProcess = spawn(
           'yt-dlp',
-          buildYtDlpDownloadArgs(url, outputPath, YT_DLP_PRIMARY_FORMAT_SELECTOR),
+          buildYtDlpDownloadArgs(url, outputPath, YT_DLP_PRIMARY_FORMAT_SELECTOR, options),
         );
 
         let errorOutput = '';
@@ -133,7 +143,7 @@ export const downloadYtDlpService = {
         // Fallback flow if getting info fails
         const downloadProcess = spawn(
           'yt-dlp',
-          buildYtDlpDownloadArgs(url, outputPath, YT_DLP_FALLBACK_FORMAT_SELECTOR),
+          buildYtDlpDownloadArgs(url, outputPath, YT_DLP_FALLBACK_FORMAT_SELECTOR, options),
         );
 
         downloadProcess.stdout.on('data', (data) => {

@@ -1,9 +1,5 @@
-import { Loader2, Play, ScanFace } from 'lucide-react';
-import { getTranscriptLayoutLabel } from '@/components/director/steps/editing-transcript-cues';
-import { Badge } from '@/components/ui';
-import { getContentModeLabel, type ResolvedContentMode } from '@/lib/director-refine-settings';
+import { Loader2, Play } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { ExportSettings, RefineSettings, SubtitleStyle } from '@/stores/director-store';
 
 interface LivePreviewMediaProps {
   readonly previewVideoUrl: string | null;
@@ -55,7 +51,7 @@ export function LivePreviewMedia({
               <div className="mx-auto mb-2 inline-flex h-10 w-10 items-center justify-center rounded-full border border-primary/30 bg-primary/10">
                 <Loader2 size={16} className="animate-spin text-primary" />
               </div>
-              <p className="text-sm font-semibold text-foreground">Generate Ulang Video</p>
+              <p className="text-sm font-semibold text-foreground">Menyiapkan preview</p>
               <p className="mt-1 text-xs text-muted-foreground">{previewProgressPercent}%</p>
             </div>
           </div>
@@ -78,7 +74,7 @@ export function LivePreviewMedia({
           <div className="mx-auto mb-2 inline-flex h-10 w-10 items-center justify-center rounded-full border border-primary/30 bg-primary/10">
             <Loader2 size={16} className="animate-spin text-primary" />
           </div>
-          <p className="text-sm font-semibold text-foreground">Video Sedang Digenerate</p>
+          <p className="text-sm font-semibold text-foreground">Menyiapkan preview</p>
           <p className="mt-1 text-xs text-muted-foreground">
             {previewProgressPercent}% • Mohon tunggu sebentar.
           </p>
@@ -91,7 +87,7 @@ export function LivePreviewMedia({
     return (
       <div className="absolute inset-0 flex items-center justify-center bg-black/60 px-6 text-center">
         <div className="rounded-2xl border border-border/40 bg-card/90 px-4 py-3">
-          <p className="text-sm font-semibold text-foreground">Video Akhir Belum Tersedia</p>
+          <p className="text-sm font-semibold text-foreground">Preview belum tersedia</p>
           <p className="mt-1 text-xs text-muted-foreground">{previewError}</p>
         </div>
       </div>
@@ -108,46 +104,9 @@ export function LivePreviewMedia({
         />
       ) : null}
       <div className="relative rounded-2xl border border-border/40 bg-card/80 px-4 py-3 backdrop-blur-md">
-        <p className="text-sm font-semibold text-foreground">Video Akhir Belum Digenerate</p>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Generate video untuk memutar hasil final.
-        </p>
+        <p className="text-sm font-semibold text-foreground">Preview belum dibuat</p>
+        <p className="mt-1 text-xs text-muted-foreground">Preview akan dibuat otomatis.</p>
       </div>
     </div>
-  );
-}
-
-interface PreviewBadgesProps {
-  readonly resolvedContentMode: ResolvedContentMode | null;
-  readonly exportSettings: ExportSettings;
-  readonly subtitleStyle: SubtitleStyle;
-  readonly activeRefineSettings: RefineSettings | undefined;
-}
-
-export function PreviewBadges({
-  resolvedContentMode,
-  exportSettings,
-  subtitleStyle,
-  activeRefineSettings,
-}: PreviewBadgesProps) {
-  return (
-    <>
-      {resolvedContentMode ? (
-        <Badge className="rounded-full border-border/50 bg-muted/30 px-2 py-1 text-[10px] text-foreground">
-          Mode {getContentModeLabel(resolvedContentMode)}
-        </Badge>
-      ) : null}
-      {exportSettings.includeSubtitles ? (
-        <Badge className="rounded-full border-border/50 bg-muted/30 px-2 py-1 text-[10px] text-foreground">
-          {getTranscriptLayoutLabel(subtitleStyle.animation)}
-        </Badge>
-      ) : null}
-      {activeRefineSettings?.faceTracking && exportSettings.aspectRatio === '9:16' ? (
-        <Badge className="rounded-full border-border/50 bg-muted/30 px-2 py-1 text-[10px] text-foreground">
-          <ScanFace size={12} className="mr-1" />
-          Smart Crop Aktif
-        </Badge>
-      ) : null}
-    </>
   );
 }

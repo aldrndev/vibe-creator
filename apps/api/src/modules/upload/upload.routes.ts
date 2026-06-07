@@ -7,15 +7,27 @@ import { pipeline } from 'node:stream/promises';
 import fastifyMultipart from '@fastify/multipart';
 import { ERROR_CODES } from '@vibe-creator/shared';
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
+import { z } from 'zod';
 import { env } from '@/config/env';
+import {
+  DirectorSourceLimitError,
+  type DirectorSourceLimits,
+  resolveDirectorSourceLimitsForActor,
+  validateDirectorSourceVideo,
+} from '@/modules/director/source-limits';
 import { requireAuth } from '@/plugins/auth';
 import { sendError } from '@/utils/response';
-import { uploadMediaRouteSchema, uploadVideoRouteSchema } from './upload.schemas';
+import {
+  uploadMediaRouteSchema,
+  uploadQuerySchema,
+  uploadVideoRouteSchema,
+} from './upload.schemas';
 
 const UPLOADS_DIR = join(env.MEDIA_INPUT_DIR, 'temp');
 const SIGNATURE_BYTES = 16;
 
 type MediaType = 'video' | 'image' | 'audio';
+type UploadPurpose = 'media' | 'ai-director';
 
 interface AllowedUploadFormat {
   mediaType: MediaType;
@@ -138,9 +150,22 @@ async function handleUpload(
   allowedMediaTypes: ReadonlySet<MediaType>,
 ) {
   let filepath: string | null = null;
+  let uploadPurpose: UploadPurpose = 'media';
+  let directorLimits: DirectorSourceLimits | null = null;
 
   try {
     await ensureUploadsDir();
+
+    const query = uploadQuerySchema.parse(request.query ?? {});
+    uploadPurpose = query.purpose;
+
+    if (uploadPurpose === 'ai-director') {
+      const user = request.user;
+      if (!user) {
+        return sendError(reply, ERROR_CODES.UNAUTHORIZED, 'Authentication required', 401);
+      }
+      directorLimits = await resolveDirectorSourceLimitsForActor(user);
+    }
 
     const data = await request.file();
     if (!data) {
@@ -173,15 +198,32 @@ async function handleUpload(
 
     const filename = `${randomUUID()}.${ext}`;
     filepath = join(UPLOADS_DIR, filename);
+    let uploadedBytes = 0;
+
+    const assertDirectorFileSize = (chunk: Buffer | string): void => {
+      if (!directorLimits || uploadFormat.mediaType !== 'video') {
+        return;
+      }
+
+      uploadedBytes += normalizeChunk(chunk).length;
+      validateDirectorSourceVideo({
+        durationSeconds: 0,
+        sizeBytes: uploadedBytes,
+        limits: directorLimits,
+        origin: 'upload',
+      });
+    };
 
     const validatedStream = Readable.from(
       (async function* () {
+        assertDirectorFileSize(firstChunk);
         yield firstChunk;
         while (true) {
           const nextChunk = await iterator.next();
           if (nextChunk.done) {
             break;
           }
+          assertDirectorFileSize(nextChunk.value);
           yield nextChunk.value;
         }
       })(),
@@ -204,7 +246,53 @@ async function handleUpload(
     if (filepath) {
       await unlink(filepath).catch(() => {});
     }
+    if (err instanceof z.ZodError) {
+      return sendError(
+        reply,
+        ERROR_CODES.VALIDATION_ERROR,
+        err.issues[0]?.message ?? 'Invalid upload query',
+        400,
+      );
+    }
+    if (err instanceof DirectorSourceLimitError) {
+      return sendError(reply, err.code, err.message, err.statusCode, err.details);
+    }
     const message = err instanceof Error ? err.message : 'Upload failed';
+    const normalizedMessage = message.toLowerCase();
+    if (
+      uploadPurpose === 'ai-director' &&
+      directorLimits &&
+      normalizedMessage.includes('file too large')
+    ) {
+      return sendError(
+        reply,
+        ERROR_CODES.DIRECTOR_FILE_TOO_LARGE,
+        `File melebihi batas paket kamu. Maksimal ${directorLimits.maxSizeLabel} atau ${directorLimits.maxDurationLabel}. Pilih video yang lebih kecil, kompres video, atau upgrade paket.`,
+        400,
+        {
+          minDurationMs: directorLimits.minDurationMs,
+          maxDurationMs: directorLimits.maxDurationMs,
+          maxSizeBytes: directorLimits.maxSizeBytes,
+          maxDurationLabel: directorLimits.maxDurationLabel,
+          maxSizeLabel: directorLimits.maxSizeLabel,
+        },
+      );
+    }
+    if (
+      uploadPurpose === 'ai-director' &&
+      (normalizedMessage.includes('aborted') ||
+        normalizedMessage.includes('premature') ||
+        normalizedMessage.includes('terminated') ||
+        normalizedMessage.includes('unexpected end') ||
+        normalizedMessage.includes('network'))
+    ) {
+      return sendError(
+        reply,
+        ERROR_CODES.DIRECTOR_UPLOAD_INTERRUPTED,
+        'Upload terputus. Coba lagi dengan koneksi stabil, atau gunakan Import URL jika video tersedia di sumber yang didukung.',
+        400,
+      );
+    }
     return sendError(reply, ERROR_CODES.INTERNAL_ERROR, message, 500);
   }
 }

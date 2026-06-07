@@ -28,6 +28,10 @@ interface CreateDownloadJobInput {
   sourceUrl: string;
 }
 
+export interface DownloadVideoOptions {
+  readonly maxBytes?: number;
+}
+
 /**
  * Download service facade
  * Orchestrates fetching metadata and downloading content via specialized providers
@@ -159,6 +163,7 @@ export const downloadService = {
     url: string,
     outputPath: string,
     onProgress?: (percent: number) => void,
+    options?: DownloadVideoOptions,
   ): Promise<{ title: string; metadata: Record<string, unknown> }> {
     // Check if it's a Sora video URL (prioritize Sora handler)
     if (isSoraUrl(url)) {
@@ -172,14 +177,14 @@ export const downloadService = {
     // Check if it's a direct video URL
     if (isDirectVideoUrl(url)) {
       logger.info({ url }, 'Downloading direct video URL');
-      return await downloadDirectService.downloadDirectUrl(url, outputPath, onProgress);
+      return await downloadDirectService.downloadDirectUrl(url, outputPath, onProgress, options);
     }
 
     if (env.COBALT_API_URL) {
       // Use self-hosted Cobalt API if configured
       try {
         logger.info({ url, cobaltUrl: env.COBALT_API_URL }, 'Downloading with Cobalt API');
-        return await downloadCobaltService.runCobalt(url, outputPath, onProgress);
+        return await downloadCobaltService.runCobalt(url, outputPath, onProgress, options);
       } catch (cobaltError) {
         // Fallback to yt-dlp if Cobalt fails
         logger.warn(
@@ -188,13 +193,13 @@ export const downloadService = {
           },
           'Cobalt failed, falling back to yt-dlp',
         );
-        return await downloadYtDlpService.runYtDlp(url, outputPath, onProgress);
+        return await downloadYtDlpService.runYtDlp(url, outputPath, onProgress, options);
       }
     }
 
     // No Cobalt configured, use yt-dlp directly
     logger.info({ url }, 'Downloading with yt-dlp');
-    return await downloadYtDlpService.runYtDlp(url, outputPath, onProgress);
+    return await downloadYtDlpService.runYtDlp(url, outputPath, onProgress, options);
   },
 
   /**

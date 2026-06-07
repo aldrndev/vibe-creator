@@ -109,6 +109,10 @@ describe('directorTranscribeService.startTranscribe', () => {
             startMs: 0,
             endMs: 35_000,
           },
+          transcript: {
+            status: 'COMPLETED',
+            language: 'mixed',
+          },
         },
       ],
       transcribeJob: {
@@ -130,6 +134,60 @@ describe('directorTranscribeService.startTranscribe', () => {
     );
     expect(directorRepoMock.updateTranscribeJob).not.toHaveBeenCalled();
     expect(directorQueueMock.add).not.toHaveBeenCalled();
+  });
+
+  it('resets a completed job when selected clips do not have matching completed transcripts', async () => {
+    directorRepoMock.findSession.mockResolvedValue({
+      id: 'session-1',
+      userId: 'user-1',
+      selectedClips: [
+        {
+          id: 'clip-new',
+          candidate: {
+            startMs: 42_000,
+            endMs: 82_000,
+          },
+          transcript: null,
+        },
+      ],
+      transcribeJob: {
+        id: 'job-completed',
+        status: 'COMPLETED',
+        language: 'mixed',
+      },
+    });
+    directorRepoMock.updateTranscribeJob.mockResolvedValue({
+      id: 'job-completed',
+      status: 'PENDING',
+    });
+
+    const result = await directorTranscribeService.startTranscribe('session-1', 'user-1');
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        id: 'job-completed',
+        status: 'PENDING',
+      }),
+    );
+    expect(directorRepoMock.updateTranscribeJob).toHaveBeenCalledWith(
+      'job-completed',
+      expect.objectContaining({
+        status: 'PENDING',
+        errorMessage: null,
+        startedAt: null,
+        completedAt: null,
+      }),
+    );
+    expect(directorQueueMock.add).toHaveBeenCalledWith(
+      'transcribe_session',
+      expect.objectContaining({
+        type: 'TRANSCRIBE_SESSION',
+        sessionId: 'session-1',
+      }),
+      expect.objectContaining({
+        jobId: expect.any(String),
+      }),
+    );
   });
 
   it('resets completed job to pending and requeues when force refresh is requested', async () => {

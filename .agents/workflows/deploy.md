@@ -13,13 +13,9 @@ description: Deploy checklist and guide for target platform.
 
 1. Read `PROJECT.yaml` → `deploy` section for target platform
 2. Run CI gates:
-// turbo
-   - `pnpm biome check .`
-// turbo
+   - `pnpm biome check . --diagnostic-level=warn`
    - `pnpm tsc --noEmit`
-// turbo
    - `pnpm test`
-// turbo
    - `pnpm build`
 3. Verify environment:
    - Check all required env vars are set on target platform

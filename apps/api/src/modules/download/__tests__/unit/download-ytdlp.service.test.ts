@@ -37,6 +37,18 @@ describe('downloadYtDlpService argument builders', () => {
     ]);
   });
 
+  it('adds a max filesize guard when a byte limit is provided', () => {
+    const url = 'https://www.youtube.com/watch?v=abc123';
+    const outputPath = '/tmp/video.mp4';
+    const args = buildYtDlpDownloadArgs(url, outputPath, YT_DLP_PRIMARY_FORMAT_SELECTOR, {
+      maxBytes: 750 * 1024 * 1024,
+    });
+
+    expect(args).toContain('--max-filesize');
+    expect(args).toContain('750M');
+    expect(args.at(-1)).toBe(url);
+  });
+
   it('keeps a deterministic fallback selector for compatibility', () => {
     expect(YT_DLP_FALLBACK_FORMAT_SELECTOR).toBe(
       'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',

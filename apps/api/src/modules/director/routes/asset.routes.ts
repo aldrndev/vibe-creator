@@ -8,6 +8,7 @@ import { logger } from '@/lib/logger';
 import { requireAuth } from '@/plugins/auth';
 import { directorRepo } from '../director.repo';
 import { directorService } from '../director.service';
+import { DirectorSourceLimitError } from '../source-limits';
 
 const INITIAL_UPLOAD_PROGRESS = 0;
 
@@ -137,7 +138,7 @@ export const assetRoutes: FastifyPluginAsync = async (fastify) => {
 
       try {
         const body = importAssetSchema.parse(request.body);
-        const asset = await directorService.importAsset(request.params.id, user.id, body);
+        const asset = await directorService.importAsset(request.params.id, user, body);
         return reply.status(201).send({
           success: true,
           data: asset,
@@ -153,12 +154,23 @@ export const assetRoutes: FastifyPluginAsync = async (fastify) => {
             },
           });
         }
+        if (err instanceof DirectorSourceLimitError) {
+          return reply.status(err.statusCode).send({
+            success: false,
+            error: {
+              code: err.code,
+              message: err.message,
+              details: err.details,
+            },
+          });
+        }
         const message = err instanceof Error ? err.message : 'Import failed';
-        const code = message.includes('not supported')
-          ? 'UNSUPPORTED_SOURCE'
-          : message.includes('Invalid URL')
-            ? 'INVALID_URL'
-            : 'IMPORT_FAILED';
+        const code =
+          message.includes('belum didukung') || message.includes('not supported')
+            ? 'UNSUPPORTED_SOURCE'
+            : message.includes('Invalid URL')
+              ? 'INVALID_URL'
+              : 'IMPORT_FAILED';
         return reply.status(400).send({
           success: false,
           error: { code, message },

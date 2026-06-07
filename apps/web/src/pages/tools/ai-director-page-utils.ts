@@ -68,3 +68,17 @@ export function shouldClearPlainEntrySession({
 }: PlainEntrySessionState): boolean {
   return isPlainEntry && activeSessionId !== null && !hasInitializedManualEntry;
 }
+
+interface ActiveSessionSearchSyncState {
+  readonly activeSessionId: string | null;
+  readonly step: DirectorStep;
+  readonly hasAsset: boolean;
+}
+
+export function shouldSyncActiveSessionToSearch({
+  activeSessionId,
+  step,
+  hasAsset,
+}: ActiveSessionSearchSyncState): boolean {
+  return activeSessionId !== null && (hasAsset || step !== 'IMPORT');
+}

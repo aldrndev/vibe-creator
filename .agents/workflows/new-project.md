@@ -9,7 +9,7 @@ description: Initialize a new project from description. AI recommends profile, t
 1. Working directory MUST already have `.agents/workflows/` pre-populated by the developer
 
 ## Rules Source
-// turbo
+
 All rule files and configs are sourced from: `/Users/aldrnmrsd/Documents/Coding/Rules/`
 
 ## Profile → Active Modules
@@ -64,24 +64,20 @@ All rule files and configs are sourced from: `/Users/aldrnmrsd/Documents/Coding/
    - **If NO framework CLI** (pure backend Profile B, etc.):
      - Run `pnpm init`
      - Create folder structure per `<rules-source>/agents/rules/2.3-blueprint.md` + selected profile
-// turbo
 7. Copy active rule modules from `<rules-source>/agents/rules/` → `.agents/rules/` (only modules listed in `active_modules`)
-// turbo
 8. Copy `<rules-source>/configs/biome.json` → project root as `biome.json`
-// turbo
-9. Copy `<rules-source>/GEMINI.md` → project root
-// turbo
-10. Copy `<rules-source>/AGENTS.md` → project root
-11. Merge `compilerOptions` from `<rules-source>/configs/tsconfig.base.json` into the project's existing `tsconfig.json`:
+9. Copy `<rules-source>/AGENTS.md` → project root
+10. Merge `compilerOptions` from `<rules-source>/configs/tsconfig.base.json` into the project's existing `tsconfig.json`:
     - Add/Overwrite all options defined in the template
     - Do NOT overwrite existing framework-specific options (`module`, `target`, `paths`, etc.) that are absent from the template
-// turbo
-12. Generate `.gitignore` based on project needs
-// turbo
-13. Generate `.env.example` based on project needs
-14. Install approved packages using `pnpm add <pkg>@latest`
-15. Init git: `git init && git add . && git commit -m "chore: initial project setup"`
-16. Display setup summary
+11. Merge `.gitignore`:
+    - If framework CLI generated `.gitignore` → merge entries from `<rules-source>/configs/.gitignore` that are not already present
+    - If no `.gitignore` exists → copy `<rules-source>/configs/.gitignore` as-is
+    - IMPORTANT: Biome uses `useIgnoreFile: true` — build/cache/generated file ignores MUST be in `.gitignore`, not in `biome.json`
+12. Generate `.env.example` based on project needs
+13. Install approved packages using `pnpm add <pkg>@latest`
+14. Init git: `git init && git add . && git commit -m "chore: initial project setup"`
+15. Display setup summary
 
 ## Rules
 

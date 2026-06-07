@@ -5,6 +5,7 @@ const {
   downloadServiceMock,
   videoMetadataServiceMock,
   resolveTempUploadReferenceMock,
+  paymentServiceMock,
   copyFileMock,
   mkdirMock,
   statMock,
@@ -26,6 +27,9 @@ const {
   },
   videoMetadataServiceMock: {
     getVideoMetadata: vi.fn(),
+  },
+  paymentServiceMock: {
+    getSubscription: vi.fn(),
   },
   resolveTempUploadReferenceMock: vi.fn(),
   copyFileMock: vi.fn(),
@@ -49,6 +53,10 @@ vi.mock('@/modules/director/processing/video-metadata.service', () => ({
 
 vi.mock('@/utils/temp-upload', () => ({
   resolveTempUploadReference: resolveTempUploadReferenceMock,
+}));
+
+vi.mock('@/modules/payment/payment.service', () => ({
+  paymentService: paymentServiceMock,
 }));
 
 vi.mock('node:fs/promises', () => ({
@@ -110,6 +118,9 @@ describe('directorAssetService.importAsset', () => {
     mkdirMock.mockResolvedValue(undefined);
     videoMetadataServiceMock.getVideoMetadata.mockResolvedValue({
       duration: 600,
+    });
+    paymentServiceMock.getSubscription.mockResolvedValue({
+      tier: 'FREE',
     });
     resolveTempUploadReferenceMock.mockReturnValue('/tmp/uploads/temp/source.mp4');
   });

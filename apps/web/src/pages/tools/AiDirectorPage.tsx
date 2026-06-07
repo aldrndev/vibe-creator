@@ -3,15 +3,18 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { StepIndicator } from '@/components/director/StepIndicator';
 import { AnalyzeStep } from '@/components/director/steps/AnalyzeStep';
 import { EditingStep } from '@/components/director/steps/EditingStep';
+import { EditingLivePreview } from '@/components/director/steps/editing-live-preview';
 import { ImportStep } from '@/components/director/steps/ImportStep';
 import { PickingStep } from '@/components/director/steps/PickingStep';
 import { ContinueWorkspaceDialog } from '@/components/workspace/ContinueWorkspaceDialog';
+import { useScrollToTopOnChange } from '@/hooks/use-scroll-to-top-on-change';
 import {
   clearDirectorInitialContextSearchParams,
   DIRECTOR_INITIAL_CONTEXT_QUERY_KEYS,
   resolveInitialSourceUrl,
   resolveTrendingImportContext,
 } from '@/lib/ai-director-trending-context';
+import { resolveDirectorEffectiveExportSettings } from '@/lib/director-export-entitlement';
 import { useMutableSearchParams } from '@/lib/route-search';
 import {
   DEFAULT_TRANSCRIBE_LANGUAGE,
@@ -21,13 +24,17 @@ import {
   isPlainAiDirectorEntry,
   resolveHydratedStep,
   shouldClearPlainEntrySession,
+  shouldSyncActiveSessionToSearch,
 } from '@/pages/tools/ai-director-page-utils';
 import { authFetch } from '@/services/api';
+import { useAuthStore } from '@/stores/auth-store';
 import type {
   Candidate,
   DirectorSession,
   DirectorStep,
   ExportJob,
+  ExportSettings,
+  RefineSettings,
   SelectedClip,
   SubtitleStyle,
   TranscribeLanguage,
@@ -73,6 +80,36 @@ interface HydrationActions {
   readonly setWaitingForAsset: (waiting: boolean) => void;
   readonly setDownloadProgress: (progress: number) => void;
   readonly setStep: (step: DirectorStep) => void;
+}
+
+interface DirectorStepContentProps {
+  readonly activeSession: DirectorSession | null;
+  readonly exportSettings: ExportSettings;
+  readonly initialSourceUrl: string | null;
+  readonly initialTopic: string | null;
+  readonly isClearingPlainEntrySession: boolean;
+  readonly onClearInitialContext: () => void;
+  readonly onStartAnalyzeNew: () => void;
+  readonly refineSettings: Record<string, RefineSettings>;
+  readonly selectedClips: SelectedClip[];
+  readonly step: DirectorStep;
+  readonly subtitleStyle: SubtitleStyle;
+  readonly trendingImportContext: ReturnType<typeof resolveTrendingImportContext>;
+}
+
+interface DirectorSessionHydrationParams {
+  readonly actions: HydrationActions;
+  readonly clearPendingSession: () => void;
+  readonly isCancelled: () => boolean;
+  readonly reset: () => void;
+  readonly sessionId: string;
+  readonly setError: (message: string | null) => void;
+  readonly setIsHydrating: (hydrating: boolean) => void;
+}
+
+interface DirectorSearchSyncAction {
+  readonly clearSuppressedPlainSession: boolean;
+  readonly nextSearchParams?: URLSearchParams;
 }
 
 function resolveTranscribeLanguage(
@@ -139,6 +176,21 @@ function getAssetDownloadProgress(session: DirectorSessionPayload): number {
   return 0;
 }
 
+async function fetchDirectorSessionPayload(sessionId: string): Promise<DirectorSessionPayload> {
+  const response = await authFetch(`/api/v1/director/sessions/${sessionId}`);
+  const data = (await response.json()) as {
+    success: boolean;
+    data?: DirectorSessionPayload;
+    error?: { message?: string };
+  };
+
+  if (!data.success || !data.data) {
+    throw new Error(data.error?.message || 'Sesi AI Director tidak ditemukan');
+  }
+
+  return data.data;
+}
+
 function applyHydratedSession(
   session: DirectorSessionPayload,
   {
@@ -181,7 +233,155 @@ function applyHydratedSession(
   setStep(resolveHydratedStep(session));
 }
 
+function resolveDirectorHydrationError(error: unknown): string {
+  return error instanceof Error ? error.message : 'Gagal memulihkan sesi AI Director';
+}
+
+async function hydrateDirectorSession({
+  actions,
+  clearPendingSession,
+  isCancelled,
+  reset,
+  sessionId,
+  setError,
+  setIsHydrating,
+}: DirectorSessionHydrationParams): Promise<void> {
+  try {
+    const session = await fetchDirectorSessionPayload(sessionId);
+    if (isCancelled()) {
+      return;
+    }
+
+    applyHydratedSession(session, actions);
+  } catch (error) {
+    if (isCancelled()) {
+      return;
+    }
+
+    reset();
+    setError(resolveDirectorHydrationError(error));
+  } finally {
+    if (!isCancelled()) {
+      clearPendingSession();
+      setIsHydrating(false);
+    }
+  }
+}
+
+function hasDirectorInitialContextParams(searchParams: URLSearchParams): boolean {
+  return DIRECTOR_INITIAL_CONTEXT_QUERY_KEYS.some((key) => searchParams.has(key));
+}
+
+function resolveDirectorSearchSyncAction(params: {
+  readonly activeSessionId: string | null;
+  readonly hasActiveSession: boolean;
+  readonly isHydrating: boolean;
+  readonly searchParams: URLSearchParams;
+  readonly sessionParam: string | null;
+  readonly shouldExposeActiveSessionInSearch: boolean;
+  readonly step: DirectorStep;
+  readonly suppressedPlainEntrySessionId: string | null;
+}): DirectorSearchSyncAction {
+  const {
+    activeSessionId,
+    hasActiveSession,
+    isHydrating,
+    searchParams,
+    sessionParam,
+    shouldExposeActiveSessionInSearch,
+    step,
+    suppressedPlainEntrySessionId,
+  } = params;
+
+  if (activeSessionId && suppressedPlainEntrySessionId === activeSessionId) {
+    return { clearSuppressedPlainSession: false };
+  }
+
+  const clearSuppressedPlainSession = activeSessionId === null;
+  const nextSearchParams = new URLSearchParams(searchParams);
+
+  if (shouldExposeActiveSessionInSearch && activeSessionId && sessionParam !== activeSessionId) {
+    nextSearchParams.set('session', activeSessionId);
+    return {
+      clearSuppressedPlainSession,
+      nextSearchParams: clearDirectorInitialContextSearchParams(nextSearchParams),
+    };
+  }
+
+  if (activeSessionId && step !== 'IMPORT' && hasDirectorInitialContextParams(nextSearchParams)) {
+    return {
+      clearSuppressedPlainSession,
+      nextSearchParams: clearDirectorInitialContextSearchParams(nextSearchParams),
+    };
+  }
+
+  if (!hasActiveSession && sessionParam && !isHydrating) {
+    nextSearchParams.delete('session');
+    return { clearSuppressedPlainSession: true, nextSearchParams };
+  }
+
+  return { clearSuppressedPlainSession };
+}
+
+function DirectorStepContent({
+  activeSession,
+  exportSettings,
+  initialSourceUrl,
+  initialTopic,
+  isClearingPlainEntrySession,
+  onClearInitialContext,
+  onStartAnalyzeNew,
+  refineSettings,
+  selectedClips,
+  step,
+  subtitleStyle,
+  trendingImportContext,
+}: DirectorStepContentProps) {
+  if (isClearingPlainEntrySession) {
+    return (
+      <div className="rounded-3xl border border-border/50 bg-card/60 px-6 py-5 text-sm font-semibold text-muted-foreground">
+        Menyiapkan AI Director...
+      </div>
+    );
+  }
+
+  switch (step) {
+    case 'IMPORT':
+      return (
+        <ImportStep
+          initialTopic={initialTopic}
+          initialSourceUrl={initialSourceUrl}
+          trendingImportContext={trendingImportContext}
+          onClearInitialContext={onClearInitialContext}
+        />
+      );
+    case 'ANALYZING':
+      return <AnalyzeStep onStartNew={onStartAnalyzeNew} />;
+    case 'PICKING':
+      return <PickingStep />;
+    case 'EDITING':
+    case 'PUBLISH_COPY':
+      return <EditingStep />;
+    case 'EXPORTING':
+    case 'COMPLETED':
+      return (
+        <div className="w-full max-w-4xl rounded-[2rem] border border-border/50 bg-card/70 p-4 shadow-sm backdrop-blur-xl sm:p-6 lg:p-8">
+          <EditingLivePreview
+            activeSession={activeSession}
+            exportSettings={exportSettings}
+            subtitleStyle={subtitleStyle}
+            selectedClips={selectedClips}
+            refineSettings={refineSettings}
+          />
+        </div>
+      );
+    default:
+      return null;
+  }
+}
+
 export function AiDirectorPage() {
+  const { user, subscription } = useAuthStore();
   const [searchParams, setSearchParams] = useMutableSearchParams();
   const [isHydrating, setIsHydrating] = useState(Boolean(searchParams.get('session')));
   const {
@@ -201,6 +401,10 @@ export function AiDirectorPage() {
     setWaitingForAsset,
     setDownloadProgress,
     error,
+    exportSettings,
+    subtitleStyle,
+    selectedClips,
+    refineSettings,
     reset,
   } = useDirectorStore();
 
@@ -219,6 +423,19 @@ export function AiDirectorPage() {
   const suppressedPlainEntrySessionIdRef = useRef<string | null>(null);
   const [showContinuePrompt, setShowContinuePrompt] = useState(isPlainEntry);
   const activeSessionId = activeSession?.id ?? null;
+  const effectiveExportSettings = useMemo(
+    () =>
+      resolveDirectorEffectiveExportSettings(exportSettings, {
+        role: user?.role,
+        tier: subscription?.tier,
+      }),
+    [exportSettings, subscription?.tier, user?.role],
+  );
+  const shouldExposeActiveSessionInSearch = shouldSyncActiveSessionToSearch({
+    activeSessionId,
+    step,
+    hasAsset: Boolean(activeSession?.asset),
+  });
   const hasActiveSession = activeSession !== null;
   const isClearingPlainEntrySession = shouldClearPlainEntrySession({
     isPlainEntry,
@@ -227,10 +444,12 @@ export function AiDirectorPage() {
   });
   const trendingImportContext =
     step === 'IMPORT' ? (queryTrendingImportContext ?? trendingContextSnapshot) : null;
-  const initialTopic = !hasActiveSession ? (topicParam?.trim() ?? null) : null;
-  const initialSourceUrl = !hasActiveSession
-    ? resolveInitialSourceUrl(searchParams, queryTrendingImportContext)
-    : null;
+  const initialTopic = hasActiveSession ? null : (topicParam?.trim() ?? null);
+  const initialSourceUrl = hasActiveSession
+    ? null
+    : resolveInitialSourceUrl(searchParams, queryTrendingImportContext);
+
+  useScrollToTopOnChange(step);
 
   useEffect(() => {
     if (queryTrendingImportContext && !hasActiveSession) {
@@ -278,49 +497,30 @@ export function AiDirectorPage() {
     pendingSessionHydrationRef.current = sessionParam;
     setIsHydrating(true);
 
-    const hydrateSession = async () => {
-      try {
-        const response = await authFetch(`/api/v1/director/sessions/${sessionParam}`);
-        const data = (await response.json()) as {
-          success: boolean;
-          data?: DirectorSessionPayload;
-          error?: { message?: string };
-        };
-
-        if (!data.success || !data.data || cancelled) {
-          throw new Error(data.error?.message || 'Sesi AI Director tidak ditemukan');
-        }
-
-        applyHydratedSession(data.data, {
-          setSession,
-          setCandidates,
-          setSelectedClips,
-          setTranscribeJob,
-          setTranscribeLanguage,
-          setSubtitleMode,
-          setSubtitleTargetLanguage,
-          updateSubtitleStyle,
-          setExportJob,
-          setWaitingForAsset,
-          setDownloadProgress,
-          setStep,
-        });
-      } catch (error) {
-        if (!cancelled) {
-          const message =
-            error instanceof Error ? error.message : 'Gagal memulihkan sesi AI Director';
-          reset();
-          setError(message);
-        }
-      } finally {
-        if (!cancelled) {
-          pendingSessionHydrationRef.current = null;
-          setIsHydrating(false);
-        }
-      }
-    };
-
-    void hydrateSession();
+    void hydrateDirectorSession({
+      actions: {
+        setSession,
+        setCandidates,
+        setSelectedClips,
+        setTranscribeJob,
+        setTranscribeLanguage,
+        setSubtitleMode,
+        setSubtitleTargetLanguage,
+        updateSubtitleStyle,
+        setExportJob,
+        setWaitingForAsset,
+        setDownloadProgress,
+        setStep,
+      },
+      clearPendingSession: () => {
+        pendingSessionHydrationRef.current = null;
+      },
+      isCancelled: () => cancelled,
+      reset,
+      sessionId: sessionParam,
+      setError,
+      setIsHydrating,
+    });
 
     return () => {
       cancelled = true;
@@ -350,36 +550,23 @@ export function AiDirectorPage() {
       return;
     }
 
-    const nextSearchParams = new URLSearchParams(searchParams);
+    const syncAction = resolveDirectorSearchSyncAction({
+      activeSessionId,
+      hasActiveSession,
+      isHydrating,
+      searchParams,
+      sessionParam,
+      shouldExposeActiveSessionInSearch,
+      step,
+      suppressedPlainEntrySessionId: suppressedPlainEntrySessionIdRef.current,
+    });
 
-    if (activeSessionId && suppressedPlainEntrySessionIdRef.current === activeSessionId) {
-      return;
-    }
-
-    if (!activeSessionId) {
+    if (syncAction.clearSuppressedPlainSession) {
       suppressedPlainEntrySessionIdRef.current = null;
     }
 
-    if (activeSessionId && sessionParam !== activeSessionId) {
-      nextSearchParams.set('session', activeSessionId);
-      setSearchParams(clearDirectorInitialContextSearchParams(nextSearchParams), {
-        replace: true,
-      });
-      return;
-    }
-
-    if (
-      activeSessionId &&
-      step !== 'IMPORT' &&
-      DIRECTOR_INITIAL_CONTEXT_QUERY_KEYS.some((key) => nextSearchParams.has(key))
-    ) {
-      setSearchParams(clearDirectorInitialContextSearchParams(nextSearchParams), { replace: true });
-      return;
-    }
-
-    if (!hasActiveSession && sessionParam && !isHydrating) {
-      nextSearchParams.delete('session');
-      setSearchParams(nextSearchParams, { replace: true });
+    if (syncAction.nextSearchParams) {
+      setSearchParams(syncAction.nextSearchParams, { replace: true });
     }
   }, [
     activeSessionId,
@@ -388,12 +575,13 @@ export function AiDirectorPage() {
     searchParams,
     sessionParam,
     setSearchParams,
+    shouldExposeActiveSessionInSearch,
     step,
   ]);
 
   return (
-    <div className="min-h-screen bg-background px-4 pt-3 pb-8 font-sans text-foreground md:px-8 md:pt-5 lg:pb-0">
-      <div className="max-w-400 mx-auto space-y-5">
+    <div className="min-h-screen bg-background px-4 pt-3 pb-8 font-sans text-foreground md:px-8 md:pt-4 lg:pb-0">
+      <div className="max-w-400 mx-auto space-y-4">
         {/* Header */}
         <div className="space-y-3">
           {showContinuePrompt && !hasActiveSession ? (
@@ -410,7 +598,7 @@ export function AiDirectorPage() {
             />
           ) : null}
 
-          {hasActiveSession && !isClearingPlainEntrySession ? (
+          {hasActiveSession && !isClearingPlainEntrySession && step !== 'ANALYZING' ? (
             <div className="flex justify-start">
               <button
                 type="button"
@@ -439,31 +627,29 @@ export function AiDirectorPage() {
         ) : null}
 
         {/* Content */}
-        <div className="min-h-100 flex items-center justify-center">
-          {isClearingPlainEntrySession ? (
-            <div className="rounded-3xl border border-border/50 bg-card/60 px-6 py-5 text-sm font-semibold text-muted-foreground">
-              Menyiapkan AI Director...
-            </div>
-          ) : null}
-          {!isClearingPlainEntrySession && step === 'IMPORT' && (
-            <ImportStep
-              initialTopic={initialTopic}
-              initialSourceUrl={initialSourceUrl}
-              trendingImportContext={trendingImportContext}
-              onClearInitialContext={() => {
-                setTrendingContextSnapshot(null);
-                setSearchParams(clearDirectorInitialContextSearchParams(searchParams), {
-                  replace: true,
-                });
-              }}
-            />
-          )}
-          {!isClearingPlainEntrySession && step === 'ANALYZING' && <AnalyzeStep />}
-          {!isClearingPlainEntrySession && step === 'PICKING' && <PickingStep />}
-          {!isClearingPlainEntrySession && step === 'EDITING' && <EditingStep />}
-          {!isClearingPlainEntrySession && step === 'PUBLISH_COPY' && <EditingStep />}
-          {!isClearingPlainEntrySession && step === 'EXPORTING' && <EditingStep />}
-          {!isClearingPlainEntrySession && step === 'COMPLETED' && <EditingStep />}
+        <div className="flex items-start justify-center">
+          <DirectorStepContent
+            activeSession={activeSession}
+            exportSettings={effectiveExportSettings}
+            initialSourceUrl={initialSourceUrl}
+            initialTopic={initialTopic}
+            isClearingPlainEntrySession={isClearingPlainEntrySession}
+            onClearInitialContext={() => {
+              setTrendingContextSnapshot(null);
+              setSearchParams(clearDirectorInitialContextSearchParams(searchParams), {
+                replace: true,
+              });
+            }}
+            onStartAnalyzeNew={() => {
+              reset();
+              setSearchParams({}, { replace: true });
+            }}
+            refineSettings={refineSettings}
+            selectedClips={selectedClips}
+            step={step}
+            subtitleStyle={subtitleStyle}
+            trendingImportContext={trendingImportContext}
+          />
         </div>
       </div>
     </div>

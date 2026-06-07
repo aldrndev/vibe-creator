@@ -68,7 +68,7 @@ export function AdminPage() {
 
   if (authLoading) {
     return (
-      <div className="flex min-h-[360px] items-center justify-center text-sm font-bold text-muted-foreground">
+      <div className="flex min-h-90 items-center justify-center text-sm font-bold text-muted-foreground">
         Memuat admin console...
       </div>
     );
@@ -105,7 +105,7 @@ export function AdminPage() {
     admin.deleteAnnouncementMutation.isPending;
 
   return (
-    <div className="mx-auto w-full max-w-[1500px] space-y-8 px-2 pb-[calc(4.75rem+env(safe-area-inset-bottom))] pt-4 sm:px-4 lg:pb-0">
+    <div className="mx-auto w-full max-w-375 space-y-8 px-2 pb-[calc(4.75rem+env(safe-area-inset-bottom))] pt-4 sm:px-4 lg:pb-0">
       <AdminHeader />
 
       <Tabs defaultValue="overview" className="space-y-6">
