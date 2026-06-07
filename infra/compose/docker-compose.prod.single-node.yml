@@ -93,8 +93,6 @@ services:
       - ../../apps/api/.env.docker
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-password}@postgres:5432/vibe_creator?schema=public
-      REDIS_URL: redis://redis:6379
       FFMPEG_PATH: /usr/bin/ffmpeg
       MEDIA_INPUT_DIR: /app/uploads
       TEMP_DIR: /app/uploads/temp
@@ -135,8 +133,6 @@ services:
       - ../../apps/api/.env.docker
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-password}@postgres:5432/vibe_creator?schema=public
-      REDIS_URL: redis://redis:6379
       FFMPEG_PATH: /usr/bin/ffmpeg
       MEDIA_INPUT_DIR: /app/uploads
       TEMP_DIR: /app/uploads/temp
