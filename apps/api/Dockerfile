@@ -17,6 +17,7 @@ RUN corepack enable \
     python3 \
     python3-pip \
     python3-venv \
+    rsync \
     wget \
     openssl \
     ca-certificates \
