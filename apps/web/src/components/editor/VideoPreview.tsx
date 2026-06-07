@@ -36,6 +36,47 @@ function TextOverlayLayer() {
     (overlay) => currentTimeMs >= overlay.startMs && currentTimeMs < overlay.endMs,
   );
 
+  const applyMove = useCallback(
+    (dragState: DragState, deltaX: number, deltaY: number) => {
+      const newX = Math.max(0, Math.min(100, dragState.startPosX + deltaX));
+      const newY = Math.max(0, Math.min(100, dragState.startPosY + deltaY));
+      updateTextOverlay(dragState.id, { x: newX, y: newY });
+    },
+    [updateTextOverlay],
+  );
+
+  const applyResize = useCallback(
+    (dragState: DragState, deltaX: number, deltaY: number) => {
+      const deltaSize = (deltaX + deltaY) / 2;
+      const scaleFactor =
+        dragState.handle?.includes('w') || dragState.handle?.includes('n') ? -1 : 1;
+      const newFontSize = Math.max(
+        12,
+        Math.min(300, dragState.startFontSize + deltaSize * scaleFactor * 2),
+      );
+      updateTextOverlay(dragState.id, { fontSize: Math.round(newFontSize) });
+    },
+    [updateTextOverlay],
+  );
+
+  const applyRotate = useCallback(
+    (dragState: DragState, e: MouseEvent, rect: DOMRect) => {
+      const overlay = textOverlays.find((o) => o.id === dragState.id);
+      if (!overlay) return;
+
+      const centerX = rect.left + (overlay.x / 100) * rect.width;
+      const centerY = rect.top + (overlay.y / 100) * rect.height;
+
+      const angle = Math.atan2(e.clientY - centerY, e.clientX - centerX) * (180 / Math.PI);
+      const snappedAngle = Math.round(angle / 5) * 5;
+
+      if (overlay.rotation !== snappedAngle) {
+        updateTextOverlay(dragState.id, { rotation: snappedAngle });
+      }
+    },
+    [updateTextOverlay, textOverlays],
+  );
+
   // Handle drag/resize/rotate move
   const handleMouseMove = useCallback(
     (e: MouseEvent) => {
@@ -46,34 +87,14 @@ function TextOverlayLayer() {
       const deltaY = ((e.clientY - dragState.startY) / rect.height) * 100;
 
       if (dragState.type === 'move') {
-        const newX = Math.max(0, Math.min(100, dragState.startPosX + deltaX));
-        const newY = Math.max(0, Math.min(100, dragState.startPosY + deltaY));
-        updateTextOverlay(dragState.id, { x: newX, y: newY });
+        applyMove(dragState, deltaX, deltaY);
       } else if (dragState.type === 'resize') {
-        const deltaSize = (deltaX + deltaY) / 2;
-        const scaleFactor =
-          dragState.handle?.includes('w') || dragState.handle?.includes('n') ? -1 : 1;
-        const newFontSize = Math.max(
-          12,
-          Math.min(300, dragState.startFontSize + deltaSize * scaleFactor * 2),
-        );
-        updateTextOverlay(dragState.id, { fontSize: Math.round(newFontSize) });
+        applyResize(dragState, deltaX, deltaY);
       } else if (dragState.type === 'rotate') {
-        const overlay = textOverlays.find((o) => o.id === dragState.id);
-        if (!overlay) return;
-
-        const centerX = rect.left + (overlay.x / 100) * rect.width;
-        const centerY = rect.top + (overlay.y / 100) * rect.height;
-
-        const angle = Math.atan2(e.clientY - centerY, e.clientX - centerX) * (180 / Math.PI);
-        const snappedAngle = Math.round(angle / 5) * 5;
-
-        if (overlay.rotation !== snappedAngle) {
-          updateTextOverlay(dragState.id, { rotation: snappedAngle });
-        }
+        applyRotate(dragState, e, rect);
       }
     },
-    [dragState, updateTextOverlay, textOverlays],
+    [dragState, applyMove, applyResize, applyRotate],
   );
 
   const handleMouseUp = useCallback(() => {
@@ -192,31 +213,32 @@ function TextOverlayLayer() {
         const durationMs = overlay.endMs - overlay.startMs;
         const progress = (currentTimeMs - overlay.startMs) / durationMs;
 
-        const animationStyle: React.CSSProperties = {
-          transform: `translate(-50%, -50%) rotate(${rotation}deg)`,
-          opacity: 1,
+        const getAnimationStyle = () => {
+          const style: React.CSSProperties = {
+            transform: `translate(-50%, -50%) rotate(${rotation}deg)`,
+            opacity: 1,
+          };
+
+          if (progress >= 0 && progress < 0.1) {
+            const entryProgress = progress * 10;
+            switch (overlay.animation) {
+              case 'fade':
+                style.opacity = entryProgress;
+                break;
+              case 'slide-up':
+                style.transform = `translate(-50%, calc(-50% + ${(1 - entryProgress) * 30}px)) rotate(${rotation}deg)`;
+                style.opacity = entryProgress;
+                break;
+              case 'slide-down':
+                style.transform = `translate(-50%, calc(-50% - ${(1 - entryProgress) * 30}px)) rotate(${rotation}deg)`;
+                style.opacity = entryProgress;
+                break;
+            }
+          }
+          return style;
         };
 
-        if (progress >= 0 && progress < 0.1) {
-          const entryProgress = progress * 10;
-          switch (overlay.animation) {
-            case 'fade':
-              animationStyle.opacity = entryProgress;
-              break;
-            case 'slide-up':
-              animationStyle.transform = `translate(-50%, calc(-50% + ${
-                (1 - entryProgress) * 30
-              }px)) rotate(${rotation}deg)`;
-              animationStyle.opacity = entryProgress;
-              break;
-            case 'slide-down':
-              animationStyle.transform = `translate(-50%, calc(-50% - ${
-                (1 - entryProgress) * 30
-              }px)) rotate(${rotation}deg)`;
-              animationStyle.opacity = entryProgress;
-              break;
-          }
-        }
+        const animationStyle = getAnimationStyle();
 
         return (
           <div
@@ -245,7 +267,7 @@ function TextOverlayLayer() {
               whiteSpace: 'pre-wrap',
               opacity: animationStyle.opacity,
               maxWidth: '90%',
-              textShadow: !overlay.backgroundColor ? '0 4px 12px rgba(0,0,0,0.8)' : 'none',
+              textShadow: overlay.backgroundColor ? 'none' : '0 4px 12px rgba(0,0,0,0.8)',
               filter: isSelected ? 'drop-shadow(0 0 10px rgba(var(--primary), 0.3))' : 'none',
             }}
             onMouseDown={(e) => handleMoveStart(e, overlay)}
@@ -338,7 +360,16 @@ export function VideoPreview() {
           aspectRatio,
         }}
       >
-        {!activeClip?.asset?.url ? (
+        {activeClip?.asset?.url ? (
+          <video
+            ref={videoRef}
+            className="w-full h-full object-contain"
+            style={videoStyles}
+            playsInline
+          >
+            <track kind="captions" label="Decorative preview" />
+          </video>
+        ) : (
           <div className="absolute inset-0 flex flex-col items-center justify-center space-y-4 animate-in fade-in duration-700">
             <div className="w-16 h-16 rounded-2xl bg-muted/10 flex items-center justify-center border border-white/5 mb-2 backdrop-blur-sm">
               <Film size={24} className="text-white/20" />
@@ -349,15 +380,6 @@ export function VideoPreview() {
               </p>
             </div>
           </div>
-        ) : (
-          <video
-            ref={videoRef}
-            className="w-full h-full object-contain"
-            style={videoStyles}
-            playsInline
-          >
-            <track kind="captions" label="Decorative preview" />
-          </video>
         )}
         <TextOverlayLayer />
       </div>

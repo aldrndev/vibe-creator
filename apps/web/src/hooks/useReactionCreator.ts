@@ -74,12 +74,12 @@ async function validateVideoFile(file: File): Promise<void> {
 }
 
 function getReactionRenderErrorMessage(error: unknown): string {
-  const message =
-    error instanceof Error
-      ? error.message
-      : typeof error === 'string'
-        ? error
-        : 'Render reaction gagal.';
+  let message = 'Render reaction gagal.';
+  if (error instanceof Error) {
+    message = error.message;
+  } else if (typeof error === 'string') {
+    message = error;
+  }
 
   if (
     message.includes('Invalid input data') ||
@@ -154,9 +154,11 @@ export function useReactionCreator(sessionId?: string) {
   }, []);
 
   const stopCameraStream = useCallback(() => {
-    cameraStreamRef.current?.getTracks().forEach((track) => {
-      track.stop();
-    });
+    if (cameraStreamRef.current) {
+      for (const track of cameraStreamRef.current.getTracks()) {
+        track.stop();
+      }
+    }
     cameraStreamRef.current = null;
     setCameraStream(null);
   }, []);
@@ -361,6 +363,71 @@ export function useReactionCreator(sessionId?: string) {
     }
   }, [clearRecordingTimeout]);
 
+  const handleRecorderStop = useCallback(
+    async (recorder: MediaRecorder) => {
+      setRecordingPhase('saving');
+      try {
+        const blob = new Blob(chunksRef.current, { type: recorder.mimeType || 'video/webm' });
+        if (blob.size === 0) {
+          throw new Error('Recording kosong. Coba record ulang.');
+        }
+        if (blob.size > MAX_SOURCE_SIZE_BYTES) {
+          throw new Error('Recording terlalu besar. Coba rekam durasi yang lebih pendek.');
+        }
+        const recordedDurationMs = Math.max(
+          1,
+          Date.now() - (recordingStartedAtRef.current ?? Date.now()),
+        );
+        const file = new File([blob], `reaction-recording-${Date.now()}.webm`, {
+          type: blob.type,
+        });
+        const previewUrl = URL.createObjectURL(blob);
+        pendingRecordingUrlRef.current = previewUrl;
+        setPendingRecording({ file, previewUrl, durationMs: recordedDurationMs });
+        setRecordingPhase('ready');
+      } catch (error) {
+        setRecordingError(error instanceof Error ? error.message : 'Recording gagal disimpan.');
+        setRecordingPhase('failed');
+      } finally {
+        clearRecordingRuntime();
+        stopCameraStream();
+      }
+    },
+    [clearRecordingRuntime, stopCameraStream],
+  );
+
+  const requestCameraStream = useCallback(async () => {
+    try {
+      return await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    } catch {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      setMessage('Mic tidak tersedia, recording dilanjutkan tanpa audio reaction.');
+      return stream;
+    }
+  }, []);
+
+  const runCountdown = useCallback(async () => {
+    setRecordingPhase('countdown');
+    setRecordingCountdown(3);
+    for (let count = 3; count > 0; count -= 1) {
+      setRecordingCountdown(count);
+      await new Promise((resolve) => window.setTimeout(resolve, 1000));
+    }
+  }, []);
+
+  const setupMainVideoPlayback = useCallback(async () => {
+    const mainVideo = mainVideoRef.current;
+    if (mainVideo) {
+      mainVideo.currentTime = 0;
+      const stopOnEnded = () => stopRecording();
+      mainVideo.addEventListener('ended', stopOnEnded, { once: true });
+      recordingCleanupRef.current = () => {
+        mainVideo.removeEventListener('ended', stopOnEnded);
+      };
+      await mainVideo.play().catch(() => undefined);
+    }
+  }, [stopRecording]);
+
   const startRecording = useCallback(async () => {
     if (!projectId || !mainVideoUrl) {
       setRecordingError('Upload video utama dulu sebelum record reaction.');
@@ -375,24 +442,12 @@ export function useReactionCreator(sessionId?: string) {
     setRecordingError(null);
     setRecordingPhase('requesting');
     try {
-      let stream: MediaStream;
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-      } catch {
-        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-        setMessage('Mic tidak tersedia, recording dilanjutkan tanpa audio reaction.');
-      }
+      const stream = await requestCameraStream();
 
       cameraStreamRef.current = stream;
       setCameraStream(stream);
       clearPendingRecording();
-      setRecordingPhase('countdown');
-      setRecordingCountdown(3);
-
-      for (let count = 3; count > 0; count -= 1) {
-        setRecordingCountdown(count);
-        await new Promise((resolve) => window.setTimeout(resolve, 1000));
-      }
+      await runCountdown();
 
       chunksRef.current = [];
       const mimeType = createRecorderMimeType();
@@ -402,47 +457,10 @@ export function useReactionCreator(sessionId?: string) {
         if (event.data.size > 0) chunksRef.current.push(event.data);
       };
       recorder.onstop = () => {
-        void (async () => {
-          setRecordingPhase('saving');
-          try {
-            const blob = new Blob(chunksRef.current, { type: recorder.mimeType || 'video/webm' });
-            if (blob.size === 0) {
-              throw new Error('Recording kosong. Coba record ulang.');
-            }
-            if (blob.size > MAX_SOURCE_SIZE_BYTES) {
-              throw new Error('Recording terlalu besar. Coba rekam durasi yang lebih pendek.');
-            }
-            const recordedDurationMs = Math.max(
-              1,
-              Date.now() - (recordingStartedAtRef.current ?? Date.now()),
-            );
-            const file = new File([blob], `reaction-recording-${Date.now()}.webm`, {
-              type: blob.type,
-            });
-            const previewUrl = URL.createObjectURL(blob);
-            pendingRecordingUrlRef.current = previewUrl;
-            setPendingRecording({ file, previewUrl, durationMs: recordedDurationMs });
-            setRecordingPhase('ready');
-          } catch (error) {
-            setRecordingError(error instanceof Error ? error.message : 'Recording gagal disimpan.');
-            setRecordingPhase('failed');
-          } finally {
-            clearRecordingRuntime();
-            stopCameraStream();
-          }
-        })();
+        void handleRecorderStop(recorder);
       };
 
-      const mainVideo = mainVideoRef.current;
-      if (mainVideo) {
-        mainVideo.currentTime = 0;
-        const stopOnEnded = () => stopRecording();
-        mainVideo.addEventListener('ended', stopOnEnded, { once: true });
-        recordingCleanupRef.current = () => {
-          mainVideo.removeEventListener('ended', stopOnEnded);
-        };
-        await mainVideo.play().catch(() => undefined);
-      }
+      await setupMainVideoPlayback();
       recorder.start(250);
       recordingStartedAtRef.current = Date.now();
       const maxDurationMs = Math.min(
@@ -462,9 +480,12 @@ export function useReactionCreator(sessionId?: string) {
     }
   }, [
     clearPendingRecording,
-    clearRecordingRuntime,
+    handleRecorderStop,
     mainVideoUrl,
     projectId,
+    requestCameraStream,
+    runCountdown,
+    setupMainVideoPlayback,
     sourceInfo?.main?.durationMs,
     stopCameraStream,
     stopRecording,

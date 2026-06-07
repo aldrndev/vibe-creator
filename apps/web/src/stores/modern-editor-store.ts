@@ -548,11 +548,11 @@ export const useModernEditorStore = create<ModernEditorState>()(
 
         // Update zIndex for all layers
         const newLayersById = { ...state.layersById };
-        newOrder.forEach((id, index) => {
+        for (const [index, id] of newOrder.entries()) {
           if (newLayersById[id]) {
             newLayersById[id] = { ...newLayersById[id], zIndex: index };
           }
-        });
+        }
 
         return {
           ...pushHistory(state),
@@ -607,16 +607,16 @@ export const useModernEditorStore = create<ModernEditorState>()(
         const appliedDeltaMs = anchorTiming.startMs - layer.startMs;
         const layersById = { ...state.layersById };
 
-        selectedIds.forEach((id) => {
+        for (const id of selectedIds) {
           const selectedLayer = layersById[id];
-          if (!selectedLayer || selectedLayer.locked) return;
+          if (!selectedLayer || selectedLayer.locked) continue;
           const moved = calculateMovedLayerTiming({
             layer: selectedLayer,
             deltaMs: appliedDeltaMs,
             snapPoints: [],
           });
           layersById[id] = { ...selectedLayer, ...moved } as Layer;
-        });
+        }
 
         return {
           ...pushHistory(state),
@@ -729,12 +729,12 @@ export const useModernEditorStore = create<ModernEditorState>()(
       const selectedIds = state.selectedLayerIds.length > 0 ? state.selectedLayerIds : [];
       const duplicatedIds: string[] = [];
 
-      selectedIds.forEach((layerId) => {
+      for (const layerId of selectedIds) {
         const newId = get().duplicateLayer(layerId);
         if (newId) {
           duplicatedIds.push(newId);
         }
-      });
+      }
 
       if (duplicatedIds.length > 1) {
         set({ selectedLayerId: duplicatedIds.at(-1) ?? null, selectedLayerIds: duplicatedIds });

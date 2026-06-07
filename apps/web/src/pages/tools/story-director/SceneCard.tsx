@@ -68,13 +68,11 @@ export function SceneCard({ scene, index, onRemove, onUpdate }: SceneCardProps) 
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
               <Badge
-                variant={
-                  scene.type === 'intro'
-                    ? 'secondary'
-                    : scene.type === 'outro'
-                      ? 'outline'
-                      : 'default'
-                }
+                variant={(() => {
+                  if (scene.type === 'intro') return 'secondary';
+                  if (scene.type === 'outro') return 'outline';
+                  return 'default';
+                })()}
                 className="h-5 text-xs px-1"
               >
                 {scene.type.toUpperCase()}

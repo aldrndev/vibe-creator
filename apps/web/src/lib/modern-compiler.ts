@@ -365,6 +365,57 @@ function compileAudioLayer(layer: AudioLayer, asset: EditorAsset): EditorClip {
 
 // Note: Text layers are handled separately via textOverlays in the existing system
 
+function buildVideoTracks(
+  visualLayers: Layer[],
+  assets: AssetRegistry,
+  settings: ModernProject['settings'],
+): { videoTracks: EditorTrack[]; audioClips: EditorClip[] } {
+  const videoTracks: EditorTrack[] = [];
+  const audioClips: EditorClip[] = [];
+
+  for (const [index, layer] of visualLayers.entries()) {
+    const trackId = generateTrackId('VIDEO', index);
+    const track: EditorTrack = {
+      id: trackId,
+      type: 'VIDEO',
+      order: index,
+      muted: !layer.visible,
+      volume: 1,
+      locked: layer.locked,
+      clips: [],
+    };
+
+    if (layer.type === 'video') {
+      const asset = getRequiredAsset(assets, layer);
+      const { videoClip, audioClip } = compileVideoLayer(layer as VideoLayer, asset, settings);
+      track.clips.push(videoClip);
+      if (audioClip) {
+        audioClips.push(audioClip);
+      }
+    } else if (layer.type === 'image') {
+      const asset = getRequiredAsset(assets, layer);
+      const clip = compileImageLayer(layer as ImageLayer, asset, settings);
+      track.clips.push(clip);
+    }
+
+    videoTracks.push(track);
+  }
+
+  return { videoTracks, audioClips };
+}
+
+function calculateTimelineDuration(tracks: EditorTrack[]): number {
+  let maxEndMs = 0;
+  for (const track of tracks) {
+    for (const clip of track.clips) {
+      if (clip.endMs > maxEndMs) {
+        maxEndMs = clip.endMs;
+      }
+    }
+  }
+  return maxEndMs;
+}
+
 /**
  * Main compile function
  * Converts ModernProject to EditorTimeline deterministically
@@ -395,36 +446,7 @@ export function compileModernProject(
   // Note: Text layers handled separately via extractTextOverlays()
 
   // Build video tracks (one per visual layer for z-ordering)
-  const videoTracks: EditorTrack[] = [];
-  const audioClips: EditorClip[] = [];
-
-  for (const [index, layer] of visualLayers.entries()) {
-    const trackId = generateTrackId('VIDEO', index);
-    const track: EditorTrack = {
-      id: trackId,
-      type: 'VIDEO',
-      order: index,
-      muted: !layer.visible,
-      volume: 1,
-      locked: layer.locked,
-      clips: [],
-    };
-
-    if (layer.type === 'video') {
-      const asset = getRequiredAsset(assets, layer);
-      const { videoClip, audioClip } = compileVideoLayer(layer, asset, project.settings);
-      track.clips.push(videoClip);
-      if (audioClip) {
-        audioClips.push(audioClip);
-      }
-    } else if (layer.type === 'image') {
-      const asset = getRequiredAsset(assets, layer);
-      const clip = compileImageLayer(layer, asset, project.settings);
-      track.clips.push(clip);
-    }
-
-    videoTracks.push(track);
-  }
+  const { videoTracks, audioClips } = buildVideoTracks(visualLayers, assets, project.settings);
 
   // Build audio track
   const audioTrack: EditorTrack = {
@@ -441,21 +463,14 @@ export function compileModernProject(
   for (const layer of audioLayers) {
     if (layer.type === 'audio') {
       const asset = getRequiredAsset(assets, layer);
-      const clip = compileAudioLayer(layer, asset);
+      const clip = compileAudioLayer(layer as AudioLayer, asset);
       audioTrack.clips.push(clip);
     }
   }
 
   // Calculate duration
   const allTracks = [...videoTracks, audioTrack];
-  let maxEndMs = 0;
-  for (const track of allTracks) {
-    for (const clip of track.clips) {
-      if (clip.endMs > maxEndMs) {
-        maxEndMs = clip.endMs;
-      }
-    }
-  }
+  const maxEndMs = calculateTimelineDuration(allTracks);
 
   const timeline: EditorTimeline = {
     durationMs: maxEndMs,

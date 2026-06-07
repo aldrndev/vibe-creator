@@ -49,6 +49,113 @@ const cobaltBreaker = createCircuitBreaker(
   },
 );
 
+async function fetchCobaltApi(url: string, apiUrl: string): Promise<CobaltResponse> {
+  const response = await cobaltBreaker.fire(apiUrl, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(buildCobaltRequestPayload(url)),
+  });
+
+  const responseText = await response.text();
+  logger.info(
+    { status: response.status, responseLength: responseText.length },
+    'Cobalt API response',
+  );
+
+  if (!response.ok) {
+    throw new Error(`Cobalt API error: ${response.status} - ${responseText.slice(0, 200)}`);
+  }
+
+  if (!responseText) {
+    throw new Error('Cobalt API returned empty response');
+  }
+
+  try {
+    return JSON.parse(responseText) as CobaltResponse;
+  } catch {
+    throw new Error(`Cobalt API returned invalid JSON: ${responseText.slice(0, 200)}`);
+  }
+}
+
+function extractDownloadUrl(data: CobaltResponse): string {
+  if (data.status === 'error') {
+    throw new Error(data.text || 'Cobalt API error');
+  }
+
+  let downloadUrl: string | undefined;
+
+  if (data.status === 'redirect' || data.status === 'tunnel') {
+    downloadUrl = data.url;
+  } else if (data.status === 'picker' && data.picker && data.picker.length > 0) {
+    const video = data.picker.find((p) => p.type === 'video') ?? data.picker[0];
+    if (video) {
+      downloadUrl = video.url;
+    }
+  }
+
+  if (!downloadUrl) {
+    throw new Error('No download URL from Cobalt');
+  }
+  return downloadUrl;
+}
+
+async function downloadFileBuffered(
+  fileResponse: Response,
+  outputPath: string,
+  onProgress?: (percent: number) => void,
+  maxBytes?: number,
+): Promise<void> {
+  if (onProgress) onProgress(50);
+  const arrayBuffer = await fileResponse.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
+  if (buffer.length === 0) {
+    throw new Error('Downloaded file is empty (0 bytes)');
+  }
+  assertWithinMaxBytes(buffer.length, maxBytes);
+  await writeFile(outputPath, buffer);
+  if (onProgress) onProgress(100);
+}
+
+async function downloadFileStreamed(
+  fileResponse: Response,
+  outputPath: string,
+  total: number,
+  onProgress?: (percent: number) => void,
+  maxBytes?: number,
+): Promise<void> {
+  const fileStream = createWriteStream(outputPath);
+  const reader = fileResponse.body?.getReader();
+  if (!reader) {
+    throw new Error('Failed to get body reader from response');
+  }
+  let loaded = 0;
+
+  if (onProgress) onProgress(50);
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    loaded += value.length;
+    assertWithinMaxBytes(loaded, maxBytes);
+    if (onProgress && total > 0) {
+      onProgress(50 + Math.min((loaded / total) * 50, 49));
+    }
+
+    if (!fileStream.write(value)) {
+      await new Promise((resolve) => fileStream.once('drain', resolve));
+    }
+  }
+
+  fileStream.end();
+  await new Promise((resolve) => fileStream.on('finish', resolve));
+
+  if (onProgress) onProgress(100);
+}
+
 export const downloadCobaltService = {
   /**
    * Download using Cobalt API
@@ -67,112 +174,26 @@ export const downloadCobaltService = {
 
     logger.info({ cobaltUrl: env.COBALT_API_URL, videoUrl: url }, 'Calling Cobalt API');
 
-    const response = await cobaltBreaker.fire(env.COBALT_API_URL, {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(buildCobaltRequestPayload(url)),
-    });
-
-    // Get response as text first to debug
-    const responseText = await response.text();
-    logger.info(
-      { status: response.status, responseLength: responseText.length },
-      'Cobalt API response',
-    );
-
-    if (!response.ok) {
-      throw new Error(`Cobalt API error: ${response.status} - ${responseText.slice(0, 200)}`);
-    }
-
-    if (!responseText) {
-      throw new Error('Cobalt API returned empty response');
-    }
-
-    let data: CobaltResponse;
-    try {
-      data = JSON.parse(responseText) as CobaltResponse;
-    } catch {
-      throw new Error(`Cobalt API returned invalid JSON: ${responseText.slice(0, 200)}`);
-    }
-
-    if (data.status === 'error') {
-      throw new Error(data.text || 'Cobalt API error');
-    }
-
-    // Get the download URL
-    let downloadUrl: string | undefined;
-
-    if (data.status === 'redirect' || data.status === 'tunnel') {
-      downloadUrl = data.url;
-    } else if (data.status === 'picker' && data.picker && data.picker.length > 0) {
-      // If multiple options, pick video
-      const video = data.picker.find((p) => p.type === 'video') ?? data.picker[0];
-      if (video) {
-        downloadUrl = video.url;
-      }
-    }
-
-    if (!downloadUrl) {
-      throw new Error('No download URL from Cobalt');
-    }
+    const data = await fetchCobaltApi(url, env.COBALT_API_URL);
+    const downloadUrl = extractDownloadUrl(data);
 
     await assertSafeUrl(downloadUrl);
 
     logger.info({ downloadUrl }, 'Downloading file from Cobalt URL');
 
-    // Download the file
     const fileResponse = await fetch(downloadUrl);
     if (!fileResponse.ok) {
       throw new Error(`Failed to download file from Cobalt: ${fileResponse.status}`);
     }
 
     const contentLength = fileResponse.headers.get('content-length');
-    const total = contentLength ? parseInt(contentLength, 10) : 0;
+    const total = contentLength ? Number.parseInt(contentLength, 10) : 0;
     assertWithinMaxBytes(total, options?.maxBytes);
 
-    // If we can't track progress or response.body is null, fallback to buffer
     if (!fileResponse.body || total === 0) {
-      if (onProgress) onProgress(50); // Indicate Cobalt processing is done, now downloading
-      const arrayBuffer = await fileResponse.arrayBuffer();
-      const buffer = Buffer.from(arrayBuffer);
-      if (buffer.length === 0) {
-        throw new Error('Downloaded file is empty (0 bytes)');
-      }
-      assertWithinMaxBytes(buffer.length, options?.maxBytes);
-      await writeFile(outputPath, buffer);
-      if (onProgress) onProgress(100);
+      await downloadFileBuffered(fileResponse, outputPath, onProgress, options?.maxBytes);
     } else {
-      // Stream with progress
-      const fileStream = createWriteStream(outputPath);
-      const reader = fileResponse.body.getReader();
-      let loaded = 0;
-
-      if (onProgress) onProgress(50); // Indicate Cobalt processing is done, now streaming download
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        loaded += value.length;
-        assertWithinMaxBytes(loaded, options?.maxBytes);
-        if (onProgress && total > 0) {
-          // Progress from 50% to 99% for the actual download
-          onProgress(50 + Math.min((loaded / total) * 50, 49));
-        }
-
-        // Write chunk
-        if (!fileStream.write(value)) {
-          await new Promise((resolve) => fileStream.once('drain', resolve));
-        }
-      }
-
-      fileStream.end();
-      await new Promise((resolve) => fileStream.on('finish', resolve));
-
-      if (onProgress) onProgress(100);
+      await downloadFileStreamed(fileResponse, outputPath, total, onProgress, options?.maxBytes);
     }
 
     // Verify file was written correctly

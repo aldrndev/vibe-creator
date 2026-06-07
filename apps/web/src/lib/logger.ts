@@ -72,7 +72,7 @@ function createScopedLogger(ctx: LogContext): ScopedLogger {
     warn: (message: string, data?: unknown) => {
       if (isDev) {
         // eslint-disable-next-line no-console
-        console.warn(`${prefix} ${message}`, data !== undefined ? safeStringify(data) : '');
+        console.warn(`${prefix} ${message}`, data === undefined ? '' : safeStringify(data));
       }
     },
     error: (message: string, error?: unknown) => {
@@ -131,7 +131,7 @@ export const logger = {
   warn(message: string, data?: unknown): void {
     if (isDev) {
       // eslint-disable-next-line no-console
-      console.warn(`[WARN] ${message}`, data !== undefined ? safeStringify(data) : '');
+      console.warn(`[WARN] ${message}`, data === undefined ? '' : safeStringify(data));
     }
   },
 

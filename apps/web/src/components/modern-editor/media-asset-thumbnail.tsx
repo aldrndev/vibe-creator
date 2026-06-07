@@ -29,6 +29,71 @@ const variantClassNames: Record<MediaThumbnailVariant, string> = {
   timeline: 'h-full w-full rounded-lg border-0',
 };
 
+function VisualThumbnail({
+  resolvedKind,
+  resolvedPreviewUrl,
+  className,
+  variant,
+}: {
+  resolvedKind: EditorMediaPreviewKind;
+  resolvedPreviewUrl: string;
+  className?: string;
+  variant: MediaThumbnailVariant;
+}) {
+  return (
+    <ThumbnailShell className={className} kind={resolvedKind} variant={variant}>
+      <img
+        src={resolvedPreviewUrl}
+        alt=""
+        className="h-full w-full object-cover"
+        draggable={false}
+        loading="lazy"
+      />
+      {variant === 'asset-card' && <MediaKindPill kind={resolvedKind} />}
+    </ThumbnailShell>
+  );
+}
+
+function FallbackVideoThumbnail({
+  url,
+  className,
+  variant,
+}: {
+  url: string;
+  className?: string;
+  variant: MediaThumbnailVariant;
+}) {
+  return (
+    <ThumbnailShell className={className} kind="VIDEO" variant={variant}>
+      <video
+        src={url}
+        muted
+        playsInline
+        preload="metadata"
+        className="h-full w-full object-cover"
+      />
+      {variant === 'asset-card' && <MediaKindPill kind="VIDEO" />}
+    </ThumbnailShell>
+  );
+}
+
+function AudioThumbnail({
+  seed,
+  className,
+  variant,
+}: {
+  seed: string;
+  className?: string;
+  variant: MediaThumbnailVariant;
+}) {
+  return (
+    <ThumbnailShell className={className} kind="AUDIO" variant={variant}>
+      <WaveformMark seed={seed} variant={variant} />
+      {variant === 'asset-card' && <MediaKindPill kind="AUDIO" />}
+    </ThumbnailShell>
+  );
+}
+
 export function MediaAssetThumbnail({
   asset,
   className,
@@ -46,40 +111,26 @@ export function MediaAssetThumbnail({
 
   if ((resolvedKind === 'IMAGE' || resolvedKind === 'VIDEO') && resolvedPreviewUrl) {
     return (
-      <ThumbnailShell className={className} kind={resolvedKind} variant={variant}>
-        <img
-          src={resolvedPreviewUrl}
-          alt=""
-          className="h-full w-full object-cover"
-          draggable={false}
-          loading="lazy"
-        />
-        {variant === 'asset-card' && <MediaKindPill kind={resolvedKind} />}
-      </ThumbnailShell>
+      <VisualThumbnail
+        resolvedKind={resolvedKind}
+        resolvedPreviewUrl={resolvedPreviewUrl}
+        className={className}
+        variant={variant}
+      />
     );
   }
 
-  if (shouldRenderVideoFallback) {
-    return (
-      <ThumbnailShell className={className} kind="VIDEO" variant={variant}>
-        <video
-          src={asset.url}
-          muted
-          playsInline
-          preload="metadata"
-          className="h-full w-full object-cover"
-        />
-        {variant === 'asset-card' && <MediaKindPill kind="VIDEO" />}
-      </ThumbnailShell>
-    );
+  if (shouldRenderVideoFallback && asset?.url) {
+    return <FallbackVideoThumbnail url={asset.url} className={className} variant={variant} />;
   }
 
   if (resolvedKind === 'AUDIO') {
     return (
-      <ThumbnailShell className={className} kind="AUDIO" variant={variant}>
-        <WaveformMark seed={asset?.id ?? layer?.id ?? resolvedLabel} variant={variant} />
-        {variant === 'asset-card' && <MediaKindPill kind="AUDIO" />}
-      </ThumbnailShell>
+      <AudioThumbnail
+        seed={asset?.id ?? layer?.id ?? resolvedLabel}
+        className={className}
+        variant={variant}
+      />
     );
   }
 

@@ -24,6 +24,118 @@ import { DEFAULT_PROJECT_TITLE } from '@/stores/modern-editor-store-helpers';
 
 const DEFAULT_VIDEO_STUDIO_SETTINGS = { width: 1920, height: 1080 } as const;
 
+async function handleSessionHydrationError(
+  sessionParam: string,
+  localDraft: ModernEditorRestoredDraft | null,
+  initProject: ReturnType<typeof useModernEditorStore.getState>['initProject'],
+  loadProject: ReturnType<typeof useModernEditorStore.getState>['loadProject'],
+  setHydrationError: (err: string | null) => void,
+) {
+  if (localDraft?.project.id === sessionParam) {
+    loadProject(localDraft.project, localDraft.assets);
+    setHydrationError('Backend belum bisa diakses, jadi draft lokal terakhir dipakai.');
+    return;
+  }
+
+  setHydrationError('Session Video Studio tidak ditemukan. Project baru disiapkan.');
+  initProject(`project-${Date.now()}`, DEFAULT_PROJECT_TITLE, DEFAULT_VIDEO_STUDIO_SETTINGS);
+}
+
+async function hydrateSessionFromBackend(
+  sessionParam: string,
+  localDraft: ModernEditorRestoredDraft | null,
+  initProject: ReturnType<typeof useModernEditorStore.getState>['initProject'],
+  loadProject: ReturnType<typeof useModernEditorStore.getState>['loadProject'],
+  setHydrationError: (err: string | null) => void,
+  isCancelled: () => boolean,
+) {
+  try {
+    const session = await loadVideoStudioProjectSession(sessionParam);
+    if (isCancelled()) return;
+
+    const hydratedProject = resolveHydratedModernEditorProject(session, localDraft);
+    loadProject(hydratedProject.project, hydratedProject.assets);
+    setHydrationError(null);
+  } catch {
+    if (isCancelled()) return;
+    await handleSessionHydrationError(
+      sessionParam,
+      localDraft,
+      initProject,
+      loadProject,
+      setHydrationError,
+    );
+  }
+}
+
+async function hydrateEditorProject(
+  sessionParam: string | null,
+  localDraft: ModernEditorRestoredDraft | null,
+  initProject: ReturnType<typeof useModernEditorStore.getState>['initProject'],
+  loadProject: ReturnType<typeof useModernEditorStore.getState>['loadProject'],
+  setHydrationError: (err: string | null) => void,
+  isCancelled: () => boolean,
+) {
+  if (sessionParam && isLocalVideoStudioSessionId(sessionParam)) {
+    if (localDraft?.project.id === sessionParam) {
+      loadProject(localDraft.project, localDraft.assets);
+    } else {
+      initProject(sessionParam, DEFAULT_PROJECT_TITLE, DEFAULT_VIDEO_STUDIO_SETTINGS);
+    }
+    setHydrationError(null);
+    return;
+  }
+
+  if (sessionParam) {
+    await hydrateSessionFromBackend(
+      sessionParam,
+      localDraft,
+      initProject,
+      loadProject,
+      setHydrationError,
+      isCancelled,
+    );
+    return;
+  }
+
+  if (!isCancelled()) {
+    initProject(`project-${Date.now()}`, DEFAULT_PROJECT_TITLE, DEFAULT_VIDEO_STUDIO_SETTINGS);
+  }
+}
+
+function syncEditorUrlParams(
+  projectId: string | null,
+  searchParams: URLSearchParams,
+  setSearchParams: (params: URLSearchParams, options: { replace: boolean }) => void,
+) {
+  const nextSearchParams = new URLSearchParams(searchParams);
+  const urlProjectParam = nextSearchParams.get('project');
+  const urlSessionParam = nextSearchParams.get('session');
+
+  if (projectId && isLocalVideoStudioSessionId(projectId)) {
+    if (!urlProjectParam) return;
+    if (urlProjectParam !== projectId || urlSessionParam) {
+      nextSearchParams.set('project', projectId);
+      nextSearchParams.delete('session');
+      setSearchParams(nextSearchParams, { replace: true });
+    }
+    return;
+  }
+
+  if (projectId && (urlSessionParam !== projectId || urlProjectParam)) {
+    nextSearchParams.set('session', projectId);
+    nextSearchParams.delete('project');
+    setSearchParams(nextSearchParams, { replace: true });
+    return;
+  }
+
+  if (!projectId && (urlSessionParam || urlProjectParam)) {
+    nextSearchParams.delete('session');
+    nextSearchParams.delete('project');
+    setSearchParams(nextSearchParams, { replace: true });
+  }
+}
+
 export function ModernEditorPage() {
   const [searchParams, setSearchParams] = useMutableSearchParams();
   const { initProject, isPlaying, layerOrder, loadProject, selectedLayerId } =
@@ -168,67 +280,27 @@ export function ModernEditorPage() {
     pendingSessionHydrationRef.current = sessionParam;
     setIsHydratingDraft(true);
 
-    const hydrateProject = async () => {
+    const performHydration = async () => {
       let localDraft: ModernEditorRestoredDraft | null = null;
-
       try {
         localDraft = await loadActiveModernEditorDraft();
       } catch {
         localDraft = null;
       }
 
-      if (isCancelled) {
-        return;
-      }
+      if (isCancelled) return;
 
-      if (sessionParam && isLocalVideoStudioSessionId(sessionParam)) {
-        if (localDraft?.project.id === sessionParam) {
-          loadProject(localDraft.project, localDraft.assets);
-        } else {
-          initProject(sessionParam, DEFAULT_PROJECT_TITLE, DEFAULT_VIDEO_STUDIO_SETTINGS);
-        }
-        setHydrationError(null);
-        return;
-      }
-
-      if (sessionParam) {
-        try {
-          const session = await loadVideoStudioProjectSession(sessionParam);
-          if (isCancelled) {
-            return;
-          }
-
-          const hydratedProject = resolveHydratedModernEditorProject(session, localDraft);
-          loadProject(hydratedProject.project, hydratedProject.assets);
-          setHydrationError(null);
-          return;
-        } catch {
-          if (isCancelled) {
-            return;
-          }
-
-          if (localDraft?.project.id === sessionParam) {
-            loadProject(localDraft.project, localDraft.assets);
-            setHydrationError('Backend belum bisa diakses, jadi draft lokal terakhir dipakai.');
-            return;
-          }
-
-          setHydrationError('Session Video Studio tidak ditemukan. Project baru disiapkan.');
-          initProject(
-            `project-${Date.now()}`,
-            DEFAULT_PROJECT_TITLE,
-            DEFAULT_VIDEO_STUDIO_SETTINGS,
-          );
-          return;
-        }
-      }
-
-      if (!isCancelled) {
-        initProject(`project-${Date.now()}`, DEFAULT_PROJECT_TITLE, DEFAULT_VIDEO_STUDIO_SETTINGS);
-      }
+      await hydrateEditorProject(
+        sessionParam,
+        localDraft,
+        initProject,
+        loadProject,
+        setHydrationError,
+        () => isCancelled,
+      );
     };
 
-    void hydrateProject().finally(() => {
+    void performHydration().finally(() => {
       if (!isCancelled) {
         pendingSessionHydrationRef.current = null;
         setIsHydratingDraft(false);
@@ -246,35 +318,7 @@ export function ModernEditorPage() {
       return;
     }
 
-    const nextSearchParams = new URLSearchParams(searchParams);
-    const urlProjectParam = nextSearchParams.get('project');
-    const urlSessionParam = nextSearchParams.get('session');
-
-    if (projectId && isLocalVideoStudioSessionId(projectId)) {
-      if (!urlProjectParam) {
-        return;
-      }
-
-      if (urlProjectParam !== projectId || urlSessionParam) {
-        nextSearchParams.set('project', projectId);
-        nextSearchParams.delete('session');
-        setSearchParams(nextSearchParams, { replace: true });
-      }
-      return;
-    }
-
-    if (projectId && (urlSessionParam !== projectId || urlProjectParam)) {
-      nextSearchParams.set('session', projectId);
-      nextSearchParams.delete('project');
-      setSearchParams(nextSearchParams, { replace: true });
-      return;
-    }
-
-    if (!projectId && (urlSessionParam || urlProjectParam)) {
-      nextSearchParams.delete('session');
-      nextSearchParams.delete('project');
-      setSearchParams(nextSearchParams, { replace: true });
-    }
+    syncEditorUrlParams(projectId, searchParams, setSearchParams);
   }, [isHydratingDraft, isWorkspaceChoicePending, projectId, searchParams, setSearchParams]);
 
   useEffect(() => {
@@ -372,7 +416,9 @@ function usePlaybackLoop(isPlaying: boolean) {
 
   useEffect(() => {
     const animate = (time: number) => {
-      if (previousTimeRef.current !== undefined) {
+      if (previousTimeRef.current === undefined) {
+        requestRef.current = requestAnimationFrame(animate);
+      } else {
         const deltaTime = time - previousTimeRef.current;
 
         const state = useModernEditorStore.getState();
@@ -389,8 +435,6 @@ function usePlaybackLoop(isPlaying: boolean) {
         }
 
         state.setCurrentTime(next);
-      } else {
-        requestRef.current = requestAnimationFrame(animate);
       }
       previousTimeRef.current = time;
     };

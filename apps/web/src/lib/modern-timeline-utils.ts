@@ -370,14 +370,14 @@ export function collectTimelineSnapPoints(
 ): number[] {
   const points = new Set<number>([0, currentTimeMs]);
 
-  layers.forEach((layer) => {
+  for (const layer of layers) {
     if (ignoredLayerIds.has(layer.id)) {
-      return;
+      continue;
     }
 
     points.add(layer.startMs);
     points.add(layer.endMs);
-  });
+  }
 
   return [...points].sort((a, b) => a - b);
 }
@@ -552,13 +552,13 @@ export function snapTimelineTime({
   let nearest = valueMs;
   let nearestDistance = thresholdMs + 1;
 
-  snapPoints.forEach((point) => {
+  for (const point of snapPoints) {
     const distance = Math.abs(point - valueMs);
     if (distance < nearestDistance) {
       nearest = point;
       nearestDistance = distance;
     }
-  });
+  }
 
   return nearestDistance <= thresholdMs ? nearest : valueMs;
 }

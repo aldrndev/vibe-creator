@@ -1,5 +1,34 @@
 import { logger } from '@/lib/logger';
 
+async function attemptCdnDownload(
+  url: string,
+  outputPath: string,
+  userAgent: string,
+): Promise<boolean> {
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: { 'User-Agent': userAgent },
+    signal: AbortSignal.timeout(120000), // 2 minutes timeout
+  });
+
+  if (!response.ok) return false;
+
+  const contentType = response.headers.get('content-type') || '';
+  if (!contentType.includes('video/mp4') && !contentType.includes('application/octet-stream')) {
+    return false;
+  }
+
+  const arrayBuffer = await response.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
+
+  if (buffer.length <= 1024) return false;
+
+  const { writeFile } = await import('node:fs/promises');
+  await writeFile(outputPath, buffer);
+
+  return true;
+}
+
 export const downloadSoraService = {
   /**
    * Download Sora video using SoraPure's multi-CDN fallback approach
@@ -42,29 +71,11 @@ export const downloadSoraService = {
       logger.info({ source: cdn.name, videoId }, `Attempting ${cdn.name}...`);
 
       try {
-        const response = await fetch(cdn.url, {
-          method: 'GET',
-          headers: { 'User-Agent': USER_AGENT },
-          signal: AbortSignal.timeout(120000), // 2 minutes timeout
-        });
-
-        if (response.ok) {
-          const contentType = response.headers.get('content-type') || '';
-          if (
-            contentType.includes('video/mp4') ||
-            contentType.includes('application/octet-stream')
-          ) {
-            const arrayBuffer = await response.arrayBuffer();
-            const buffer = Buffer.from(arrayBuffer);
-
-            if (buffer.length > 1024) {
-              const { writeFile } = await import('node:fs/promises');
-              await writeFile(outputPath, buffer);
-              sourceUsed = cdn.name;
-              logger.info({ source: cdn.name, size: buffer.length }, 'Sora download success');
-              break;
-            }
-          }
+        const success = await attemptCdnDownload(cdn.url, outputPath, USER_AGENT);
+        if (success) {
+          sourceUsed = cdn.name;
+          logger.info({ source: cdn.name }, 'Sora download success');
+          break;
         }
       } catch (err) {
         logger.warn({ source: cdn.name, err }, `Failed to download from ${cdn.name}`);

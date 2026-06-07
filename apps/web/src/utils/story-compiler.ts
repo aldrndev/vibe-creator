@@ -97,7 +97,11 @@ export function compileStoryToTimeline(story: StoryProject): EditorTimeline {
 function createTrack(type: string, order: number): EditorTrack {
   return {
     id: `track-${type}-${order}`,
-    type: type === 'video' ? 'VIDEO' : type === 'audio' ? 'AUDIO' : 'TEXT',
+    type: (() => {
+      if (type === 'video') return 'VIDEO';
+      if (type === 'audio') return 'AUDIO';
+      return 'TEXT';
+    })(),
     order,
     muted: false,
     volume: 1,

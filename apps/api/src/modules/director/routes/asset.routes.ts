@@ -1,7 +1,7 @@
 import { createReadStream } from 'node:fs';
 import { access, stat } from 'node:fs/promises';
 import { basename, join } from 'node:path';
-import type { FastifyPluginAsync } from 'fastify';
+import type { FastifyPluginAsync, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { env } from '@/config/env';
 import { logger } from '@/lib/logger';
@@ -24,6 +24,75 @@ const importAssetSchema = z
       message: "URL required for type 'url', filePath required for type 'file'",
     },
   );
+
+async function handleUploadingStatus(
+  assetId: string,
+  assetCreatedAt: Date,
+  redis: { get(key: string): Promise<string | null> },
+): Promise<{ progress: number; errorMessage: string | null; isFailedStale: boolean }> {
+  let progress = INITIAL_UPLOAD_PROGRESS;
+  let errorMessage: string | null = null;
+  let isFailedStale = false;
+
+  const progressKey = `director:asset:${assetId}:progress`;
+  const rawProgress = await redis.get(progressKey);
+
+  if (rawProgress) {
+    progress = Number.parseInt(rawProgress, 10);
+  } else {
+    const now = new Date();
+    const staleThreshold = 2 * 60 * 1000;
+    if (now.getTime() - assetCreatedAt.getTime() > staleThreshold) {
+      await directorRepo.updateAsset(assetId, {
+        ingestStatus: 'FAILED',
+      });
+      isFailedStale = true;
+      return { progress: 0, errorMessage: 'Upload timed out or server restarted', isFailedStale };
+    }
+  }
+
+  const errorKey = `director:asset:${assetId}:error`;
+  const redisError = await redis.get(errorKey);
+  if (redisError) {
+    errorMessage = redisError;
+  }
+
+  return { progress, errorMessage, isFailedStale };
+}
+
+function handleImportError(err: unknown, reply: FastifyReply) {
+  logger.error({ err }, 'Import failed');
+  if (err instanceof z.ZodError) {
+    return reply.status(400).send({
+      success: false,
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: err.issues[0]?.message,
+      },
+    });
+  }
+  if (err instanceof DirectorSourceLimitError) {
+    return reply.status(err.statusCode).send({
+      success: false,
+      error: {
+        code: err.code,
+        message: err.message,
+        details: err.details,
+      },
+    });
+  }
+  const message = err instanceof Error ? err.message : 'Import failed';
+  let code = 'IMPORT_FAILED';
+  if (message.includes('belum didukung') || message.includes('not supported')) {
+    code = 'UNSUPPORTED_SOURCE';
+  } else if (message.includes('Invalid URL')) {
+    code = 'INVALID_URL';
+  }
+  return reply.status(400).send({
+    success: false,
+    error: { code, message },
+  });
+}
 
 export const assetRoutes: FastifyPluginAsync = async (fastify) => {
   /**
@@ -60,43 +129,25 @@ export const assetRoutes: FastifyPluginAsync = async (fastify) => {
         }
 
         let progress = 0;
-        let errorMessage = null;
+        let errorMessage: string | null = null;
 
         if (asset.ingestStatus === 'UPLOADING') {
-          // Check Redis for active progress
-          const progressKey = `director:asset:${id}:progress`;
-          const rawProgress = await redis.get(progressKey);
+          const status = await handleUploadingStatus(asset.id, asset.createdAt, redis);
 
-          if (rawProgress) {
-            progress = parseInt(rawProgress, 10);
-          } else {
-            // No progress key found. Check if asset is stale (zombie job)
-            const now = new Date();
-            const staleThreshold = 2 * 60 * 1000; // 2 minutes
-            if (now.getTime() - asset.createdAt.getTime() > staleThreshold) {
-              // Auto-fail the asset
-              await directorRepo.updateAsset(asset.id, {
-                ingestStatus: 'FAILED',
-              });
-              return reply.send({
-                success: true,
-                data: {
-                  id: asset.id,
-                  status: 'FAILED',
-                  progress: 0,
-                  errorMessage: 'Upload timed out or server restarted',
-                },
-              });
-            }
-
-            progress = INITIAL_UPLOAD_PROGRESS;
+          if (status.isFailedStale) {
+            return reply.send({
+              success: true,
+              data: {
+                id: asset.id,
+                status: 'FAILED',
+                progress: 0,
+                errorMessage: status.errorMessage,
+              },
+            });
           }
 
-          const errorKey = `director:asset:${id}:error`;
-          const redisError = await redis.get(errorKey);
-          if (redisError) {
-            errorMessage = redisError;
-          }
+          progress = status.progress;
+          errorMessage = status.errorMessage;
         } else if (asset.ingestStatus === 'READY') {
           progress = 100;
         }
@@ -144,37 +195,7 @@ export const assetRoutes: FastifyPluginAsync = async (fastify) => {
           data: asset,
         });
       } catch (err) {
-        logger.error({ err }, 'Import failed');
-        if (err instanceof z.ZodError) {
-          return reply.status(400).send({
-            success: false,
-            error: {
-              code: 'VALIDATION_ERROR',
-              message: err.issues[0]?.message,
-            },
-          });
-        }
-        if (err instanceof DirectorSourceLimitError) {
-          return reply.status(err.statusCode).send({
-            success: false,
-            error: {
-              code: err.code,
-              message: err.message,
-              details: err.details,
-            },
-          });
-        }
-        const message = err instanceof Error ? err.message : 'Import failed';
-        const code =
-          message.includes('belum didukung') || message.includes('not supported')
-            ? 'UNSUPPORTED_SOURCE'
-            : message.includes('Invalid URL')
-              ? 'INVALID_URL'
-              : 'IMPORT_FAILED';
-        return reply.status(400).send({
-          success: false,
-          error: { code, message },
-        });
+        return handleImportError(err, reply);
       }
     },
   );

@@ -196,19 +196,23 @@ export function LoopSourcePromptDialog({
 
         <ScrollArea ref={scrollAreaRef} className="h-full min-h-0">
           <div className="p-6 md:p-8">
-            {step === 'scene' ? (
-              <SceneSelection input={input} onSelect={selectScene} />
-            ) : step === 'options' ? (
-              <PromptOptions
-                input={input}
-                onChange={setInput}
-                supportedLighting={
-                  scene?.supportedLighting ?? LOOP_LIGHTING_OPTIONS.map((o) => o.value)
-                }
-              />
-            ) : (
-              <LoopSourcePromptReview input={input} prompt={generatedPrompt} />
-            )}
+            {(() => {
+              if (step === 'scene') {
+                return <SceneSelection input={input} onSelect={selectScene} />;
+              }
+              if (step === 'options') {
+                return (
+                  <PromptOptions
+                    input={input}
+                    onChange={setInput}
+                    supportedLighting={
+                      scene?.supportedLighting ?? LOOP_LIGHTING_OPTIONS.map((o) => o.value)
+                    }
+                  />
+                );
+              }
+              return <LoopSourcePromptReview input={input} prompt={generatedPrompt} />;
+            })()}
             {validationError ? (
               <p
                 role="alert"
@@ -232,26 +236,34 @@ export function LoopSourcePromptDialog({
               {step === 'review' ? 'Ubah Pilihan' : 'Kembali'}
             </Button>
           )}
-          {step === 'scene' ? (
-            <Button className="h-11 rounded-xl px-7" onClick={() => showStep('options')}>
-              Atur Suasana
-            </Button>
-          ) : step === 'options' ? (
-            <Button className="h-11 rounded-xl px-7" onClick={continueToReview}>
-              Buat Prompt
-            </Button>
-          ) : (
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <Button variant="outline" className="h-11 rounded-xl" onClick={copyPrompt}>
-                {copied ? <Check size={16} /> : <Copy size={16} />}
-                {copied ? 'Prompt Disalin' : LOOP_SOURCE_REVIEW_ACTION_LABELS.copy}
-              </Button>
-              <Button className="h-11 rounded-xl" onClick={uploadResult}>
-                <FileUp size={16} />
-                {LOOP_SOURCE_REVIEW_ACTION_LABELS.upload}
-              </Button>
-            </div>
-          )}
+          {(() => {
+            if (step === 'scene') {
+              return (
+                <Button className="h-11 rounded-xl px-7" onClick={() => showStep('options')}>
+                  Atur Suasana
+                </Button>
+              );
+            }
+            if (step === 'options') {
+              return (
+                <Button className="h-11 rounded-xl px-7" onClick={continueToReview}>
+                  Buat Prompt
+                </Button>
+              );
+            }
+            return (
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Button variant="outline" className="h-11 rounded-xl" onClick={copyPrompt}>
+                  {copied ? <Check size={16} /> : <Copy size={16} />}
+                  {copied ? 'Prompt Disalin' : LOOP_SOURCE_REVIEW_ACTION_LABELS.copy}
+                </Button>
+                <Button className="h-11 rounded-xl" onClick={uploadResult}>
+                  <FileUp size={16} />
+                  {LOOP_SOURCE_REVIEW_ACTION_LABELS.upload}
+                </Button>
+              </div>
+            );
+          })()}
         </div>
       </DialogContent>
     </Dialog>

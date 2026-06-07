@@ -204,6 +204,49 @@ const initialTimeline: EditorTimeline = {
   ],
 };
 
+function processTrackForMove(
+  track: EditorTrack,
+  fromTrackId: string,
+  toTrackId: string,
+  clipId: string,
+  updatedClip: EditorClip,
+  linkId: string | undefined | null,
+  newStartMs: number,
+  clipDuration: number,
+): EditorTrack {
+  if (track.id === fromTrackId && fromTrackId !== toTrackId) {
+    return { ...track, clips: track.clips.filter((c) => c.id !== clipId) };
+  }
+
+  if (track.id === toTrackId) {
+    if (fromTrackId === toTrackId) {
+      return {
+        ...track,
+        clips: track.clips.map((c) => (c.id === clipId ? updatedClip : c)),
+      };
+    }
+    return { ...track, clips: [...track.clips, updatedClip] };
+  }
+
+  if (linkId) {
+    return {
+      ...track,
+      clips: track.clips.map((c) => {
+        if (c.linkId === linkId && c.id !== clipId) {
+          return {
+            ...c,
+            startMs: newStartMs,
+            endMs: newStartMs + clipDuration,
+          };
+        }
+        return c;
+      }),
+    };
+  }
+
+  return track;
+}
+
 export const useEditorStore = create<EditorState>()((set, get) => ({
   // Initial state
   projectId: null,
@@ -466,47 +509,27 @@ export const useEditorStore = create<EditorState>()((set, get) => ({
 
     const clipDuration = clip.endMs - clip.startMs;
     const linkId = clip.linkId;
+    const updatedClip = {
+      ...clip,
+      startMs: newStartMs,
+      endMs: newStartMs + clipDuration,
+    };
 
     // For linked clips, only update position (keep on same track type)
     set((state) => ({
       timeline: {
         ...state.timeline,
         tracks: state.timeline.tracks.map((t) => {
-          // Handle the moving clip's track
-          if (t.id === fromTrackId && fromTrackId !== toTrackId) {
-            return { ...t, clips: t.clips.filter((c) => c.id !== clipId) };
-          }
-          if (t.id === toTrackId) {
-            const updatedClip = {
-              ...clip,
-              startMs: newStartMs,
-              endMs: newStartMs + clipDuration,
-            };
-            if (fromTrackId === toTrackId) {
-              return {
-                ...t,
-                clips: t.clips.map((c) => (c.id === clipId ? updatedClip : c)),
-              };
-            }
-            return { ...t, clips: [...t.clips, updatedClip] };
-          }
-          // Update linked clips on other tracks
-          if (linkId) {
-            return {
-              ...t,
-              clips: t.clips.map((c) => {
-                if (c.linkId === linkId && c.id !== clipId) {
-                  return {
-                    ...c,
-                    startMs: newStartMs,
-                    endMs: newStartMs + clipDuration,
-                  };
-                }
-                return c;
-              }),
-            };
-          }
-          return t;
+          return processTrackForMove(
+            t,
+            fromTrackId,
+            toTrackId,
+            clipId,
+            updatedClip,
+            linkId,
+            newStartMs,
+            clipDuration,
+          );
         }),
       },
       isDirty: true,

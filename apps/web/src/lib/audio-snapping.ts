@@ -64,7 +64,7 @@ export function getSnapPoints(
 ): SnapPoint[] {
   const points: SnapPoint[] = [];
 
-  clips.forEach((clip) => {
+  for (const clip of clips) {
     if (config.snapToStarts) {
       points.push({
         timeMs: clip.startMs,
@@ -82,7 +82,7 @@ export function getSnapPoints(
         sourceTrackId: clip.trackId,
       });
     }
-  });
+  }
 
   if (config.snapToPlayhead && playheadMs !== undefined) {
     points.push({
@@ -110,7 +110,7 @@ export function findNearestSnapPoint(
   excludeClipId?: string,
 ): SnapPoint | null {
   let nearest: SnapPoint | null = null;
-  let nearestDistance = Infinity;
+  let nearestDistance = Number.POSITIVE_INFINITY;
 
   for (const point of snapPoints) {
     // Skip self

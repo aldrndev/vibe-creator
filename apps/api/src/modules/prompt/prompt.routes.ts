@@ -120,7 +120,7 @@ export async function promptRoutes(fastify: FastifyInstance): Promise<void> {
     }
     const { id, version } = request.params as { id: string; version: string };
 
-    const result = await promptService.getVersion(id, parseInt(version, 10), userId);
+    const result = await promptService.getVersion(id, Number.parseInt(version, 10), userId);
 
     if (!result) {
       return sendError(reply, ERROR_CODES.NOT_FOUND, 'Versi atau Prompt tidak ditemukan', 404);

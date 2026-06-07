@@ -10,7 +10,7 @@ export type BackgroundImagePickerSource = 'background' | 'media';
 export function getImageBackgroundActivation(
   asset?: EditorAsset,
 ): { readonly backgroundImageAssetId: string; readonly backgroundMode: 'image' } | null {
-  if (!asset || asset.type !== 'IMAGE') {
+  if (asset?.type !== 'IMAGE') {
     return null;
   }
 

@@ -66,7 +66,7 @@ export async function getVideoDuration(path: string): Promise<number> {
       const h = match[1] ?? '0';
       const m = match[2] ?? '0';
       const s = match[3] ?? '0';
-      return parseFloat(h) * 3600 + parseFloat(m) * 60 + parseFloat(s);
+      return Number.parseFloat(h) * 3600 + Number.parseFloat(m) * 60 + Number.parseFloat(s);
     }
     return 0;
   } catch (e: unknown) {
@@ -78,7 +78,7 @@ export async function getVideoDuration(path: string): Promise<number> {
         const h = match[1] ?? '0';
         const m = match[2] ?? '0';
         const s = match[3] ?? '0';
-        return parseFloat(h) * 3600 + parseFloat(m) * 60 + parseFloat(s);
+        return Number.parseFloat(h) * 3600 + Number.parseFloat(m) * 60 + Number.parseFloat(s);
       }
     }
     return 0;

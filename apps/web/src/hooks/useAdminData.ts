@@ -153,12 +153,14 @@ async function mutateParsed<T>(
   schema: z.ZodSchema<T>,
   body?: unknown,
 ): Promise<T> {
-  const response =
-    method === 'patch'
-      ? await api.patch<unknown>(endpoint, body)
-      : method === 'post'
-        ? await api.post<unknown>(endpoint, body)
-        : await api.delete<unknown>(endpoint);
+  let response: Awaited<ReturnType<typeof api.patch>>;
+  if (method === 'patch') {
+    response = await api.patch<unknown>(endpoint, body);
+  } else if (method === 'post') {
+    response = await api.post<unknown>(endpoint, body);
+  } else {
+    response = await api.delete<unknown>(endpoint);
+  }
 
   if (!response.success) {
     throw new Error(response.error?.message ?? 'Operasi admin gagal');

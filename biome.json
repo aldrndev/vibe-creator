@@ -8,7 +8,7 @@
   },
   "files": {
     "ignoreUnknown": true,
-    "includes": ["**", "!pnpm-lock.yaml", "!**/globals.css"]
+    "includes": ["**", "!pnpm-lock.yaml", "!**/globals.css", "!**/index.css"]
   },
   "formatter": {
     "enabled": true,
@@ -46,7 +46,9 @@
         "useImportType": "error",
         "noNonNullAssertion": "warn",
         "noNestedTernary": "error",
-        "noNegationElse": "warn"
+        "noNegationElse": "warn",
+        "useNumberNamespace": "error",
+        "useThrowOnlyError": "error"
       },
       "correctness": {
         "noUnusedVariables": "warn",
@@ -59,7 +61,8 @@
           "level": "error",
           "options": { "maxAllowedComplexity": 15 }
         },
-        "noForEach": "error"
+        "noForEach": "error",
+        "useOptionalChain": "error"
       },
       "performance": {
         "noAccumulatingSpread": "warn"

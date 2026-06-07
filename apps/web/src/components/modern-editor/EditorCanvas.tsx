@@ -197,50 +197,17 @@ export function EditorCanvas({ className, isFocusMode = false }: Readonly<Editor
         accept="video/*,image/*,audio/*"
         onChange={handleFileInput}
       />
-      <div className="pointer-events-none absolute top-3 left-3 right-3 z-30 flex flex-wrap items-center justify-between gap-2">
-        <div className="pointer-events-auto flex min-h-10 items-center gap-2 rounded-xl border border-border/50 bg-card/90 px-2 py-1 shadow-sm backdrop-blur-xl">
-          <Maximize2 size={15} className="ml-1 text-primary" />
-          <label className="sr-only" htmlFor="video-studio-canvas-zoom">
-            Canvas zoom
-          </label>
-          <select
-            id="video-studio-canvas-zoom"
-            className="h-8 rounded-xl border border-border/50 bg-background px-3 text-xs font-bold text-foreground outline-none transition-colors focus:border-primary"
-            value={zoomMode === 'fit' ? 'fit' : manualScale.toString()}
-            onChange={(event) => {
-              if (event.target.value === 'fit') {
-                setZoomMode('fit');
-                return;
-              }
-
-              setZoomMode('manual');
-              setManualScale(Number(event.target.value));
-            }}
-          >
-            <option value="fit">Fit</option>
-            {CANVAS_ZOOM_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-          <Button
-            type="button"
-            variant={showGuides ? 'secondary' : 'ghost'}
-            size="sm"
-            aria-label={showGuides ? 'Hide canvas guides' : 'Show canvas guides'}
-            className="h-8 rounded-lg px-2.5 text-[11px] font-black"
-            onClick={() => setShowGuides((value) => !value)}
-          >
-            <Grid2X2 size={14} />
-            Guides
-          </Button>
-        </div>
-
-        <div className="pointer-events-none rounded-2xl border border-border/50 bg-card/85 px-3 py-2 text-[11px] font-black text-muted-foreground shadow-sm backdrop-blur-xl">
-          {settings.width}x{settings.height} @ {Math.round(scale * 100)}%
-        </div>
-      </div>
+      <CanvasHeaderControls
+        zoomMode={zoomMode}
+        setZoomMode={setZoomMode}
+        manualScale={manualScale}
+        setManualScale={setManualScale}
+        showGuides={showGuides}
+        setShowGuides={setShowGuides}
+        settingsWidth={settings.width}
+        settingsHeight={settings.height}
+        scale={scale}
+      />
       <button
         type="button"
         aria-label="Deselect selected layer"
@@ -302,74 +269,165 @@ export function EditorCanvas({ className, isFocusMode = false }: Readonly<Editor
 
           {/* Empty state */}
           {visibleLayers.length === 0 && (
-            <div className="absolute inset-0 flex items-center justify-center p-8 text-muted-foreground">
-              {!hasLayers ? (
-                <div
-                  className={cn(
-                    'flex max-w-[300px] flex-col items-center gap-3 rounded-2xl border border-dashed border-transparent px-6 py-6 text-center transition-all',
-                    isDraggingFile && 'border-primary/50 bg-primary/10 text-foreground',
-                  )}
-                >
-                  <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-primary">
-                    <FileUp size={20} />
-                  </div>
-                  <div>
-                    <p className="text-base font-bold text-foreground">
-                      {isDraggingFile ? 'Lepas file di sini' : 'Mulai dari media'}
-                    </p>
-                    <p className="mt-1 text-sm">Drop video, gambar, atau audio ke canvas</p>
-                  </div>
-                  <div className="mt-1 flex flex-wrap items-center justify-center gap-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      className="h-10 rounded-xl px-4 font-bold"
-                      onClick={() => fileInputRef.current?.click()}
-                    >
-                      <FileUp size={15} className="mr-2" />
-                      Upload
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      className="h-10 rounded-xl border-border/50 px-4 font-bold"
-                      onClick={handleStartFromTemplate}
-                    >
-                      <Type size={15} className="mr-2 text-primary" />
-                      Title
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex max-w-[280px] flex-col items-center gap-3 rounded-2xl border border-border/40 bg-card/90 px-5 py-5 text-center shadow-xl backdrop-blur">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-primary">
-                    <Grid2X2 size={18} />
-                  </div>
-                  <div>
-                    <p className="text-sm font-black text-foreground">
-                      Tidak ada layer di detik ini
-                    </p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Geser playhead atau lompat ke layer pertama.
-                    </p>
-                  </div>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="h-10 rounded-xl px-4 font-bold"
-                    onClick={handleJumpToFirstLayer}
-                  >
-                    Ke layer pertama
-                  </Button>
-                </div>
-              )}
-            </div>
+            <EmptyCanvasState
+              hasLayers={hasLayers}
+              isDraggingFile={isDraggingFile}
+              handleJumpToFirstLayer={handleJumpToFirstLayer}
+              handleStartFromTemplate={handleStartFromTemplate}
+              fileInputRef={fileInputRef}
+            />
           )}
         </div>
       </div>
     </section>
+  );
+}
+
+function CanvasHeaderControls({
+  zoomMode,
+  setZoomMode,
+  manualScale,
+  setManualScale,
+  showGuides,
+  setShowGuides,
+  settingsWidth,
+  settingsHeight,
+  scale,
+}: {
+  zoomMode: CanvasZoomMode;
+  setZoomMode: (mode: CanvasZoomMode) => void;
+  manualScale: number;
+  setManualScale: (scale: number) => void;
+  showGuides: boolean;
+  setShowGuides: (show: boolean | ((prev: boolean) => boolean)) => void;
+  settingsWidth: number;
+  settingsHeight: number;
+  scale: number;
+}) {
+  return (
+    <div className="pointer-events-none absolute top-3 left-3 right-3 z-30 flex flex-wrap items-center justify-between gap-2">
+      <div className="pointer-events-auto flex min-h-10 items-center gap-2 rounded-xl border border-border/50 bg-card/90 px-2 py-1 shadow-sm backdrop-blur-xl">
+        <Maximize2 size={15} className="ml-1 text-primary" />
+        <label className="sr-only" htmlFor="video-studio-canvas-zoom">
+          Canvas zoom
+        </label>
+        <select
+          id="video-studio-canvas-zoom"
+          className="h-8 rounded-xl border border-border/50 bg-background px-3 text-xs font-bold text-foreground outline-none transition-colors focus:border-primary"
+          value={zoomMode === 'fit' ? 'fit' : manualScale.toString()}
+          onChange={(event) => {
+            if (event.target.value === 'fit') {
+              setZoomMode('fit');
+              return;
+            }
+
+            setZoomMode('manual');
+            setManualScale(Number(event.target.value));
+          }}
+        >
+          <option value="fit">Fit</option>
+          {CANVAS_ZOOM_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+        <Button
+          type="button"
+          variant={showGuides ? 'secondary' : 'ghost'}
+          size="sm"
+          aria-label={showGuides ? 'Hide canvas guides' : 'Show canvas guides'}
+          className="h-8 rounded-lg px-2.5 text-[11px] font-black"
+          onClick={() => setShowGuides((value) => !value)}
+        >
+          <Grid2X2 size={14} />
+          Guides
+        </Button>
+      </div>
+
+      <div className="pointer-events-none rounded-2xl border border-border/50 bg-card/85 px-3 py-2 text-[11px] font-black text-muted-foreground shadow-sm backdrop-blur-xl">
+        {settingsWidth}x{settingsHeight} @ {Math.round(scale * 100)}%
+      </div>
+    </div>
+  );
+}
+
+function EmptyCanvasState({
+  hasLayers,
+  isDraggingFile,
+  handleJumpToFirstLayer,
+  handleStartFromTemplate,
+  fileInputRef,
+}: {
+  hasLayers: boolean;
+  isDraggingFile: boolean;
+  handleJumpToFirstLayer: () => void;
+  handleStartFromTemplate: () => void;
+  fileInputRef: React.RefObject<HTMLInputElement | null>;
+}) {
+  return (
+    <div className="absolute inset-0 flex items-center justify-center p-8 text-muted-foreground">
+      {hasLayers ? (
+        <div className="flex max-w-[280px] flex-col items-center gap-3 rounded-2xl border border-border/40 bg-card/90 px-5 py-5 text-center shadow-xl backdrop-blur">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-primary">
+            <Grid2X2 size={18} />
+          </div>
+          <div>
+            <p className="text-sm font-black text-foreground">Tidak ada layer di detik ini</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Geser playhead atau lompat ke layer pertama.
+            </p>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-10 rounded-xl px-4 font-bold"
+            onClick={handleJumpToFirstLayer}
+          >
+            Ke layer pertama
+          </Button>
+        </div>
+      ) : (
+        <div
+          className={cn(
+            'flex max-w-[300px] flex-col items-center gap-3 rounded-2xl border border-dashed border-transparent px-6 py-6 text-center transition-all',
+            isDraggingFile && 'border-primary/50 bg-primary/10 text-foreground',
+          )}
+        >
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-primary">
+            <FileUp size={20} />
+          </div>
+          <div>
+            <p className="text-base font-bold text-foreground">
+              {isDraggingFile ? 'Lepas file di sini' : 'Mulai dari media'}
+            </p>
+            <p className="mt-1 text-sm">Drop video, gambar, atau audio ke canvas</p>
+          </div>
+          <div className="mt-1 flex flex-wrap items-center justify-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              className="h-10 rounded-xl px-4 font-bold"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <FileUp size={15} className="mr-2" />
+              Upload
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-10 rounded-xl border-border/50 px-4 font-bold"
+              onClick={handleStartFromTemplate}
+            >
+              <Type size={15} className="mr-2 text-primary" />
+              Title
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -380,6 +438,42 @@ function CanvasGuides() {
       <div className="absolute top-0 bottom-0 left-1/2 w-px -translate-x-1/2 bg-primary/25" />
       <div className="absolute left-0 right-0 top-1/2 h-px -translate-y-1/2 bg-primary/25" />
     </div>
+  );
+}
+
+function ImageBackgroundLayer({
+  settings,
+  imageSourceUrl,
+}: Readonly<{
+  settings: ModernProjectSettings;
+  imageSourceUrl?: string;
+}>) {
+  const opacity = settings.backgroundOpacity ?? 1;
+  const dim = settings.backgroundImageDim ?? 0;
+
+  return (
+    <>
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{ backgroundColor: settings.backgroundColor }}
+      />
+      {imageSourceUrl && (
+        <div className="pointer-events-none absolute inset-0 overflow-hidden" style={{ opacity }}>
+          <img
+            src={imageSourceUrl}
+            alt=""
+            className="absolute inset-0 h-full w-full"
+            style={{
+              filter: `blur(${Math.round(settings.backgroundImageBlurAmount ?? 0)}px)`,
+              objectFit: settings.backgroundImageFit ?? 'cover',
+              objectPosition: `${settings.backgroundImagePositionX ?? 50}% ${settings.backgroundImagePositionY ?? 50}%`,
+              transform: `scale(${settings.backgroundImageScale ?? 1})`,
+            }}
+          />
+          {dim > 0 && <div className="absolute inset-0 bg-black" style={{ opacity: dim }} />}
+        </div>
+      )}
+    </>
   );
 }
 
@@ -397,31 +491,7 @@ function CanvasBackgroundLayer({
   const opacity = settings.backgroundOpacity ?? 1;
 
   if (settings.backgroundMode === 'image') {
-    const dim = settings.backgroundImageDim ?? 0;
-    return (
-      <>
-        <div
-          className="pointer-events-none absolute inset-0"
-          style={{ backgroundColor: settings.backgroundColor }}
-        />
-        {imageSourceUrl && (
-          <div className="pointer-events-none absolute inset-0 overflow-hidden" style={{ opacity }}>
-            <img
-              src={imageSourceUrl}
-              alt=""
-              className="absolute inset-0 h-full w-full"
-              style={{
-                filter: `blur(${Math.round(settings.backgroundImageBlurAmount ?? 0)}px)`,
-                objectFit: settings.backgroundImageFit ?? 'cover',
-                objectPosition: `${settings.backgroundImagePositionX ?? 50}% ${settings.backgroundImagePositionY ?? 50}%`,
-                transform: `scale(${settings.backgroundImageScale ?? 1})`,
-              }}
-            />
-            {dim > 0 && <div className="absolute inset-0 bg-black" style={{ opacity: dim }} />}
-          </div>
-        )}
-      </>
-    );
+    return <ImageBackgroundLayer settings={settings} imageSourceUrl={imageSourceUrl} />;
   }
 
   if (settings.backgroundMode === 'gradient') {

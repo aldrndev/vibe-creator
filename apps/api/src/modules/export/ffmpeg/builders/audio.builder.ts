@@ -23,15 +23,15 @@ export function buildAudioMixCommand(
   const validOutput = validateOutputPath(output);
 
   const inputArgs: string[] = [];
-  inputs.forEach(({ path }) => {
+  for (const { path } of inputs) {
     inputArgs.push('-i', validateInputPath(path));
-  });
+  }
 
   const filterParts: string[] = [];
-  inputs.forEach(({ volume }, i) => {
+  for (const [i, { volume }] of inputs.entries()) {
     const clampedVolume = clamp(volume, 0, 2);
     filterParts.push(`[${i}:a]volume=${clampedVolume}[a${i}]`);
-  });
+  }
 
   const mixInputs = inputs.map((_, i) => `[a${i}]`).join('');
   const filterComplex = `${filterParts.join(';')};${mixInputs}amix=inputs=${

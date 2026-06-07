@@ -1,5 +1,5 @@
 import { ERROR_CODES } from '@vibe-creator/shared';
-import type { FastifyPluginAsync } from 'fastify';
+import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import { env } from '@/config/env';
 import { requireRateLimitReady } from '@/lib/rate-limit';
 import { requireAuth } from '@/plugins/auth';
@@ -12,6 +12,49 @@ import {
   webhookRouteSchema,
 } from './billing.schemas';
 import { billingService, STREAM_PACKAGES } from './billing.service';
+
+async function verifyWebhookRequest(
+  request: FastifyRequest,
+  reply: FastifyReply,
+  webhookToken: string,
+): Promise<FastifyReply | undefined> {
+  const headerToken = request.headers['x-callback-token'];
+  if (!billingService.verifySignature(typeof headerToken === 'string' ? headerToken : undefined)) {
+    return sendError(reply, ERROR_CODES.UNAUTHORIZED, 'Invalid webhook token', 401);
+  }
+
+  const signatureHeader = request.headers['x-callback-signature'];
+  const timestampHeader = request.headers['x-callback-timestamp'];
+  const rawBody = (request as { rawBody?: string }).rawBody;
+
+  if (
+    typeof signatureHeader !== 'string' ||
+    typeof timestampHeader !== 'string' ||
+    typeof rawBody !== 'string'
+  ) {
+    return sendError(reply, ERROR_CODES.VALIDATION_ERROR, 'Invalid webhook request', 400);
+  }
+
+  try {
+    await assertValidWebhook({
+      secret: webhookToken,
+      signature: signatureHeader,
+      timestamp: timestampHeader,
+      payload: rawBody,
+    });
+  } catch (err) {
+    if (err instanceof Error && err.message === 'Replay protection unavailable') {
+      return sendError(
+        reply,
+        ERROR_CODES.SERVICE_UNAVAILABLE,
+        'Webhook replay protection unavailable',
+        503,
+      );
+    }
+
+    return sendError(reply, ERROR_CODES.UNAUTHORIZED, 'Invalid webhook signature', 401);
+  }
+}
 
 export const billingRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.addHook('preHandler', async (request, reply) => {
@@ -136,43 +179,9 @@ export const billingRoutes: FastifyPluginAsync = async (fastify) => {
         return sendError(reply, ERROR_CODES.SERVICE_UNAVAILABLE, 'Webhook secret unavailable', 503);
       }
 
-      const headerToken = request.headers['x-callback-token'];
-      if (
-        !billingService.verifySignature(typeof headerToken === 'string' ? headerToken : undefined)
-      ) {
-        return sendError(reply, ERROR_CODES.UNAUTHORIZED, 'Invalid webhook token', 401);
-      }
-
-      const signatureHeader = request.headers['x-callback-signature'];
-      const timestampHeader = request.headers['x-callback-timestamp'];
-      const rawBody = (request as { rawBody?: string }).rawBody;
-
-      if (
-        typeof signatureHeader !== 'string' ||
-        typeof timestampHeader !== 'string' ||
-        typeof rawBody !== 'string'
-      ) {
-        return sendError(reply, ERROR_CODES.VALIDATION_ERROR, 'Invalid webhook request', 400);
-      }
-
-      try {
-        await assertValidWebhook({
-          secret: webhookToken,
-          signature: signatureHeader,
-          timestamp: timestampHeader,
-          payload: rawBody,
-        });
-      } catch (err) {
-        if (err instanceof Error && err.message === 'Replay protection unavailable') {
-          return sendError(
-            reply,
-            ERROR_CODES.SERVICE_UNAVAILABLE,
-            'Webhook replay protection unavailable',
-            503,
-          );
-        }
-
-        return sendError(reply, ERROR_CODES.UNAUTHORIZED, 'Invalid webhook signature', 401);
+      const verifyResult = await verifyWebhookRequest(request, reply, webhookToken);
+      if (verifyResult) {
+        return verifyResult;
       }
 
       try {

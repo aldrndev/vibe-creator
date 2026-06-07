@@ -18,6 +18,20 @@ interface DownloadStatusResponse {
   completedAt?: string;
 }
 
+function handleDownloadError(err: unknown): never {
+  if (
+    err instanceof Error &&
+    (err.message.includes('not found') ||
+      err.message.includes('NOT_FOUND') ||
+      err.message.includes('404'))
+  ) {
+    throw new Error(
+      'Download gagal. Platform ini mungkin tidak didukung atau video tidak tersedia.',
+    );
+  }
+  throw err;
+}
+
 /**
  * Download API service for URL-based video downloads
  * Uses main api service for automatic token refresh
@@ -95,18 +109,7 @@ export const downloadApi = {
           throw new Error(status.errorMessage || 'Download failed');
         }
       } catch (err) {
-        // Job was deleted (failed) or not found
-        if (
-          err instanceof Error &&
-          (err.message.includes('not found') ||
-            err.message.includes('NOT_FOUND') ||
-            err.message.includes('404'))
-        ) {
-          throw new Error(
-            'Download gagal. Platform ini mungkin tidak didukung atau video tidak tersedia.',
-          );
-        }
-        throw err;
+        handleDownloadError(err);
       }
 
       if (Date.now() - startTime > timeout) {

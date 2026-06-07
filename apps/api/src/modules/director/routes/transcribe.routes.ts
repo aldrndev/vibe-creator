@@ -18,7 +18,7 @@ const transcriptWordSchema = z
   .superRefine((word, ctx) => {
     if (word.endMs <= word.startMs) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: 'custom',
         path: ['endMs'],
         message: 'Word endMs harus lebih besar dari startMs.',
       });
@@ -36,7 +36,7 @@ const transcriptSegmentSchema = z
   .superRefine((segment, ctx) => {
     if (segment.endMs <= segment.startMs) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: 'custom',
         path: ['endMs'],
         message: 'Segment endMs harus lebih besar dari startMs.',
       });
@@ -45,7 +45,7 @@ const transcriptSegmentSchema = z
     segment.words?.forEach((word, index) => {
       if (word.startMs < segment.startMs || word.endMs > segment.endMs) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: 'custom',
           path: ['words', index],
           message: 'Timing word harus berada di dalam timing segment.',
         });
@@ -80,7 +80,7 @@ const startTranscribeSchema = z
 
     if (!payload.subtitleTargetLanguage) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: 'custom',
         path: ['subtitleTargetLanguage'],
         message: 'Bahasa target wajib diisi saat mode subtitle terjemahan aktif.',
       });
@@ -89,12 +89,64 @@ const startTranscribeSchema = z
 
     if (isAutoTranscribeLanguage(payload.subtitleTargetLanguage)) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: 'custom',
         path: ['subtitleTargetLanguage'],
         message: 'Bahasa target terjemahan harus spesifik (contoh: "en", "es", "ja").',
       });
     }
   });
+
+async function handleStartTranscribe(
+  request: FastifyRequest<{
+    Params: { id: string };
+    Body: {
+      forceRefresh?: boolean;
+      language?: string;
+      subtitleMode?: 'original' | 'translate';
+      subtitleTargetLanguage?: string;
+    };
+  }>,
+  reply: FastifyReply,
+) {
+  const user = request.user;
+  if (!user) {
+    return reply.status(401).send({
+      success: false,
+      error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
+    });
+  }
+
+  try {
+    const body = startTranscribeSchema.parse(request.body ?? {});
+    const job = await directorService.startTranscribe(request.params.id, user.id, {
+      forceRefresh: body.forceRefresh ?? false,
+      language: body.language,
+      subtitleMode: body.subtitleMode,
+      subtitleTargetLanguage: body.subtitleTargetLanguage,
+    });
+    return reply.status(202).send({
+      success: true,
+      data: job,
+    });
+  } catch (err) {
+    if (err instanceof z.ZodError) {
+      return reply.status(400).send({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: err.issues[0]?.message ?? 'Body request tidak valid',
+        },
+      });
+    }
+
+    const message = err instanceof Error ? err.message : 'Transcription failed';
+    const statusCode = message.includes('queue belum siap') ? 503 : 400;
+    return reply.status(statusCode).send({
+      success: false,
+      error: { code: 'TRANSCRIBE_FAILED', message },
+    });
+  }
+}
 
 export const transcribeRoutes: FastifyPluginAsync = async (fastify) => {
   /**
@@ -108,60 +160,7 @@ export const transcribeRoutes: FastifyPluginAsync = async (fastify) => {
       subtitleMode?: 'original' | 'translate';
       subtitleTargetLanguage?: string;
     };
-  }>(
-    '/sessions/:id/transcribe',
-    async (
-      request: FastifyRequest<{
-        Params: { id: string };
-        Body: {
-          forceRefresh?: boolean;
-          language?: string;
-          subtitleMode?: 'original' | 'translate';
-          subtitleTargetLanguage?: string;
-        };
-      }>,
-      reply: FastifyReply,
-    ) => {
-      const user = request.user;
-      if (!user) {
-        return reply.status(401).send({
-          success: false,
-          error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
-        });
-      }
-
-      try {
-        const body = startTranscribeSchema.parse(request.body ?? {});
-        const job = await directorService.startTranscribe(request.params.id, user.id, {
-          forceRefresh: body.forceRefresh ?? false,
-          language: body.language,
-          subtitleMode: body.subtitleMode,
-          subtitleTargetLanguage: body.subtitleTargetLanguage,
-        });
-        return reply.status(202).send({
-          success: true,
-          data: job,
-        });
-      } catch (err) {
-        if (err instanceof z.ZodError) {
-          return reply.status(400).send({
-            success: false,
-            error: {
-              code: 'VALIDATION_ERROR',
-              message: err.issues[0]?.message ?? 'Body request tidak valid',
-            },
-          });
-        }
-
-        const message = err instanceof Error ? err.message : 'Transcription failed';
-        const statusCode = message.includes('queue belum siap') ? 503 : 400;
-        return reply.status(statusCode).send({
-          success: false,
-          error: { code: 'TRANSCRIBE_FAILED', message },
-        });
-      }
-    },
-  );
+  }>('/sessions/:id/transcribe', handleStartTranscribe);
 
   /**
    * Get transcription status & result

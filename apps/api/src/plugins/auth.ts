@@ -16,6 +16,64 @@ declare module 'fastify' {
   }
 }
 
+async function verifyLegacySession(request: FastifyRequest, token: string, error: unknown) {
+  if (!env.ENABLE_LEGACY_SESSION_AUTH) {
+    return;
+  }
+
+  const session = await prisma.userSession.findUnique({
+    where: { token },
+    include: { user: true },
+  });
+
+  if (!session) {
+    return;
+  }
+
+  if (session.expiresAt < new Date()) {
+    return;
+  }
+
+  if (session.user.status !== 'ACTIVE') {
+    return;
+  }
+
+  logger.warn(
+    {
+      userId: session.userId,
+      err: error instanceof Error ? error.message : 'unknown',
+    },
+    'Legacy session auth fallback',
+  );
+  request.user = session.user;
+  request.session = session;
+  request.auth = { userId: session.userId, tenantId: session.userId };
+}
+
+async function verifyAuthToken(request: FastifyRequest, token: string) {
+  try {
+    const payload = await verifyAccessToken(token);
+    request.auth = { userId: payload.sub, tenantId: payload.tid };
+
+    const user = await prisma.user.findUnique({
+      where: { id: payload.sub },
+    });
+    if (!user) {
+      return;
+    }
+
+    if (user.status !== 'ACTIVE') {
+      request.auth = null;
+      return;
+    }
+
+    request.user = user;
+    request.session = null;
+  } catch (error) {
+    await verifyLegacySession(request, token, error);
+  }
+}
+
 export async function authPlugin(fastify: FastifyInstance): Promise<void> {
   fastify.decorateRequest('user', null);
   fastify.decorateRequest('session', null);
@@ -33,58 +91,7 @@ export async function authPlugin(fastify: FastifyInstance): Promise<void> {
       return;
     }
 
-    try {
-      const payload = await verifyAccessToken(token);
-      request.auth = { userId: payload.sub, tenantId: payload.tid };
-
-      const user = await prisma.user.findUnique({
-        where: { id: payload.sub },
-      });
-      if (!user) {
-        return;
-      }
-
-      if (user.status !== 'ACTIVE') {
-        request.auth = null;
-        return;
-      }
-
-      request.user = user;
-      request.session = null;
-      return;
-    } catch (error) {
-      if (!env.ENABLE_LEGACY_SESSION_AUTH) {
-        return;
-      }
-
-      const session = await prisma.userSession.findUnique({
-        where: { token },
-        include: { user: true },
-      });
-
-      if (!session) {
-        return;
-      }
-
-      if (session.expiresAt < new Date()) {
-        return;
-      }
-
-      if (session.user.status !== 'ACTIVE') {
-        return;
-      }
-
-      logger.warn(
-        {
-          userId: session.userId,
-          err: error instanceof Error ? error.message : 'unknown',
-        },
-        'Legacy session auth fallback',
-      );
-      request.user = session.user;
-      request.session = session;
-      request.auth = { userId: session.userId, tenantId: session.userId };
-    }
+    await verifyAuthToken(request, token);
   });
 }
 

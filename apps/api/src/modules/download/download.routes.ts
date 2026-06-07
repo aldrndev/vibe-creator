@@ -143,7 +143,7 @@ export const downloadRoutes: FastifyPluginAsync = async (fastify) => {
     }
 
     const query = request.query as { limit?: string; cursor?: string };
-    const limit = Math.min(parseInt(query.limit || '20', 10), 100);
+    const limit = Math.min(Number.parseInt(query.limit || '20', 10), 100);
 
     const result = await downloadService.getHistory(user.id, limit, query.cursor);
 

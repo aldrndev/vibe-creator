@@ -117,6 +117,21 @@ export function useLiveStream(options: UseLiveStreamOptions = {}) {
   useEffect(() => {
     let cancelled = false;
 
+    const loadSession = async () => {
+      // options.sessionId is guaranteed to be a string here
+      const session = await loadLiveStreamProject(options.sessionId as string);
+      if (cancelled) return;
+      setProjectId(session.id);
+      setProjectTitle(session.title);
+      setDocument(session.document);
+      setSourceInfo(session.sourceInfo);
+      if (session.sourceVideoUrl) {
+        clearVideoObjectUrl();
+        videoUrlRef.current = session.sourceVideoUrl;
+        setVideoUrl(session.sourceVideoUrl);
+      }
+    };
+
     async function hydrate() {
       if (!options.sessionId) {
         setIsHydrating(false);
@@ -124,17 +139,7 @@ export function useLiveStream(options: UseLiveStreamOptions = {}) {
       }
 
       try {
-        const session = await loadLiveStreamProject(options.sessionId);
-        if (cancelled) return;
-        setProjectId(session.id);
-        setProjectTitle(session.title);
-        setDocument(session.document);
-        setSourceInfo(session.sourceInfo);
-        if (session.sourceVideoUrl) {
-          clearVideoObjectUrl();
-          videoUrlRef.current = session.sourceVideoUrl;
-          setVideoUrl(session.sourceVideoUrl);
-        }
+        await loadSession();
       } catch (error) {
         const message =
           error instanceof Error ? error.message : 'Gagal membuka draft Live Streaming.';

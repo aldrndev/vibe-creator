@@ -42,11 +42,11 @@ export function TimelineToolbar({
           Timeline
         </p>
         <p className="text-xs font-bold text-muted-foreground">
-          {!hasLayers
-            ? 'Tambahkan media/template'
-            : hasSelection
-              ? `${selectedCount} layer dipilih`
-              : 'Drag, trim, split, snap'}
+          {(() => {
+            if (!hasLayers) return 'Tambahkan media/template';
+            if (hasSelection) return `${selectedCount} layer dipilih`;
+            return 'Drag, trim, split, snap';
+          })()}
         </p>
       </div>
 

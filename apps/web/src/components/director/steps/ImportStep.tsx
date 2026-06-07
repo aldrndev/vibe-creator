@@ -260,12 +260,313 @@ function clearPollingInterval(intervalId: ReturnType<typeof setInterval> | undef
   }
 }
 
-export const ImportStep = ({
+function ImportStepHeader() {
+  return (
+    <div className="flex flex-col items-center gap-3">
+      <div className="inline-flex items-center gap-2 rounded-full border border-primary/15 bg-primary/5 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-primary">
+        <Wand2 size={14} strokeWidth={2.5} />
+        AI Director
+      </div>
+      <div className="space-y-2">
+        <h2 className="text-2xl font-black tracking-tight text-foreground sm:text-3xl">
+          Masukkan video panjang
+        </h2>
+        <p className="mx-auto max-w-xl text-sm font-medium leading-relaxed text-muted-foreground sm:text-base">
+          Upload file atau tempel URL, lalu AI Director mencari momen terbaik untuk dijadikan Short.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function RequirementTags({ requirements }: { requirements: string[] }) {
+  return (
+    <div className="flex w-full flex-wrap items-center justify-center gap-2">
+      {requirements.map((requirement) => (
+        <div
+          key={requirement}
+          className="inline-flex min-h-9 items-center gap-2 rounded-full border border-border/50 bg-muted/20 px-3 py-1.5 text-left"
+        >
+          <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-primary" />
+          <p className="text-xs font-bold leading-tight text-muted-foreground">{requirement}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function TrendingContextBanner({
+  initialTopic,
+  initialSourceUrl,
+  onClearInitialContext,
+  isSubmittingImport,
+  isWaitingForAsset,
+  isPreparingAnalysis,
+}: {
+  initialTopic?: string;
+  initialSourceUrl?: string;
+  onClearInitialContext?: () => void;
+  isSubmittingImport: boolean;
+  isWaitingForAsset: boolean;
+  isPreparingAnalysis: boolean;
+}) {
+  if (!initialTopic && !initialSourceUrl) return null;
+
+  return (
+    <div className="w-full rounded-3xl border border-primary/15 bg-primary/5 p-4 text-left">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex min-w-0 gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+            <Sparkles size={18} />
+          </div>
+          <div className="min-w-0 space-y-1">
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">
+              Ide dari Trending
+            </p>
+            {initialTopic ? (
+              <p className="text-base font-black leading-snug text-foreground wrap-break-word">
+                {initialTopic}
+              </p>
+            ) : null}
+            {initialSourceUrl ? (
+              <p className="text-xs font-semibold leading-relaxed text-primary break-all">
+                URL video sudah masuk ke kolom impor.
+              </p>
+            ) : null}
+            <p className="text-xs font-medium leading-relaxed text-muted-foreground">
+              Klik Mulai Analisis untuk download video sumber, lalu AI Director akan mencari
+              potongan short terbaik.
+            </p>
+          </div>
+        </div>
+        {onClearInitialContext ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="shrink-0 rounded-full text-muted-foreground"
+            onClick={onClearInitialContext}
+            disabled={isSubmittingImport || isWaitingForAsset || isPreparingAnalysis}
+          >
+            Hapus
+          </Button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function PreparingAnalysisOverlay({
+  isPreparingAnalysis,
+  hasTrendingContext,
+}: {
+  isPreparingAnalysis: boolean;
+  hasTrendingContext: boolean;
+}) {
+  if (!isPreparingAnalysis || hasTrendingContext) return null;
+
+  return (
+    <div className="absolute inset-0 z-20 bg-background/90 backdrop-blur-md flex flex-col items-center justify-center p-8 gap-4">
+      <div className="w-14 h-14 rounded-2xl bg-linear-to-br from-primary via-orange-500 to-rose-600 flex items-center justify-center shadow-lg">
+        <Wand2 className="w-7 h-7 text-white animate-pulse" />
+      </div>
+      <div className="text-center space-y-2">
+        <p className="text-sm font-black uppercase tracking-[0.22em] text-primary">
+          Menyiapkan Analisis
+        </p>
+        <p className="text-sm text-muted-foreground font-medium">
+          Video sedang disiapkan sebelum masuk ke tahap AI Director.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+interface UploadZoneProps {
+  isWaitingForAsset: boolean;
+  isUploadingFile: boolean;
+  fileUploadStatusLabel: string;
+  fileUploadPhase: string;
+  fileUploadProgress: number;
+  clientSourceLimits: DirectorSourceTierLimit | null;
+  handleFileUpload: (e: React.ChangeEvent<HTMLInputElement>) => Promise<void>;
+  fileInputRef: React.RefObject<HTMLInputElement | null>;
+}
+
+function UploadZone({
+  isWaitingForAsset,
+  isUploadingFile,
+  fileUploadStatusLabel,
+  fileUploadPhase,
+  fileUploadProgress,
+  clientSourceLimits,
+  handleFileUpload,
+  fileInputRef,
+}: UploadZoneProps) {
+  return (
+    <button
+      type="button"
+      onClick={() => !isWaitingForAsset && !isUploadingFile && fileInputRef.current?.click()}
+      className={cn(
+        'group/upload relative flex min-h-56 flex-col items-center justify-center gap-4 overflow-hidden rounded-3xl border-2 border-dashed border-border/40 bg-muted/5 transition-all',
+        isWaitingForAsset || isUploadingFile
+          ? 'cursor-not-allowed opacity-50'
+          : 'cursor-pointer hover:border-primary/45 hover:bg-primary/3 active:scale-[0.98]',
+      )}
+      disabled={isWaitingForAsset || isUploadingFile}
+    >
+      {isUploadingFile ? (
+        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-5 bg-background/90 p-8 backdrop-blur-md">
+          <div className="w-full max-w-sm space-y-3">
+            <div className="flex items-end justify-between text-xs font-bold uppercase tracking-widest text-muted-foreground">
+              <span className="flex items-center gap-2">
+                <div className="size-2 animate-pulse rounded-full bg-primary" />
+                {fileUploadStatusLabel}
+              </span>
+              {fileUploadPhase === 'uploading' ? (
+                <span className="text-sm text-primary">{Math.round(fileUploadProgress)}%</span>
+              ) : null}
+            </div>
+            <div className="h-3 w-full overflow-hidden rounded-full border border-border/20 bg-muted shadow-inner">
+              <div
+                className={cn(
+                  'h-full bg-linear-to-r from-primary via-orange-500 to-rose-600 transition-all duration-300 ease-out',
+                  fileUploadPhase === 'uploading' ? '' : 'animate-pulse',
+                )}
+                style={{
+                  width: fileUploadPhase === 'uploading' ? `${fileUploadProgress}%` : '100%',
+                }}
+              />
+            </div>
+          </div>
+          <p className="text-center text-[11px] font-black uppercase tracking-widest text-muted-foreground/60">
+            Biarkan halaman ini tetap terbuka sampai selesai.
+          </p>
+        </div>
+      ) : null}
+      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-muted/50 transition-all duration-300 group-hover/upload:scale-110 group-hover/upload:bg-primary/10">
+        <FileVideo className="h-7 w-7 text-muted-foreground transition-colors group-hover/upload:text-primary" />
+      </div>
+      <div className="px-4 text-center">
+        <p className="font-bold text-foreground transition-colors group-hover/upload:text-primary">
+          Upload File Video
+        </p>
+        <p className="mt-1 inline-block rounded-full bg-muted/30 px-3 py-1 text-[11px] font-medium text-muted-foreground">
+          MP4, MOV •{' '}
+          {clientSourceLimits ? `Maks ${clientSourceLimits.maxSizeLabel}` : 'Maks internal'}
+        </p>
+      </div>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="video/*"
+        className="hidden"
+        onChange={handleFileUpload}
+        disabled={isWaitingForAsset || isUploadingFile}
+      />
+    </button>
+  );
+}
+
+interface UrlZoneProps {
+  isWaitingForAsset: boolean;
+  downloadProgress: number;
+  initialSourceUrl?: string;
+  importUrl: string;
+  setImportUrl: (url: string) => void;
+  isSubmittingImport: boolean;
+  isUploadingFile: boolean;
+  isPreparingAnalysis: boolean;
+  handleUrlImport: (urlOverride?: string) => Promise<void>;
+}
+
+function UrlZone({
+  isWaitingForAsset,
+  downloadProgress,
+  initialSourceUrl,
+  importUrl,
+  setImportUrl,
+  isSubmittingImport,
+  isUploadingFile,
+  isPreparingAnalysis,
+  handleUrlImport,
+}: UrlZoneProps) {
+  return (
+    <div className="group/url relative flex min-h-56 flex-col justify-between overflow-hidden rounded-3xl border border-border/50 bg-muted/5 p-6 sm:p-7">
+      {isWaitingForAsset ? (
+        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-5 bg-background/90 p-8 backdrop-blur-md">
+          <div className="w-full space-y-3">
+            <div className="flex items-end justify-between text-xs font-bold uppercase tracking-widest text-muted-foreground">
+              <span className="flex items-center gap-2">
+                <div className="size-2 animate-pulse rounded-full bg-primary" />
+                Mengunduh...
+              </span>
+              <span className="text-sm text-primary">{Math.round(downloadProgress)}%</span>
+            </div>
+            <div className="h-3 w-full overflow-hidden rounded-full border border-border/20 bg-muted shadow-inner">
+              <div
+                className="h-full bg-linear-to-r from-primary via-orange-500 to-rose-600 transition-all duration-300 ease-out"
+                style={{ width: `${downloadProgress}%` }}
+              />
+            </div>
+          </div>
+          <p className="animate-pulse text-center text-[11px] font-black uppercase tracking-widest text-muted-foreground/60">
+            Mencari kualitas visual terbaik...
+          </p>
+        </div>
+      ) : null}
+
+      <div className="mb-2 flex flex-col items-center gap-3">
+        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-muted/50 transition-transform duration-300 group-hover/url:scale-110">
+          <LinkIcon className="h-7 w-7 text-muted-foreground" />
+        </div>
+        <p className="font-bold text-foreground">
+          {initialSourceUrl && importUrl === initialSourceUrl
+            ? 'URL Trending Siap Diimpor'
+            : 'Impor dari URL'}
+        </p>
+        <p className="max-w-xs text-xs font-medium leading-relaxed text-muted-foreground">
+          Cocok untuk video online dari sumber yang didukung.
+        </p>
+      </div>
+
+      <div className="space-y-3 pt-1">
+        <Input
+          placeholder="Tempel link YouTube, TikTok..."
+          leftIcon={<LinkIcon size={20} />}
+          value={importUrl}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setImportUrl(e.target.value)}
+          disabled={
+            isSubmittingImport || isUploadingFile || isWaitingForAsset || isPreparingAnalysis
+          }
+        />
+        <Button
+          className="w-full rounded-2xl font-bold"
+          variant="default"
+          disabled={
+            !importUrl ||
+            isSubmittingImport ||
+            isWaitingForAsset ||
+            isPreparingAnalysis ||
+            isUploadingFile
+          }
+          isLoading={isSubmittingImport}
+          onClick={() => {
+            void handleUrlImport();
+          }}
+        >
+          Mulai Analisis
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function useImportStepLogic({
   initialTopic,
   initialSourceUrl,
   trendingImportContext,
   onClearInitialContext,
-}: ImportStepProps) => {
+}: ImportStepProps) {
   const {
     activeSession,
     importUrl,
@@ -491,6 +792,26 @@ export const ImportStep = ({
     [setDownloadProgress, setSession, startAnalysis],
   );
 
+  const handleUrlImportRetry = async (urlToImport: string) => {
+    const replacementSession = await recoverExpiredSession(urlToImport);
+    if (!replacementSession) {
+      return;
+    }
+
+    try {
+      await importUrlIntoSession(replacementSession, urlToImport);
+    } catch (retryError) {
+      const retryMessage = normalizeDirectorImportErrorMessage(retryError, 'Import failed');
+      if (isExpiredDirectorSessionError(retryError)) {
+        reset();
+        setImportUrl(urlToImport);
+        setError('Sesi AI Director sudah expired. Mulai sesi baru atau cek Riwayat.');
+      } else {
+        void rollbackSession(replacementSession.id, retryMessage);
+      }
+    }
+  };
+
   const handleUrlImport = async (urlOverride?: string) => {
     const urlToImport = urlOverride ?? importUrl;
 
@@ -513,23 +834,7 @@ export const ImportStep = ({
       setWaitingForAsset(false);
 
       if (isExpiredDirectorSessionError(err)) {
-        const replacementSession = await recoverExpiredSession(urlToImport);
-        if (!replacementSession) {
-          return;
-        }
-
-        try {
-          await importUrlIntoSession(replacementSession, urlToImport);
-        } catch (retryError) {
-          const retryMessage = normalizeDirectorImportErrorMessage(retryError, 'Import failed');
-          if (isExpiredDirectorSessionError(retryError)) {
-            reset();
-            setImportUrl(urlToImport);
-            setError('Sesi AI Director sudah expired. Mulai sesi baru atau cek Riwayat.');
-          } else {
-            void rollbackSession(replacementSession.id, retryMessage);
-          }
-        }
+        await handleUrlImportRetry(urlToImport);
         return;
       }
 
@@ -537,6 +842,49 @@ export const ImportStep = ({
       void rollbackSession(session.id, msg);
     } finally {
       setIsSubmittingImport(false);
+    }
+  };
+
+  const validateFileLimits = async (file: File): Promise<string | null> => {
+    if (!clientSourceLimits) return null;
+
+    if (file.size > clientSourceLimits.maxSizeBytes) {
+      return buildFileTooLargeMessage(clientSourceLimits);
+    }
+
+    const localDurationMs = await readLocalVideoDurationMs(file);
+    if (localDurationMs !== null) {
+      if (localDurationMs < clientSourceLimits.minDurationMs) {
+        return 'Video terlalu pendek. AI Director butuh video minimal 5 menit. Untuk video pendek, gunakan Video Studio.';
+      }
+      if (localDurationMs > clientSourceLimits.maxDurationMs) {
+        return buildVideoTooLongMessage(clientSourceLimits);
+      }
+    }
+    return null;
+  };
+
+  const handleFileUploadRetry = async (uploadToken: string) => {
+    const replacementSession = await recoverExpiredSession();
+    if (!replacementSession) {
+      setFileUploadPhase('idle');
+      setFileUploadProgress(0);
+      return;
+    }
+
+    try {
+      setFileUploadPhase('importing');
+      await importUploadTokenIntoSession(replacementSession, uploadToken);
+    } catch (retryError) {
+      const retryMessage = normalizeDirectorImportErrorMessage(retryError, 'Import failed');
+      if (isExpiredDirectorSessionError(retryError)) {
+        reset();
+        setFileUploadPhase('idle');
+        setFileUploadProgress(0);
+        setError('Sesi AI Director sudah expired. Mulai sesi baru atau cek Riwayat.');
+      } else {
+        void rollbackSession(replacementSession.id, retryMessage);
+      }
     }
   };
 
@@ -549,33 +897,9 @@ export const ImportStep = ({
     setFileUploadPhase('checking');
     setFileUploadProgress(0);
 
-    if (clientSourceLimits && file.size > clientSourceLimits.maxSizeBytes) {
-      setError(buildFileTooLargeMessage(clientSourceLimits));
-      inputElement.value = '';
-      setFileUploadPhase('idle');
-      return;
-    }
-
-    const localDurationMs = await readLocalVideoDurationMs(file);
-    if (
-      clientSourceLimits &&
-      localDurationMs !== null &&
-      localDurationMs < clientSourceLimits.minDurationMs
-    ) {
-      setError(
-        'Video terlalu pendek. AI Director butuh video minimal 5 menit. Untuk video pendek, gunakan Video Studio.',
-      );
-      inputElement.value = '';
-      setFileUploadPhase('idle');
-      return;
-    }
-
-    if (
-      clientSourceLimits &&
-      localDurationMs !== null &&
-      localDurationMs > clientSourceLimits.maxDurationMs
-    ) {
-      setError(buildVideoTooLongMessage(clientSourceLimits));
+    const validationError = await validateFileLimits(file);
+    if (validationError) {
+      setError(validationError);
       inputElement.value = '';
       setFileUploadPhase('idle');
       return;
@@ -610,27 +934,7 @@ export const ImportStep = ({
           throw importError;
         }
 
-        const replacementSession = await recoverExpiredSession();
-        if (!replacementSession) {
-          setFileUploadPhase('idle');
-          setFileUploadProgress(0);
-          return;
-        }
-
-        try {
-          setFileUploadPhase('importing');
-          await importUploadTokenIntoSession(replacementSession, uploadData.uploadToken);
-        } catch (retryError) {
-          const retryMessage = normalizeDirectorImportErrorMessage(retryError, 'Import failed');
-          if (isExpiredDirectorSessionError(retryError)) {
-            reset();
-            setFileUploadPhase('idle');
-            setFileUploadProgress(0);
-            setError('Sesi AI Director sudah expired. Mulai sesi baru atau cek Riwayat.');
-          } else {
-            void rollbackSession(replacementSession.id, retryMessage);
-          }
-        }
+        await handleFileUploadRetry(uploadData.uploadToken);
       }
     } catch (err) {
       const msg = normalizeDirectorImportErrorMessage(err, 'Upload failed');
@@ -651,6 +955,45 @@ export const ImportStep = ({
     let cancelled = false;
     let intervalId: ReturnType<typeof setInterval> | undefined;
 
+    const handleAssetStatusUpdate = async (assetStatus: AssetStatusResponseData) => {
+      const currentSession = sessionRef.current;
+      const progress = getAssetProgress(
+        assetStatus.status,
+        assetStatus.progress,
+        progressRef.current,
+      );
+
+      setDownloadProgress(progress);
+      syncSessionAssetStatus(currentSession, activeSessionId, assetStatus.status, setSession);
+
+      if (assetStatus.status === 'READY') {
+        setWaitingForAsset(false);
+        setDownloadProgress(100);
+        clearPollingInterval(intervalId);
+        await startAnalysis(activeSessionId);
+        return;
+      }
+
+      if (assetStatus.status === 'FAILED') {
+        const msg = assetStatus.errorMessage || 'Import gagal diproses';
+        setWaitingForAsset(false);
+        setLoading(false);
+        setDownloadProgress(0);
+        clearPollingInterval(intervalId);
+        if (activeSessionId) {
+          void rollbackSession(activeSessionId, msg);
+        } else {
+          setError(msg);
+        }
+      }
+    };
+
+    const handlePollError = (err: unknown, isCancelled: boolean) => {
+      if (!isCancelled) {
+        setError(err instanceof Error ? err.message : 'Gagal mengecek status import');
+      }
+    };
+
     const pollAssetStatus = async () => {
       try {
         const response = await authFetch(`/api/v1/director/assets/${assetId}/status`);
@@ -661,40 +1004,9 @@ export const ImportStep = ({
         }
 
         const assetStatus = data.data as AssetStatusResponseData;
-        const currentSession = sessionRef.current;
-        const progress = getAssetProgress(
-          assetStatus.status,
-          assetStatus.progress,
-          progressRef.current,
-        );
-
-        setDownloadProgress(progress);
-        syncSessionAssetStatus(currentSession, activeSessionId, assetStatus.status, setSession);
-
-        if (assetStatus.status === 'READY') {
-          setWaitingForAsset(false);
-          setDownloadProgress(100);
-          clearPollingInterval(intervalId);
-          await startAnalysis(activeSessionId);
-          return;
-        }
-
-        if (assetStatus.status === 'FAILED') {
-          const msg = assetStatus.errorMessage || 'Import gagal diproses';
-          setWaitingForAsset(false);
-          setLoading(false);
-          setDownloadProgress(0);
-          clearPollingInterval(intervalId);
-          if (activeSessionId) {
-            void rollbackSession(activeSessionId, msg);
-          } else {
-            setError(msg);
-          }
-        }
+        await handleAssetStatusUpdate(assetStatus);
       } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : 'Gagal mengecek status import');
-        }
+        handlePollError(err, cancelled);
       }
     };
 
@@ -750,24 +1062,66 @@ export const ImportStep = ({
     step,
   ]);
 
+  return {
+    error,
+    isPreparingAnalysis,
+    trendingImportContext,
+    isSubmittingImport,
+    isWaitingForAsset,
+    downloadProgress,
+    handleUrlImport,
+    handleClearInitialContext,
+    initialTopic,
+    initialSourceUrl,
+    onClearInitialContext,
+    sourceRequirements,
+    fileUploadStatusLabel,
+    fileUploadPhase,
+    fileUploadProgress,
+    isUploadingFile,
+    handleFileUpload,
+    importUrl,
+    setImportUrl,
+    isSourcesModalOpen,
+    setIsSourcesModalOpen,
+    fileInputRef,
+    clientSourceLimits,
+  };
+}
+
+export const ImportStep = (props: ImportStepProps) => {
+  const {
+    error,
+    isPreparingAnalysis,
+    trendingImportContext,
+    isSubmittingImport,
+    isWaitingForAsset,
+    downloadProgress,
+    handleUrlImport,
+    handleClearInitialContext,
+    initialTopic,
+    initialSourceUrl,
+    sourceRequirements,
+    fileUploadStatusLabel,
+    fileUploadPhase,
+    fileUploadProgress,
+    isUploadingFile,
+    handleFileUpload,
+    importUrl,
+    setImportUrl,
+    isSourcesModalOpen,
+    setIsSourcesModalOpen,
+    fileInputRef,
+    clientSourceLimits,
+  } = useImportStepLogic(props);
+
   return (
     <div className="max-w-5xl mx-auto w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
       <Card className="bg-card/70 border-border/50 backdrop-blur-xl relative overflow-hidden group mb-10">
-        {isPreparingAnalysis && !trendingImportContext ? (
-          <div className="absolute inset-0 z-20 bg-background/90 backdrop-blur-md flex flex-col items-center justify-center p-8 gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-linear-to-br from-primary via-orange-500 to-rose-600 flex items-center justify-center shadow-lg">
-              <Wand2 className="w-7 h-7 text-white animate-pulse" />
-            </div>
-            <div className="text-center space-y-2">
-              <p className="text-sm font-black uppercase tracking-[0.22em] text-primary">
-                Menyiapkan Analisis
-              </p>
-              <p className="text-sm text-muted-foreground font-medium">
-                Video sedang disiapkan sebelum masuk ke tahap AI Director.
-              </p>
-            </div>
-          </div>
-        ) : null}
+        <PreparingAnalysisOverlay
+          isPreparingAnalysis={isPreparingAnalysis}
+          hasTrendingContext={!!trendingImportContext}
+        />
 
         <CardBody className="p-6 sm:p-10 flex flex-col items-center text-center gap-4">
           {trendingImportContext ? (
@@ -792,35 +1146,8 @@ export const ImportStep = ({
             </>
           ) : (
             <>
-              <div className="flex flex-col items-center gap-3">
-                <div className="inline-flex items-center gap-2 rounded-full border border-primary/15 bg-primary/5 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-primary">
-                  <Wand2 size={14} strokeWidth={2.5} />
-                  AI Director
-                </div>
-                <div className="space-y-2">
-                  <h2 className="text-2xl font-black tracking-tight text-foreground sm:text-3xl">
-                    Masukkan video panjang
-                  </h2>
-                  <p className="mx-auto max-w-xl text-sm font-medium leading-relaxed text-muted-foreground sm:text-base">
-                    Upload file atau tempel URL, lalu AI Director mencari momen terbaik untuk
-                    dijadikan Short.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex w-full flex-wrap items-center justify-center gap-2">
-                {sourceRequirements.map((requirement) => (
-                  <div
-                    key={requirement}
-                    className="inline-flex min-h-9 items-center gap-2 rounded-full border border-border/50 bg-muted/20 px-3 py-1.5 text-left"
-                  >
-                    <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-primary" />
-                    <p className="text-xs font-bold leading-tight text-muted-foreground">
-                      {requirement}
-                    </p>
-                  </div>
-                ))}
-              </div>
+              <ImportStepHeader />
+              <RequirementTags requirements={sourceRequirements} />
 
               {error && (
                 <div className="flex items-center gap-2 text-rose-500 bg-rose-500/10 px-4 py-3 rounded-2xl text-sm border border-rose-500/20 w-full animate-in fade-in zoom-in-95 duration-300">
@@ -829,194 +1156,38 @@ export const ImportStep = ({
                 </div>
               )}
 
-              {initialTopic || initialSourceUrl ? (
-                <div className="w-full rounded-3xl border border-primary/15 bg-primary/5 p-4 text-left">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="flex min-w-0 gap-3">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                        <Sparkles size={18} />
-                      </div>
-                      <div className="min-w-0 space-y-1">
-                        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">
-                          Ide dari Trending
-                        </p>
-                        {initialTopic ? (
-                          <p className="text-base font-black leading-snug text-foreground wrap-break-word">
-                            {initialTopic}
-                          </p>
-                        ) : null}
-                        {initialSourceUrl ? (
-                          <p className="text-xs font-semibold leading-relaxed text-primary break-all">
-                            URL video sudah masuk ke kolom impor.
-                          </p>
-                        ) : null}
-                        <p className="text-xs font-medium leading-relaxed text-muted-foreground">
-                          Klik Mulai Analisis untuk download video sumber, lalu AI Director akan
-                          mencari potongan short terbaik.
-                        </p>
-                      </div>
-                    </div>
-                    {onClearInitialContext ? (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="shrink-0 rounded-full text-muted-foreground"
-                        onClick={handleClearInitialContext}
-                        disabled={isSubmittingImport || isWaitingForAsset || isPreparingAnalysis}
-                      >
-                        Hapus
-                      </Button>
-                    ) : null}
-                  </div>
-                </div>
-              ) : null}
+              <TrendingContextBanner
+                initialTopic={initialTopic ?? undefined}
+                initialSourceUrl={initialSourceUrl ?? undefined}
+                onClearInitialContext={handleClearInitialContext}
+                isSubmittingImport={isSubmittingImport}
+                isWaitingForAsset={isWaitingForAsset}
+                isPreparingAnalysis={isPreparingAnalysis}
+              />
 
               <div className="mt-1 grid w-full grid-cols-1 gap-5 md:grid-cols-2">
-                {/* Upload Zone */}
-                <button
-                  type="button"
-                  onClick={() =>
-                    !isWaitingForAsset && !isUploadingFile && fileInputRef.current?.click()
-                  }
-                  className={cn(
-                    'group/upload relative flex min-h-56 flex-col items-center justify-center gap-4 overflow-hidden rounded-3xl border-2 border-dashed border-border/40 bg-muted/5 transition-all',
-                    isWaitingForAsset || isUploadingFile
-                      ? 'cursor-not-allowed opacity-50'
-                      : 'cursor-pointer hover:border-primary/45 hover:bg-primary/3 active:scale-[0.98]',
-                  )}
-                  disabled={isWaitingForAsset || isUploadingFile}
-                >
-                  {isUploadingFile ? (
-                    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-5 bg-background/90 p-8 backdrop-blur-md">
-                      <div className="w-full max-w-sm space-y-3">
-                        <div className="flex items-end justify-between text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                          <span className="flex items-center gap-2">
-                            <div className="size-2 animate-pulse rounded-full bg-primary" />
-                            {fileUploadStatusLabel}
-                          </span>
-                          {fileUploadPhase === 'uploading' ? (
-                            <span className="text-sm text-primary">
-                              {Math.round(fileUploadProgress)}%
-                            </span>
-                          ) : null}
-                        </div>
-                        <div className="h-3 w-full overflow-hidden rounded-full border border-border/20 bg-muted shadow-inner">
-                          <div
-                            className={cn(
-                              'h-full bg-linear-to-r from-primary via-orange-500 to-rose-600 transition-all duration-300 ease-out',
-                              fileUploadPhase === 'uploading' ? '' : 'animate-pulse',
-                            )}
-                            style={{
-                              width:
-                                fileUploadPhase === 'uploading' ? `${fileUploadProgress}%` : '100%',
-                            }}
-                          />
-                        </div>
-                      </div>
-                      <p className="text-center text-[11px] font-black uppercase tracking-widest text-muted-foreground/60">
-                        Biarkan halaman ini tetap terbuka sampai selesai.
-                      </p>
-                    </div>
-                  ) : null}
-                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-muted/50 transition-all duration-300 group-hover/upload:scale-110 group-hover/upload:bg-primary/10">
-                    <FileVideo className="h-7 w-7 text-muted-foreground transition-colors group-hover/upload:text-primary" />
-                  </div>
-                  <div className="px-4 text-center">
-                    <p className="font-bold text-foreground transition-colors group-hover/upload:text-primary">
-                      Upload File Video
-                    </p>
-                    <p className="mt-1 inline-block rounded-full bg-muted/30 px-3 py-1 text-[11px] font-medium text-muted-foreground">
-                      MP4, MOV •{' '}
-                      {clientSourceLimits
-                        ? `Maks ${clientSourceLimits.maxSizeLabel}`
-                        : 'Maks internal'}
-                    </p>
-                  </div>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="video/*"
-                    className="hidden"
-                    onChange={handleFileUpload}
-                    disabled={isWaitingForAsset || isUploadingFile}
-                  />
-                </button>
+                <UploadZone
+                  isWaitingForAsset={isWaitingForAsset}
+                  isUploadingFile={isUploadingFile}
+                  fileUploadStatusLabel={fileUploadStatusLabel}
+                  fileUploadPhase={fileUploadPhase}
+                  fileUploadProgress={fileUploadProgress}
+                  clientSourceLimits={clientSourceLimits}
+                  handleFileUpload={handleFileUpload}
+                  fileInputRef={fileInputRef}
+                />
 
-                {/* URL Zone */}
-                <div className="group/url relative flex min-h-56 flex-col justify-between overflow-hidden rounded-3xl border border-border/50 bg-muted/5 p-6 sm:p-7">
-                  {isWaitingForAsset ? (
-                    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-5 bg-background/90 p-8 backdrop-blur-md">
-                      <div className="w-full space-y-3">
-                        <div className="flex items-end justify-between text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                          <span className="flex items-center gap-2">
-                            <div className="size-2 animate-pulse rounded-full bg-primary" />
-                            Mengunduh...
-                          </span>
-                          <span className="text-sm text-primary">
-                            {Math.round(downloadProgress)}%
-                          </span>
-                        </div>
-                        <div className="h-3 w-full overflow-hidden rounded-full border border-border/20 bg-muted shadow-inner">
-                          <div
-                            className="h-full bg-linear-to-r from-primary via-orange-500 to-rose-600 transition-all duration-300 ease-out"
-                            style={{ width: `${downloadProgress}%` }}
-                          />
-                        </div>
-                      </div>
-                      <p className="animate-pulse text-center text-[11px] font-black uppercase tracking-widest text-muted-foreground/60">
-                        Mencari kualitas visual terbaik...
-                      </p>
-                    </div>
-                  ) : null}
-
-                  <div className="mb-2 flex flex-col items-center gap-3">
-                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-muted/50 transition-transform duration-300 group-hover/url:scale-110">
-                      <LinkIcon className="h-7 w-7 text-muted-foreground" />
-                    </div>
-                    <p className="font-bold text-foreground">
-                      {initialSourceUrl && importUrl === initialSourceUrl
-                        ? 'URL Trending Siap Diimpor'
-                        : 'Impor dari URL'}
-                    </p>
-                    <p className="max-w-xs text-xs font-medium leading-relaxed text-muted-foreground">
-                      Cocok untuk video online dari sumber yang didukung.
-                    </p>
-                  </div>
-
-                  <div className="space-y-3 pt-1">
-                    <Input
-                      placeholder="Tempel link YouTube, TikTok..."
-                      leftIcon={<LinkIcon size={20} />}
-                      value={importUrl}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                        setImportUrl(e.target.value)
-                      }
-                      disabled={
-                        isSubmittingImport ||
-                        isUploadingFile ||
-                        isWaitingForAsset ||
-                        isPreparingAnalysis
-                      }
-                    />
-                    <Button
-                      className="w-full rounded-2xl font-bold"
-                      variant="default"
-                      disabled={
-                        !importUrl ||
-                        isSubmittingImport ||
-                        isWaitingForAsset ||
-                        isPreparingAnalysis ||
-                        isUploadingFile
-                      }
-                      isLoading={isSubmittingImport}
-                      onClick={() => {
-                        void handleUrlImport();
-                      }}
-                    >
-                      Mulai Analisis
-                    </Button>
-                  </div>
-                </div>
+                <UrlZone
+                  isWaitingForAsset={isWaitingForAsset}
+                  downloadProgress={downloadProgress}
+                  initialSourceUrl={initialSourceUrl ?? undefined}
+                  importUrl={importUrl}
+                  setImportUrl={setImportUrl}
+                  isSubmittingImport={isSubmittingImport}
+                  isUploadingFile={isUploadingFile}
+                  isPreparingAnalysis={isPreparingAnalysis}
+                  handleUrlImport={handleUrlImport}
+                />
               </div>
 
               <div className="mt-2 flex flex-col items-center justify-center gap-2 text-center sm:flex-row">

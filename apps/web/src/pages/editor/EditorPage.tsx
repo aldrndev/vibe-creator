@@ -99,16 +99,7 @@ export function EditorPage() {
           break;
         case 'Delete':
         case 'Backspace':
-          if (selectedClipId) {
-            const state = useEditorStore.getState();
-            for (const track of state.timeline.tracks) {
-              const clip = track.clips.find((c) => c.id === selectedClipId);
-              if (clip) {
-                removeClip(track.id, selectedClipId);
-                break;
-              }
-            }
-          }
+          handleDeleteKey(selectedClipId, removeClip);
           break;
         case 'ArrowLeft':
           setCurrentTime(currentTimeMs - (e.shiftKey ? 1000 : 100));
@@ -145,54 +136,12 @@ export function EditorPage() {
       const files = e.target.files;
       if (!files || files.length === 0) return;
 
-      for (const file of Array.from(files)) {
-        const assetType = getImportedAssetType(file);
-        if (!assetType) continue;
+      const importPromises = Array.from(files).map((file) =>
+        processFileImport(file, { addAsset, updateAsset, addClip, extractTimelineThumbnails }),
+      );
 
-        const url = URL.createObjectURL(file);
-        const metadata = await loadImportedAssetMetadata(file, url);
-        const asset = createImportedAsset(file, url, metadata);
-        addAsset(asset);
+      await Promise.all(importPromises);
 
-        if (asset.type === 'VIDEO') {
-          extractTimelineThumbnails(file, 20)
-            .then((thumbnails) => {
-              updateAsset(asset.id, { thumbnails });
-            })
-            .catch((err) => {
-              logger.error('Failed to generate thumbnails', err);
-            });
-        }
-
-        const trackType = assetType === 'AUDIO' ? 'AUDIO' : 'VIDEO';
-        const track = useEditorStore.getState().timeline.tracks.find((t) => t.type === trackType);
-
-        if (track) {
-          const lastClipEnd = getTrackLastClipEndMs(track);
-          const linkId = asset.type === 'VIDEO' ? `link-${asset.id}` : undefined;
-
-          addClip(
-            track.id,
-            createImportedClip(asset, lastClipEnd, {
-              linkId,
-            }),
-          );
-
-          if (asset.type === 'VIDEO') {
-            const audioTrack = useEditorStore
-              .getState()
-              .timeline.tracks.find((t) => t.type === 'AUDIO');
-            if (audioTrack) {
-              addClip(
-                audioTrack.id,
-                createImportedClip(createLinkedAudioAsset(asset), lastClipEnd, {
-                  linkId,
-                }),
-              );
-            }
-          }
-        }
-      }
       if (fileInputRef.current) fileInputRef.current.value = '';
     },
     [addAsset, addClip, updateAsset, extractTimelineThumbnails],
@@ -340,4 +289,63 @@ export function EditorPage() {
       />
     </div>
   );
+}
+
+async function processFileImport(
+  file: File,
+  actions: {
+    addAsset: ReturnType<typeof useEditorStore.getState>['addAsset'];
+    updateAsset: ReturnType<typeof useEditorStore.getState>['updateAsset'];
+    addClip: ReturnType<typeof useEditorStore.getState>['addClip'];
+    extractTimelineThumbnails: (file: File, count: number) => Promise<string[]>;
+  },
+) {
+  const assetType = getImportedAssetType(file);
+  if (!assetType) return;
+
+  const url = URL.createObjectURL(file);
+  const metadata = await loadImportedAssetMetadata(file, url);
+  const asset = createImportedAsset(file, url, metadata);
+  actions.addAsset(asset);
+
+  if (asset.type === 'VIDEO') {
+    actions
+      .extractTimelineThumbnails(file, 20)
+      .then((thumbnails) => actions.updateAsset(asset.id, { thumbnails }))
+      .catch((err) => logger.error('Failed to generate thumbnails', err));
+  }
+
+  const trackType = assetType === 'AUDIO' ? 'AUDIO' : 'VIDEO';
+  const track = useEditorStore.getState().timeline.tracks.find((t) => t.type === trackType);
+
+  if (track) {
+    const lastClipEnd = getTrackLastClipEndMs(track);
+    const linkId = asset.type === 'VIDEO' ? `link-${asset.id}` : undefined;
+
+    actions.addClip(track.id, createImportedClip(asset, lastClipEnd, { linkId }));
+
+    if (asset.type === 'VIDEO') {
+      const audioTrack = useEditorStore.getState().timeline.tracks.find((t) => t.type === 'AUDIO');
+      if (audioTrack) {
+        actions.addClip(
+          audioTrack.id,
+          createImportedClip(createLinkedAudioAsset(asset), lastClipEnd, { linkId }),
+        );
+      }
+    }
+  }
+}
+
+function handleDeleteKey(
+  selectedClipId: string | null,
+  removeClip: ReturnType<typeof useEditorStore.getState>['removeClip'],
+) {
+  if (!selectedClipId) return;
+  const state = useEditorStore.getState();
+  for (const track of state.timeline.tracks) {
+    if (track.clips.some((c) => c.id === selectedClipId)) {
+      removeClip(track.id, selectedClipId);
+      break;
+    }
+  }
 }

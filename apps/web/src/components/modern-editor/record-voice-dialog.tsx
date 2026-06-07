@@ -119,7 +119,7 @@ export function RecordVoiceDialog({
   return (
     <Dialog
       open={open}
-      onOpenChange={(nextOpen) => (!nextOpen ? handleClose() : onOpenChange(true))}
+      onOpenChange={(nextOpen) => (nextOpen ? onOpenChange(true) : handleClose())}
     >
       <DialogContent
         hideCloseButton
@@ -157,13 +157,12 @@ export function RecordVoiceDialog({
                 isRecording ? 'text-primary' : 'text-muted-foreground/70',
               )}
             >
-              {countdown !== null
-                ? 'Mulai rekam...'
-                : isRecording
-                  ? 'Recording'
-                  : audioBlob
-                    ? 'Preview ready'
-                    : 'Ready'}
+              {(() => {
+                if (countdown !== null) return 'Mulai rekam...';
+                if (isRecording) return 'Recording';
+                if (audioBlob) return 'Preview ready';
+                return 'Ready';
+              })()}
             </p>
           </div>
 
@@ -180,7 +179,7 @@ export function RecordVoiceDialog({
                 className="h-11 rounded-xl border-border/40 bg-background/40 text-sm font-bold"
                 onChange={(event) => setName(event.target.value)}
               />
-              <audio src={audioUrl} controls className="h-10 w-full [color-scheme:dark]">
+              <audio src={audioUrl} controls className="h-10 w-full scheme-dark">
                 <track kind="captions" label="Voice recording preview" />
               </audio>
             </div>

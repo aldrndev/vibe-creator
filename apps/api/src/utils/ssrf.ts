@@ -47,6 +47,17 @@ function isPrivateIpv6(ip: string): boolean {
   );
 }
 
+function validateDnsRecords(records: { family: number; address: string }[]): void {
+  for (const record of records) {
+    if (record.family === 4 && isPrivateIpv4(record.address)) {
+      throw new Error('Unsafe URL');
+    }
+    if (record.family === 6 && isPrivateIpv6(record.address)) {
+      throw new Error('Unsafe URL');
+    }
+  }
+}
+
 async function resolveAndValidate(hostname: string): Promise<void> {
   if (BLOCKED_HOSTNAMES.has(hostname) || hostname.endsWith('.local')) {
     throw new Error('Unsafe URL');
@@ -72,14 +83,7 @@ async function resolveAndValidate(hostname: string): Promise<void> {
     throw new Error('Unsafe URL');
   }
 
-  for (const record of records) {
-    if (record.family === 4 && isPrivateIpv4(record.address)) {
-      throw new Error('Unsafe URL');
-    }
-    if (record.family === 6 && isPrivateIpv6(record.address)) {
-      throw new Error('Unsafe URL');
-    }
-  }
+  validateDnsRecords(records);
 }
 
 /**

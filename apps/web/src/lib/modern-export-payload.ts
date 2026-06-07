@@ -1,4 +1,4 @@
-import type { ModernProject } from '@vibe-creator/shared';
+import type { Layer, ModernProject } from '@vibe-creator/shared';
 import { extractTextOverlays } from '@/lib/modern-compiler';
 import { resolveTextBackground } from '@/lib/modern-text-background';
 import type { EditorTimeline } from '@/stores/editor-store';
@@ -84,6 +84,99 @@ export interface ModernExportTimelineData {
   };
 }
 
+type VideoClipPayload = ModernExportTimelineData['clips'][0];
+type AudioTrackPayload = ModernExportTimelineData['audioTracks'][0];
+
+function buildVideoClipPayload(
+  clip: EditorTimeline['tracks'][0]['clips'][0],
+  layerById: Map<string, Layer>,
+  assetPathById: ReadonlyMap<string, string>,
+): VideoClipPayload[] {
+  const asset = clip.asset;
+  const sourceLayer = clip.layerId ? layerById.get(clip.layerId) : undefined;
+  if (
+    !asset ||
+    (asset.type !== 'VIDEO' && asset.type !== 'IMAGE') ||
+    clip.visible === false ||
+    sourceLayer?.visible === false
+  ) {
+    return [];
+  }
+
+  const durationMs = Math.max(100, clip.endMs - clip.startMs);
+  const sourceStartMs = clip.trimStartMs ?? 0;
+  let sourceEndMs = sourceStartMs + durationMs;
+  if (clip.trimEndMs && clip.trimEndMs > sourceStartMs) {
+    sourceEndMs = clip.trimEndMs;
+  } else if (clip.loop && asset.durationMs) {
+    sourceEndMs = asset.durationMs;
+  }
+
+  return [
+    {
+      localPath: assetPathById.get(asset.id) ?? asset.url,
+      layerId: clip.layerId,
+      mediaType: asset.type === 'IMAGE' ? 'image' : 'video',
+      startTime: sourceStartMs / 1000,
+      endTime: sourceEndMs / 1000,
+      timelineStartMs: clip.startMs,
+      timelineEndMs: clip.endMs,
+      zIndex: clip.zIndex ?? sourceLayer?.zIndex,
+      fit:
+        clip.fit ??
+        (sourceLayer?.type === 'video' || sourceLayer?.type === 'image'
+          ? sourceLayer.data.fit
+          : undefined),
+      visible: true,
+      loop: clip.loop,
+      transforms: clip.transforms,
+      effects: clip.effects,
+    },
+  ];
+}
+
+function buildAudioTrackPayload(
+  clip: EditorTimeline['tracks'][0]['clips'][0],
+  trackMuted: boolean,
+  layerById: Map<string, Layer>,
+  assetPathById: ReadonlyMap<string, string>,
+): AudioTrackPayload[] {
+  const asset = clip.asset;
+  const sourceLayer = clip.layerId ? layerById.get(clip.layerId) : undefined;
+  if (
+    !asset ||
+    (asset.type !== 'AUDIO' && asset.type !== 'VIDEO') ||
+    trackMuted ||
+    clip.visible === false ||
+    sourceLayer?.visible === false
+  ) {
+    return [];
+  }
+
+  const durationMs = Math.max(100, clip.endMs - clip.startMs);
+  const sourceStartMs = clip.trimStartMs ?? 0;
+  let sourceEndMs = sourceStartMs + durationMs;
+  if (clip.trimEndMs && clip.trimEndMs > sourceStartMs) {
+    sourceEndMs = clip.trimEndMs;
+  } else if (clip.loop && asset.durationMs) {
+    sourceEndMs = asset.durationMs;
+  }
+
+  return [
+    {
+      localPath: assetPathById.get(asset.id) ?? asset.url,
+      startTime: sourceStartMs / 1000,
+      endTime: sourceEndMs / 1000,
+      timelineStartMs: clip.startMs,
+      timelineEndMs: clip.endMs,
+      volume: clip.effects?.volume ?? 1,
+      fadeInMs: clip.effects?.fadeIn ?? 0,
+      fadeOutMs: clip.effects?.fadeOut ?? 0,
+      loop: clip.loop,
+    },
+  ];
+}
+
 export function buildModernExportTimelineData({
   project,
   timeline,
@@ -95,89 +188,14 @@ export function buildModernExportTimelineData({
     clips: timeline.tracks
       .filter((track) => track.type === 'VIDEO' && !track.muted)
       .flatMap((track) =>
-        track.clips.flatMap((clip) => {
-          const asset = clip.asset;
-          const sourceLayer = clip.layerId ? layerById.get(clip.layerId) : undefined;
-          if (
-            !asset ||
-            (asset.type !== 'VIDEO' && asset.type !== 'IMAGE') ||
-            clip.visible === false ||
-            sourceLayer?.visible === false
-          ) {
-            return [];
-          }
-
-          const durationMs = Math.max(100, clip.endMs - clip.startMs);
-          const sourceStartMs = clip.trimStartMs ?? 0;
-          const sourceEndMs =
-            clip.trimEndMs && clip.trimEndMs > sourceStartMs
-              ? clip.trimEndMs
-              : clip.loop && asset.durationMs
-                ? asset.durationMs
-                : sourceStartMs + durationMs;
-
-          return [
-            {
-              localPath: assetPathById.get(asset.id) ?? asset.url,
-              layerId: clip.layerId,
-              mediaType: asset.type === 'IMAGE' ? 'image' : 'video',
-              startTime: sourceStartMs / 1000,
-              endTime: sourceEndMs / 1000,
-              timelineStartMs: clip.startMs,
-              timelineEndMs: clip.endMs,
-              zIndex: clip.zIndex ?? sourceLayer?.zIndex,
-              fit:
-                clip.fit ??
-                (sourceLayer?.type === 'video' || sourceLayer?.type === 'image'
-                  ? sourceLayer.data.fit
-                  : undefined),
-              visible: true,
-              loop: clip.loop,
-              transforms: clip.transforms,
-              effects: clip.effects,
-            },
-          ];
-        }),
+        track.clips.flatMap((clip) => buildVideoClipPayload(clip, layerById, assetPathById)),
       ),
     audioTracks: timeline.tracks
       .filter((track) => track.type === 'AUDIO')
       .flatMap((track) =>
-        track.clips.flatMap((clip) => {
-          const asset = clip.asset;
-          const sourceLayer = clip.layerId ? layerById.get(clip.layerId) : undefined;
-          if (
-            !asset ||
-            (asset.type !== 'AUDIO' && asset.type !== 'VIDEO') ||
-            track.muted ||
-            clip.visible === false ||
-            sourceLayer?.visible === false
-          ) {
-            return [];
-          }
-
-          const durationMs = Math.max(100, clip.endMs - clip.startMs);
-          const sourceStartMs = clip.trimStartMs ?? 0;
-          const sourceEndMs =
-            clip.trimEndMs && clip.trimEndMs > sourceStartMs
-              ? clip.trimEndMs
-              : clip.loop && asset.durationMs
-                ? asset.durationMs
-                : sourceStartMs + durationMs;
-
-          return [
-            {
-              localPath: assetPathById.get(asset.id) ?? asset.url,
-              startTime: sourceStartMs / 1000,
-              endTime: sourceEndMs / 1000,
-              timelineStartMs: clip.startMs,
-              timelineEndMs: clip.endMs,
-              volume: clip.effects?.volume ?? 1,
-              fadeInMs: clip.effects?.fadeIn ?? 0,
-              fadeOutMs: clip.effects?.fadeOut ?? 0,
-              loop: clip.loop,
-            },
-          ];
-        }),
+        track.clips.flatMap((clip) =>
+          buildAudioTrackPayload(clip, track.muted, layerById, assetPathById),
+        ),
       ),
     textOverlays: extractTextOverlays(project).map((overlay) => {
       const background = resolveTextBackground({

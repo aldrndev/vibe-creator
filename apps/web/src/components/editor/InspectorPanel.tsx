@@ -11,7 +11,7 @@ import {
   Switch,
 } from '@/components/ui';
 import { cn } from '@/lib/utils';
-import { useEditorStore } from '@/stores/editor-store';
+import { type EditorClip, type EditorTimeline, useEditorStore } from '@/stores/editor-store';
 
 // Filter presets
 const FILTER_PRESETS = [
@@ -49,23 +49,261 @@ interface InspectorPanelProps {
   className?: string;
 }
 
-export function InspectorPanel({ className }: InspectorPanelProps) {
-  const { timeline, selectedClipId, updateClip, detachLinkedClips } = useEditorStore();
+function formatTime(ms: number) {
+  const totalSeconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  const milliseconds = Math.floor((ms % 1000) / 10);
+  return `${minutes.toString().padStart(2, '0')}:${seconds
+    .toString()
+    .padStart(2, '0')}.${milliseconds.toString().padStart(2, '0')}`;
+}
 
-  // Find selected clip and its track type
-  let selectedClip = null;
-  let selectedTrackId: string | null = null;
-  let selectedTrackType: 'VIDEO' | 'AUDIO' | 'TEXT' | 'OVERLAY' | null = null;
-
+// Find selected clip and its track type
+function getSelectedClipInfo(timeline: EditorTimeline, selectedClipId: string | null) {
   for (const track of timeline.tracks) {
     const clip = track.clips.find((c) => c.id === selectedClipId);
     if (clip) {
-      selectedClip = clip;
-      selectedTrackId = track.id;
-      selectedTrackType = track.type;
-      break;
+      return {
+        selectedClip: clip,
+        selectedTrackId: track.id,
+        selectedTrackType: track.type,
+      };
     }
   }
+  return { selectedClip: null, selectedTrackId: null, selectedTrackType: null };
+}
+
+function TransformSection({
+  transforms,
+  onChange,
+}: {
+  transforms: EditorClip['transforms'];
+  onChange: (key: string, value: number) => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+        Transform
+      </h4>
+
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <div className="flex justify-between text-xs">
+              <span className="text-muted-foreground">Position X</span>
+              <span className="font-mono text-[10px] text-muted-foreground/70">
+                {Math.round(transforms.x)}
+              </span>
+            </div>
+            <Slider
+              min={-1000}
+              max={1000}
+              value={[transforms.x ?? 0]}
+              onValueChange={(v) => onChange('x', v[0] ?? 0)}
+            />
+          </div>
+          <div className="space-y-2">
+            <div className="flex justify-between text-xs">
+              <span className="text-muted-foreground">Position Y</span>
+              <span className="font-mono text-[10px] text-muted-foreground/70">
+                {Math.round(transforms.y)}
+              </span>
+            </div>
+            <Slider
+              min={-1000}
+              max={1000}
+              value={[transforms.y ?? 0]}
+              onValueChange={(v) => onChange('y', v[0] ?? 0)}
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <div className="flex justify-between text-xs">
+              <span className="text-muted-foreground">Scale</span>
+              <span className="font-mono text-[10px] text-muted-foreground/70">
+                {Math.round(transforms.scale * 100)}%
+              </span>
+            </div>
+            <Slider
+              min={0.1}
+              max={5}
+              step={0.01}
+              value={[transforms.scale ?? 1]}
+              onValueChange={(v) => onChange('scale', v[0] ?? 1)}
+            />
+          </div>
+          <div className="space-y-2">
+            <div className="flex justify-between text-xs">
+              <span className="text-muted-foreground">Rotation</span>
+              <span className="font-mono text-[10px] text-muted-foreground/70">
+                {Math.round(transforms.rotation)}°
+              </span>
+            </div>
+            <Slider
+              min={-180}
+              max={180}
+              value={[transforms.rotation ?? 0]}
+              onValueChange={(v) => onChange('rotation', v[0] ?? 0)}
+            />
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <div className="flex justify-between text-xs">
+            <span className="text-muted-foreground">Opacity</span>
+            <span className="font-mono text-[10px] text-muted-foreground/70">
+              {Math.round(transforms.opacity * 100)}%
+            </span>
+          </div>
+          <Slider
+            min={0}
+            max={1}
+            step={0.01}
+            value={[transforms.opacity ?? 1]}
+            onValueChange={(v) => onChange('opacity', v[0] ?? 1)}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AudioSection({
+  effects,
+  isMuted,
+  onChange,
+}: {
+  effects: EditorClip['effects'];
+  isMuted: boolean;
+  onChange: (key: string, value: number) => void;
+}) {
+  return (
+    <div className="space-y-4 pt-4 border-t border-border">
+      <div className="flex items-center justify-between">
+        <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+          Audio
+        </h4>
+        <Switch
+          checked={!isMuted}
+          onCheckedChange={(checked) => onChange('volume', checked ? 1 : 0)}
+        />
+      </div>
+
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <div className="flex justify-between text-xs">
+            <span className="text-muted-foreground">Volume</span>
+            <span className="font-mono text-[10px] text-muted-foreground/70">
+              {isMuted ? 'Muted' : `${Math.round(effects.volume * 100)}%`}
+            </span>
+          </div>
+          <Slider
+            min={0}
+            max={2}
+            step={0.01}
+            value={[effects.volume ?? 1]}
+            onValueChange={(v) => onChange('volume', v[0] ?? 1)}
+            disabled={isMuted}
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-1">
+            <span className="text-xs text-muted-foreground">Fade In (ms)</span>
+            <input
+              type="number"
+              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+              value={effects.fadeIn}
+              onChange={(e) => onChange('fadeIn', Number.parseInt(e.target.value, 10) || 0)}
+            />
+          </div>
+          <div className="space-y-1">
+            <span className="text-xs text-muted-foreground">Fade Out (ms)</span>
+            <input
+              type="number"
+              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+              value={effects.fadeOut}
+              onChange={(e) => onChange('fadeOut', Number.parseInt(e.target.value, 10) || 0)}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EffectsSection({
+  effects,
+  currentFilter,
+  selectedTrackType,
+  onChange,
+}: {
+  effects: EditorClip['effects'];
+  currentFilter: string;
+  selectedTrackType: string | null;
+  onChange: (key: string, value: number | string | string[]) => void;
+}) {
+  return (
+    <div className="space-y-4 pt-4 border-t border-border">
+      <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+        Effects
+      </h4>
+
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <span className="text-xs text-muted-foreground">Speed</span>
+          <Select
+            value={effects.speed.toString()}
+            onValueChange={(v) => onChange('speed', Number.parseFloat(v))}
+          >
+            <SelectTrigger className="h-9">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {SPEED_PRESETS.map((preset) => (
+                <SelectItem key={preset.value.toString()} value={preset.value.toString()}>
+                  {preset.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {selectedTrackType !== 'AUDIO' && (
+          <div className="space-y-2">
+            <span className="text-xs text-muted-foreground">Filter</span>
+            <Select
+              value={currentFilter}
+              onValueChange={(v) => onChange('filters', v === 'none' ? [] : [v])}
+            >
+              <SelectTrigger className="h-9">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {FILTER_PRESETS.map((preset) => (
+                  <SelectItem key={preset.id} value={preset.id}>
+                    {preset.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function InspectorPanel({ className }: InspectorPanelProps) {
+  const { timeline, selectedClipId, updateClip, detachLinkedClips } = useEditorStore();
+
+  const { selectedClip, selectedTrackId, selectedTrackType } = getSelectedClipInfo(
+    timeline,
+    selectedClipId,
+  );
 
   const handleTransformChange = (key: string, value: number) => {
     if (!selectedTrackId || !selectedClipId || !selectedClip) return;
@@ -79,11 +317,7 @@ export function InspectorPanel({ className }: InspectorPanelProps) {
     };
     updateClip(selectedTrackId, selectedClipId, {
       transforms: {
-        x: currentTransforms.x,
-        y: currentTransforms.y,
-        scale: currentTransforms.scale,
-        rotation: currentTransforms.rotation,
-        opacity: currentTransforms.opacity,
+        ...currentTransforms,
         [key]: value,
       },
     });
@@ -101,24 +335,10 @@ export function InspectorPanel({ className }: InspectorPanelProps) {
     };
     updateClip(selectedTrackId, selectedClipId, {
       effects: {
-        filters: currentEffects.filters,
-        speed: currentEffects.speed,
-        volume: currentEffects.volume,
-        fadeIn: currentEffects.fadeIn,
-        fadeOut: currentEffects.fadeOut,
+        ...currentEffects,
         [key]: value,
       },
     });
-  };
-
-  const formatTime = (ms: number) => {
-    const totalSeconds = Math.floor(ms / 1000);
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
-    const milliseconds = Math.floor((ms % 1000) / 10);
-    return `${minutes.toString().padStart(2, '0')}:${seconds
-      .toString()
-      .padStart(2, '0')}.${milliseconds.toString().padStart(2, '0')}`;
   };
 
   if (!selectedClip) {
@@ -215,195 +435,19 @@ export function InspectorPanel({ className }: InspectorPanelProps) {
 
         {/* Transform Section - VIDEO ONLY */}
         {selectedTrackType !== 'AUDIO' && (
-          <div className="space-y-4">
-            <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-              Transform
-            </h4>
-
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <div className="flex justify-between text-xs">
-                    <span className="text-muted-foreground">Position X</span>
-                    <span className="font-mono text-[10px] text-muted-foreground/70">
-                      {Math.round(transforms.x)}
-                    </span>
-                  </div>
-                  <Slider
-                    min={-1000}
-                    max={1000}
-                    value={[transforms.x ?? 0]}
-                    onValueChange={(v) => handleTransformChange('x', v[0] ?? 0)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <div className="flex justify-between text-xs">
-                    <span className="text-muted-foreground">Position Y</span>
-                    <span className="font-mono text-[10px] text-muted-foreground/70">
-                      {Math.round(transforms.y)}
-                    </span>
-                  </div>
-                  <Slider
-                    min={-1000}
-                    max={1000}
-                    value={[transforms.y ?? 0]}
-                    onValueChange={(v) => handleTransformChange('y', v[0] ?? 0)}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <div className="flex justify-between text-xs">
-                    <span className="text-muted-foreground">Scale</span>
-                    <span className="font-mono text-[10px] text-muted-foreground/70">
-                      {Math.round(transforms.scale * 100)}%
-                    </span>
-                  </div>
-                  <Slider
-                    min={0.1}
-                    max={5}
-                    step={0.01}
-                    value={[transforms.scale ?? 1]}
-                    onValueChange={(v) => handleTransformChange('scale', v[0] ?? 1)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <div className="flex justify-between text-xs">
-                    <span className="text-muted-foreground">Rotation</span>
-                    <span className="font-mono text-[10px] text-muted-foreground/70">
-                      {Math.round(transforms.rotation)}°
-                    </span>
-                  </div>
-                  <Slider
-                    min={-180}
-                    max={180}
-                    value={[transforms.rotation ?? 0]}
-                    onValueChange={(v) => handleTransformChange('rotation', v[0] ?? 0)}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">Opacity</span>
-                  <span className="font-mono text-[10px] text-muted-foreground/70">
-                    {Math.round(transforms.opacity * 100)}%
-                  </span>
-                </div>
-                <Slider
-                  min={0}
-                  max={1}
-                  step={0.01}
-                  value={[transforms.opacity ?? 1]}
-                  onValueChange={(v) => handleTransformChange('opacity', v[0] ?? 1)}
-                />
-              </div>
-            </div>
-          </div>
+          <TransformSection transforms={transforms} onChange={handleTransformChange} />
         )}
 
         {/* Audio Section */}
-        <div className="space-y-4 pt-4 border-t border-border">
-          <div className="flex items-center justify-between">
-            <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-              Audio
-            </h4>
-            <Switch
-              checked={!isMuted}
-              onCheckedChange={(checked) => handleEffectChange('volume', checked ? 1 : 0)}
-            />
-          </div>
-
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <div className="flex justify-between text-xs">
-                <span className="text-muted-foreground">Volume</span>
-                <span className="font-mono text-[10px] text-muted-foreground/70">
-                  {isMuted ? 'Muted' : `${Math.round(effects.volume * 100)}%`}
-                </span>
-              </div>
-              <Slider
-                min={0}
-                max={2}
-                step={0.01}
-                value={[effects.volume ?? 1]}
-                onValueChange={(v) => handleEffectChange('volume', v[0] ?? 1)}
-                disabled={isMuted}
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <span className="text-xs text-muted-foreground">Fade In (ms)</span>
-                <input
-                  type="number"
-                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                  value={effects.fadeIn}
-                  onChange={(e) => handleEffectChange('fadeIn', parseInt(e.target.value, 10) || 0)}
-                />
-              </div>
-              <div className="space-y-1">
-                <span className="text-xs text-muted-foreground">Fade Out (ms)</span>
-                <input
-                  type="number"
-                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                  value={effects.fadeOut}
-                  onChange={(e) => handleEffectChange('fadeOut', parseInt(e.target.value, 10) || 0)}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
+        <AudioSection effects={effects} isMuted={isMuted} onChange={handleEffectChange} />
 
         {/* Effects Section */}
-        <div className="space-y-4 pt-4 border-t border-border">
-          <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-            Effects
-          </h4>
-
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <span className="text-xs text-muted-foreground">Speed</span>
-              <Select
-                value={effects.speed.toString()}
-                onValueChange={(v) => handleEffectChange('speed', parseFloat(v))}
-              >
-                <SelectTrigger className="h-9">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {SPEED_PRESETS.map((preset) => (
-                    <SelectItem key={preset.value.toString()} value={preset.value.toString()}>
-                      {preset.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {selectedTrackType !== 'AUDIO' && (
-              <div className="space-y-2">
-                <span className="text-xs text-muted-foreground">Filter</span>
-                <Select
-                  value={currentFilter}
-                  onValueChange={(v) => handleEffectChange('filters', v === 'none' ? [] : [v])}
-                >
-                  <SelectTrigger className="h-9">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {FILTER_PRESETS.map((preset) => (
-                      <SelectItem key={preset.id} value={preset.id}>
-                        {preset.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-          </div>
-        </div>
+        <EffectsSection
+          effects={effects}
+          currentFilter={currentFilter}
+          selectedTrackType={selectedTrackType}
+          onChange={handleEffectChange}
+        />
       </div>
     </div>
   );

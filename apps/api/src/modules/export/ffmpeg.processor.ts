@@ -179,9 +179,9 @@ export const ffmpegProcessorCLI = {
 
     // Build concat filter
     const inputArgs: string[] = [];
-    validInputs.forEach((path) => {
+    for (const path of validInputs) {
       inputArgs.push('-i', path);
-    });
+    }
 
     const filterInputs = validInputs.map((_, i) => `[${i}:v:0][${i}:a:0]`).join('');
     const filterComplex = `${filterInputs}concat=n=${validInputs.length}:v=1:a=1[outv][outa]`;

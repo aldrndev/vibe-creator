@@ -40,6 +40,116 @@ export interface ModernExportResult {
   readonly cacheState?: ExportCacheState;
 }
 
+type CompiledTimeline = Extract<
+  ReturnType<typeof compileModernProject>,
+  { success: true }
+>['timeline'];
+
+function processClip(
+  clip: CompiledTimeline['tracks'][0]['clips'][0],
+  trackType: string,
+  mediaAssetsById: Map<string, EditorAsset>,
+  counts: { visual: number; audio: number },
+) {
+  const asset = clip.asset;
+  if (!asset) return;
+
+  const isVisualClip = trackType === 'VIDEO' && (asset.type === 'VIDEO' || asset.type === 'IMAGE');
+  const isStandaloneAudioClip = trackType === 'AUDIO' && asset.type === 'AUDIO';
+
+  if (isVisualClip || isStandaloneAudioClip) {
+    mediaAssetsById.set(asset.id, asset);
+  }
+
+  if (isVisualClip) counts.visual++;
+  if (isStandaloneAudioClip) counts.audio++;
+}
+
+function extractAssetsFromTimeline(timeline: CompiledTimeline) {
+  const mediaAssetsById = new Map<string, EditorAsset>();
+  const counts = { visual: 0, audio: 0 };
+
+  for (const track of timeline.tracks) {
+    for (const clip of track.clips) {
+      processClip(clip, track.type, mediaAssetsById, counts);
+    }
+  }
+
+  return { mediaAssetsById, visualClipCount: counts.visual, audioTrackCount: counts.audio };
+}
+
+function prepareMediaAssets(
+  timeline: CompiledTimeline,
+  project: ModernProject,
+  assets: EditorAsset[],
+) {
+  const { mediaAssetsById, visualClipCount, audioTrackCount } = extractAssetsFromTimeline(timeline);
+
+  const visibleTextCount = project.layers.filter(
+    (layer) => layer.type === 'text' && layer.visible && layer.endMs > layer.startMs,
+  ).length;
+
+  if (visualClipCount === 0 && audioTrackCount === 0 && visibleTextCount === 0) {
+    throw new Error('Export requires at least one timed content layer.');
+  }
+
+  if (project.settings.backgroundMode === 'image') {
+    const backgroundAsset = assets.find(
+      (asset) => asset.id === project.settings.backgroundImageAssetId && asset.type === 'IMAGE',
+    );
+    if (!backgroundAsset) {
+      throw new Error('Background image asset is unavailable.');
+    }
+    mediaAssetsById.set(backgroundAsset.id, backgroundAsset);
+  }
+
+  return mediaAssetsById;
+}
+
+async function uploadMediaAssets(
+  assetsToUpload: EditorAsset[],
+  setExportProgress: (p: number) => void,
+) {
+  const assetPathById = new Map<string, string>();
+  let processedCount = 0;
+
+  for (const asset of assetsToUpload) {
+    let remotePath = getModernExportAssetReference(asset);
+
+    if (!asset.serverAssetId && !asset.studioAssetId && asset.file) {
+      const uploadResult = await exportApi.uploadMedia(asset.file);
+      remotePath = uploadResult.uploadToken;
+    }
+
+    assetPathById.set(asset.id, remotePath);
+
+    processedCount++;
+    const uploadProgress =
+      UPLOAD_PROGRESS_START +
+      (processedCount / assetsToUpload.length) * (UPLOAD_PROGRESS_END - UPLOAD_PROGRESS_START);
+    setExportProgress(uploadProgress);
+  }
+
+  if (assetsToUpload.length === 0) {
+    setExportProgress(UPLOAD_PROGRESS_END);
+  }
+
+  return assetPathById;
+}
+
+async function fetchExportDownloadUrl(finalStatus: ExportStatusResponse) {
+  if (!finalStatus.downloadUrl) {
+    throw new Error('Download URL not available');
+  }
+
+  const { authFetch } = await import('@/services/api');
+  const response = await authFetch(finalStatus.downloadUrl);
+  if (!response.ok) throw new Error('Failed to download export');
+
+  const blob = await response.blob();
+  return window.URL.createObjectURL(blob);
+}
+
 export function useModernExport() {
   const [isExporting, setIsExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
@@ -112,78 +222,12 @@ export function useModernExport() {
         setExportProgress(PREPARED_PROGRESS);
 
         // 2. Prepare upload tasks for visual clips and standalone audio layers.
-        // We need to map timeline clips to backend format
-        const mediaAssetsById = new Map<string, EditorAsset>();
-        let visualClipCount = 0;
-        let audioTrackCount = 0;
-
-        for (const track of timeline.tracks) {
-          for (const clip of track.clips) {
-            const asset = clip.asset;
-            if (!asset) continue;
-
-            const isVisualClip =
-              track.type === 'VIDEO' && (asset.type === 'VIDEO' || asset.type === 'IMAGE');
-            const isStandaloneAudioClip = track.type === 'AUDIO' && asset.type === 'AUDIO';
-
-            if (isVisualClip || isStandaloneAudioClip) {
-              mediaAssetsById.set(asset.id, asset);
-            }
-
-            if (isVisualClip) {
-              visualClipCount++;
-            }
-
-            if (isStandaloneAudioClip) {
-              audioTrackCount++;
-            }
-          }
-        }
-
-        const visibleTextCount = project.layers.filter(
-          (layer) => layer.type === 'text' && layer.visible && layer.endMs > layer.startMs,
-        ).length;
-        if (visualClipCount === 0 && audioTrackCount === 0 && visibleTextCount === 0) {
-          throw new Error('Export requires at least one timed content layer.');
-        }
-
-        if (project.settings.backgroundMode === 'image') {
-          const backgroundAsset = assets.find(
-            (asset) =>
-              asset.id === project.settings.backgroundImageAssetId && asset.type === 'IMAGE',
-          );
-          if (!backgroundAsset) {
-            throw new Error('Background image asset is unavailable.');
-          }
-          mediaAssetsById.set(backgroundAsset.id, backgroundAsset);
-        }
-
-        const assetPathById = new Map<string, string>();
+        const mediaAssetsById = prepareMediaAssets(timeline, project, assets);
         const assetsToUpload = Array.from(mediaAssetsById.values());
-        let processedCount = 0;
 
         // 3. Upload files if needed
         setExportPhase('uploading');
-        for (const asset of assetsToUpload) {
-          let remotePath = getModernExportAssetReference(asset);
-
-          if (!asset.serverAssetId && !asset.studioAssetId && asset.file) {
-            const uploadResult = await exportApi.uploadMedia(asset.file);
-            remotePath = uploadResult.uploadToken;
-          }
-
-          assetPathById.set(asset.id, remotePath);
-
-          processedCount++;
-          const uploadProgress =
-            UPLOAD_PROGRESS_START +
-            (processedCount / assetsToUpload.length) *
-              (UPLOAD_PROGRESS_END - UPLOAD_PROGRESS_START);
-          setExportProgress(uploadProgress);
-        }
-        if (assetsToUpload.length === 0) {
-          setExportProgress(UPLOAD_PROGRESS_END);
-        }
+        const assetPathById = await uploadMediaAssets(assetsToUpload, setExportProgress);
 
         const timelineData = buildModernExportTimelineData({
           project,
@@ -221,25 +265,17 @@ export function useModernExport() {
               });
 
         // 6. Download
-        if (!finalStatus.downloadUrl) {
-          throw new Error('Download URL not available');
-        }
-
         setExportPhase('downloading');
         setExportProgress(PREVIEW_READY_PROGRESS);
-        const { authFetch } = await import('@/services/api');
-        const response = await authFetch(finalStatus.downloadUrl);
-        if (!response.ok) throw new Error('Failed to download export');
 
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
+        const url = await fetchExportDownloadUrl(finalStatus);
         exportPreviewUrlRef.current = url;
 
         setExportResult({
           jobId: job.jobId,
           filename: finalStatus.filename ?? job.filename ?? getModernExportFilename(project),
           previewUrl: url,
-          downloadUrl: finalStatus.downloadUrl,
+          downloadUrl: finalStatus.downloadUrl ?? '',
           completedAt: finalStatus.completedAt,
           urlExpiresAt: finalStatus.urlExpiresAt,
           cacheState: job.cacheState,

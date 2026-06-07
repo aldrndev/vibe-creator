@@ -183,52 +183,64 @@ function buildSyntheticWords(segment: TranscriptSegment): TranscriptWord[] {
   return words;
 }
 
+function calculateBaseCounts(totalWords: number, weights: number[], sumWeight: number): number[] {
+  return weights.map((weight) =>
+    Math.max(1, Math.floor((weight / Math.max(1, sumWeight)) * totalWords)),
+  );
+}
+
+function handleOverflow(baseCounts: number[], allocated: number, totalWords: number): number {
+  let overflow = allocated - totalWords;
+  for (let index = baseCounts.length - 1; index >= 0 && overflow > 0; index--) {
+    if ((baseCounts[index] ?? 0) > 1) {
+      baseCounts[index] = (baseCounts[index] ?? 0) - 1;
+      overflow -= 1;
+    }
+  }
+  return baseCounts.reduce((acc, value) => acc + value, 0);
+}
+
+function handleDeficit(
+  baseCounts: number[],
+  allocated: number,
+  totalWords: number,
+  weights: number[],
+  sumWeight: number,
+): void {
+  let deficit = totalWords - allocated;
+  const fractions = weights.map((weight, index) => ({
+    index,
+    frac: (weight / Math.max(1, sumWeight)) * totalWords - (baseCounts[index] ?? 0),
+  }));
+  fractions.sort((a, b) => b.frac - a.frac);
+
+  while (deficit > 0) {
+    const target = fractions[(totalWords - deficit) % fractions.length];
+    if (!target) {
+      break;
+    }
+    baseCounts[target.index] = (baseCounts[target.index] ?? 0) + 1;
+    deficit -= 1;
+  }
+}
+
 function distributeWordsByWeights(totalWords: number, weights: number[]): number[] {
-  if (weights.length === 0) {
-    return [];
-  }
-
-  if (totalWords <= 0) {
-    return weights.map(() => 0);
-  }
-
+  if (weights.length === 0) return [];
+  if (totalWords <= 0) return weights.map(() => 0);
   if (totalWords <= weights.length) {
     return weights.map((_, index) => (index < totalWords ? 1 : 0));
   }
 
   const sumWeight = weights.reduce((acc, weight) => acc + weight, 0);
-  const baseCounts = weights.map((weight) =>
-    Math.max(1, Math.floor((weight / Math.max(1, sumWeight)) * totalWords)),
-  );
+  const baseCounts = calculateBaseCounts(totalWords, weights, sumWeight);
   let allocated = baseCounts.reduce((acc, value) => acc + value, 0);
 
   if (allocated > totalWords) {
-    let overflow = allocated - totalWords;
-    for (let index = baseCounts.length - 1; index >= 0 && overflow > 0; index--) {
-      if ((baseCounts[index] ?? 0) > 1) {
-        baseCounts[index] = (baseCounts[index] ?? 0) - 1;
-        overflow -= 1;
-      }
-    }
-    allocated = baseCounts.reduce((acc, value) => acc + value, 0);
+    allocated = handleOverflow(baseCounts, allocated, totalWords);
   }
 
   if (allocated < totalWords) {
-    let deficit = totalWords - allocated;
-    const fractions = weights.map((weight, index) => ({
-      index,
-      frac: (weight / Math.max(1, sumWeight)) * totalWords - (baseCounts[index] ?? 0),
-    }));
-    fractions.sort((a, b) => b.frac - a.frac);
-
-    while (deficit > 0) {
-      const target = fractions[(totalWords - deficit) % fractions.length];
-      if (!target) {
-        break;
-      }
-      baseCounts[target.index] = (baseCounts[target.index] ?? 0) + 1;
-      deficit -= 1;
-    }
+    handleDeficit(baseCounts, allocated, totalWords, weights, sumWeight);
   }
 
   return baseCounts;
@@ -276,101 +288,109 @@ export function getTranscriptLayoutLabel(animation: SubtitleStyle['animation']):
   return 'Gaya standar';
 }
 
-export function buildTranscriptCues(
-  segments: TranscriptSegment[],
-  animation: SubtitleStyle['animation'],
-): TranscriptCue[] {
-  if (animation === 'typewriter' || animation === 'word' || animation === 'pop-word') {
-    const cues: TranscriptCue[] = [];
-    segments.forEach((segment, segmentIndex) => {
-      const words = segment.words?.length ? segment.words : buildSyntheticWords(segment);
-      words.forEach((word, tokenIndex) => {
-        cues.push({
-          id: `word-${segmentIndex}-${tokenIndex}-${word.startMs}-${word.endMs}`,
-          startMs: word.startMs,
-          endMs: word.endMs,
-          text: normalizeText(word.text),
-          speaker: word.speaker ?? segment.speaker,
-          segmentIndices: [segmentIndex],
-          source: {
-            kind: 'word',
-            segmentIndex,
-            tokenIndex,
-          },
-        });
-      });
-    });
-    return cues;
-  }
-
-  if (animation === 'phrase' || animation === 'line') {
-    const cues: TranscriptCue[] = [];
-    let currentIndices: number[] = [];
-    let currentStart = 0;
-    let currentEnd = 0;
-    let currentText = '';
-    let currentSegment: TranscriptSegment | null = null;
-
-    for (let segmentIndex = 0; segmentIndex < segments.length; segmentIndex++) {
-      const segment = segments[segmentIndex];
-      if (!segment) {
-        continue;
-      }
-
-      if (!currentSegment) {
-        currentSegment = segment;
-        currentIndices = [segmentIndex];
-        currentStart = segment.startMs;
-        currentEnd = segment.endMs;
-        currentText = normalizeText(segment.text);
-        continue;
-      }
-
-      const activeSegment: TranscriptSegment = currentSegment;
-      if (shouldMergeSegments(activeSegment, segment)) {
-        currentSegment = {
-          startMs: activeSegment.startMs,
-          endMs: Math.max(activeSegment.endMs, segment.endMs),
-          text: `${activeSegment.text} ${segment.text}`,
-          speaker: activeSegment.speaker ?? segment.speaker,
-          words: [...(activeSegment.words ?? []), ...(segment.words ?? [])],
-        };
-        currentIndices.push(segmentIndex);
-        currentEnd = Math.max(currentEnd, segment.endMs);
-        currentText = normalizeText(`${currentText} ${segment.text}`);
-        continue;
-      }
-
+function buildWordCues(segments: TranscriptSegment[]): TranscriptCue[] {
+  const cues: TranscriptCue[] = [];
+  for (const [segmentIndex, segment] of segments.entries()) {
+    const words = segment.words?.length ? segment.words : buildSyntheticWords(segment);
+    for (const [tokenIndex, word] of words.entries()) {
       cues.push({
-        id: `group-${currentIndices.join('-')}-${currentStart}-${currentEnd}`,
-        startMs: currentStart,
-        endMs: currentEnd,
-        text: currentText,
-        speaker: currentSegment.speaker,
-        segmentIndices: [...currentIndices],
-        source: { kind: 'group' },
+        id: `word-${segmentIndex}-${tokenIndex}-${word.startMs}-${word.endMs}`,
+        startMs: word.startMs,
+        endMs: word.endMs,
+        text: normalizeText(word.text),
+        speaker: word.speaker ?? segment.speaker,
+        segmentIndices: [segmentIndex],
+        source: {
+          kind: 'word',
+          segmentIndex,
+          tokenIndex,
+        },
       });
+    }
+  }
+  return cues;
+}
 
+function buildGroupCues(segments: TranscriptSegment[]): TranscriptCue[] {
+  const cues: TranscriptCue[] = [];
+  let currentIndices: number[] = [];
+  let currentStart = 0;
+  let currentEnd = 0;
+  let currentText = '';
+  let currentSegment: TranscriptSegment | null = null;
+
+  for (let segmentIndex = 0; segmentIndex < segments.length; segmentIndex++) {
+    const segment = segments[segmentIndex];
+    if (!segment) {
+      continue;
+    }
+
+    if (!currentSegment) {
       currentSegment = segment;
       currentIndices = [segmentIndex];
       currentStart = segment.startMs;
       currentEnd = segment.endMs;
       currentText = normalizeText(segment.text);
+      continue;
     }
 
-    if (currentSegment) {
-      cues.push({
-        id: `group-${currentIndices.join('-')}-${currentStart}-${currentEnd}`,
-        startMs: currentStart,
-        endMs: currentEnd,
-        text: currentText,
-        speaker: currentSegment.speaker,
-        segmentIndices: [...currentIndices],
-        source: { kind: 'group' },
-      });
+    const activeSegment: TranscriptSegment = currentSegment;
+    if (shouldMergeSegments(activeSegment, segment)) {
+      currentSegment = {
+        startMs: activeSegment.startMs,
+        endMs: Math.max(activeSegment.endMs, segment.endMs),
+        text: `${activeSegment.text} ${segment.text}`,
+        speaker: activeSegment.speaker ?? segment.speaker,
+        words: [...(activeSegment.words ?? []), ...(segment.words ?? [])],
+      };
+      currentIndices.push(segmentIndex);
+      currentEnd = Math.max(currentEnd, segment.endMs);
+      currentText = normalizeText(`${currentText} ${segment.text}`);
+      continue;
     }
 
-    return cues;
+    cues.push({
+      id: `group-${currentIndices.join('-')}-${currentStart}-${currentEnd}`,
+      startMs: currentStart,
+      endMs: currentEnd,
+      text: currentText,
+      speaker: currentSegment.speaker,
+      segmentIndices: [...currentIndices],
+      source: { kind: 'group' },
+    });
+
+    currentSegment = segment;
+    currentIndices = [segmentIndex];
+    currentStart = segment.startMs;
+    currentEnd = segment.endMs;
+    currentText = normalizeText(segment.text);
+  }
+
+  if (currentSegment) {
+    cues.push({
+      id: `group-${currentIndices.join('-')}-${currentStart}-${currentEnd}`,
+      startMs: currentStart,
+      endMs: currentEnd,
+      text: currentText,
+      speaker: currentSegment.speaker,
+      segmentIndices: [...currentIndices],
+      source: { kind: 'group' },
+    });
+  }
+
+  return cues;
+}
+
+export function buildTranscriptCues(
+  segments: TranscriptSegment[],
+  animation: SubtitleStyle['animation'],
+): TranscriptCue[] {
+  if (animation === 'typewriter' || animation === 'word' || animation === 'pop-word') {
+    return buildWordCues(segments);
+  }
+
+  if (animation === 'phrase' || animation === 'line') {
+    return buildGroupCues(segments);
   }
 
   return segments.map((segment, segmentIndex) => ({
@@ -510,11 +530,13 @@ export function buildTranscriptSpeakerOptions(
       speakers.add(segment.speaker);
     }
 
-    segment.words?.forEach((word) => {
-      if (word.speaker) {
-        speakers.add(word.speaker);
+    if (segment.words) {
+      for (const word of segment.words) {
+        if (word.speaker) {
+          speakers.add(word.speaker);
+        }
       }
-    });
+    }
   }
 
   return [...speakers].map((speaker) => ({

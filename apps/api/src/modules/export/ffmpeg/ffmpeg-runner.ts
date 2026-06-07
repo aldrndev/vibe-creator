@@ -73,9 +73,9 @@ export async function runFFmpeg(options: RunOptions): Promise<void> {
       const text = chunk.toString();
       const updates = parser.parse(text);
 
-      updates.forEach((update) => {
+      for (const update of updates) {
         onProgress?.(update);
-      });
+      }
     });
 
     // Handle stderr (errors)

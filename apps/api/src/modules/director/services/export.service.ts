@@ -151,7 +151,7 @@ export const directorExportService = {
   async getExportResult(sessionId: string, userId: string) {
     const session = await directorRepo.findSession(sessionId, userId);
 
-    if (!session || !session.exportJob) {
+    if (!session?.exportJob) {
       throw new Error('Export not found');
     }
 

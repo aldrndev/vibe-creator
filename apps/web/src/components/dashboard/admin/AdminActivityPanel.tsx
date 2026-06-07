@@ -19,34 +19,42 @@ export function AdminActivityPanel({ activity, isLoading }: AdminActivityPanelPr
         </div>
       </div>
       <CardBody className="p-0">
-        {isLoading ? (
-          <div className="py-12 text-center text-xs font-bold text-muted-foreground">
-            Memuat aktivitas...
-          </div>
-        ) : activity.length === 0 ? (
-          <div className="py-12 text-center text-xs font-bold text-muted-foreground">
-            Belum ada aktivitas.
-          </div>
-        ) : (
-          <div className="divide-y divide-border/40">
-            {activity.map((item) => (
-              <div key={`${item.type}-${item.id}`} className="flex items-center gap-3 p-4">
-                <div className="rounded-lg border border-border/50 bg-muted/30 p-2 text-muted-foreground">
-                  <ActivityIcon type={item.type} />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-bold">{getActivityTitle(item)}</p>
-                  <p className="text-xs font-medium text-muted-foreground">
-                    {formatActivityTime(item.createdAt)}
-                  </p>
-                </div>
-                <span className="rounded-full bg-muted px-2 py-1 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                  {item.type}
-                </span>
+        {(() => {
+          if (isLoading) {
+            return (
+              <div className="py-12 text-center text-xs font-bold text-muted-foreground">
+                Memuat aktivitas...
               </div>
-            ))}
-          </div>
-        )}
+            );
+          }
+          if (activity.length === 0) {
+            return (
+              <div className="py-12 text-center text-xs font-bold text-muted-foreground">
+                Belum ada aktivitas.
+              </div>
+            );
+          }
+          return (
+            <div className="divide-y divide-border/40">
+              {activity.map((item) => (
+                <div key={`${item.type}-${item.id}`} className="flex items-center gap-3 p-4">
+                  <div className="rounded-lg border border-border/50 bg-muted/30 p-2 text-muted-foreground">
+                    <ActivityIcon type={item.type} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-bold">{getActivityTitle(item)}</p>
+                    <p className="text-xs font-medium text-muted-foreground">
+                      {formatActivityTime(item.createdAt)}
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-muted px-2 py-1 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                    {item.type}
+                  </span>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
       </CardBody>
     </Card>
   );

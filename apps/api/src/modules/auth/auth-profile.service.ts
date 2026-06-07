@@ -29,8 +29,8 @@ export async function updateAuthProfile(
   input: UpdateProfileRequest,
 ): Promise<AuthProfileSnapshot> {
   const profile = await updateUserProfile(userId, {
-    ...(input.name !== undefined ? { name: input.name } : {}),
-    ...(input.avatarUrl !== undefined ? { avatarUrl: input.avatarUrl } : {}),
+    ...(input.name === undefined ? {} : { name: input.name }),
+    ...(input.avatarUrl === undefined ? {} : { avatarUrl: input.avatarUrl }),
   });
 
   if (!profile) {

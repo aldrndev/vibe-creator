@@ -127,19 +127,97 @@ function buildSlideTransitionFilter(
 ): string {
   const paddedWidth = outputWidth * SLIDE_CANVAS_MULTIPLIER;
   const contentX = direction === 'slide-left' ? 0 : outputWidth;
-  const cropX =
-    phase === 'in'
-      ? direction === 'slide-left'
-        ? `${outputWidth}*(1-${progressExpression})`
-        : `${outputWidth}*${progressExpression}`
-      : direction === 'slide-left'
-        ? `${outputWidth}*${progressExpression}`
-        : `${outputWidth}*(1-${progressExpression})`;
+  let cropX: string;
+  if (phase === 'in') {
+    if (direction === 'slide-left') {
+      cropX = `${outputWidth}*(1-${progressExpression})`;
+    } else {
+      cropX = `${outputWidth}*${progressExpression}`;
+    }
+  } else {
+    if (direction === 'slide-left') {
+      cropX = `${outputWidth}*${progressExpression}`;
+    } else {
+      cropX = `${outputWidth}*(1-${progressExpression})`;
+    }
+  }
 
   return [
     `pad=${paddedWidth}:${outputHeight}:${contentX}:0:color=black`,
     `crop=${outputWidth}:${outputHeight}:x='${cropX}':y=0`,
   ].join(',');
+}
+
+function buildMotionFilters(
+  motion: 'none' | 'zoom-in' | 'zoom-out' | undefined,
+  durationSec: number,
+  outputWidth: number,
+  outputHeight: number,
+): string[] {
+  if (!motion || motion === 'none') return [];
+  const progress = ffmpegMin(1, ffmpegMax(0, `t/${durationSec.toFixed(3)}`));
+  const start = motion === 'zoom-in' ? 1 : 1 + MOTION_ZOOM_DELTA;
+  const direction = motion === 'zoom-in' ? 1 : -1;
+  const scaleExpression = `(${start}+(${direction * MOTION_ZOOM_DELTA})*${progress})`;
+  return [buildScaleToCanvasFilter(outputWidth, outputHeight, scaleExpression)];
+}
+
+function buildTransitionInFilters(
+  transitionIn: 'none' | 'fade' | 'slide-left' | 'slide-right' | 'zoom' | undefined,
+  fadeIn: number | undefined,
+  outputWidth: number,
+  outputHeight: number,
+): string[] {
+  if (!transitionIn || transitionIn === 'none') return [];
+  const filters: string[] = [];
+  const transitionSec = Math.max(MIN_TRANSITION_SEC, (fadeIn || DEFAULT_TRANSITION_MS) / 1000);
+
+  if (transitionIn === 'slide-left' || transitionIn === 'slide-right') {
+    filters.push(
+      buildSlideTransitionFilter(
+        transitionIn,
+        'in',
+        buildProgressExpression(0, transitionSec),
+        outputWidth,
+        outputHeight,
+      ),
+    );
+  } else if (transitionIn === 'zoom') {
+    const progress = buildProgressExpression(0, transitionSec);
+    const scaleExpression = `(${TRANSITION_ZOOM_START}+(1-${TRANSITION_ZOOM_START})*${progress})`;
+    filters.push(buildScaleToCanvasFilter(outputWidth, outputHeight, scaleExpression));
+  }
+  return filters;
+}
+
+function buildTransitionOutFilters(
+  transitionOut: 'none' | 'fade' | 'slide-left' | 'slide-right' | 'zoom' | undefined,
+  fadeOut: number | undefined,
+  durationSec: number,
+  outputWidth: number,
+  outputHeight: number,
+): string[] {
+  if (!transitionOut || transitionOut === 'none') return [];
+  const filters: string[] = [];
+  const transitionSec = Math.max(MIN_TRANSITION_SEC, (fadeOut || DEFAULT_TRANSITION_MS) / 1000);
+  const transitionStartSec = Math.max(0, durationSec - transitionSec);
+
+  if (transitionOut === 'slide-left' || transitionOut === 'slide-right') {
+    filters.push(
+      buildSlideTransitionFilter(
+        transitionOut,
+        'out',
+        buildProgressExpression(transitionStartSec, transitionSec),
+        outputWidth,
+        outputHeight,
+      ),
+    );
+  } else if (transitionOut === 'zoom') {
+    const progress = buildProgressExpression(transitionStartSec, transitionSec);
+    const scaleExpression = `(1-(1-${TRANSITION_ZOOM_START})*${progress})`;
+    filters.push(buildScaleToCanvasFilter(outputWidth, outputHeight, scaleExpression));
+  }
+  return filters;
 }
 
 function buildVisualTransitionFilters(
@@ -152,68 +230,98 @@ function buildVisualTransitionFilters(
 
   const filters: string[] = [];
   const durationSec = Math.max(MIN_TRANSITION_SEC, durationMs / 1000);
-  const transitionIn = effects.transitionIn ?? 'none';
-  const transitionOut = effects.transitionOut ?? 'none';
 
-  if (effects.motion === 'zoom-in' || effects.motion === 'zoom-out') {
-    const progress = ffmpegMin(1, ffmpegMax(0, `t/${durationSec.toFixed(3)}`));
-    const start = effects.motion === 'zoom-in' ? 1 : 1 + MOTION_ZOOM_DELTA;
-    const direction = effects.motion === 'zoom-in' ? 1 : -1;
-    const scaleExpression = `(${start}+(${direction * MOTION_ZOOM_DELTA})*${progress})`;
-    filters.push(buildScaleToCanvasFilter(outputWidth, outputHeight, scaleExpression));
-  }
-
-  if (transitionIn === 'slide-left' || transitionIn === 'slide-right') {
-    const transitionSec = Math.max(
-      MIN_TRANSITION_SEC,
-      (effects.fadeIn || DEFAULT_TRANSITION_MS) / 1000,
-    );
-    filters.push(
-      buildSlideTransitionFilter(
-        transitionIn,
-        'in',
-        buildProgressExpression(0, transitionSec),
-        outputWidth,
-        outputHeight,
-      ),
-    );
-  } else if (transitionIn === 'zoom') {
-    const transitionSec = Math.max(
-      MIN_TRANSITION_SEC,
-      (effects.fadeIn || DEFAULT_TRANSITION_MS) / 1000,
-    );
-    const progress = buildProgressExpression(0, transitionSec);
-    const scaleExpression = `(${TRANSITION_ZOOM_START}+(1-${TRANSITION_ZOOM_START})*${progress})`;
-    filters.push(buildScaleToCanvasFilter(outputWidth, outputHeight, scaleExpression));
-  }
-
-  if (transitionOut === 'slide-left' || transitionOut === 'slide-right') {
-    const transitionSec = Math.max(
-      MIN_TRANSITION_SEC,
-      (effects.fadeOut || DEFAULT_TRANSITION_MS) / 1000,
-    );
-    const transitionStartSec = Math.max(0, durationSec - transitionSec);
-    filters.push(
-      buildSlideTransitionFilter(
-        transitionOut,
-        'out',
-        buildProgressExpression(transitionStartSec, transitionSec),
-        outputWidth,
-        outputHeight,
-      ),
-    );
-  } else if (transitionOut === 'zoom') {
-    const transitionSec = Math.max(
-      MIN_TRANSITION_SEC,
-      (effects.fadeOut || DEFAULT_TRANSITION_MS) / 1000,
-    );
-    const transitionStartSec = Math.max(0, durationSec - transitionSec);
-    const progress = buildProgressExpression(transitionStartSec, transitionSec);
-    const scaleExpression = `(1-(1-${TRANSITION_ZOOM_START})*${progress})`;
-    filters.push(buildScaleToCanvasFilter(outputWidth, outputHeight, scaleExpression));
-  }
+  filters.push(...buildMotionFilters(effects.motion, durationSec, outputWidth, outputHeight));
+  filters.push(
+    ...buildTransitionInFilters(effects.transitionIn, effects.fadeIn, outputWidth, outputHeight),
+  );
+  filters.push(
+    ...buildTransitionOutFilters(
+      effects.transitionOut,
+      effects.fadeOut,
+      durationSec,
+      outputWidth,
+      outputHeight,
+    ),
+  );
 
   return filters;
+}
+
+function buildSpeedFilters(speed: number | undefined) {
+  const videoFilters: string[] = [];
+  const audioFilters: string[] = [];
+  if (speed !== undefined && speed !== 1) {
+    const clampedSpeed = clamp(speed, 0.25, 4);
+    videoFilters.push(`setpts=${(1 / clampedSpeed).toFixed(4)}*PTS`);
+
+    if (clampedSpeed >= 0.5 && clampedSpeed <= 2) {
+      audioFilters.push(`atempo=${clampedSpeed}`);
+    } else if (clampedSpeed < 0.5) {
+      audioFilters.push('atempo=0.5', `atempo=${clampedSpeed * 2}`);
+    } else {
+      audioFilters.push('atempo=2.0', `atempo=${clampedSpeed / 2}`);
+    }
+  }
+  return { videoFilters, audioFilters };
+}
+
+function buildTransformFilters(
+  transforms: VideoEffectsOptions['transforms'] | undefined,
+  background: VideoEffectsOptions['background'] | undefined,
+  outputWidth: number,
+  outputHeight: number,
+) {
+  const filters: string[] = [];
+  const scale = transforms?.scale ?? 1;
+  const rotation = transforms?.rotation ?? 0;
+  const tx = transforms?.x ?? 0;
+  const ty = transforms?.y ?? 0;
+
+  if (scale !== 1 || rotation !== 0 || tx !== 0 || ty !== 0) {
+    if (scale !== 1) {
+      const clampedScale = clamp(scale, 0.1, 3);
+      filters.push(`scale=iw*${clampedScale}:ih*${clampedScale}`);
+    }
+
+    if (rotation !== 0) {
+      const radians = ((rotation * Math.PI) / 180).toFixed(4);
+      filters.push(`rotate=${radians}:c=none:ow=rotw(${radians}):oh=roth(${radians})`);
+    }
+
+    filters.push(
+      `pad=${outputWidth}:${outputHeight}:(ow-iw)/2+${Math.round(
+        tx,
+      )}:(oh-ih)/2+${Math.round(ty)}:color=black@0`,
+    );
+  } else {
+    if (background?.mode === 'blur') {
+      filters.push(
+        buildBlurFillFilter(outputWidth, outputHeight, {
+          blurAmount: background.blurAmount,
+          blurZoom: background.blurZoom,
+          dim: background.dim,
+          saturation: background.saturation,
+        }),
+      );
+    } else {
+      filters.push(
+        `scale=${outputWidth}:${outputHeight}:force_original_aspect_ratio=decrease`,
+        `pad=${outputWidth}:${outputHeight}:(ow-iw)/2:(oh-ih)/2:color=${normalizePadColor(
+          background?.color,
+        )}`,
+      );
+    }
+  }
+  return filters;
+}
+
+function buildOpacityFilters(opacity: number | undefined) {
+  if (opacity !== undefined && opacity < 1) {
+    const clampedOpacity = clamp(opacity, 0, 1);
+    return [`format=rgba,colorchannelmixer=aa=${clampedOpacity}`];
+  }
+  return [];
 }
 
 /**
@@ -233,61 +341,12 @@ export function buildVideoEffectsCommand(
   const audioFilters: string[] = [];
 
   // 1. Speed adjustment
-  const speed = effects?.speed ?? 1;
-  if (speed !== 1) {
-    const clampedSpeed = clamp(speed, 0.25, 4);
-    videoFilters.push(`setpts=${(1 / clampedSpeed).toFixed(4)}*PTS`);
-
-    if (clampedSpeed >= 0.5 && clampedSpeed <= 2) {
-      audioFilters.push(`atempo=${clampedSpeed}`);
-    } else if (clampedSpeed < 0.5) {
-      audioFilters.push('atempo=0.5', `atempo=${clampedSpeed * 2}`);
-    } else {
-      audioFilters.push('atempo=2.0', `atempo=${clampedSpeed / 2}`);
-    }
-  }
+  const speedOut = buildSpeedFilters(effects?.speed);
+  videoFilters.push(...speedOut.videoFilters);
+  audioFilters.push(...speedOut.audioFilters);
 
   // 2. Transform: scale + rotation + position
-  const scale = transforms?.scale ?? 1;
-  const rotation = transforms?.rotation ?? 0;
-  const tx = transforms?.x ?? 0;
-  const ty = transforms?.y ?? 0;
-
-  if (scale !== 1 || rotation !== 0 || tx !== 0 || ty !== 0) {
-    if (scale !== 1) {
-      const clampedScale = clamp(scale, 0.1, 3);
-      videoFilters.push(`scale=iw*${clampedScale}:ih*${clampedScale}`);
-    }
-
-    if (rotation !== 0) {
-      const radians = ((rotation * Math.PI) / 180).toFixed(4);
-      videoFilters.push(`rotate=${radians}:c=none:ow=rotw(${radians}):oh=roth(${radians})`);
-    }
-
-    videoFilters.push(
-      `pad=${outputWidth}:${outputHeight}:(ow-iw)/2+${Math.round(
-        tx,
-      )}:(oh-ih)/2+${Math.round(ty)}:color=black@0`,
-    );
-  } else {
-    if (background?.mode === 'blur') {
-      videoFilters.push(
-        buildBlurFillFilter(outputWidth, outputHeight, {
-          blurAmount: background.blurAmount,
-          blurZoom: background.blurZoom,
-          dim: background.dim,
-          saturation: background.saturation,
-        }),
-      );
-    } else {
-      videoFilters.push(
-        `scale=${outputWidth}:${outputHeight}:force_original_aspect_ratio=decrease`,
-        `pad=${outputWidth}:${outputHeight}:(ow-iw)/2:(oh-ih)/2:color=${normalizePadColor(
-          background?.color,
-        )}`,
-      );
-    }
-  }
+  videoFilters.push(...buildTransformFilters(transforms, background, outputWidth, outputHeight));
 
   // 3. Apply color filter
   const filterId = effects?.filters?.[0];
@@ -296,11 +355,7 @@ export function buildVideoEffectsCommand(
   }
 
   // 4. Opacity
-  const opacity = transforms?.opacity ?? 1;
-  if (opacity < 1) {
-    const clampedOpacity = clamp(opacity, 0, 1);
-    videoFilters.push(`format=rgba,colorchannelmixer=aa=${clampedOpacity}`);
-  }
+  videoFilters.push(...buildOpacityFilters(transforms?.opacity));
 
   // 5. Visual transitions and motion
   videoFilters.push(

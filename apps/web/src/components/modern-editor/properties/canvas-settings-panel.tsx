@@ -168,100 +168,15 @@ export function CanvasSettingsPanel({
             )}
           </div>
 
-          {canvasSettings.backgroundMode === 'image' ? (
-            <CanvasBackgroundImageControls
-              activeAsset={activeBackgroundAsset}
-              settings={canvasSettings}
-              onOpenPicker={() => setIsImagePickerOpen(true)}
-              onRemove={removeActiveBackground}
-              onUpdateSettings={onUpdateSettings}
-            />
-          ) : canvasSettings.backgroundMode === 'blur' ? (
-            <div className="space-y-3 rounded-2xl border border-border/30 bg-background/20 p-3">
-              <SliderRow
-                label="Opacity"
-                max={1}
-                min={0}
-                step={0.01}
-                value={canvasSettings.backgroundOpacity ?? 1}
-                valueLabel={`${Math.round((canvasSettings.backgroundOpacity ?? 1) * 100)}%`}
-                onChange={(backgroundOpacity) => onUpdateSettings({ backgroundOpacity })}
-              />
-              <SliderRow
-                label="Blur"
-                max={40}
-                min={0}
-                value={canvasSettings.backgroundBlurAmount ?? 18}
-                onChange={(backgroundBlurAmount) => onUpdateSettings({ backgroundBlurAmount })}
-              />
-              <SliderRow
-                label="Zoom"
-                max={1.35}
-                min={1}
-                step={0.01}
-                value={canvasSettings.backgroundBlurZoom ?? 1.08}
-                valueLabel={`${Math.round((canvasSettings.backgroundBlurZoom ?? 1.08) * 100)}%`}
-                onChange={(backgroundBlurZoom) => onUpdateSettings({ backgroundBlurZoom })}
-              />
-              <SliderRow
-                label="Dim"
-                max={0.5}
-                min={0}
-                step={0.01}
-                value={canvasSettings.backgroundDim ?? 0.08}
-                valueLabel={`${Math.round((canvasSettings.backgroundDim ?? 0.08) * 100)}%`}
-                onChange={(backgroundDim) => onUpdateSettings({ backgroundDim })}
-              />
-              <SliderRow
-                label="Saturation"
-                max={1.8}
-                min={0}
-                step={0.05}
-                value={canvasSettings.backgroundSaturation ?? 1.05}
-                valueLabel={`${Math.round((canvasSettings.backgroundSaturation ?? 1.05) * 100)}%`}
-                onChange={(backgroundSaturation) => onUpdateSettings({ backgroundSaturation })}
-              />
-            </div>
-          ) : canvasSettings.backgroundMode === 'gradient' ? (
-            <div className="space-y-3 rounded-2xl border border-border/30 bg-background/20 p-3">
-              <BackgroundPresetGrid
-                presets={gradientPresets}
-                settings={canvasSettings}
-                onSelect={onUpdateSettings}
-              />
-              <SliderRow
-                label="Opacity"
-                max={1}
-                min={0}
-                step={0.01}
-                value={canvasSettings.backgroundOpacity ?? 1}
-                valueLabel={`${Math.round((canvasSettings.backgroundOpacity ?? 1) * 100)}%`}
-                onChange={(backgroundOpacity) => onUpdateSettings({ backgroundOpacity })}
-              />
-            </div>
-          ) : (
-            <div className="space-y-3 rounded-2xl border border-border/30 bg-background/20 p-3">
-              <BackgroundPresetGrid
-                presets={colorPresets}
-                settings={canvasSettings}
-                onSelect={onUpdateSettings}
-              />
-              <ColorField
-                label="Custom background color"
-                value={canvasSettings.backgroundColor}
-                onChange={(backgroundColor) => onUpdateSettings({ backgroundColor })}
-              />
-              <SliderRow
-                label="Opacity"
-                max={1}
-                min={0}
-                step={0.01}
-                value={canvasSettings.backgroundOpacity ?? 1}
-                valueLabel={`${Math.round((canvasSettings.backgroundOpacity ?? 1) * 100)}%`}
-                onChange={(backgroundOpacity) => onUpdateSettings({ backgroundOpacity })}
-              />
-            </div>
-          )}
+          <BackgroundModeSettings
+            canvasSettings={canvasSettings}
+            activeBackgroundAsset={activeBackgroundAsset}
+            setIsImagePickerOpen={setIsImagePickerOpen}
+            removeActiveBackground={removeActiveBackground}
+            onUpdateSettings={onUpdateSettings}
+            gradientPresets={gradientPresets}
+            colorPresets={colorPresets}
+          />
 
           <AdvancedDisclosure title="Advanced Canvas">
             <div className="grid grid-cols-2 gap-3">
@@ -379,6 +294,176 @@ export function CanvasSettingsPanel({
         }}
       />
     </div>
+  );
+}
+
+function BackgroundBlurSettings({
+  canvasSettings,
+  onUpdateSettings,
+}: {
+  canvasSettings: ModernProjectSettings;
+  onUpdateSettings: (settings: Partial<ModernProjectSettings>) => void;
+}) {
+  return (
+    <div className="space-y-3 rounded-2xl border border-border/30 bg-background/20 p-3">
+      <SliderRow
+        label="Opacity"
+        max={1}
+        min={0}
+        step={0.01}
+        value={canvasSettings.backgroundOpacity ?? 1}
+        valueLabel={`${Math.round((canvasSettings.backgroundOpacity ?? 1) * 100)}%`}
+        onChange={(backgroundOpacity) => onUpdateSettings({ backgroundOpacity })}
+      />
+      <SliderRow
+        label="Blur"
+        max={40}
+        min={0}
+        value={canvasSettings.backgroundBlurAmount ?? 18}
+        onChange={(backgroundBlurAmount) => onUpdateSettings({ backgroundBlurAmount })}
+      />
+      <SliderRow
+        label="Zoom"
+        max={1.35}
+        min={1}
+        step={0.01}
+        value={canvasSettings.backgroundBlurZoom ?? 1.08}
+        valueLabel={`${Math.round((canvasSettings.backgroundBlurZoom ?? 1.08) * 100)}%`}
+        onChange={(backgroundBlurZoom) => onUpdateSettings({ backgroundBlurZoom })}
+      />
+      <SliderRow
+        label="Dim"
+        max={0.5}
+        min={0}
+        step={0.01}
+        value={canvasSettings.backgroundDim ?? 0.08}
+        valueLabel={`${Math.round((canvasSettings.backgroundDim ?? 0.08) * 100)}%`}
+        onChange={(backgroundDim) => onUpdateSettings({ backgroundDim })}
+      />
+      <SliderRow
+        label="Saturation"
+        max={1.8}
+        min={0}
+        step={0.05}
+        value={canvasSettings.backgroundSaturation ?? 1.05}
+        valueLabel={`${Math.round((canvasSettings.backgroundSaturation ?? 1.05) * 100)}%`}
+        onChange={(backgroundSaturation) => onUpdateSettings({ backgroundSaturation })}
+      />
+    </div>
+  );
+}
+
+function BackgroundGradientSettings({
+  canvasSettings,
+  gradientPresets,
+  onUpdateSettings,
+}: {
+  canvasSettings: ModernProjectSettings;
+  gradientPresets: readonly CanvasBackgroundPreset[];
+  onUpdateSettings: (settings: Partial<ModernProjectSettings>) => void;
+}) {
+  return (
+    <div className="space-y-3 rounded-2xl border border-border/30 bg-background/20 p-3">
+      <BackgroundPresetGrid
+        presets={gradientPresets}
+        settings={canvasSettings}
+        onSelect={onUpdateSettings}
+      />
+      <SliderRow
+        label="Opacity"
+        max={1}
+        min={0}
+        step={0.01}
+        value={canvasSettings.backgroundOpacity ?? 1}
+        valueLabel={`${Math.round((canvasSettings.backgroundOpacity ?? 1) * 100)}%`}
+        onChange={(backgroundOpacity) => onUpdateSettings({ backgroundOpacity })}
+      />
+    </div>
+  );
+}
+
+function BackgroundSolidSettings({
+  canvasSettings,
+  colorPresets,
+  onUpdateSettings,
+}: {
+  canvasSettings: ModernProjectSettings;
+  colorPresets: readonly CanvasBackgroundPreset[];
+  onUpdateSettings: (settings: Partial<ModernProjectSettings>) => void;
+}) {
+  return (
+    <div className="space-y-3 rounded-2xl border border-border/30 bg-background/20 p-3">
+      <BackgroundPresetGrid
+        presets={colorPresets}
+        settings={canvasSettings}
+        onSelect={onUpdateSettings}
+      />
+      <ColorField
+        label="Custom background color"
+        value={canvasSettings.backgroundColor}
+        onChange={(backgroundColor) => onUpdateSettings({ backgroundColor })}
+      />
+      <SliderRow
+        label="Opacity"
+        max={1}
+        min={0}
+        step={0.01}
+        value={canvasSettings.backgroundOpacity ?? 1}
+        valueLabel={`${Math.round((canvasSettings.backgroundOpacity ?? 1) * 100)}%`}
+        onChange={(backgroundOpacity) => onUpdateSettings({ backgroundOpacity })}
+      />
+    </div>
+  );
+}
+
+function BackgroundModeSettings({
+  canvasSettings,
+  activeBackgroundAsset,
+  setIsImagePickerOpen,
+  removeActiveBackground,
+  onUpdateSettings,
+  gradientPresets,
+  colorPresets,
+}: {
+  canvasSettings: ModernProjectSettings;
+  activeBackgroundAsset?: EditorAsset;
+  setIsImagePickerOpen: (open: boolean) => void;
+  removeActiveBackground: () => void;
+  onUpdateSettings: (settings: Partial<ModernProjectSettings>) => void;
+  gradientPresets: readonly CanvasBackgroundPreset[];
+  colorPresets: readonly CanvasBackgroundPreset[];
+}) {
+  if (canvasSettings.backgroundMode === 'image') {
+    return (
+      <CanvasBackgroundImageControls
+        activeAsset={activeBackgroundAsset}
+        settings={canvasSettings}
+        onOpenPicker={() => setIsImagePickerOpen(true)}
+        onRemove={removeActiveBackground}
+        onUpdateSettings={onUpdateSettings}
+      />
+    );
+  }
+  if (canvasSettings.backgroundMode === 'blur') {
+    return (
+      <BackgroundBlurSettings canvasSettings={canvasSettings} onUpdateSettings={onUpdateSettings} />
+    );
+  }
+  if (canvasSettings.backgroundMode === 'gradient') {
+    return (
+      <BackgroundGradientSettings
+        canvasSettings={canvasSettings}
+        gradientPresets={gradientPresets}
+        onUpdateSettings={onUpdateSettings}
+      />
+    );
+  }
+  return (
+    <BackgroundSolidSettings
+      canvasSettings={canvasSettings}
+      colorPresets={colorPresets}
+      onUpdateSettings={onUpdateSettings}
+    />
   );
 }
 

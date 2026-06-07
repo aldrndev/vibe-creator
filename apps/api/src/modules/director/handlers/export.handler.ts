@@ -125,7 +125,7 @@ export async function processExportJob(job: Job<DirectorExportJobData>) {
     },
   });
 
-  if (!session || !session.exportJob) {
+  if (!session?.exportJob) {
     throw new Error('Session or export job not found');
   }
 

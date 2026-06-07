@@ -133,8 +133,8 @@ describe('stream configuration', () => {
     });
 
     it('should have higher bitrate for 1080p than 720p', () => {
-      const bitrate720 = parseInt(QUALITY_PRESETS['720p'].bitrate, 10);
-      const bitrate1080 = parseInt(QUALITY_PRESETS['1080p'].bitrate, 10);
+      const bitrate720 = Number.parseInt(QUALITY_PRESETS['720p'].bitrate, 10);
+      const bitrate1080 = Number.parseInt(QUALITY_PRESETS['1080p'].bitrate, 10);
       expect(bitrate1080).toBeGreaterThan(bitrate720);
     });
   });

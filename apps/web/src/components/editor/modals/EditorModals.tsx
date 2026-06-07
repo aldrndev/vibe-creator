@@ -160,11 +160,15 @@ export const EditorModals = ({
                     <div
                       className={cn(
                         'w-8 h-8 rounded-xl flex items-center justify-center text-xs font-black transition-all',
-                        downloadStep > step
-                          ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20'
-                          : downloadStep === step
-                            ? 'bg-primary text-white animate-pulse'
-                            : 'bg-white/5 text-muted-foreground/20',
+                        (() => {
+                          if (downloadStep > step) {
+                            return 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20';
+                          }
+                          if (downloadStep === step) {
+                            return 'bg-primary text-white animate-pulse';
+                          }
+                          return 'bg-white/5 text-muted-foreground/20';
+                        })(),
                       )}
                     >
                       {downloadStep > step ? <CheckCircle2 size={16} /> : step}

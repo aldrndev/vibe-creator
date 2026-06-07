@@ -77,68 +77,7 @@ class ApiClient {
 
     // Handle token expiration - auto refresh
     if (response.status === 401 && data.error?.code !== 'INVALID_CREDENTIALS') {
-      // Don't refresh for auth endpoints
-      if (endpoint.startsWith('/auth/')) {
-        return data;
-      }
-
-      // Don't try to refresh if user was never logged in (no accessToken)
-      const currentToken = useAuthStore.getState().accessToken;
-      if (!currentToken) {
-        // User is not logged in, just return the 401 response
-        return data;
-      }
-
-      // Try to refresh token
-      if (!this.isRefreshing) {
-        this.isRefreshing = true;
-        this.refreshPromise = useAuthStore.getState().refreshAccessToken();
-
-        try {
-          const refreshed = await this.refreshPromise;
-          this.isRefreshing = false;
-          this.refreshPromise = null;
-
-          if (refreshed) {
-            // Retry the original request with new token
-            const retryResponse = await fetch(`${this.baseUrl}${endpoint}`, {
-              method,
-              headers: this.getHeaders(),
-              body: body ? JSON.stringify(body) : undefined,
-              credentials: 'include',
-            });
-            return this.handleResponse<T>(retryResponse, endpoint, method, body);
-          } else {
-            // Refresh failed - just return the original 401 response
-            // ProtectedRoute will handle redirect to login
-            return data;
-          }
-        } catch {
-          this.isRefreshing = false;
-          this.refreshPromise = null;
-          // Return original response, don't force logout
-          return data;
-        }
-      } else {
-        // Wait for ongoing refresh
-        await this.waitForRefresh();
-
-        // Check if we're authenticated after refresh
-        const newToken = useAuthStore.getState().accessToken;
-        if (!newToken) {
-          // Refresh failed, return original error
-          return data;
-        }
-
-        // Retry with potentially new token
-        const retryResponse = await fetch(`${this.baseUrl}${endpoint}`, {
-          method,
-          headers: this.getHeaders(),
-          body: body ? JSON.stringify(body) : undefined,
-          credentials: 'include',
-        });
-        return this.handleResponse<T>(retryResponse, endpoint, method, body);
-      }
+      return this.handleUnauthorized(data, endpoint, method, body);
     }
 
     // Handle session invalidation (logged in from another device)
@@ -147,6 +86,72 @@ class ApiClient {
     }
 
     return data;
+  }
+
+  private async handleUnauthorized<T>(
+    data: ApiResponse<T>,
+    endpoint: string,
+    method: string,
+    body?: unknown,
+  ): Promise<ApiResponse<T>> {
+    if (endpoint.startsWith('/auth/')) {
+      return data;
+    }
+
+    const currentToken = useAuthStore.getState().accessToken;
+    if (!currentToken) {
+      return data;
+    }
+
+    if (this.isRefreshing) {
+      await this.waitForRefresh();
+      const newToken = useAuthStore.getState().accessToken;
+      if (!newToken) {
+        return data;
+      }
+      return this.retryRequest<T>(endpoint, method, body);
+    }
+
+    return this.refreshAndRetry<T>(data, endpoint, method, body);
+  }
+
+  private async refreshAndRetry<T>(
+    data: ApiResponse<T>,
+    endpoint: string,
+    method: string,
+    body?: unknown,
+  ): Promise<ApiResponse<T>> {
+    this.isRefreshing = true;
+    this.refreshPromise = useAuthStore.getState().refreshAccessToken();
+
+    try {
+      const refreshed = await this.refreshPromise;
+      this.isRefreshing = false;
+      this.refreshPromise = null;
+
+      if (!refreshed) {
+        return data;
+      }
+      return this.retryRequest<T>(endpoint, method, body);
+    } catch {
+      this.isRefreshing = false;
+      this.refreshPromise = null;
+      return data;
+    }
+  }
+
+  private async retryRequest<T>(
+    endpoint: string,
+    method: string,
+    body?: unknown,
+  ): Promise<ApiResponse<T>> {
+    const retryResponse = await fetch(`${this.baseUrl}${endpoint}`, {
+      method,
+      headers: this.getHeaders(),
+      body: body ? JSON.stringify(body) : undefined,
+      credentials: 'include',
+    });
+    return this.handleResponse<T>(retryResponse, endpoint, method, body);
   }
 
   async get<T>(endpoint: string): Promise<ApiResponse<T>> {

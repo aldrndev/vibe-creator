@@ -75,7 +75,7 @@ export function TimelineClip({
       style={{
         left: Math.max(0, leftPx),
         width: widthPx,
-        transform: previewTranslateYPx !== 0 ? `translateY(${previewTranslateYPx}px)` : undefined,
+        transform: previewTranslateYPx === 0 ? undefined : `translateY(${previewTranslateYPx}px)`,
       }}
     >
       <TimelineClipBackdrop viewModel={viewModel} widthPx={widthPx} />

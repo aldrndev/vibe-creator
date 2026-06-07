@@ -171,6 +171,96 @@ async function getPreviewStatus(params: {
   return state === 'active' ? { status: 'PROCESSING', progress } : { status: 'QUEUED', progress };
 }
 
+async function enqueueClipPreviewJob(
+  sessionId: string,
+  clipId: string,
+  userId: string,
+  previewMedia: NonNullable<Awaited<ReturnType<typeof resolveClipPreviewMedia>>>,
+) {
+  const jobId = buildPreviewJobId(sessionId, clipId, previewMedia.previewFileName);
+  const existingJob = await directorClipPreviewQueue.getJob(jobId);
+  const existingState = existingJob ? await existingJob.getState() : null;
+
+  if (existingJob && (existingState === 'failed' || existingState === 'completed')) {
+    await existingJob.remove();
+  }
+
+  if (!existingJob || existingState === 'failed' || existingState === 'completed') {
+    await directorClipPreviewQueue.add(
+      'render',
+      {
+        type: 'CLIP_PREVIEW',
+        sessionId,
+        clipId,
+        userId,
+        sourceFilePath: previewMedia.sourceFilePath,
+        previewFileName: previewMedia.previewFileName,
+        previewFilePath: previewMedia.previewFilePath,
+        startMs: previewMedia.candidate.startMs,
+        endMs: previewMedia.candidate.endMs,
+      },
+      { jobId },
+    );
+  }
+}
+
+async function serveExistingPreviewPoster(
+  candidate: MediaCandidate,
+  reply: FastifyReply,
+): Promise<boolean> {
+  const existingPreviewFileName = candidate.previewStorageKey?.split('/').pop();
+  if (!existingPreviewFileName) {
+    return false;
+  }
+
+  if (!canAccessPreviewFile(existingPreviewFileName, [candidate], [], [])) {
+    return false;
+  }
+
+  const existingPreviewPath = join(PREVIEW_DIR, existingPreviewFileName);
+  try {
+    await access(existingPreviewPath);
+    await serveFile(reply, existingPreviewPath, 'image/jpeg');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function generateAndServePoster(
+  asset: { id: string; storageKey: string },
+  candidate: MediaCandidate,
+  reply: FastifyReply,
+): Promise<void> {
+  const sourceFileName = basename(asset.storageKey);
+  const sourceFilePath = join(env.MEDIA_INPUT_DIR, 'director', sourceFileName);
+  await access(sourceFilePath);
+
+  const posterFileName = getClipPosterCacheFileName({
+    assetId: asset.id,
+    candidateId: candidate.id,
+    startMs: candidate.startMs,
+    endMs: candidate.endMs,
+    sourceFileName,
+  });
+  const posterFilePath = join(PREVIEW_DIR, posterFileName);
+
+  try {
+    await access(posterFilePath);
+  } catch {
+    await mkdir(PREVIEW_DIR, { recursive: true });
+    await directorProcessor.generateClipPreview(
+      sourceFilePath,
+      PREVIEW_DIR,
+      (candidate.startMs + candidate.endMs) / 2,
+      posterFileName,
+    );
+  }
+
+  await access(posterFilePath);
+  await serveFile(reply, posterFilePath, 'image/jpeg');
+}
+
 export const clipMediaRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post<{ Params: { id: string; clipId: string } }>(
     '/sessions/:id/clips/:clipId/preview',
@@ -216,34 +306,12 @@ export const clipMediaRoutes: FastifyPluginAsync = async (fastify) => {
           });
         }
 
-        const jobId = buildPreviewJobId(
+        await enqueueClipPreviewJob(
           request.params.id,
           request.params.clipId,
-          previewMedia.previewFileName,
+          user.id,
+          previewMedia,
         );
-        const existingJob = await directorClipPreviewQueue.getJob(jobId);
-        const existingState = existingJob ? await existingJob.getState() : null;
-        if (existingJob && (existingState === 'failed' || existingState === 'completed')) {
-          await existingJob.remove();
-        }
-
-        if (!existingJob || existingState === 'failed' || existingState === 'completed') {
-          await directorClipPreviewQueue.add(
-            'render',
-            {
-              type: 'CLIP_PREVIEW',
-              sessionId: request.params.id,
-              clipId: request.params.clipId,
-              userId: user.id,
-              sourceFilePath: previewMedia.sourceFilePath,
-              previewFileName: previewMedia.previewFileName,
-              previewFilePath: previewMedia.previewFilePath,
-              startMs: previewMedia.candidate.startMs,
-              endMs: previewMedia.candidate.endMs,
-            },
-            { jobId },
-          );
-        }
 
         const nextStatus = await getPreviewStatus({
           sessionId: request.params.id,
@@ -407,47 +475,13 @@ export const clipMediaRoutes: FastifyPluginAsync = async (fastify) => {
           });
         }
 
-        const existingPreviewFileName = candidate.previewStorageKey?.split('/').pop();
-        if (
-          existingPreviewFileName &&
-          canAccessPreviewFile(existingPreviewFileName, [candidate], [], [])
-        ) {
-          const existingPreviewPath = join(PREVIEW_DIR, existingPreviewFileName);
-          try {
-            await access(existingPreviewPath);
-            return serveFile(reply, existingPreviewPath, 'image/jpeg');
-          } catch {
-            // Fall through to on-demand poster generation.
-          }
+        const isServed = await serveExistingPreviewPoster(candidate, reply);
+        if (isServed) {
+          return reply;
         }
 
-        const sourceFileName = basename(asset.storageKey);
-        const sourceFilePath = join(env.MEDIA_INPUT_DIR, 'director', sourceFileName);
-        await access(sourceFilePath);
-
-        const posterFileName = getClipPosterCacheFileName({
-          assetId: asset.id,
-          candidateId: candidate.id,
-          startMs: candidate.startMs,
-          endMs: candidate.endMs,
-          sourceFileName,
-        });
-        const posterFilePath = join(PREVIEW_DIR, posterFileName);
-
-        try {
-          await access(posterFilePath);
-        } catch {
-          await mkdir(PREVIEW_DIR, { recursive: true });
-          await directorProcessor.generateClipPreview(
-            sourceFilePath,
-            PREVIEW_DIR,
-            (candidate.startMs + candidate.endMs) / 2,
-            posterFileName,
-          );
-        }
-
-        await access(posterFilePath);
-        return serveFile(reply, posterFilePath, 'image/jpeg');
+        await generateAndServePoster(asset, candidate, reply);
+        return reply;
       } catch (err) {
         logger.error(
           { err, sessionId: request.params.id, clipId: request.params.clipId },

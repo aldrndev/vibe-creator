@@ -17,6 +17,107 @@ const mockConfirmSchema = z.object({
   paymentId: z.string(),
 });
 
+async function verifyWebhookRequest(
+  request: FastifyRequest,
+  reply: FastifyReply,
+): Promise<boolean> {
+  const webhookToken = env.XENDIT_WEBHOOK_TOKEN;
+  if (!webhookToken) {
+    void sendError(reply, ERROR_CODES.SERVICE_UNAVAILABLE, 'Webhook secret unavailable', 503);
+    return false;
+  }
+
+  const headerToken = request.headers['x-callback-token'];
+  if (!headerToken || headerToken !== webhookToken) {
+    void sendError(reply, ERROR_CODES.UNAUTHORIZED, 'Invalid webhook token', 401);
+    return false;
+  }
+
+  const signatureHeader = request.headers['x-callback-signature'];
+  const timestampHeader = request.headers['x-callback-timestamp'];
+  const rawBody = (request as { rawBody?: string }).rawBody;
+
+  if (
+    typeof signatureHeader !== 'string' ||
+    typeof timestampHeader !== 'string' ||
+    typeof rawBody !== 'string'
+  ) {
+    void sendError(reply, ERROR_CODES.VALIDATION_ERROR, 'Invalid webhook request', 400);
+    return false;
+  }
+
+  try {
+    await assertValidWebhook({
+      secret: webhookToken,
+      signature: signatureHeader,
+      timestamp: timestampHeader,
+      payload: rawBody,
+    });
+    return true;
+  } catch (err) {
+    if (err instanceof Error && err.message === 'Replay protection unavailable') {
+      void sendError(
+        reply,
+        ERROR_CODES.SERVICE_UNAVAILABLE,
+        'Webhook replay protection unavailable',
+        503,
+      );
+      return false;
+    }
+    void sendError(reply, ERROR_CODES.UNAUTHORIZED, 'Invalid webhook signature', 401);
+    return false;
+  }
+}
+
+async function processWebhookPayload(request: FastifyRequest, reply: FastifyReply) {
+  try {
+    const payload = request.body as {
+      id: string;
+      external_id: string;
+      status: string;
+      payment_method?: string;
+      paid_at?: string;
+    };
+
+    const result = await paymentService.handleWebhook(payload);
+
+    if (result) {
+      void audit({
+        requestId: request.id,
+        userId: result.userId,
+        tenantId: result.userId,
+        action: AuditAction.PAYMENT_UPDATED,
+        resourceType: 'payment',
+        resourceId: result.paymentId,
+        ipAddress: request.ip,
+        userAgent: request.headers['user-agent'] ?? undefined,
+        metadata: { status: result.status, tier: result.tier },
+      });
+
+      if (result.status === 'PAID') {
+        void audit({
+          requestId: request.id,
+          userId: result.userId,
+          tenantId: result.userId,
+          action: AuditAction.SUBSCRIPTION_CHANGED,
+          resourceType: 'subscription',
+          resourceId: result.userId,
+          ipAddress: request.ip,
+          userAgent: request.headers['user-agent'] ?? undefined,
+          metadata: { tier: result.tier },
+        });
+      }
+    }
+
+    return reply.send({
+      success: true,
+      data: { message: 'Webhook processed' },
+    });
+  } catch (_err) {
+    return sendError(reply, ERROR_CODES.INTERNAL_ERROR, 'Webhook processing failed', 500);
+  }
+}
+
 export const paymentRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.addHook('preHandler', async (request, reply) => {
     const result = requireRateLimitReady(request, reply);
@@ -90,93 +191,10 @@ export const paymentRoutes: FastifyPluginAsync = async (fastify) => {
     '/webhook',
     { config: { rawBody: true } },
     async (request: FastifyRequest, reply: FastifyReply) => {
-      const webhookToken = env.XENDIT_WEBHOOK_TOKEN;
-      if (!webhookToken) {
-        return sendError(reply, ERROR_CODES.SERVICE_UNAVAILABLE, 'Webhook secret unavailable', 503);
-      }
+      const isValid = await verifyWebhookRequest(request, reply);
+      if (!isValid) return reply;
 
-      const headerToken = request.headers['x-callback-token'];
-      if (!headerToken || headerToken !== webhookToken) {
-        return sendError(reply, ERROR_CODES.UNAUTHORIZED, 'Invalid webhook token', 401);
-      }
-
-      const signatureHeader = request.headers['x-callback-signature'];
-      const timestampHeader = request.headers['x-callback-timestamp'];
-      const rawBody = (request as { rawBody?: string }).rawBody;
-
-      if (
-        typeof signatureHeader !== 'string' ||
-        typeof timestampHeader !== 'string' ||
-        typeof rawBody !== 'string'
-      ) {
-        return sendError(reply, ERROR_CODES.VALIDATION_ERROR, 'Invalid webhook request', 400);
-      }
-
-      try {
-        await assertValidWebhook({
-          secret: webhookToken,
-          signature: signatureHeader,
-          timestamp: timestampHeader,
-          payload: rawBody,
-        });
-      } catch (err) {
-        if (err instanceof Error && err.message === 'Replay protection unavailable') {
-          return sendError(
-            reply,
-            ERROR_CODES.SERVICE_UNAVAILABLE,
-            'Webhook replay protection unavailable',
-            503,
-          );
-        }
-        return sendError(reply, ERROR_CODES.UNAUTHORIZED, 'Invalid webhook signature', 401);
-      }
-
-      try {
-        const payload = request.body as {
-          id: string;
-          external_id: string;
-          status: string;
-          payment_method?: string;
-          paid_at?: string;
-        };
-
-        const result = await paymentService.handleWebhook(payload);
-
-        if (result) {
-          void audit({
-            requestId: request.id,
-            userId: result.userId,
-            tenantId: result.userId,
-            action: AuditAction.PAYMENT_UPDATED,
-            resourceType: 'payment',
-            resourceId: result.paymentId,
-            ipAddress: request.ip,
-            userAgent: request.headers['user-agent'] ?? undefined,
-            metadata: { status: result.status, tier: result.tier },
-          });
-
-          if (result.status === 'PAID') {
-            void audit({
-              requestId: request.id,
-              userId: result.userId,
-              tenantId: result.userId,
-              action: AuditAction.SUBSCRIPTION_CHANGED,
-              resourceType: 'subscription',
-              resourceId: result.userId,
-              ipAddress: request.ip,
-              userAgent: request.headers['user-agent'] ?? undefined,
-              metadata: { tier: result.tier },
-            });
-          }
-        }
-
-        return reply.send({
-          success: true,
-          data: { message: 'Webhook processed' },
-        });
-      } catch (_err) {
-        return sendError(reply, ERROR_CODES.INTERNAL_ERROR, 'Webhook processing failed', 500);
-      }
+      return processWebhookPayload(request, reply);
     },
   );
 

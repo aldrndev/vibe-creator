@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { type AssetType, LifecycleStatus, type Prisma } from '@prisma/client';
 import { MAX_LIMIT } from '@vibe-creator/shared';
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { env } from '@/config/env';
 import { AuditAction, audit } from '@/lib/audit';
@@ -52,6 +52,241 @@ function resolveProjectAssetPath(projectId: string, r2Key: string): string {
 
 function safeFileSegment(value: string): string {
   return value.replace(/[^a-z0-9-]/gi, '-').slice(0, 80) || 'studio-asset';
+}
+
+function validateExistingAsset(
+  existingAsset: { projectId: string; project: { userId: string | null } } | null,
+  projectId: string,
+  userId?: string,
+) {
+  if (existingAsset && existingAsset.projectId !== projectId) {
+    return {
+      status: 409,
+      code: 'ASSET_CONFLICT',
+      message: 'Asset ID already belongs to another project',
+    };
+  }
+
+  if (existingAsset?.project?.userId && existingAsset.project.userId !== userId) {
+    return {
+      status: 403,
+      code: 'FORBIDDEN',
+      message: 'Asset is not owned by this user',
+    };
+  }
+
+  return null;
+}
+
+async function handleAttachFromUploadToken(request: FastifyRequest, reply: FastifyReply) {
+  const { id } = request.params as { id: string };
+
+  try {
+    const body = attachProjectAssetRequestSchema.parse(request.body);
+    const project = await prisma.project.findFirst({
+      where: { id, userId: request.user?.id, deletedAt: null },
+    });
+
+    if (!project) {
+      return reply.status(404).send({
+        success: false,
+        error: { code: 'NOT_FOUND', message: 'Project not found' },
+      });
+    }
+
+    assertWorkspaceActive(project.lifecycleStatus, project.expiresAt);
+
+    const existingAsset = await prisma.projectAsset.findFirst({
+      where: { id: body.assetId },
+      include: { project: { select: { userId: true } } },
+    });
+
+    const assetError = validateExistingAsset(existingAsset, id, request.user?.id);
+    if (assetError) {
+      return reply.status(assetError.status).send({
+        success: false,
+        error: { code: assetError.code, message: assetError.message },
+      });
+    }
+
+    const tempPath = resolveTempUploadToken(body.uploadToken);
+    const projectDir = join(env.MEDIA_INPUT_DIR, 'projects', id);
+    const fileName = `${body.assetId}-${body.uploadToken}`;
+    const targetPath = join(projectDir, fileName);
+    const r2Key = `uploads/projects/${id}/${fileName}`;
+    await mkdir(projectDir, { recursive: true });
+    await copyFile(tempPath, targetPath);
+    await unlink(tempPath).catch(() => {});
+
+    const sourceUrl = `/api/v1/projects/assets/${body.assetId}/file`;
+    const metadata = {
+      libraryPurpose: body.libraryPurpose ?? 'media',
+      mimeType: body.mimeType ?? null,
+      size: body.size ?? null,
+      durationMs: body.durationMs ?? null,
+      width: body.width ?? null,
+      height: body.height ?? null,
+    };
+
+    const asset = await prisma.projectAsset.upsert({
+      where: { id: body.assetId },
+      create: {
+        id: body.assetId,
+        projectId: id,
+        type: body.type as AssetType,
+        name: body.name,
+        sourceUrl,
+        r2Key,
+        metadata,
+      },
+      update: {
+        type: body.type as AssetType,
+        name: body.name,
+        sourceUrl,
+        r2Key,
+        metadata,
+      },
+    });
+
+    await prisma.project.update({
+      where: { id },
+      data: {
+        lifecycleStatus: LifecycleStatus.ACTIVE,
+        expiresAt: getActiveDraftExpiresAt(),
+      },
+    });
+
+    return reply.status(201).send({ success: true, data: asset });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return reply.status(400).send({
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: error.issues[0]?.message },
+      });
+    }
+    if (error instanceof WorkspaceLifecycleError) {
+      return reply.status(410).send({
+        success: false,
+        error: { code: error.code, message: error.message },
+      });
+    }
+
+    const message = error instanceof Error ? error.message : 'Failed to attach project asset';
+    return reply.status(400).send({
+      success: false,
+      error: { code: 'ATTACH_ASSET_FAILED', message },
+    });
+  }
+}
+
+async function handleAttachFromStudioAsset(request: FastifyRequest, reply: FastifyReply) {
+  const { id } = request.params as { id: string };
+
+  try {
+    const body = attachStudioAssetRequestSchema.parse(request.body);
+    const project = await prisma.project.findFirst({
+      where: { id, userId: request.user?.id, deletedAt: null },
+    });
+
+    if (!project) {
+      return reply.status(404).send({
+        success: false,
+        error: { code: 'NOT_FOUND', message: 'Project not found' },
+      });
+    }
+
+    assertWorkspaceActive(project.lifecycleStatus, project.expiresAt);
+
+    const studioAsset = getStudioAsset(body.studioAssetId);
+    if (studioAsset?.kind !== 'audio') {
+      return reply.status(404).send({
+        success: false,
+        error: { code: 'STUDIO_ASSET_NOT_FOUND', message: 'Studio audio asset not found' },
+      });
+    }
+
+    const assetId = body.assetId ?? randomUUID();
+    const existingAsset = await prisma.projectAsset.findFirst({
+      where: { id: assetId },
+      include: { project: { select: { userId: true } } },
+    });
+
+    const assetError = validateExistingAsset(existingAsset, id, request.user?.id);
+    if (assetError) {
+      return reply.status(assetError.status).send({
+        success: false,
+        error: { code: assetError.code, message: assetError.message },
+      });
+    }
+
+    const projectDir = join(env.MEDIA_INPUT_DIR, 'projects', id);
+    const extension = getStudioAudioAssetFileExtension(studioAsset);
+    const fileName = `${assetId}-${safeFileSegment(studioAsset.id)}${extension}`;
+    const targetPath = join(projectDir, fileName);
+    const r2Key = `uploads/projects/${id}/${fileName}`;
+    await mkdir(projectDir, { recursive: true });
+    await materializeStudioAudioAsset(studioAsset.id, targetPath);
+
+    const sourceUrl = `/api/v1/projects/assets/${assetId}/file`;
+    const metadata = {
+      mimeType: getStudioAudioAssetMimeType(studioAsset),
+      size: null,
+      durationMs: studioAsset.durationMs,
+      studioAssetId: studioAsset.id,
+      source: studioAsset.source,
+      license: studioAsset.license,
+      category: studioAsset.category,
+    };
+
+    const asset = await prisma.projectAsset.upsert({
+      where: { id: assetId },
+      create: {
+        id: assetId,
+        projectId: id,
+        type: 'AUDIO',
+        name: studioAsset.title,
+        sourceUrl,
+        r2Key,
+        metadata,
+      },
+      update: {
+        type: 'AUDIO',
+        name: studioAsset.title,
+        sourceUrl,
+        r2Key,
+        metadata,
+      },
+    });
+
+    await prisma.project.update({
+      where: { id },
+      data: {
+        lifecycleStatus: LifecycleStatus.ACTIVE,
+        expiresAt: getActiveDraftExpiresAt(),
+      },
+    });
+
+    return reply.status(201).send({ success: true, data: asset });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return reply.status(400).send({
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: error.issues[0]?.message },
+      });
+    }
+    if (error instanceof WorkspaceLifecycleError) {
+      return reply.status(410).send({
+        success: false,
+        error: { code: error.code, message: error.message },
+      });
+    }
+
+    const message = error instanceof Error ? error.message : 'Failed to attach studio asset';
+    return reply.status(400).send({
+      success: false,
+      error: { code: 'ATTACH_STUDIO_ASSET_FAILED', message },
+    });
+  }
 }
 
 export async function projectRoutes(fastify: FastifyInstance): Promise<void> {
@@ -196,115 +431,7 @@ export async function projectRoutes(fastify: FastifyInstance): Promise<void> {
     {
       preHandler: [requireAuth],
     },
-    async (request, reply) => {
-      const { id } = request.params as { id: string };
-
-      try {
-        const body = attachProjectAssetRequestSchema.parse(request.body);
-        const project = await prisma.project.findFirst({
-          where: { id, userId: request.user?.id, deletedAt: null },
-        });
-
-        if (!project) {
-          return reply.status(404).send({
-            success: false,
-            error: { code: 'NOT_FOUND', message: 'Project not found' },
-          });
-        }
-
-        assertWorkspaceActive(project.lifecycleStatus, project.expiresAt);
-
-        const existingAsset = await prisma.projectAsset.findFirst({
-          where: { id: body.assetId },
-          include: { project: { select: { userId: true } } },
-        });
-
-        if (existingAsset && existingAsset.projectId !== id) {
-          return reply.status(409).send({
-            success: false,
-            error: {
-              code: 'ASSET_CONFLICT',
-              message: 'Asset ID already belongs to another project',
-            },
-          });
-        }
-
-        if (existingAsset?.project.userId && existingAsset.project.userId !== request.user?.id) {
-          return reply.status(403).send({
-            success: false,
-            error: { code: 'FORBIDDEN', message: 'Asset is not owned by this user' },
-          });
-        }
-
-        const tempPath = resolveTempUploadToken(body.uploadToken);
-        const projectDir = join(env.MEDIA_INPUT_DIR, 'projects', id);
-        const fileName = `${body.assetId}-${body.uploadToken}`;
-        const targetPath = join(projectDir, fileName);
-        const r2Key = `uploads/projects/${id}/${fileName}`;
-        await mkdir(projectDir, { recursive: true });
-        await copyFile(tempPath, targetPath);
-        await unlink(tempPath).catch(() => {});
-
-        const sourceUrl = `/api/v1/projects/assets/${body.assetId}/file`;
-        const metadata = {
-          libraryPurpose: body.libraryPurpose ?? 'media',
-          mimeType: body.mimeType ?? null,
-          size: body.size ?? null,
-          durationMs: body.durationMs ?? null,
-          width: body.width ?? null,
-          height: body.height ?? null,
-        };
-
-        const asset = await prisma.projectAsset.upsert({
-          where: { id: body.assetId },
-          create: {
-            id: body.assetId,
-            projectId: id,
-            type: body.type as AssetType,
-            name: body.name,
-            sourceUrl,
-            r2Key,
-            metadata,
-          },
-          update: {
-            type: body.type as AssetType,
-            name: body.name,
-            sourceUrl,
-            r2Key,
-            metadata,
-          },
-        });
-
-        await prisma.project.update({
-          where: { id },
-          data: {
-            lifecycleStatus: LifecycleStatus.ACTIVE,
-            expiresAt: getActiveDraftExpiresAt(),
-          },
-        });
-
-        return reply.status(201).send({ success: true, data: asset });
-      } catch (error) {
-        if (error instanceof z.ZodError) {
-          return reply.status(400).send({
-            success: false,
-            error: { code: 'VALIDATION_ERROR', message: error.issues[0]?.message },
-          });
-        }
-        if (error instanceof WorkspaceLifecycleError) {
-          return reply.status(410).send({
-            success: false,
-            error: { code: error.code, message: error.message },
-          });
-        }
-
-        const message = error instanceof Error ? error.message : 'Failed to attach project asset';
-        return reply.status(400).send({
-          success: false,
-          error: { code: 'ATTACH_ASSET_FAILED', message },
-        });
-      }
-    },
+    handleAttachFromUploadToken,
   );
 
   fastify.post(
@@ -312,124 +439,7 @@ export async function projectRoutes(fastify: FastifyInstance): Promise<void> {
     {
       preHandler: [requireAuth],
     },
-    async (request, reply) => {
-      const { id } = request.params as { id: string };
-
-      try {
-        const body = attachStudioAssetRequestSchema.parse(request.body);
-        const project = await prisma.project.findFirst({
-          where: { id, userId: request.user?.id, deletedAt: null },
-        });
-
-        if (!project) {
-          return reply.status(404).send({
-            success: false,
-            error: { code: 'NOT_FOUND', message: 'Project not found' },
-          });
-        }
-
-        assertWorkspaceActive(project.lifecycleStatus, project.expiresAt);
-
-        const studioAsset = getStudioAsset(body.studioAssetId);
-        if (!studioAsset || studioAsset.kind !== 'audio') {
-          return reply.status(404).send({
-            success: false,
-            error: { code: 'STUDIO_ASSET_NOT_FOUND', message: 'Studio audio asset not found' },
-          });
-        }
-
-        const assetId = body.assetId ?? randomUUID();
-        const existingAsset = await prisma.projectAsset.findFirst({
-          where: { id: assetId },
-          include: { project: { select: { userId: true } } },
-        });
-
-        if (existingAsset && existingAsset.projectId !== id) {
-          return reply.status(409).send({
-            success: false,
-            error: {
-              code: 'ASSET_CONFLICT',
-              message: 'Asset ID already belongs to another project',
-            },
-          });
-        }
-
-        if (existingAsset?.project.userId && existingAsset.project.userId !== request.user?.id) {
-          return reply.status(403).send({
-            success: false,
-            error: { code: 'FORBIDDEN', message: 'Asset is not owned by this user' },
-          });
-        }
-
-        const projectDir = join(env.MEDIA_INPUT_DIR, 'projects', id);
-        const extension = getStudioAudioAssetFileExtension(studioAsset);
-        const fileName = `${assetId}-${safeFileSegment(studioAsset.id)}${extension}`;
-        const targetPath = join(projectDir, fileName);
-        const r2Key = `uploads/projects/${id}/${fileName}`;
-        await mkdir(projectDir, { recursive: true });
-        await materializeStudioAudioAsset(studioAsset.id, targetPath);
-
-        const sourceUrl = `/api/v1/projects/assets/${assetId}/file`;
-        const metadata = {
-          mimeType: getStudioAudioAssetMimeType(studioAsset),
-          size: null,
-          durationMs: studioAsset.durationMs,
-          studioAssetId: studioAsset.id,
-          source: studioAsset.source,
-          license: studioAsset.license,
-          category: studioAsset.category,
-        };
-
-        const asset = await prisma.projectAsset.upsert({
-          where: { id: assetId },
-          create: {
-            id: assetId,
-            projectId: id,
-            type: 'AUDIO',
-            name: studioAsset.title,
-            sourceUrl,
-            r2Key,
-            metadata,
-          },
-          update: {
-            type: 'AUDIO',
-            name: studioAsset.title,
-            sourceUrl,
-            r2Key,
-            metadata,
-          },
-        });
-
-        await prisma.project.update({
-          where: { id },
-          data: {
-            lifecycleStatus: LifecycleStatus.ACTIVE,
-            expiresAt: getActiveDraftExpiresAt(),
-          },
-        });
-
-        return reply.status(201).send({ success: true, data: asset });
-      } catch (error) {
-        if (error instanceof z.ZodError) {
-          return reply.status(400).send({
-            success: false,
-            error: { code: 'VALIDATION_ERROR', message: error.issues[0]?.message },
-          });
-        }
-        if (error instanceof WorkspaceLifecycleError) {
-          return reply.status(410).send({
-            success: false,
-            error: { code: error.code, message: error.message },
-          });
-        }
-
-        const message = error instanceof Error ? error.message : 'Failed to attach studio asset';
-        return reply.status(400).send({
-          success: false,
-          error: { code: 'ATTACH_STUDIO_ASSET_FAILED', message },
-        });
-      }
-    },
+    handleAttachFromStudioAsset,
   );
 
   // Get single project

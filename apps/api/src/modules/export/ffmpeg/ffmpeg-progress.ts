@@ -38,30 +38,7 @@ export class ProgressParser {
     this.buffer = lines.pop() || '';
 
     for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed) continue;
-
-      // Key-value pair: "key=value"
-      const [key, value] = trimmed.split('=');
-      if (key && value !== undefined) {
-        this.currentFrame[key] = value;
-      }
-
-      // Frame complete when we see progress=continue or progress=end
-      if (key === 'progress') {
-        if (value === 'continue' || value === 'end') {
-          const update = this.processFrame();
-          if (update) updates.push(update);
-
-          // Clear current frame
-          this.currentFrame = {};
-
-          // Send completion on end
-          if (value === 'end') {
-            updates.push({ type: 'COMPLETED', percent: 100 });
-          }
-        }
-      }
+      this.parseLine(line, updates);
     }
 
     // Heartbeat if no update for 5 seconds
@@ -73,12 +50,37 @@ export class ProgressParser {
     return updates;
   }
 
+  private parseLine(line: string, updates: ProgressUpdate[]): void {
+    const trimmed = line.trim();
+    if (!trimmed) return;
+
+    // Key-value pair: "key=value"
+    const [key, value] = trimmed.split('=');
+    if (key && value !== undefined) {
+      this.currentFrame[key] = value;
+    }
+
+    // Frame complete when we see progress=continue or progress=end
+    if (key === 'progress' && (value === 'continue' || value === 'end')) {
+      const update = this.processFrame();
+      if (update) updates.push(update);
+
+      // Clear current frame
+      this.currentFrame = {};
+
+      // Send completion on end
+      if (value === 'end') {
+        updates.push({ type: 'COMPLETED', percent: 100 });
+      }
+    }
+  }
+
   /**
    * Process accumulated frame into progress update
    */
   private processFrame(): ProgressUpdate | null {
-    const outTimeMicros = parseInt(this.currentFrame.out_time_us || '0', 10);
-    const speed = parseFloat(this.currentFrame.speed || '0');
+    const outTimeMicros = Number.parseInt(this.currentFrame.out_time_us || '0', 10);
+    const speed = Number.parseFloat(this.currentFrame.speed || '0');
 
     if (outTimeMicros === 0) return null;
 

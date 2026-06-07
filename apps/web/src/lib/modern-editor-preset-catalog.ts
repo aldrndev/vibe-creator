@@ -511,6 +511,49 @@ export function buildVisualStylePresetUpdate(
   } as Partial<Layer>;
 }
 
+function isFramePresetActive(
+  layer: VisualLayer,
+  preset: VisualStylePreset,
+  settings?: ModernProjectSettings,
+): boolean {
+  if (preset.canvasSettings?.backgroundMode !== undefined) {
+    if (preset.canvasSettings.backgroundMode !== 'blur') {
+      return layer.data.fit === preset.fit && settings?.backgroundMode !== 'blur';
+    }
+    return (
+      layer.data.fit === preset.fit &&
+      settings?.backgroundMode === preset.canvasSettings.backgroundMode
+    );
+  }
+  return preset.fit !== undefined && layer.data.fit === preset.fit;
+}
+
+function isLookPresetActive(
+  _layer: VisualLayer,
+  preset: VisualStylePreset,
+  effects: NonNullable<VisualLayer['data']['effects']>,
+): boolean {
+  if (preset.filter === undefined) {
+    return false;
+  }
+
+  if (preset.motion !== undefined) {
+    return effects.filter === preset.filter && effects.motion === preset.motion;
+  }
+
+  const compositeLookActive = visualStylePresets.some(
+    (otherPreset) =>
+      otherPreset.group === 'look' &&
+      otherPreset.id !== preset.id &&
+      otherPreset.filter === preset.filter &&
+      otherPreset.motion !== undefined &&
+      effects.filter === otherPreset.filter &&
+      effects.motion === otherPreset.motion,
+  );
+
+  return effects.filter === preset.filter && !compositeLookActive;
+}
+
 export function isVisualStylePresetActive(
   layer: VisualLayer,
   preset: VisualStylePreset,
@@ -518,41 +561,12 @@ export function isVisualStylePresetActive(
 ): boolean {
   const effects = layer.data.effects ?? createDefaultVisualLayerEffects();
 
-  if (preset.canvasSettings?.backgroundMode !== undefined) {
-    if (preset.group === 'frame' && preset.canvasSettings.backgroundMode !== 'blur') {
-      return layer.data.fit === preset.fit && settings?.backgroundMode !== 'blur';
-    }
-
-    return (
-      layer.data.fit === preset.fit &&
-      settings?.backgroundMode === preset.canvasSettings.backgroundMode
-    );
-  }
-
   if (preset.group === 'frame') {
-    return preset.fit !== undefined && layer.data.fit === preset.fit;
+    return isFramePresetActive(layer, preset, settings);
   }
 
   if (preset.group === 'look') {
-    if (preset.filter === undefined) {
-      return false;
-    }
-
-    if (preset.motion !== undefined) {
-      return effects.filter === preset.filter && effects.motion === preset.motion;
-    }
-
-    const compositeLookActive = visualStylePresets.some(
-      (otherPreset) =>
-        otherPreset.group === 'look' &&
-        otherPreset.id !== preset.id &&
-        otherPreset.filter === preset.filter &&
-        otherPreset.motion !== undefined &&
-        effects.filter === otherPreset.filter &&
-        effects.motion === otherPreset.motion,
-    );
-
-    return effects.filter === preset.filter && !compositeLookActive;
+    return isLookPresetActive(layer, preset, effects);
   }
 
   if (preset.group === 'motion') {

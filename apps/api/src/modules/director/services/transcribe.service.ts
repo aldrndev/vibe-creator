@@ -60,7 +60,7 @@ function toTranscriptJsonSegments(segments: TranscriptUpdateSegment[]): Prisma.I
             startMs: word.startMs,
             endMs: word.endMs,
             text: word.text,
-            ...(word.confidence !== undefined ? { confidence: word.confidence } : {}),
+            ...(word.confidence === undefined ? {} : { confidence: word.confidence }),
             ...(word.speaker ? { speaker: word.speaker } : {}),
           })),
         }
@@ -102,6 +102,121 @@ function hasCompletedTranscriptsForSelection(
   });
 }
 
+function resolveStartTranscribeOptions(
+  session: DirectorSessionForTranscribe | null,
+  options: StartTranscribeOptions,
+  existingProgressMeta: ReturnType<typeof parseTranscribeProgressMeta>,
+) {
+  const requestedLanguage = resolveRequestedLanguage(session, options.language);
+  const requestedSubtitleMode =
+    options.subtitleMode ?? existingProgressMeta?.subtitleMode ?? 'original';
+  const requestedSubtitleTargetLanguage =
+    requestedSubtitleMode === 'translate'
+      ? normalizeTranscribeLanguage(
+          options.subtitleTargetLanguage ?? existingProgressMeta?.subtitleTargetLanguage ?? 'en',
+          'en',
+        )
+      : null;
+
+  return { requestedLanguage, requestedSubtitleMode, requestedSubtitleTargetLanguage };
+}
+
+function validateStartTranscribe(
+  session: DirectorSessionForTranscribe,
+  requestedSubtitleMode: 'original' | 'translate',
+  requestedSubtitleTargetLanguage: string | null,
+) {
+  if (
+    requestedSubtitleMode === 'translate' &&
+    isAutoTranscribeLanguage(requestedSubtitleTargetLanguage)
+  ) {
+    throw new Error('Bahasa target terjemahan harus spesifik (contoh: "en", "es", "ja").');
+  }
+
+  if (session.selectedClips.length === 0) {
+    throw new Error('No clips selected');
+  }
+
+  if (redis.status !== 'ready') {
+    throw new Error('Transcription queue belum siap. Pastikan Redis aktif lalu coba lagi.');
+  }
+}
+
+async function handleExistingTranscribeJob(
+  sessionId: string,
+  session: DirectorSessionForTranscribe,
+  requestedLanguage: TranscribeLanguage,
+  requestedSubtitleMode: 'original' | 'translate',
+  requestedSubtitleTargetLanguage: TranscribeLanguage | null,
+  forceRefresh: boolean,
+  progressMeta: ReturnType<typeof buildInitialTranscribeProgressMeta>,
+) {
+  const transcribeJob = session.transcribeJob;
+  if (!transcribeJob) {
+    throw new Error('Transcribe job missing');
+  }
+
+  const status = transcribeJob.status;
+  const isActiveStatus =
+    status === DirectorJobStatus.PENDING || status === DirectorJobStatus.PROCESSING;
+
+  const completedSelectionIsReusable =
+    status === DirectorJobStatus.COMPLETED &&
+    hasCompletedTranscriptsForSelection(session, requestedLanguage);
+
+  if (isActiveStatus || (!forceRefresh && completedSelectionIsReusable)) {
+    const activeJobLanguage = normalizeTranscribeLanguage(
+      transcribeJob.language,
+      requestedLanguage,
+    );
+
+    if (activeJobLanguage !== requestedLanguage) {
+      throw new Error(
+        'Bahasa transkripsi berbeda dari job aktif. Jalankan transkripsi ulang setelah job saat ini selesai.',
+      );
+    }
+
+    return {
+      job: {
+        ...transcribeJob,
+        language: requestedLanguage,
+        subtitleMode: requestedSubtitleMode,
+        subtitleTargetLanguage: requestedSubtitleTargetLanguage,
+      },
+      shouldQueue: false,
+    };
+  }
+
+  if (status === DirectorJobStatus.FAILED || forceRefresh || !completedSelectionIsReusable) {
+    logger.info(
+      {
+        sessionId,
+        jobId: transcribeJob.id,
+        forceRefresh,
+        staleCompletedJob: status === DirectorJobStatus.COMPLETED && !completedSelectionIsReusable,
+      },
+      'Resetting transcribe job for current selected clips',
+    );
+    const job = await directorRepo.updateTranscribeJob(transcribeJob.id, {
+      status: DirectorJobStatus.PENDING,
+      errorMessage: null,
+      startedAt: null,
+      completedAt: null,
+      language: requestedLanguage,
+      segments: toTranscribeProgressJson(progressMeta),
+    });
+    return { job, shouldQueue: true };
+  }
+
+  return {
+    job: {
+      ...transcribeJob,
+      language: requestedLanguage,
+    },
+    shouldQueue: true,
+  };
+}
+
 export const directorTranscribeService = {
   /**
    * Start transcription job
@@ -110,35 +225,14 @@ export const directorTranscribeService = {
     const session = await directorRepo.findSession(sessionId, userId);
     const forceRefresh = options.forceRefresh === true;
     const existingProgressMeta = parseTranscribeProgressMeta(session?.transcribeJob?.segments);
-    const requestedLanguage = resolveRequestedLanguage(session, options.language);
-    const requestedSubtitleMode =
-      options.subtitleMode ?? existingProgressMeta?.subtitleMode ?? 'original';
-    const requestedSubtitleTargetLanguage =
-      requestedSubtitleMode === 'translate'
-        ? normalizeTranscribeLanguage(
-            options.subtitleTargetLanguage ?? existingProgressMeta?.subtitleTargetLanguage ?? 'en',
-            'en',
-          )
-        : null;
-
     if (!session) {
       throw new Error('Session not found');
     }
 
-    if (
-      requestedSubtitleMode === 'translate' &&
-      isAutoTranscribeLanguage(requestedSubtitleTargetLanguage)
-    ) {
-      throw new Error('Bahasa target terjemahan harus spesifik (contoh: "en", "es", "ja").');
-    }
+    const { requestedLanguage, requestedSubtitleMode, requestedSubtitleTargetLanguage } =
+      resolveStartTranscribeOptions(session, options, existingProgressMeta);
 
-    if (session.selectedClips.length === 0) {
-      throw new Error('No clips selected');
-    }
-
-    if (redis.status !== 'ready') {
-      throw new Error('Transcription queue belum siap. Pastikan Redis aktif lalu coba lagi.');
-    }
+    validateStartTranscribe(session, requestedSubtitleMode, requestedSubtitleTargetLanguage);
 
     const clipDurationTotalMs = session.selectedClips.reduce(
       (total, clip) => total + Math.max(0, clip.candidate.endMs - clip.candidate.startMs),
@@ -153,64 +247,22 @@ export const directorTranscribeService = {
 
     let job: TranscribeJob;
 
-    // Check existing job
     if (session.transcribeJob) {
-      const status = session.transcribeJob.status;
-      const isActiveStatus =
-        status === DirectorJobStatus.PENDING || status === DirectorJobStatus.PROCESSING;
+      const result = await handleExistingTranscribeJob(
+        sessionId,
+        session,
+        requestedLanguage,
+        requestedSubtitleMode,
+        requestedSubtitleTargetLanguage,
+        forceRefresh,
+        progressMeta,
+      );
 
-      const completedSelectionIsReusable =
-        status === DirectorJobStatus.COMPLETED &&
-        hasCompletedTranscriptsForSelection(session, requestedLanguage);
-
-      // If active or completed for the current selected clips, return existing.
-      if (isActiveStatus || (!forceRefresh && completedSelectionIsReusable)) {
-        const activeJobLanguage = normalizeTranscribeLanguage(
-          session.transcribeJob.language,
-          requestedLanguage,
-        );
-
-        if (activeJobLanguage !== requestedLanguage) {
-          throw new Error(
-            'Bahasa transkripsi berbeda dari job aktif. Jalankan transkripsi ulang setelah job saat ini selesai.',
-          );
-        }
-
-        return {
-          ...session.transcribeJob,
-          language: requestedLanguage,
-          subtitleMode: requestedSubtitleMode,
-          subtitleTargetLanguage: requestedSubtitleTargetLanguage,
-        };
+      if (!result.shouldQueue) {
+        return result.job;
       }
 
-      // Force refresh, stale completed job, or failed job by resetting state.
-      if (status === DirectorJobStatus.FAILED || forceRefresh || !completedSelectionIsReusable) {
-        logger.info(
-          {
-            sessionId,
-            jobId: session.transcribeJob.id,
-            forceRefresh,
-            staleCompletedJob:
-              status === DirectorJobStatus.COMPLETED && !completedSelectionIsReusable,
-          },
-          'Resetting transcribe job for current selected clips',
-        );
-        job = await directorRepo.updateTranscribeJob(session.transcribeJob.id, {
-          status: DirectorJobStatus.PENDING,
-          errorMessage: null,
-          startedAt: null,
-          completedAt: null,
-          language: requestedLanguage,
-          segments: toTranscribeProgressJson(progressMeta),
-        });
-      } else {
-        // Should not happen, but safe fallback
-        job = {
-          ...session.transcribeJob,
-          language: requestedLanguage,
-        };
-      }
+      job = result.job as TranscribeJob;
     } else {
       // Create new job if none exists
       const idempotencyKey = `${sessionId}:transcribe:${Date.now()}`;

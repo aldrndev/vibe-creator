@@ -67,14 +67,14 @@ function selectProjectAsset(
   kind: 'video-studio' | 'loop-creator' | 'reaction-video' | 'live-stream',
 ) {
   const story = asJsonRecord(project.storyData);
-  const sourceAssetId =
-    kind === 'loop-creator'
-      ? story?.sourceAssetId
-      : kind === 'reaction-video'
-        ? story?.mainAssetId
-        : kind === 'live-stream'
-          ? story?.sourceAssetId
-          : null;
+  let sourceAssetId: unknown = null;
+  if (kind === 'loop-creator') {
+    sourceAssetId = story?.sourceAssetId;
+  } else if (kind === 'reaction-video') {
+    sourceAssetId = story?.mainAssetId;
+  } else if (kind === 'live-stream') {
+    sourceAssetId = story?.sourceAssetId;
+  }
   if (typeof sourceAssetId === 'string') {
     const selected = project.assets.find(
       (asset) => asset.id === sourceAssetId && asset.type === 'VIDEO',
@@ -96,14 +96,16 @@ async function resolveProjectThumbnailSource(
     where: { id, userId, deletedAt: null },
     include: { assets: true },
   });
-  const expectedKind =
-    kind === 'video-studio'
-      ? VIDEO_STUDIO_PROJECT_KIND
-      : kind === 'loop-creator'
-        ? LOOP_CREATOR_PROJECT_KIND
-        : kind === 'reaction-video'
-          ? REACTION_CREATOR_PROJECT_KIND
-          : LIVE_STREAM_PROJECT_KIND;
+  let expectedKind: string;
+  if (kind === 'video-studio') {
+    expectedKind = VIDEO_STUDIO_PROJECT_KIND;
+  } else if (kind === 'loop-creator') {
+    expectedKind = LOOP_CREATOR_PROJECT_KIND;
+  } else if (kind === 'reaction-video') {
+    expectedKind = REACTION_CREATOR_PROJECT_KIND;
+  } else {
+    expectedKind = LIVE_STREAM_PROJECT_KIND;
+  }
   if (!project || readStoryKind(project.storyData) !== expectedKind) {
     throw new WorkspaceThumbnailError('Preview project tidak tersedia.');
   }

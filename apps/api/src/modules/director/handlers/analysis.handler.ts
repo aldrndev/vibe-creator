@@ -81,6 +81,216 @@ function resolveAnalysisRefineOptions(config: unknown): {
   };
 }
 
+async function saveCandidatesAndCompleteSession(
+  sessionId: string,
+  dbJob: { id: string } | null,
+  rerankedCandidates: Array<{
+    startMs: number;
+    endMs: number;
+    score: number;
+    rank: number;
+    tags: string[];
+    metadata: unknown;
+  }>,
+  filePath: string,
+) {
+  await prisma.$transaction(
+    async (tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0]) => {
+      if (dbJob) {
+        await tx.directorAnalysisJob.update({
+          where: { id: dbJob.id },
+          data: {
+            status: 'COMPLETED',
+            completedAt: new Date(),
+          },
+        });
+      }
+
+      if (rerankedCandidates.length > 0 && dbJob) {
+        await tx.directorClipCandidate.deleteMany({
+          where: { analysisJobId: dbJob.id },
+        });
+
+        const candidatesWithPreviews = await Promise.all(
+          rerankedCandidates.map(async (candidate, index) => {
+            const midPointMs = Math.round((candidate.startMs + candidate.endMs) / 2);
+            let previewKey: string | null = null;
+
+            try {
+              const previewFile = await directorProcessor.generateClipPreview(
+                filePath,
+                join(env.MEDIA_INPUT_DIR, 'director', 'previews'),
+                midPointMs,
+              );
+
+              if (previewFile) {
+                previewKey = `director/previews/${previewFile}`;
+              }
+            } catch (err) {
+              logger.warn({ err, candidateIndex: index }, 'Failed to generate thumbnail preview');
+            }
+
+            return {
+              analysisJobId: dbJob.id,
+              startMs: candidate.startMs,
+              endMs: candidate.endMs,
+              score: candidate.score,
+              rank: candidate.rank,
+              tags: candidate.tags,
+              previewStorageKey: previewKey,
+              metadata: candidate.metadata as Prisma.InputJsonValue,
+            };
+          }),
+        );
+
+        await tx.directorClipCandidate.createMany({
+          data: candidatesWithPreviews,
+        });
+      }
+
+      await tx.directorSession.update({
+        where: { id: sessionId },
+        data: { step: 'PICKING' },
+      });
+    },
+  );
+}
+
+async function cacheReusableCandidates(
+  session: { analysisJob: { id: string } | null },
+  assetId: string,
+  targetDurationRange: TargetDurationRange,
+) {
+  if (session.analysisJob) {
+    const persistedCandidates = await prisma.directorClipCandidate.findMany({
+      where: {
+        analysisJobId: session.analysisJob.id,
+      },
+      orderBy: {
+        rank: 'asc',
+      },
+    });
+
+    const asset = await prisma.directorAsset.findUnique({
+      where: { id: assetId },
+      select: {
+        contentHash: true,
+        sourceUrlNormalized: true,
+        storageKey: true,
+      },
+    });
+
+    if (asset) {
+      await directorAnalysisReuseService.setReusableCandidates(
+        asset,
+        persistedCandidates,
+        targetDurationRange,
+      );
+    }
+  }
+}
+
+async function generateAndRerankCandidates(
+  filePath: string,
+  audioProxyPath: string,
+  analysisRefineOptions: ReturnType<typeof resolveAnalysisRefineOptions>,
+  session: {
+    asset: {
+      contentHash: string | null;
+      sourceUrlNormalized: string | null;
+      storageKey: string;
+      durationMs: number | null;
+    } | null;
+  },
+) {
+  const segments = await directorProcessor.detectSegments(audioProxyPath);
+
+  const candidates = await directorProcessor.refineSegments(
+    segments,
+    audioProxyPath,
+    analysisRefineOptions,
+    filePath,
+  );
+  const hardMaxDurationSeconds =
+    resolveHardMaxCandidateDurationMs(analysisRefineOptions.maxDuration * 1000) / 1000;
+  const boundedCandidates = candidates.filter(
+    (candidate) => candidate.duration <= hardMaxDurationSeconds,
+  );
+  const durationPreferredCandidates = preferCandidatesWithinTargetDurationRange(
+    boundedCandidates.map((candidate, index) => ({
+      startMs: Math.round(candidate.start * 1000),
+      endMs: Math.round(candidate.end * 1000),
+      score: candidate.score,
+      rank: index + 1,
+      tags: candidate.tags && candidate.tags.length > 0 ? candidate.tags : ['highlight'],
+      scoreBreakdown: buildHeuristicScoreBreakdown(
+        {
+          durationSeconds: Math.round(candidate.duration),
+          energyScore: candidate.analysis?.energyScore ?? 50,
+          dialogDensityScore: candidate.analysis?.dialogDensityScore ?? 50,
+          visualPenalty: candidate.analysis?.visualPenalty ?? 0,
+          tags: candidate.tags && candidate.tags.length > 0 ? candidate.tags : ['highlight'],
+        },
+        { targetDurationRange: analysisRefineOptions.targetDurationRange },
+      ),
+    })),
+    analysisRefineOptions.targetDurationRange,
+  );
+  const assetFingerprint =
+    session.asset?.contentHash ?? session.asset?.sourceUrlNormalized ?? session.asset?.storageKey;
+  const mediaDurationMs =
+    session.asset?.durationMs ??
+    Math.max(0, ...durationPreferredCandidates.candidates.map((candidate) => candidate.endMs));
+  const transcriptRefinedCandidates = assetFingerprint
+    ? await directorAnalysisTranscriptRefinementService.refineCandidates({
+        candidates: durationPreferredCandidates.candidates,
+        inputPath: filePath,
+        audioProxyDir: TEMP_DIR,
+        assetFingerprint,
+        mediaDurationMs,
+      })
+    : durationPreferredCandidates.candidates;
+  const rerankedCandidates = (
+    await directorAnalysisAiRerankService.rerankCandidates(transcriptRefinedCandidates, {
+      targetDurationRange: analysisRefineOptions.targetDurationRange,
+    })
+  ).slice(0, env.DIRECTOR_ANALYSIS_FINAL_LIMIT);
+
+  return {
+    rerankedCandidates,
+    fallbackApplied: durationPreferredCandidates.fallbackApplied,
+  };
+}
+
+async function handleAnalysisFailure(
+  dbJob: { id: string } | null,
+  err: unknown,
+  logCtx: Record<string, unknown>,
+) {
+  logger.error({ ...logCtx, err }, 'Analysis job failed');
+
+  if (dbJob) {
+    await prisma.directorAnalysisJob.update({
+      where: { id: dbJob.id },
+      data: {
+        status: 'FAILED',
+        errorMessage: err instanceof Error ? err.message : 'Unknown error',
+      },
+    });
+  }
+}
+
+async function cleanupAudioProxy(audioProxyPath: string | null, logCtx: Record<string, unknown>) {
+  if (audioProxyPath && existsSync(audioProxyPath)) {
+    try {
+      await unlink(audioProxyPath);
+      logger.debug(logCtx, 'Cleaned up audio proxy');
+    } catch (cleanupErr) {
+      logger.error({ ...logCtx, cleanupErr }, 'Failed to cleanup proxy');
+    }
+  }
+}
+
 /**
  * Processes a video analysis job for the AI Director.
  *
@@ -145,179 +355,33 @@ export async function processAnalysisJob(job: Job<DirectorAnalysisJobData>) {
 
     audioProxyPath = await directorProcessor.extractAudioProxy(filePath, TEMP_DIR);
 
-    const segments = await directorProcessor.detectSegments(audioProxyPath);
-
     const analysisRefineOptions = resolveAnalysisRefineOptions(dbJob?.config);
-    const candidates = await directorProcessor.refineSegments(
-      segments,
+    const { rerankedCandidates, fallbackApplied } = await generateAndRerankCandidates(
+      filePath,
       audioProxyPath,
       analysisRefineOptions,
-      filePath,
+      session,
     );
-    const hardMaxDurationSeconds =
-      resolveHardMaxCandidateDurationMs(analysisRefineOptions.maxDuration * 1000) / 1000;
-    const boundedCandidates = candidates.filter(
-      (candidate) => candidate.duration <= hardMaxDurationSeconds,
-    );
-    const durationPreferredCandidates = preferCandidatesWithinTargetDurationRange(
-      boundedCandidates.map((candidate, index) => ({
-        startMs: Math.round(candidate.start * 1000),
-        endMs: Math.round(candidate.end * 1000),
-        score: candidate.score,
-        rank: index + 1,
-        tags: candidate.tags && candidate.tags.length > 0 ? candidate.tags : ['highlight'],
-        scoreBreakdown: buildHeuristicScoreBreakdown(
-          {
-            durationSeconds: Math.round(candidate.duration),
-            energyScore: candidate.analysis?.energyScore ?? 50,
-            dialogDensityScore: candidate.analysis?.dialogDensityScore ?? 50,
-            visualPenalty: candidate.analysis?.visualPenalty ?? 0,
-            tags: candidate.tags && candidate.tags.length > 0 ? candidate.tags : ['highlight'],
-          },
-          { targetDurationRange: analysisRefineOptions.targetDurationRange },
-        ),
-      })),
-      analysisRefineOptions.targetDurationRange,
-    );
-    const assetFingerprint =
-      session.asset?.contentHash ?? session.asset?.sourceUrlNormalized ?? session.asset?.storageKey;
-    const mediaDurationMs =
-      session.asset?.durationMs ??
-      Math.max(0, ...durationPreferredCandidates.candidates.map((candidate) => candidate.endMs));
-    const transcriptRefinedCandidates = assetFingerprint
-      ? await directorAnalysisTranscriptRefinementService.refineCandidates({
-          candidates: durationPreferredCandidates.candidates,
-          inputPath: filePath,
-          audioProxyDir: TEMP_DIR,
-          assetFingerprint,
-          mediaDurationMs,
-        })
-      : durationPreferredCandidates.candidates;
-    const rerankedCandidates = (
-      await directorAnalysisAiRerankService.rerankCandidates(transcriptRefinedCandidates, {
-        targetDurationRange: analysisRefineOptions.targetDurationRange,
-      })
-    ).slice(0, env.DIRECTOR_ANALYSIS_FINAL_LIMIT);
 
     logger.info(
       {
         ...logCtx,
         candidatesCount: rerankedCandidates.length,
         targetDurationRange: analysisRefineOptions.targetDurationRange,
-        rangeFallbackApplied: durationPreferredCandidates.fallbackApplied,
+        rangeFallbackApplied: fallbackApplied,
       },
       'Analysis complete',
     );
 
-    await prisma.$transaction(
-      async (tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0]) => {
-        if (dbJob) {
-          await tx.directorAnalysisJob.update({
-            where: { id: dbJob.id },
-            data: {
-              status: 'COMPLETED',
-              completedAt: new Date(),
-            },
-          });
-        }
-
-        if (rerankedCandidates.length > 0 && dbJob) {
-          await tx.directorClipCandidate.deleteMany({
-            where: { analysisJobId: dbJob.id },
-          });
-
-          const candidatesWithPreviews = await Promise.all(
-            rerankedCandidates.map(async (candidate, index) => {
-              const midPointMs = Math.round((candidate.startMs + candidate.endMs) / 2);
-              let previewKey: string | null = null;
-
-              try {
-                const previewFile = await directorProcessor.generateClipPreview(
-                  filePath,
-                  join(env.MEDIA_INPUT_DIR, 'director', 'previews'),
-                  midPointMs,
-                );
-
-                if (previewFile) {
-                  previewKey = `director/previews/${previewFile}`;
-                }
-              } catch (err) {
-                logger.warn({ err, candidateIndex: index }, 'Failed to generate thumbnail preview');
-              }
-
-              return {
-                analysisJobId: dbJob?.id,
-                startMs: candidate.startMs,
-                endMs: candidate.endMs,
-                score: candidate.score,
-                rank: candidate.rank,
-                tags: candidate.tags,
-                previewStorageKey: previewKey,
-                metadata: candidate.metadata as Prisma.InputJsonValue,
-              };
-            }),
-          );
-
-          await tx.directorClipCandidate.createMany({
-            data: candidatesWithPreviews,
-          });
-        }
-
-        await tx.directorSession.update({
-          where: { id: sessionId },
-          data: { step: 'PICKING' },
-        });
-      },
-    );
+    await saveCandidatesAndCompleteSession(sessionId, dbJob, rerankedCandidates, filePath);
 
     if (session.analysisJob && rerankedCandidates.length > 0) {
-      const persistedCandidates = await prisma.directorClipCandidate.findMany({
-        where: {
-          analysisJobId: session.analysisJob.id,
-        },
-        orderBy: {
-          rank: 'asc',
-        },
-      });
-
-      const asset = await prisma.directorAsset.findUnique({
-        where: { id: assetId },
-        select: {
-          contentHash: true,
-          sourceUrlNormalized: true,
-          storageKey: true,
-        },
-      });
-
-      if (asset) {
-        await directorAnalysisReuseService.setReusableCandidates(
-          asset,
-          persistedCandidates,
-          analysisRefineOptions.targetDurationRange,
-        );
-      }
+      await cacheReusableCandidates(session, assetId, analysisRefineOptions.targetDurationRange);
     }
   } catch (err) {
-    logger.error({ ...logCtx, err }, 'Analysis job failed');
-
-    if (dbJob) {
-      await prisma.directorAnalysisJob.update({
-        where: { id: dbJob.id },
-        data: {
-          status: 'FAILED',
-          errorMessage: err instanceof Error ? err.message : 'Unknown error',
-        },
-      });
-    }
+    await handleAnalysisFailure(dbJob, err, logCtx);
     throw err;
   } finally {
-    if (audioProxyPath && existsSync(audioProxyPath)) {
-      try {
-        await unlink(audioProxyPath);
-        logger.debug(logCtx, 'Cleaned up audio proxy');
-      } catch (cleanupErr) {
-        logger.error({ ...logCtx, cleanupErr }, 'Failed to cleanup proxy');
-      }
-    }
+    await cleanupAudioProxy(audioProxyPath, logCtx);
   }
 }

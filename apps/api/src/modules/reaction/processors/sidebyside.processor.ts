@@ -18,37 +18,23 @@ export interface CreateSideBySideInput {
   overlayMode?: boolean;
 }
 
-export async function processSideBySide(input: CreateSideBySideInput): Promise<string> {
-  await ensureReactionsDir();
+interface SideBySideDimensions {
+  targetW: number;
+  targetH: number;
+  leftW: number;
+  rightW: number;
+  leftH: number;
+  rightH: number;
+  mainW: number;
+  mainH: number;
+}
 
-  const {
-    leftVideoPath,
-    rightVideoPath,
-    layout,
-    aspectRatio = '16:9',
-    mainVolume = 1.0,
-    reactionVolume = 0.8,
-    splitRatio = 0.5,
-  } = input;
+function calculateDimensions(input: CreateSideBySideInput): SideBySideDimensions {
+  const { layout, aspectRatio = '16:9', splitRatio = 0.5, overlayMode = false } = input;
   const { w: targetW, h: targetH } = RESOLUTIONS[aspectRatio] || {
     w: 1920,
     h: 1080,
   };
-
-  // Security Gate: Check Durations
-  const [leftDuration, rightDuration] = await Promise.all([
-    getVideoDuration(leftVideoPath),
-    getVideoDuration(rightVideoPath),
-  ]);
-
-  if (leftDuration > 300 * 1000 || rightDuration > 300 * 1000) {
-    throw new Error('Video duration exceeds 5 minutes limit');
-  }
-
-  const outputId = randomUUID();
-  const outputPath = join(REACTIONS_DIR, `${outputId}.mp4`);
-
-  // Helper to round to nearest even number
   const toEven = (n: number) => Math.floor(n / 2) * 2;
 
   let leftW: number, rightW: number, leftH: number, rightH: number;
@@ -73,16 +59,40 @@ export async function processSideBySide(input: CreateSideBySideInput): Promise<s
     rightW = targetW;
   }
 
-  const isOverlayMode = input.overlayMode ?? false;
-  const isSmoothBorder = input.smoothBorder ?? false;
-
   let mainW = leftW;
   let mainH = leftH;
 
-  if (isOverlayMode) {
+  if (overlayMode) {
     mainW = targetW;
     mainH = targetH;
   }
+
+  return { targetW, targetH, leftW, rightW, leftH, rightH, mainW, mainH };
+}
+
+export async function processSideBySide(input: CreateSideBySideInput): Promise<string> {
+  await ensureReactionsDir();
+
+  const { leftVideoPath, rightVideoPath, layout, mainVolume = 1.0, reactionVolume = 0.8 } = input;
+
+  // Security Gate: Check Durations
+  const [leftDuration, rightDuration] = await Promise.all([
+    getVideoDuration(leftVideoPath),
+    getVideoDuration(rightVideoPath),
+  ]);
+
+  if (leftDuration > 300 * 1000 || rightDuration > 300 * 1000) {
+    throw new Error('Video duration exceeds 5 minutes limit');
+  }
+
+  const outputId = randomUUID();
+  const outputPath = join(REACTIONS_DIR, `${outputId}.mp4`);
+
+  const { targetW, targetH, leftW, rightW, leftH, rightH, mainW, mainH } =
+    calculateDimensions(input);
+
+  const isOverlayMode = input.overlayMode ?? false;
+  const isSmoothBorder = input.smoothBorder ?? false;
 
   logger.debug(
     {

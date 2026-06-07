@@ -219,9 +219,9 @@ function renderScriptDefault(
   return `*** SYSTEM ROLE & CONTEXT ***
  You are an award-winning Viral Content Strategist and Scriptwriter for ${
    input.platform
- }. Your expertise lies in creating high-retention content that triggers specific emotional responses. You understand the algorithm of ${
+}. Your expertise lies in creating high-retention content that triggers specific emotional responses. You understand the algorithm of ${
    input.platform
- } deeply (${platformSpecs[input.platform] || ''}).
+} deeply (${platformSpecs[input.platform] || ''}).
  
  *** INPUT DATA ***
  - Niche: ${input.niche}
@@ -234,16 +234,16 @@ function renderScriptDefault(
    Array.isArray(input.keywords) && input.keywords.length > 0
      ? `- Required Keywords: ${input.keywords.join(', ')}`
      : ''
- }
+}
  
  *** CHAIN OF THOUGHT ANALYSIS (Lakukan ini sebelum menulis script) ***
  1. **Audience Profiling**: Pahami pain points dan desire terdalam dari ${
    input.targetAudience
- } di niche ${input.niche}.
+} di niche ${input.niche}.
  2. **Hook Ideation**: Ciptakan 3 variasi hook. Pilih satu yang paling "Pattern Interrupt" (menghentikan scroll seketika).
  3. **Value Structuring**: Bagaimana menyampaikan ${
    input.keyMessage
- } tanpa terdengar preaching? Gunakan teknik "Show, Don't Tell".
+} tanpa terdengar preaching? Gunakan teknik "Show, Don't Tell".
  4. **Retention Engineering**: Di mana titik bosan audiens? Sisipkan re-hook atau visual change di titik tersebut.
  
  *** STRUKTUR SCRIPT YANG DIMINTA: ${(
@@ -257,7 +257,7 @@ function renderScriptDefault(
    Array.isArray(input.emotionalJourney)
      ? input.emotionalJourney.join(' -> ')
      : input.emotionalJourney || 'Normal'
- }
+}
  
  *** OUTPUT FORMAT (Strictly Follow This) ***
  
@@ -265,7 +265,7 @@ function renderScriptDefault(
    input.keywords.some((k) => ['jakarta', 'indonesia', 'indo'].includes(k.toLowerCase()))
      ? 'Indonesia (Gunakan bahasa gaul/natural sesuai target audiens)'
      : 'Indonesia (Natural & Engaging)'
- }.
+}.
  
  [META DATA]
  - Estimated WPM (Words Per Minute): ...

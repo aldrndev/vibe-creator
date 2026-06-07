@@ -156,7 +156,7 @@ function getSourceAsset(
   }
 
   const asset = project.assets.find((item) => item.id === document.sourceAssetId);
-  if (!asset || asset.type !== 'VIDEO') {
+  if (asset?.type !== 'VIDEO') {
     throw new Error('Source video live stream tidak tersedia.');
   }
 

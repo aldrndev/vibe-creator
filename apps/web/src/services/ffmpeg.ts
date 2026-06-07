@@ -94,17 +94,17 @@ class FFmpegService {
       if (durationMatch) {
         const [, hours, minutes, seconds, centiseconds] = durationMatch;
         duration =
-          parseInt(hours || '0', 10) * 3600 +
-          parseInt(minutes || '0', 10) * 60 +
-          parseInt(seconds || '0', 10) +
-          parseInt(centiseconds || '0', 10) / 100;
+          Number.parseInt(hours || '0', 10) * 3600 +
+          Number.parseInt(minutes || '0', 10) * 60 +
+          Number.parseInt(seconds || '0', 10) +
+          Number.parseInt(centiseconds || '0', 10) / 100;
       }
 
       // Parse dimensions: 1920x1080
       const dimensionMatch = message.match(/(\d{3,4})x(\d{3,4})/);
       if (dimensionMatch) {
-        width = parseInt(dimensionMatch[1] || '0', 10);
-        height = parseInt(dimensionMatch[2] || '0', 10);
+        width = Number.parseInt(dimensionMatch[1] || '0', 10);
+        height = Number.parseInt(dimensionMatch[2] || '0', 10);
       }
 
       // Parse codec: Video: h264

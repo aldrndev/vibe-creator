@@ -311,10 +311,10 @@ describe('export.schema contracts', () => {
   describe('QUALITY_PRESETS', () => {
     it('should have increasing bitrates for quality levels', () => {
       const bitrates = [
-        parseInt(QUALITY_PRESETS.low.videoBitrate, 10),
-        parseInt(QUALITY_PRESETS.medium.videoBitrate, 10),
-        parseInt(QUALITY_PRESETS.high.videoBitrate, 10),
-        parseInt(QUALITY_PRESETS.lossless.videoBitrate, 10),
+        Number.parseInt(QUALITY_PRESETS.low.videoBitrate, 10),
+        Number.parseInt(QUALITY_PRESETS.medium.videoBitrate, 10),
+        Number.parseInt(QUALITY_PRESETS.high.videoBitrate, 10),
+        Number.parseInt(QUALITY_PRESETS.lossless.videoBitrate, 10),
       ];
 
       for (let i = 1; i < bitrates.length; i++) {

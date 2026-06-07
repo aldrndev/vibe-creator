@@ -277,6 +277,308 @@ export function pickNonOverlappingCandidates(
   return selected.sort((left, right) => left.start - right.start);
 }
 
+function extractSilencesFromOutput(output: string): { start: number; end: number }[] {
+  const silenceRegex = /silence_(start|end): ([\d.]+)/g;
+  const silences: { start: number; end: number }[] = [];
+
+  let match: RegExpExecArray | null = silenceRegex.exec(output);
+  let currentStart: number | null = null;
+
+  while (match) {
+    const type = match[1];
+    const time = Number.parseFloat(match[2] as string);
+
+    if (type === 'start') {
+      currentStart = time;
+    } else if (type === 'end' && currentStart !== null) {
+      silences.push({ start: currentStart, end: time });
+      currentStart = null;
+    }
+
+    match = silenceRegex.exec(output);
+  }
+
+  return silences;
+}
+
+function parseTotalDuration(output: string): number | null {
+  const durationMatch = /Duration: (\d{2}):(\d{2}):(\d{2}).(\d{2})/.exec(output);
+  if (!durationMatch) {
+    return null;
+  }
+  const [, hours, minutes, seconds, centiseconds] = durationMatch;
+  return (
+    Number.parseInt(hours ?? '0', 10) * 3600 +
+    Number.parseInt(minutes ?? '0', 10) * 60 +
+    Number.parseFloat(`${seconds ?? '0'}.${centiseconds ?? '0'}`)
+  );
+}
+
+function parseSilenceDetectionOutput(output: string): DetectionResult {
+  const silences = extractSilencesFromOutput(output);
+  const parsedDuration = parseTotalDuration(output);
+
+  if (parsedDuration === null) {
+    logger.warn('Could not parse duration from ffmpeg output');
+    return { segments: [], totalDuration: 0 };
+  }
+
+  const totalDuration = parsedDuration;
+
+  const segments: Segment[] = [];
+  let lastEnd = 0;
+
+  for (const silence of silences) {
+    if (silence.start > lastEnd + 0.1) {
+      segments.push({
+        start: lastEnd,
+        end: silence.start,
+        duration: silence.start - lastEnd,
+        score: 0.8,
+        activeDuration: silence.start - lastEnd,
+      });
+    }
+    lastEnd = silence.end;
+  }
+
+  if (totalDuration > lastEnd + 0.1) {
+    segments.push({
+      start: lastEnd,
+      end: totalDuration,
+      duration: totalDuration - lastEnd,
+      score: 0.8,
+      activeDuration: totalDuration - lastEnd,
+    });
+  }
+
+  return { segments, totalDuration };
+}
+
+function mergeCloseSegments(segments: Segment[], mergeGap: number): MergeableSegment[] {
+  const merged: MergeableSegment[] = [];
+  const firstSegment = segments[0];
+  let current: MergeableSegment | undefined = firstSegment
+    ? {
+        ...firstSegment,
+        pauseAnchors: [firstSegment.end],
+      }
+    : undefined;
+
+  if (!current) return [];
+
+  for (let i = 1; i < segments.length; i++) {
+    const next: Segment | undefined = segments[i];
+    if (!next) continue;
+
+    if (next.start - current.end <= mergeGap) {
+      current.end = next.end;
+      current.duration = current.end - current.start;
+      current.activeDuration =
+        (current.activeDuration || 0) + (next.activeDuration || next.duration);
+      current.pauseAnchors.push(next.end);
+    } else {
+      merged.push(current);
+      current = {
+        ...next,
+        pauseAnchors: [next.end],
+      };
+    }
+  }
+  merged.push(current);
+  return merged;
+}
+
+function gatherInitialCandidates(
+  segments: Segment[],
+  mergeGap: number,
+  scoringWindow: { minDuration: number; maxDuration: number },
+  candidateMinDuration: number,
+  preferredMaxDuration: number,
+  hardMaxDuration: number,
+): Segment[] {
+  const isUniformFallbackMode = segments.every((segment) =>
+    segment.tags?.includes(UNIFORM_FALLBACK_TAG),
+  );
+
+  let merged: MergeableSegment[] = [];
+  if (isUniformFallbackMode) {
+    const totalDuration = Math.max(...segments.map((segment) => segment.end));
+    const targetUniformWindows = buildUniformWindows(
+      totalDuration,
+      buildTargetUniformDurations(scoringWindow.minDuration, scoringWindow.maxDuration),
+      resolveUniformStride(scoringWindow.minDuration),
+    );
+    const sourceSegments = targetUniformWindows.length > 0 ? targetUniformWindows : segments;
+    merged = sourceSegments.map((segment) => ({
+      ...segment,
+      pauseAnchors: [segment.end],
+    }));
+  } else {
+    merged = mergeCloseSegments(segments, mergeGap);
+  }
+
+  const candidates: Segment[] = [];
+  for (const s of merged) {
+    if (s.duration < candidateMinDuration) continue;
+
+    if (s.duration <= hardMaxDuration) {
+      candidates.push(s);
+    } else {
+      const smartChunks = splitSegmentAtSmartPauses({
+        segment: s,
+        minDuration: candidateMinDuration,
+        preferredMaxDuration,
+        hardMaxDuration,
+      });
+      candidates.push(...smartChunks);
+    }
+  }
+
+  return candidates;
+}
+
+function getDurationScoreAdjustment(
+  duration: number,
+  scoringWindow: { minDuration: number; maxDuration: number },
+  candidateMinDuration: number,
+): number {
+  if (duration >= scoringWindow.minDuration && duration <= scoringWindow.maxDuration) {
+    return 0.16;
+  }
+
+  const extendedMaxDuration = Math.min(
+    MAX_SHORT_CANDIDATE_DURATION_SEC,
+    scoringWindow.maxDuration + DIALOG_COMPLETION_EXTENSION_SEC,
+  );
+
+  if (duration > scoringWindow.maxDuration && duration <= extendedMaxDuration) {
+    return 0.08;
+  }
+
+  const nearMinDuration = Math.max(candidateMinDuration, scoringWindow.minDuration - 8);
+
+  if (duration >= nearMinDuration && duration < scoringWindow.minDuration) {
+    return 0.04;
+  }
+
+  const durationDistance = getDistanceFromDurationWindow(
+    duration,
+    scoringWindow.minDuration,
+    scoringWindow.maxDuration,
+  );
+  return -Math.min(0.18, durationDistance / 500);
+}
+
+function calculateCandidateScoreAdjustments(
+  score: number,
+  meanVolume: number,
+  tags: string[],
+  c: Segment,
+  scoringWindow: { minDuration: number; maxDuration: number },
+  candidateMinDuration: number,
+  hasBlackScreen: boolean,
+  isStatic: boolean,
+) {
+  let adjustedScore = score;
+  const finalTags = [...tags];
+  let visualPenalty = 0;
+
+  if (meanVolume > -18) {
+    adjustedScore += 0.15;
+    finalTags.push('HIGH ENERGY');
+  } else if (meanVolume > -25) {
+    adjustedScore += 0.05;
+  } else {
+    adjustedScore -= 0.1;
+  }
+
+  adjustedScore += getDurationScoreAdjustment(c.duration, scoringWindow, candidateMinDuration);
+
+  const activeDur = c.activeDuration || c.duration;
+  const density = activeDur / c.duration;
+
+  if (density >= 0.9) {
+    adjustedScore += 0.1;
+    if (!finalTags.includes('HIGH ENERGY')) finalTags.push('DENSE SPEECH');
+  } else if (density < 0.6) {
+    adjustedScore -= 0.15;
+  }
+
+  if (hasBlackScreen) {
+    adjustedScore -= 0.3;
+    finalTags.push('BLACK SCREEN');
+    visualPenalty += 55;
+  }
+  if (isStatic) {
+    adjustedScore -= 0.2;
+    finalTags.push('STATIC');
+    visualPenalty += 35;
+  }
+
+  return { adjustedScore, finalTags, visualPenalty, density };
+}
+
+async function analyzeCandidate(
+  c: Segment,
+  audioPath: string,
+  videoPath: string | undefined,
+  scoringWindow: { minDuration: number; maxDuration: number },
+  candidateMinDuration: number,
+  service: typeof videoAnalysisService,
+): Promise<Segment & { tags?: string[] }> {
+  const { meanVolume, maxVolume } = await service.analyzeSegmentEnergy(
+    audioPath,
+    c.start,
+    c.duration,
+  );
+
+  const initialTags: string[] = (c.tags ?? []).filter((tag) => tag !== UNIFORM_FALLBACK_TAG);
+  let hasBlackScreen = false;
+  let isStatic = false;
+
+  if (videoPath) {
+    const visuals = await service.analyzeSegmentVisuals(videoPath, c.start, c.duration);
+    hasBlackScreen = visuals.hasBlackScreen;
+    isStatic = visuals.isStatic;
+  }
+
+  const { adjustedScore, finalTags, visualPenalty, density } = calculateCandidateScoreAdjustments(
+    c.score,
+    meanVolume,
+    initialTags,
+    c,
+    scoringWindow,
+    candidateMinDuration,
+    hasBlackScreen,
+    isStatic,
+  );
+
+  const energyScore = clampScore((meanVolume + 45) * 4);
+  const dialogDensityScore = clampScore(density * 100);
+  const durationFitScore = getDurationFitScoreForWindow(
+    c.duration,
+    scoringWindow.minDuration,
+    scoringWindow.maxDuration,
+  );
+
+  return {
+    ...c,
+    score: Math.min(adjustedScore, 0.99),
+    tags: finalTags,
+    analysis: {
+      meanVolume,
+      maxVolume,
+      speechDensity: density,
+      energyScore,
+      dialogDensityScore,
+      durationFitScore,
+      visualPenalty: clampScore(visualPenalty),
+      hasBlackScreen,
+      isStatic,
+    },
+  };
+}
+
 export const videoAnalysisService = {
   /**
    * Detect active segments by analyzing silence.
@@ -307,71 +609,7 @@ export const videoAnalysisService = {
 
         proc.on('close', (code) => {
           if (code !== 0) return reject(new Error(`Silence detection failed: ${code}`));
-
-          // Parse output
-          const silenceRegex = /silence_(start|end): ([\d.]+)/g;
-          const silences: { start: number; end: number }[] = [];
-
-          let match: RegExpExecArray | null = silenceRegex.exec(output);
-          let currentStart: number | null = null;
-
-          while (match) {
-            const type = match[1];
-            const time = parseFloat(match[2] as string);
-
-            if (type === 'start') currentStart = time;
-            else if (type === 'end' && currentStart !== null) {
-              silences.push({ start: currentStart, end: time });
-              currentStart = null;
-            }
-
-            match = silenceRegex.exec(output);
-          }
-
-          // Get duration
-          const durationMatch = /Duration: (\d{2}):(\d{2}):(\d{2}).(\d{2})/.exec(output);
-          let totalDuration = 0;
-          if (durationMatch) {
-            const [, hours, minutes, seconds, centiseconds] = durationMatch;
-            totalDuration =
-              parseInt(hours ?? '0', 10) * 3600 +
-              parseInt(minutes ?? '0', 10) * 60 +
-              parseFloat(`${seconds ?? '0'}.${centiseconds ?? '0'}`);
-          } else {
-            // Fallback if unable to parse duration
-            logger.warn('Could not parse duration from ffmpeg output');
-            return resolve({ segments: [], totalDuration: 0 });
-          }
-
-          // Invert silence -> Active Segments
-          const segments: Segment[] = [];
-          let lastEnd = 0;
-
-          for (const silence of silences) {
-            if (silence.start > lastEnd + 0.1) {
-              // 0.1s tolerance
-              segments.push({
-                start: lastEnd,
-                end: silence.start,
-                duration: silence.start - lastEnd,
-                score: 0.8,
-                activeDuration: silence.start - lastEnd,
-              });
-            }
-            lastEnd = silence.end;
-          }
-
-          if (totalDuration > lastEnd + 0.1) {
-            segments.push({
-              start: lastEnd,
-              end: totalDuration,
-              duration: totalDuration - lastEnd,
-              score: 0.8,
-              activeDuration: totalDuration - lastEnd,
-            });
-          }
-
-          resolve({ segments, totalDuration });
+          resolve(parseSilenceDetectionOutput(output));
         });
       });
     };
@@ -493,8 +731,8 @@ export const videoAnalysisService = {
         const meanMatch = /mean_volume: ([-\d.]+) dB/.exec(output);
         const maxMatch = /max_volume: ([-\d.]+) dB/.exec(output);
 
-        const meanVolume = meanMatch?.[1] ? parseFloat(meanMatch[1]) : -91;
-        const maxVolume = maxMatch?.[1] ? parseFloat(maxMatch[1]) : -91;
+        const meanVolume = meanMatch?.[1] ? Number.parseFloat(meanMatch[1]) : -91;
+        const maxVolume = maxMatch?.[1] ? Number.parseFloat(maxMatch[1]) : -91;
 
         resolve({
           meanVolume,
@@ -525,191 +763,24 @@ export const videoAnalysisService = {
       MAX_SHORT_CANDIDATE_DURATION_SEC,
       preferredMaxDuration + DIALOG_COMPLETION_EXTENSION_SEC,
     );
-    const isUniformFallbackMode = segments.every((segment) =>
-      segment.tags?.includes(UNIFORM_FALLBACK_TAG),
-    );
-
     if (segments.length === 0) return [];
 
-    let merged: MergeableSegment[] = [];
-    if (isUniformFallbackMode) {
-      const totalDuration = Math.max(...segments.map((segment) => segment.end));
-      const targetUniformWindows = buildUniformWindows(
-        totalDuration,
-        buildTargetUniformDurations(scoringWindow.minDuration, scoringWindow.maxDuration),
-        resolveUniformStride(scoringWindow.minDuration),
-      );
-      const sourceSegments = targetUniformWindows.length > 0 ? targetUniformWindows : segments;
-      merged = sourceSegments.map((segment) => ({
-        ...segment,
-        pauseAnchors: [segment.end],
-      }));
-    } else {
-      // 1. Merge close segments
-      const firstSegment = segments[0];
-      let current: MergeableSegment | undefined = firstSegment
-        ? {
-            ...firstSegment,
-            pauseAnchors: [firstSegment.end],
-          }
-        : undefined;
-
-      if (!current) return [];
-
-      for (let i = 1; i < segments.length; i++) {
-        const next: Segment | undefined = segments[i];
-        if (!next) continue;
-
-        if (next.start - current.end <= mergeGap) {
-          // Merge
-          current.end = next.end;
-          current.duration = current.end - current.start;
-          current.activeDuration =
-            (current.activeDuration || 0) + (next.activeDuration || next.duration);
-          current.pauseAnchors.push(next.end);
-        } else {
-          merged.push(current);
-          current = {
-            ...next,
-            pauseAnchors: [next.end],
-          };
-        }
-      }
-      merged.push(current);
-    }
-
-    // 2. Split Long Segments with pause-aware strategy
-    const candidates: Segment[] = [];
-    for (const s of merged) {
-      if (s.duration < candidateMinDuration) continue;
-
-      if (s.duration <= hardMaxDuration) {
-        candidates.push(s);
-      } else {
-        const smartChunks = splitSegmentAtSmartPauses({
-          segment: s,
-          minDuration: candidateMinDuration,
-          preferredMaxDuration,
-          hardMaxDuration,
-        });
-        candidates.push(...smartChunks);
-      }
-    }
-
-    // 3. Energy Analysis (Smart Scoring)
-    // Run concurrently with concurrency limit for performance
-    const analyzed = await Promise.all(
-      candidates.map(async (c) => {
-        const { meanVolume, maxVolume } = await this.analyzeSegmentEnergy(
-          audioPath,
-          c.start,
-          c.duration,
-        );
-
-        let score = c.score;
-        const tags: string[] = (c.tags ?? []).filter((tag) => tag !== UNIFORM_FALLBACK_TAG);
-        let hasBlackScreen = false;
-        let isStatic = false;
-        let visualPenalty = 0;
-
-        // Heuristic: High energy = Excitement/Action
-        // Typically speech is -20dB to -10dB. Loud is > -10dB.
-        // We boost score for loud parts (laughter, yelling)
-        if (meanVolume > -18) {
-          score += 0.15;
-          tags.push('HIGH ENERGY');
-        } else if (meanVolume > -25) {
-          score += 0.05; // Normal clear speech
-        } else {
-          score -= 0.1; // Quiet/Mumble
-        }
-
-        // Duration bonus follows the requested range when the user chose one.
-        if (c.duration >= scoringWindow.minDuration && c.duration <= scoringWindow.maxDuration) {
-          score += 0.16;
-        } else if (
-          c.duration > scoringWindow.maxDuration &&
-          c.duration <=
-            Math.min(
-              MAX_SHORT_CANDIDATE_DURATION_SEC,
-              scoringWindow.maxDuration + DIALOG_COMPLETION_EXTENSION_SEC,
-            )
-        ) {
-          score += 0.08;
-        } else if (
-          c.duration >= Math.max(candidateMinDuration, scoringWindow.minDuration - 8) &&
-          c.duration < scoringWindow.minDuration
-        ) {
-          score += 0.04;
-        } else {
-          const durationDistance = getDistanceFromDurationWindow(
-            c.duration,
-            scoringWindow.minDuration,
-            scoringWindow.maxDuration,
-          );
-          score -= Math.min(0.18, durationDistance / 500);
-        }
-
-        // 4. Talk Density Analysis
-        const activeDur = c.activeDuration || c.duration;
-        const density = activeDur / c.duration;
-
-        if (density >= 0.9) {
-          score += 0.1; // Very dense/fast speech -> Viral potential
-          if (!tags.includes('HIGH ENERGY')) tags.push('DENSE SPEECH');
-        } else if (density < 0.6) {
-          score -= 0.15; // Too many pauses -> Boring
-        }
-
-        // 5. Visual Validation
-        if (videoPath) {
-          const visuals = await this.analyzeSegmentVisuals(videoPath, c.start, c.duration);
-          hasBlackScreen = visuals.hasBlackScreen;
-          isStatic = visuals.isStatic;
-
-          if (hasBlackScreen) {
-            score -= 0.3; // Penalty for black screen
-            tags.push('BLACK SCREEN');
-            visualPenalty += 55;
-          }
-          if (isStatic) {
-            score -= 0.2; // Penalty for static image
-            tags.push('STATIC');
-            visualPenalty += 35;
-          }
-        }
-
-        const energyScore = clampScore((meanVolume + 45) * 4);
-        const dialogDensityScore = clampScore(density * 100);
-        const durationFitScore = getDurationFitScoreForWindow(
-          c.duration,
-          scoringWindow.minDuration,
-          scoringWindow.maxDuration,
-        );
-
-        return {
-          ...c,
-          score: Math.min(score, 0.99),
-          tags,
-          analysis: {
-            meanVolume,
-            maxVolume,
-            speechDensity: density,
-            energyScore,
-            dialogDensityScore,
-            durationFitScore,
-            visualPenalty: clampScore(visualPenalty),
-            hasBlackScreen,
-            isStatic,
-          },
-        };
-      }),
+    const candidates = gatherInitialCandidates(
+      segments,
+      mergeGap,
+      scoringWindow,
+      candidateMinDuration,
+      preferredMaxDuration,
+      hardMaxDuration,
     );
 
-    // 4. Sort by Smart Score
-    analyzed.sort((a, b) => b.score - a.score);
+    const analyzed = await Promise.all(
+      candidates.map((c) =>
+        analyzeCandidate(c, audioPath, videoPath, scoringWindow, candidateMinDuration, this),
+      ),
+    );
 
-    // 5. Keep only non-overlapping candidates so one scene isn't reused across recommendations.
+    analyzed.sort((a, b) => b.score - a.score);
     return pickNonOverlappingCandidates(analyzed, maxCandidates);
   },
 };

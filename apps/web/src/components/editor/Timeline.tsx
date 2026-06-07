@@ -9,7 +9,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/DropdownMenu';
 import { cn } from '@/lib/utils';
-import { useEditorStore } from '@/stores/editor-store';
+import { type EditorClip, useEditorStore } from '@/stores/editor-store';
 
 const MIN_CLIP_DURATION_MS = 300;
 
@@ -21,6 +21,151 @@ interface TrimEndDragParams {
   baseEndMs: number;
   trimStartMs: number;
   assetDurationMs: number;
+}
+
+interface TimelineClipProps {
+  clip: EditorClip;
+  trackId: string;
+  trackType: string;
+  isSelected: boolean;
+  msToPixels: (ms: number) => number;
+  onClipDragStart: (
+    e: React.MouseEvent,
+    trackId: string,
+    clipId: string,
+    startMs: number,
+    endMs: number,
+  ) => void;
+  onSelectClip: (clipId: string) => void;
+  onRemoveClip: (trackId: string, clipId: string) => void;
+  onTrimStartDrag: (
+    e: React.MouseEvent,
+    trackId: string,
+    clipId: string,
+    startMs: number,
+    endMs: number,
+    trimStartMs: number,
+  ) => void;
+  onTrimEndDrag: (params: TrimEndDragParams) => void;
+}
+
+function TimelineClip({
+  clip,
+  trackId,
+  trackType,
+  isSelected,
+  msToPixels,
+  onClipDragStart,
+  onSelectClip,
+  onRemoveClip,
+  onTrimStartDrag,
+  onTrimEndDrag,
+}: TimelineClipProps) {
+  const width = msToPixels(clip.endMs - clip.startMs);
+  const clipDuration = clip.endMs - clip.startMs;
+  const trimStart = clip.trimStartMs || 0;
+  const assetDuration = clip.asset?.durationMs ?? clipDuration + trimStart + (clip.trimEndMs || 0);
+
+  return (
+    <div
+      className={cn(
+        'absolute top-1 bottom-1 rounded-md overflow-hidden group/clip border border-transparent shadow-sm select-none',
+        isSelected ? 'border-primary ring-1 ring-primary z-10' : 'hover:border-primary/50',
+      )}
+      style={{
+        left: msToPixels(clip.startMs),
+        width: Math.max(width, 2),
+        backgroundColor: trackType === 'VIDEO' ? '#3b82f6' : '#10b981',
+        backgroundImage:
+          trackType === 'VIDEO'
+            ? 'linear-gradient(45deg, rgba(255,255,255,0.1) 25%, transparent 25%, transparent 50%, rgba(255,255,255,0.1) 50%, rgba(255,255,255,0.1) 75%, transparent 75%, transparent)'
+            : 'linear-gradient(to right, rgba(255,255,255,0.1) 1px, transparent 1px)',
+        backgroundSize: trackType === 'VIDEO' ? '20px 20px' : '10px 100%',
+      }}
+    >
+      {/* Main Interaction Button */}
+      <button
+        type="button"
+        className="absolute inset-0 w-full h-full cursor-move z-0"
+        onMouseDown={(e) => onClipDragStart(e, trackId, clip.id, clip.startMs, clip.endMs)}
+        onClick={(e) => {
+          e.stopPropagation();
+          onSelectClip(clip.id);
+        }}
+      />
+
+      {/* Content Overlay */}
+      <div className="absolute inset-0 flex opacity-50 pointer-events-none overflow-hidden">
+        {trackType === 'VIDEO' &&
+          clip.asset?.thumbnails
+            ?.slice(0, 10)
+            .map((thumb: string) => (
+              <img
+                key={`${clip.id}-${thumb}`}
+                src={thumb}
+                alt=""
+                className="h-full object-cover flex-1 min-w-[40px]"
+                draggable={false}
+              />
+            ))}
+      </div>
+
+      <div className="absolute inset-x-2 inset-y-0 flex items-center pointer-events-none">
+        <span className="text-[10px] font-medium text-white drop-shadow-md truncate w-full">
+          {clip.asset?.name || 'Untitled Clip'}
+        </span>
+      </div>
+
+      {/* Interactive Controls */}
+      {isSelected && (
+        <div className="absolute right-1 top-1/2 -translate-y-1/2 z-20">
+          <button
+            type="button"
+            className="p-1 bg-destructive text-white rounded-sm opacity-0 group-hover/clip:opacity-100 hover:scale-110 transition-all shadow-lg"
+            onClick={(e) => {
+              e.stopPropagation();
+              onRemoveClip(trackId, clip.id);
+            }}
+          >
+            <Trash2 size={10} />
+          </button>
+        </div>
+      )}
+
+      {isSelected && (
+        <>
+          <button
+            type="button"
+            aria-label="Trim clip start"
+            className="absolute left-0 top-0 bottom-0 w-3 cursor-ew-resize hover:bg-white/50 z-20 flex items-center justify-center group/handle"
+            onMouseDown={(e) =>
+              onTrimStartDrag(e, trackId, clip.id, clip.startMs, clip.endMs, trimStart)
+            }
+          >
+            <div className="w-1 h-4 bg-white/80 rounded-full" />
+          </button>
+          <button
+            type="button"
+            aria-label="Trim clip end"
+            className="absolute right-0 top-0 bottom-0 w-3 cursor-ew-resize hover:bg-white/50 z-20 flex items-center justify-center group/handle"
+            onMouseDown={(e) =>
+              onTrimEndDrag({
+                e,
+                trackId,
+                clipId: clip.id,
+                startMs: clip.startMs,
+                baseEndMs: clip.endMs,
+                trimStartMs: trimStart,
+                assetDurationMs: assetDuration,
+              })
+            }
+          >
+            <div className="w-1 h-4 bg-white/80 rounded-full" />
+          </button>
+        </>
+      )}
+    </div>
+  );
 }
 
 function TimelinePlayhead() {
@@ -435,127 +580,21 @@ export function Timeline() {
                 onDragOver={handleDragOver}
                 onDrop={(e) => handleDrop(e, track.id)}
               >
-                {track.clips.map((clip) => {
-                  const width = msToPixels(clip.endMs - clip.startMs);
-                  const isSelected = clip.id === selectedClipId;
-                  const clipDuration = clip.endMs - clip.startMs;
-                  const trimStart = clip.trimStartMs || 0;
-                  const assetDuration =
-                    clip.asset?.durationMs ?? clipDuration + trimStart + (clip.trimEndMs || 0);
-
-                  return (
-                    <div
-                      key={clip.id}
-                      className={cn(
-                        'absolute top-1 bottom-1 rounded-md overflow-hidden group/clip border border-transparent shadow-sm select-none',
-                        isSelected
-                          ? 'border-primary ring-1 ring-primary z-10'
-                          : 'hover:border-primary/50',
-                      )}
-                      style={{
-                        left: msToPixels(clip.startMs),
-                        width: Math.max(width, 2),
-                        backgroundColor: track.type === 'VIDEO' ? '#3b82f6' : '#10b981',
-                        backgroundImage:
-                          track.type === 'VIDEO'
-                            ? 'linear-gradient(45deg, rgba(255,255,255,0.1) 25%, transparent 25%, transparent 50%, rgba(255,255,255,0.1) 50%, rgba(255,255,255,0.1) 75%, transparent 75%, transparent)'
-                            : 'linear-gradient(to right, rgba(255,255,255,0.1) 1px, transparent 1px)',
-                        backgroundSize: track.type === 'VIDEO' ? '20px 20px' : '10px 100%',
-                      }}
-                    >
-                      {/* Main Interaction Button */}
-                      <button
-                        type="button"
-                        className="absolute inset-0 w-full h-full cursor-move z-0"
-                        onMouseDown={(e) =>
-                          handleClipDragStart(e, track.id, clip.id, clip.startMs, clip.endMs)
-                        }
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          selectClip(clip.id);
-                        }}
-                      />
-
-                      {/* Content Overlay */}
-                      <div className="absolute inset-0 flex opacity-50 pointer-events-none overflow-hidden">
-                        {track.type === 'VIDEO' &&
-                          clip.asset?.thumbnails
-                            ?.slice(0, 10)
-                            .map((thumb) => (
-                              <img
-                                key={`${clip.id}-${thumb}`}
-                                src={thumb}
-                                alt=""
-                                className="h-full object-cover flex-1 min-w-[40px]"
-                                draggable={false}
-                              />
-                            ))}
-                      </div>
-
-                      <div className="absolute inset-x-2 inset-y-0 flex items-center pointer-events-none">
-                        <span className="text-[10px] font-medium text-white drop-shadow-md truncate w-full">
-                          {clip.asset?.name || 'Untitled Clip'}
-                        </span>
-                      </div>
-
-                      {/* Interactive Controls */}
-                      {isSelected && (
-                        <div className="absolute right-1 top-1/2 -translate-y-1/2 z-20">
-                          <button
-                            type="button"
-                            className="p-1 bg-destructive text-white rounded-sm opacity-0 group-hover/clip:opacity-100 hover:scale-110 transition-all shadow-lg"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              removeClip(track.id, clip.id);
-                            }}
-                          >
-                            <Trash2 size={10} />
-                          </button>
-                        </div>
-                      )}
-
-                      {isSelected && (
-                        <>
-                          <button
-                            type="button"
-                            aria-label="Trim clip start"
-                            className="absolute left-0 top-0 bottom-0 w-3 cursor-ew-resize hover:bg-white/50 z-20 flex items-center justify-center group/handle"
-                            onMouseDown={(e) =>
-                              handleTrimStartDrag(
-                                e,
-                                track.id,
-                                clip.id,
-                                clip.startMs,
-                                clip.endMs,
-                                trimStart,
-                              )
-                            }
-                          >
-                            <div className="w-1 h-4 bg-white/80 rounded-full" />
-                          </button>
-                          <button
-                            type="button"
-                            aria-label="Trim clip end"
-                            className="absolute right-0 top-0 bottom-0 w-3 cursor-ew-resize hover:bg-white/50 z-20 flex items-center justify-center group/handle"
-                            onMouseDown={(e) =>
-                              handleTrimEndDrag({
-                                e,
-                                trackId: track.id,
-                                clipId: clip.id,
-                                startMs: clip.startMs,
-                                baseEndMs: clip.endMs,
-                                trimStartMs: trimStart,
-                                assetDurationMs: assetDuration,
-                              })
-                            }
-                          >
-                            <div className="w-1 h-4 bg-white/80 rounded-full" />
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  );
-                })}
+                {track.clips.map((clip) => (
+                  <TimelineClip
+                    key={clip.id}
+                    clip={clip}
+                    trackId={track.id}
+                    trackType={track.type}
+                    isSelected={clip.id === selectedClipId}
+                    msToPixels={msToPixels}
+                    onClipDragStart={handleClipDragStart}
+                    onSelectClip={selectClip}
+                    onRemoveClip={removeClip}
+                    onTrimStartDrag={handleTrimStartDrag}
+                    onTrimEndDrag={handleTrimEndDrag}
+                  />
+                ))}
               </fieldset>
             ))}
 

@@ -247,6 +247,111 @@ export const exportRoutes: FastifyPluginAsync = async (fastify) => {
     },
   };
 
+  function handleExportJobError(err: unknown, reply: FastifyReply) {
+    if (err instanceof z.ZodError) {
+      return reply.status(400).send({
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: err.issues[0]?.message },
+      });
+    }
+
+    const message = err instanceof Error ? err.message : 'Export failed';
+    if (err instanceof ExportServiceError || err instanceof WorkspaceLifecycleError) {
+      return reply.status(err.statusCode).send({
+        success: false,
+        error: { code: err.code, message },
+      });
+    }
+
+    return reply.status(400).send({
+      success: false,
+      error: { code: 'EXPORT_ERROR', message },
+    });
+  }
+
+  async function resolveNonAdminLimits(
+    userId: string,
+    baseWatermark: boolean,
+    baseResolution: string,
+  ) {
+    const subscription = await paymentService.getSubscription(userId);
+    const exportResult = await paymentService.checkExportQuota(userId);
+
+    const quotaAllowed = exportResult.allowed;
+    const remaining = exportResult.remaining === -1 ? -1 : Math.max(0, exportResult.remaining - 1);
+
+    const shouldAddWatermark = subscription.tier === 'FREE' ? true : baseWatermark;
+    const pendingLimit = getPendingExportLimit(subscription.tier);
+
+    let maxResolution = baseResolution;
+    if (subscription.tier === 'FREE' && maxResolution === 'UHD') {
+      maxResolution = 'SD';
+    } else if (subscription.tier === 'CREATOR' && maxResolution === 'UHD') {
+      maxResolution = 'HD';
+    }
+
+    return {
+      shouldAddWatermark,
+      maxResolution: maxResolution as 'SD' | 'HD' | 'UHD',
+      remaining,
+      pendingLimit,
+      quotaAllowed,
+    };
+  }
+
+  async function resolveExportLimitsAndQuota(
+    user: { id: string; role: string },
+    body: z.infer<typeof createExportSchema>,
+  ) {
+    if (user.role === 'ADMIN') {
+      return {
+        isAdmin: true,
+        shouldAddWatermark: body.addWatermark,
+        maxResolution: body.resolution,
+        remaining: -1,
+        pendingLimit: getPendingExportLimit('ADMIN'),
+        quotaAllowed: true,
+      };
+    }
+
+    const limits = await resolveNonAdminLimits(user.id, body.addWatermark, body.resolution);
+    return { isAdmin: false, ...limits };
+  }
+
+  async function normalizeTimelineDataPaths(
+    userId: string,
+    projectId: string,
+    timelineData: z.infer<typeof createExportSchema>['timelineData'],
+  ) {
+    return {
+      ...timelineData,
+      clips: await Promise.all(
+        timelineData.clips.map(async (clip) => ({
+          ...clip,
+          localPath: await resolveExportInputPath(clip.localPath, userId, projectId),
+        })),
+      ),
+      audioTracks: timelineData.audioTracks
+        ? await Promise.all(
+            timelineData.audioTracks.map(async (track) => ({
+              ...track,
+              localPath: await resolveExportInputPath(track.localPath, userId, projectId),
+            })),
+          )
+        : undefined,
+      settings: {
+        ...timelineData.settings,
+        backgroundImagePath: timelineData.settings.backgroundImagePath
+          ? await resolveExportInputPath(
+              timelineData.settings.backgroundImagePath,
+              userId,
+              projectId,
+            )
+          : undefined,
+      },
+    };
+  }
+
   /**
    * Create export job
    */
@@ -277,62 +382,12 @@ export const exportRoutes: FastifyPluginAsync = async (fastify) => {
           });
         }
 
-        // Admin bypass - no quota check, no watermark, full resolution
-        const isAdmin = user.role === 'ADMIN';
-
-        let shouldAddWatermark = body.addWatermark;
-        let maxResolution = body.resolution;
-        let remaining = -1; // Unlimited for admin
-        let pendingLimit = getPendingExportLimit('ADMIN');
-        let quotaAllowed = true;
-
-        if (!isAdmin) {
-          // Check subscription and export quota for non-admin users
-          const subscription = await paymentService.getSubscription(user.id);
-          const exportResult = await paymentService.checkExportQuota(user.id);
-
-          quotaAllowed = exportResult.allowed;
-          remaining = exportResult.remaining === -1 ? -1 : Math.max(0, exportResult.remaining - 1);
-
-          // Force watermark for FREE tier
-          shouldAddWatermark = subscription.tier === 'FREE' ? true : body.addWatermark;
-          pendingLimit = getPendingExportLimit(subscription.tier);
-
-          // Check resolution limits based on tier
-          if (subscription.tier === 'FREE' && maxResolution === 'UHD') {
-            maxResolution = 'SD'; // Limit to SD for free
-          } else if (subscription.tier === 'CREATOR' && maxResolution === 'UHD') {
-            maxResolution = 'HD'; // Limit to HD for creator
-          }
-        }
-
-        const normalizedTimelineData = {
-          ...body.timelineData,
-          clips: await Promise.all(
-            body.timelineData.clips.map(async (clip) => ({
-              ...clip,
-              localPath: await resolveExportInputPath(clip.localPath, user.id, body.projectId),
-            })),
-          ),
-          audioTracks: body.timelineData.audioTracks
-            ? await Promise.all(
-                body.timelineData.audioTracks.map(async (track) => ({
-                  ...track,
-                  localPath: await resolveExportInputPath(track.localPath, user.id, body.projectId),
-                })),
-              )
-            : undefined,
-          settings: {
-            ...body.timelineData.settings,
-            backgroundImagePath: body.timelineData.settings.backgroundImagePath
-              ? await resolveExportInputPath(
-                  body.timelineData.settings.backgroundImagePath,
-                  user.id,
-                  body.projectId,
-                )
-              : undefined,
-          },
-        };
+        const limits = await resolveExportLimitsAndQuota(user, body);
+        const normalizedTimelineData = await normalizeTimelineDataPaths(
+          user.id,
+          body.projectId,
+          body.timelineData,
+        );
 
         const job = await exportService.createJob({
           userId: user.id,
@@ -340,12 +395,12 @@ export const exportRoutes: FastifyPluginAsync = async (fastify) => {
           timelineData: normalizedTimelineData,
           fingerprintTimelineData: body.timelineData,
           format: body.format,
-          resolution: maxResolution,
-          addWatermark: shouldAddWatermark,
-          consumeQuotaOnSuccess: !isAdmin,
-          pendingLimit,
+          resolution: limits.maxResolution,
+          addWatermark: limits.shouldAddWatermark,
+          consumeQuotaOnSuccess: !limits.isAdmin,
+          pendingLimit: limits.pendingLimit,
           requestId: request.id,
-          quotaAllowed,
+          quotaAllowed: limits.quotaAllowed,
         });
 
         void audit({
@@ -360,7 +415,7 @@ export const exportRoutes: FastifyPluginAsync = async (fastify) => {
           metadata: {
             projectId: body.projectId,
             format: body.format,
-            resolution: maxResolution,
+            resolution: limits.maxResolution,
             cacheState: job.cacheState,
           },
         });
@@ -376,40 +431,13 @@ export const exportRoutes: FastifyPluginAsync = async (fastify) => {
             downloadUrl: job.job.downloadUrl ?? undefined,
             filename: job.job.displayFilename ?? undefined,
             urlExpiresAt: job.job.urlExpiresAt ?? undefined,
-            remaining,
-            watermarkApplied: shouldAddWatermark,
-            isAdmin,
+            remaining: limits.remaining,
+            watermarkApplied: limits.shouldAddWatermark,
+            isAdmin: limits.isAdmin,
           },
         });
       } catch (err) {
-        if (err instanceof z.ZodError) {
-          return reply.status(400).send({
-            success: false,
-            error: {
-              code: 'VALIDATION_ERROR',
-              message: err.issues[0]?.message,
-            },
-          });
-        }
-
-        const message = err instanceof Error ? err.message : 'Export failed';
-        if (err instanceof ExportServiceError) {
-          return reply.status(err.statusCode).send({
-            success: false,
-            error: { code: err.code, message },
-          });
-        }
-        if (err instanceof WorkspaceLifecycleError) {
-          return reply.status(err.statusCode).send({
-            success: false,
-            error: { code: err.code, message },
-          });
-        }
-
-        return reply.status(400).send({
-          success: false,
-          error: { code: 'EXPORT_ERROR', message },
-        });
+        return handleExportJobError(err, reply);
       }
     },
   );
@@ -444,6 +472,44 @@ export const exportRoutes: FastifyPluginAsync = async (fastify) => {
       }
     },
   );
+
+  function checkExportStatusEndCondition(
+    status: Awaited<ReturnType<typeof exportService.getJobStatus>>,
+    writeEvent: (event: ExportEvent) => void,
+  ): boolean {
+    if (status.status === 'COMPLETED' && status.urlExpiresAt && status.urlExpiresAt < new Date()) {
+      writeEvent({
+        type: 'expired',
+        jobId: status.id,
+        errorMessage: 'File export sudah expired. Silakan export ulang project ini.',
+      });
+      return true;
+    }
+
+    if (status.status === 'COMPLETED' && status.downloadUrl && status.urlExpiresAt) {
+      writeEvent({
+        type: 'completed',
+        jobId: status.id,
+        progress: 100,
+        downloadUrl: status.downloadUrl,
+        filename: status.filename ?? `video-studio-${status.id}.mp4`,
+        completedAt: status.completedAt?.toISOString() ?? new Date().toISOString(),
+        urlExpiresAt: status.urlExpiresAt.toISOString(),
+      });
+      return true;
+    }
+
+    if (status.status === 'FAILED') {
+      writeEvent({
+        type: 'failed',
+        jobId: status.id,
+        errorMessage: status.errorMessage ?? 'Export failed',
+      });
+      return true;
+    }
+
+    return false;
+  }
 
   /**
    * Stream export progress events.
@@ -505,38 +571,7 @@ export const exportRoutes: FastifyPluginAsync = async (fastify) => {
           phase: status.phase,
         });
 
-        if (
-          status.status === 'COMPLETED' &&
-          status.urlExpiresAt &&
-          status.urlExpiresAt < new Date()
-        ) {
-          writeEvent({
-            type: 'expired',
-            jobId: status.id,
-            errorMessage: 'File export sudah expired. Silakan export ulang project ini.',
-          });
-          return;
-        }
-
-        if (status.status === 'COMPLETED' && status.downloadUrl && status.urlExpiresAt) {
-          writeEvent({
-            type: 'completed',
-            jobId: status.id,
-            progress: 100,
-            downloadUrl: status.downloadUrl,
-            filename: status.filename ?? `video-studio-${status.id}.mp4`,
-            completedAt: status.completedAt?.toISOString() ?? new Date().toISOString(),
-            urlExpiresAt: status.urlExpiresAt.toISOString(),
-          });
-          return;
-        }
-
-        if (status.status === 'FAILED') {
-          writeEvent({
-            type: 'failed',
-            jobId: status.id,
-            errorMessage: status.errorMessage ?? 'Export failed',
-          });
+        if (checkExportStatusEndCondition(status, writeEvent)) {
           return;
         }
 
@@ -579,31 +614,16 @@ export const exportRoutes: FastifyPluginAsync = async (fastify) => {
       try {
         const job = await exportService.getOwnedJob(request.params.jobId, user.id);
 
-        if (job.status !== 'COMPLETED' || !job.localPath) {
-          return reply.status(400).send({
+        const downloadError = checkExportDownloadError(job);
+        if (downloadError) {
+          return reply.status(downloadError.status).send({
             success: false,
-            error: { code: 'EXPORT_NOT_READY', message: 'Export belum selesai diproses.' },
+            error: { code: downloadError.code, message: downloadError.message },
           });
         }
 
-        if (job.urlExpiresAt && job.urlExpiresAt < new Date()) {
-          return reply.status(410).send({
-            success: false,
-            error: {
-              code: 'EXPORT_EXPIRED',
-              message: 'File export sudah expired. Silakan export ulang project ini.',
-            },
-          });
-        }
-
-        if (!existsSync(job.localPath)) {
-          return reply.status(404).send({
-            success: false,
-            error: {
-              code: 'EXPORT_EXPIRED',
-              message: 'File export sudah tidak tersedia. Silakan export ulang project ini.',
-            },
-          });
+        if (!job.localPath) {
+          throw new Error('Local path is not defined for a completed job.');
         }
 
         const stat = statSync(job.localPath);
@@ -626,6 +646,34 @@ export const exportRoutes: FastifyPluginAsync = async (fastify) => {
       }
     },
   );
+
+  function checkExportDownloadError(job: Awaited<ReturnType<typeof exportService.getOwnedJob>>) {
+    if (job.status !== 'COMPLETED' || !job.localPath) {
+      return {
+        status: 400,
+        code: 'EXPORT_NOT_READY',
+        message: 'Export belum selesai diproses.',
+      };
+    }
+
+    if (job.urlExpiresAt && job.urlExpiresAt < new Date()) {
+      return {
+        status: 410,
+        code: 'EXPORT_EXPIRED',
+        message: 'File export sudah expired. Silakan export ulang project ini.',
+      };
+    }
+
+    if (!existsSync(job.localPath)) {
+      return {
+        status: 404,
+        code: 'EXPORT_EXPIRED',
+        message: 'File export sudah tidak tersedia. Silakan export ulang project ini.',
+      };
+    }
+
+    return null;
+  }
 
   /**
    * Cancel an export job
@@ -671,7 +719,7 @@ export const exportRoutes: FastifyPluginAsync = async (fastify) => {
     }
 
     const query = request.query as { limit?: string; cursor?: string };
-    const limit = Math.min(parseInt(query.limit || '10', 10), 100);
+    const limit = Math.min(Number.parseInt(query.limit || '10', 10), 100);
 
     const result = await exportService.getHistory(user.id, limit, query.cursor);
 

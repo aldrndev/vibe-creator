@@ -54,7 +54,7 @@ import {
 import { useMutableSearchParams } from '@/lib/route-search';
 import { cn } from '@/lib/utils';
 import type { PaymentRecord } from '@/services/settings-api';
-import { useAuthStore } from '@/stores/auth-store';
+import { type User as AuthUser, useAuthStore } from '@/stores/auth-store';
 
 type SettingsTab = 'general' | 'account' | 'billing' | 'notifications' | 'security';
 type NotificationKey = keyof NotificationPreferences;
@@ -133,17 +133,148 @@ function getPaymentStatusLabel(status: PaymentRecord['status']): string {
   return labels[status];
 }
 
+async function requestPushPermission(): Promise<string | null> {
+  if (!('Notification' in window)) {
+    return 'Push browser belum tersedia di perangkat ini.';
+  }
+  if (Notification.permission === 'denied') {
+    return 'Izin push ditolak di browser. Ubah dari pengaturan browser.';
+  }
+  if (Notification.permission === 'default') {
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') {
+      return 'Push browser belum aktif karena izin belum diberikan.';
+    }
+  }
+  return null;
+}
+
+function getTierName(userRole?: string, subscriptionTier?: string) {
+  if (userRole === 'ADMIN') return 'Admin';
+  if (subscriptionTier === 'PRO') return 'Pro';
+  if (subscriptionTier === 'CREATOR') return 'Creator';
+  return 'Free';
+}
+
+function calculateUsagePercent(limit?: number, used?: number) {
+  if (!limit || limit <= 0 || limit >= 999999) {
+    return 0;
+  }
+  return Math.min(((used ?? 0) / limit) * 100, 100);
+}
+
+function PaymentHistoryList({
+  paymentHistoryQuery,
+}: {
+  paymentHistoryQuery: {
+    isLoading: boolean;
+    data: PaymentRecord[] | undefined;
+  };
+}) {
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <h3 className="font-bold text-foreground">Riwayat Pembayaran</h3>
+        {paymentHistoryQuery.isLoading && <Spinner size="sm" />}
+      </div>
+      {paymentHistoryQuery.data && paymentHistoryQuery.data.length > 0 ? (
+        <div className="divide-y divide-border rounded-2xl border border-border">
+          {paymentHistoryQuery.data.slice(0, 5).map((payment: PaymentRecord) => (
+            <div
+              key={payment.id}
+              className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"
+            >
+              <div>
+                <p className="font-bold text-foreground">
+                  {payment.tier} Plan · {currencyFormatter.format(payment.amount)}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {formatDateTime(payment.paidAt ?? payment.createdAt)}
+                </p>
+              </div>
+              <Badge variant="outline">{getPaymentStatusLabel(payment.status)}</Badge>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="rounded-2xl border border-border bg-background p-5 text-sm text-muted-foreground">
+          Belum ada riwayat pembayaran.
+        </div>
+      )}
+    </div>
+  );
+}
+
+function NotificationSettingsList({
+  notifications,
+  notificationNotice,
+  isLoading,
+  onChange,
+}: {
+  notifications: NotificationPreferences;
+  notificationNotice: string | null;
+  isLoading: boolean;
+  onChange: (key: NotificationKey, checked: boolean) => void;
+}) {
+  return (
+    <CardBody className="divide-y divide-border p-0">
+      {notificationNotice && (
+        <div className="p-5">
+          <StatusBanner tone="warning" icon={AlertCircle} message={notificationNotice} />
+        </div>
+      )}
+      {notificationSettings.map((setting) => (
+        <div key={setting.id} className="flex items-center justify-between gap-4 p-5">
+          <div className="flex min-w-0 items-center gap-4">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-background text-muted-foreground">
+              <setting.icon className="size-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="font-bold text-foreground">{setting.label}</p>
+              <p className="text-sm text-muted-foreground">{setting.desc}</p>
+            </div>
+          </div>
+          <Switch
+            checked={notifications[setting.id]}
+            disabled={isLoading}
+            onCheckedChange={(checked) => onChange(setting.id, checked)}
+          />
+        </div>
+      ))}
+    </CardBody>
+  );
+}
+
+function PaymentStatusBanner({
+  status,
+  navigate,
+}: {
+  status: string | null;
+  navigate: (options: { to: string }) => void;
+}) {
+  if (!status) return null;
+
+  return (
+    <div className="flex flex-col gap-3 rounded-2xl border border-primary/20 bg-primary/10 p-4 text-sm text-foreground sm:flex-row sm:items-center sm:justify-between">
+      <span>
+        Status pembayaran tersedia di halaman Pricing. Buka halaman paket untuk melihat detailnya.
+      </span>
+      <Button
+        size="sm"
+        className="rounded-xl"
+        onClick={() => navigate({ to: '/dashboard/pricing' })}
+      >
+        Buka Pricing
+      </Button>
+    </div>
+  );
+}
+
 export function SettingsPage() {
   const navigate = useNavigate();
   const [searchParams] = useMutableSearchParams();
   const { user, subscription } = useAuthStore();
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
-  const [profileName, setProfileName] = useState(user?.name ?? '');
-  const [profileMessage, setProfileMessage] = useState<string | null>(null);
-  const [profileError, setProfileError] = useState<string | null>(null);
-  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
-  const [passwordMessage, setPasswordMessage] = useState<string | null>(null);
-  const [passwordError, setPasswordError] = useState<string | null>(null);
   const [notificationNotice, setNotificationNotice] = useState<string | null>(null);
 
   const preferencesQuery = useUserPreferences();
@@ -152,104 +283,17 @@ export function SettingsPage() {
   const changePasswordMutation = useChangePassword();
   const paymentHistoryQuery = usePaymentHistory();
 
-  const passwordForm = useForm<PasswordFormValues>({
-    defaultValues: {
-      currentPassword: '',
-      newPassword: '',
-      confirmPassword: '',
-    },
-  });
-
-  useEffect(() => {
-    setProfileName(user?.name ?? '');
-  }, [user?.name]);
-
-  const tierName =
-    user?.role === 'ADMIN'
-      ? 'Admin'
-      : subscription?.tier === 'PRO'
-        ? 'Pro'
-        : subscription?.tier === 'CREATOR'
-          ? 'Creator'
-          : 'Free';
+  const tierName = getTierName(user?.role, subscription?.tier);
 
   const notifications = preferencesQuery.data?.notifications ?? defaultNotifications;
-  const profileDirty = profileName.trim() !== (user?.name ?? '');
-  const exportLimitLabel =
-    subscription && subscription.exportsLimit >= 999999
-      ? 'Unlimited'
-      : `${subscription?.exportsLimit ?? 5}`;
-  const exportUsagePercent = useMemo(() => {
-    if (!subscription || subscription.exportsLimit <= 0 || subscription.exportsLimit >= 999999) {
-      return 0;
-    }
-    return Math.min((subscription.exportsUsed / subscription.exportsLimit) * 100, 100);
-  }, [subscription]);
-  const paymentStatus = searchParams.get('payment');
-
-  const handleProfileSave = async () => {
-    setProfileError(null);
-    setProfileMessage(null);
-    const name = profileName.trim();
-
-    if (!name) {
-      setProfileError('Nama wajib diisi.');
-      return;
-    }
-    if (name.length > 80) {
-      setProfileError('Nama maksimal 80 karakter.');
-      return;
-    }
-
-    try {
-      await updateProfileMutation.mutateAsync({ name });
-      setProfileMessage('Profil berhasil disimpan.');
-    } catch (error) {
-      setProfileError(error instanceof Error ? error.message : 'Update profil gagal.');
-    }
-  };
-
-  const handlePasswordSubmit = passwordForm.handleSubmit(async (values) => {
-    setPasswordError(null);
-    setPasswordMessage(null);
-    const parsed = passwordFormSchema.safeParse(values);
-    if (!parsed.success) {
-      for (const issue of parsed.error.issues) {
-        const field = issue.path[0];
-        if (field === 'currentPassword' || field === 'newPassword' || field === 'confirmPassword') {
-          passwordForm.setError(field, { message: issue.message });
-        }
-      }
-      return;
-    }
-
-    try {
-      await changePasswordMutation.mutateAsync(parsed.data);
-      passwordForm.reset();
-      setPasswordMessage('Password berhasil diubah.');
-    } catch (error) {
-      setPasswordError(error instanceof Error ? error.message : 'Ubah password gagal.');
-    }
-  });
-
   const handleNotificationChange = async (key: NotificationKey, checked: boolean) => {
     setNotificationNotice(null);
 
     if (key === 'push' && checked) {
-      if (!('Notification' in window)) {
-        setNotificationNotice('Push browser belum tersedia di perangkat ini.');
+      const errorMsg = await requestPushPermission();
+      if (errorMsg) {
+        setNotificationNotice(errorMsg);
         return;
-      }
-      if (Notification.permission === 'denied') {
-        setNotificationNotice('Izin push ditolak di browser. Ubah dari pengaturan browser.');
-        return;
-      }
-      if (Notification.permission === 'default') {
-        const permission = await Notification.requestPermission();
-        if (permission !== 'granted') {
-          setNotificationNotice('Push browser belum aktif karena izin belum diberikan.');
-          return;
-        }
       }
     }
 
@@ -259,6 +303,16 @@ export function SettingsPage() {
       setNotificationNotice(error instanceof Error ? error.message : 'Preferensi gagal disimpan.');
     }
   };
+
+  const exportLimitLabel =
+    subscription && subscription.exportsLimit >= 999999
+      ? 'Unlimited'
+      : `${subscription?.exportsLimit ?? 5}`;
+  const exportUsagePercent = useMemo(
+    () => calculateUsagePercent(subscription?.exportsLimit, subscription?.exportsUsed),
+    [subscription],
+  );
+  const paymentStatus = searchParams.get('payment');
 
   return (
     <div className="pb-28 lg:pb-14">
@@ -286,21 +340,7 @@ export function SettingsPage() {
           </div>
         </header>
 
-        {paymentStatus && (
-          <div className="flex flex-col gap-3 rounded-2xl border border-primary/20 bg-primary/10 p-4 text-sm text-foreground sm:flex-row sm:items-center sm:justify-between">
-            <span>
-              Status pembayaran tersedia di halaman Pricing. Buka halaman paket untuk melihat
-              detailnya.
-            </span>
-            <Button
-              size="sm"
-              className="rounded-xl"
-              onClick={() => navigate({ to: '/dashboard/pricing' })}
-            >
-              Buka Pricing
-            </Button>
-          </div>
-        )}
+        <PaymentStatusBanner status={paymentStatus} navigate={navigate} />
 
         <Tabs
           value={activeTab}
@@ -363,97 +403,8 @@ export function SettingsPage() {
           </TabsContent>
 
           <TabsContent value="account" className="mt-0 space-y-5">
-            <Card className="rounded-2xl border-border bg-card">
-              <CardHeader className="border-b border-border p-5">
-                <CardTitle className="flex items-center gap-3 text-lg">
-                  <User className="size-5 text-primary" />
-                  Profil Akun
-                </CardTitle>
-                <CardDescription>Nama disimpan di server. Email belum bisa diubah.</CardDescription>
-              </CardHeader>
-              <CardBody className="space-y-6 p-5">
-                <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
-                  <Avatar
-                    src={user?.avatarUrl ?? undefined}
-                    name={user?.name ?? 'U'}
-                    className="h-20 w-20 border border-border"
-                  />
-                  <div className="min-w-0">
-                    <h2 className="truncate text-2xl font-black text-foreground">
-                      {user?.name ?? 'User'}
-                    </h2>
-                    <p className="truncate text-sm font-medium text-muted-foreground">
-                      {user?.email}
-                    </p>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      <Badge variant="outline" className="border-primary/20 text-primary">
-                        {user?.role ?? 'USER'}
-                      </Badge>
-                      <Badge variant="secondary">ID {user?.id.slice(0, 8)}</Badge>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <Input
-                    label="Nama"
-                    value={profileName}
-                    maxLength={80}
-                    error={profileError ?? undefined}
-                    onChange={(event) => {
-                      setProfileName(event.target.value);
-                      setProfileError(null);
-                      setProfileMessage(null);
-                    }}
-                  />
-                  <Input label="Email" value={user?.email ?? ''} disabled />
-                </div>
-
-                {profileMessage && (
-                  <StatusBanner tone="success" icon={Check} message={profileMessage} />
-                )}
-
-                <div className="flex flex-col gap-3 border-t border-border pt-5 sm:flex-row sm:items-center sm:justify-between">
-                  <p className="text-xs font-medium text-muted-foreground">
-                    Avatar upload belum tersedia. Avatar URL aman bisa ditambahkan di fase
-                    berikutnya.
-                  </p>
-                  <Button
-                    className="rounded-xl"
-                    disabled={!profileDirty}
-                    isLoading={updateProfileMutation.isPending}
-                    onClick={handleProfileSave}
-                  >
-                    Simpan Profil
-                  </Button>
-                </div>
-              </CardBody>
-            </Card>
-
-            <Card className="rounded-2xl border-border bg-card">
-              <CardBody className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-center gap-3">
-                  <KeyRound className="size-5 text-primary" />
-                  <div>
-                    <p className="font-bold text-foreground">Password</p>
-                    <p className="text-sm text-muted-foreground">
-                      Ubah password dengan verifikasi password saat ini.
-                    </p>
-                  </div>
-                </div>
-                <Button
-                  variant="outline"
-                  className="rounded-xl"
-                  onClick={() => {
-                    setPasswordDialogOpen(true);
-                    setPasswordError(null);
-                    setPasswordMessage(null);
-                  }}
-                >
-                  Ubah Password
-                </Button>
-              </CardBody>
-            </Card>
+            <AccountProfileCard user={user} updateProfileMutation={updateProfileMutation} />
+            <ChangePasswordCard changePasswordMutation={changePasswordMutation} />
           </TabsContent>
 
           <TabsContent value="billing" className="mt-0 space-y-5">
@@ -525,36 +476,7 @@ export function SettingsPage() {
                   </div>
                 </div>
 
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-bold text-foreground">Riwayat Pembayaran</h3>
-                    {paymentHistoryQuery.isLoading && <Spinner size="sm" />}
-                  </div>
-                  {paymentHistoryQuery.data && paymentHistoryQuery.data.length > 0 ? (
-                    <div className="divide-y divide-border rounded-2xl border border-border">
-                      {paymentHistoryQuery.data.slice(0, 5).map((payment) => (
-                        <div
-                          key={payment.id}
-                          className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"
-                        >
-                          <div>
-                            <p className="font-bold text-foreground">
-                              {payment.tier} Plan · {currencyFormatter.format(payment.amount)}
-                            </p>
-                            <p className="text-sm text-muted-foreground">
-                              {formatDateTime(payment.paidAt ?? payment.createdAt)}
-                            </p>
-                          </div>
-                          <Badge variant="outline">{getPaymentStatusLabel(payment.status)}</Badge>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="rounded-2xl border border-border bg-background p-5 text-sm text-muted-foreground">
-                      Belum ada riwayat pembayaran.
-                    </div>
-                  )}
-                </div>
+                <PaymentHistoryList paymentHistoryQuery={paymentHistoryQuery} />
               </CardBody>
             </Card>
           </TabsContent>
@@ -570,33 +492,12 @@ export function SettingsPage() {
                   Preferensi disimpan di server dan ikut lintas device.
                 </CardDescription>
               </CardHeader>
-              <CardBody className="divide-y divide-border p-0">
-                {notificationNotice && (
-                  <div className="p-5">
-                    <StatusBanner tone="warning" icon={AlertCircle} message={notificationNotice} />
-                  </div>
-                )}
-                {notificationSettings.map((setting) => (
-                  <div key={setting.id} className="flex items-center justify-between gap-4 p-5">
-                    <div className="flex min-w-0 items-center gap-4">
-                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-background text-muted-foreground">
-                        <setting.icon className="size-5" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="font-bold text-foreground">{setting.label}</p>
-                        <p className="text-sm text-muted-foreground">{setting.desc}</p>
-                      </div>
-                    </div>
-                    <Switch
-                      checked={notifications[setting.id]}
-                      disabled={preferencesQuery.isLoading || updatePreferencesMutation.isPending}
-                      onCheckedChange={(checked) =>
-                        void handleNotificationChange(setting.id, checked)
-                      }
-                    />
-                  </div>
-                ))}
-              </CardBody>
+              <NotificationSettingsList
+                notifications={notifications}
+                notificationNotice={notificationNotice}
+                isLoading={preferencesQuery.isLoading || updatePreferencesMutation.isPending}
+                onChange={(key, checked) => void handleNotificationChange(key, checked)}
+              />
             </Card>
           </TabsContent>
 
@@ -635,6 +536,227 @@ export function SettingsPage() {
           </TabsContent>
         </Tabs>
       </div>
+    </div>
+  );
+}
+
+interface StatusBannerProps {
+  readonly tone: 'success' | 'warning' | 'danger';
+  readonly icon: LucideIcon;
+  readonly message: string;
+}
+
+function StatusBanner({ tone, icon: Icon, message }: StatusBannerProps) {
+  return (
+    <div
+      className={cn(
+        'flex items-start gap-3 rounded-xl border px-4 py-3 text-sm font-medium',
+        tone === 'success' && 'border-emerald-500/20 bg-emerald-500/10 text-emerald-200',
+        tone === 'warning' && 'border-amber-500/20 bg-amber-500/10 text-amber-100',
+        tone === 'danger' && 'border-destructive/20 bg-destructive/10 text-destructive',
+      )}
+    >
+      <Icon className="mt-0.5 size-4 shrink-0" />
+      <span>{message}</span>
+    </div>
+  );
+}
+
+interface SecurityTileProps {
+  readonly icon: LucideIcon;
+  readonly title: string;
+  readonly status: string;
+  readonly desc: string;
+}
+
+function SecurityTile({ icon: Icon, title, status, desc }: SecurityTileProps) {
+  return (
+    <div className="rounded-2xl border border-border bg-background p-5">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <Icon className="size-5 text-primary" />
+        <Badge variant="secondary">{status}</Badge>
+      </div>
+      <p className="font-bold text-foreground">{title}</p>
+      <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{desc}</p>
+    </div>
+  );
+}
+
+export default SettingsPage;
+
+function AccountProfileCard({
+  user,
+  updateProfileMutation,
+}: {
+  user: AuthUser | null;
+  updateProfileMutation: ReturnType<typeof useUpdateProfile>;
+}) {
+  const [profileName, setProfileName] = useState(user?.name ?? '');
+  const [profileMessage, setProfileMessage] = useState<string | null>(null);
+  const [profileError, setProfileError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setProfileName(user?.name ?? '');
+  }, [user?.name]);
+
+  const profileDirty = profileName.trim() !== (user?.name ?? '');
+
+  const handleProfileSave = async () => {
+    setProfileError(null);
+    setProfileMessage(null);
+    const name = profileName.trim();
+
+    if (!name) {
+      setProfileError('Nama wajib diisi.');
+      return;
+    }
+    if (name.length > 80) {
+      setProfileError('Nama maksimal 80 karakter.');
+      return;
+    }
+
+    try {
+      await updateProfileMutation.mutateAsync({ name });
+      setProfileMessage('Profil berhasil disimpan.');
+    } catch (error) {
+      setProfileError(error instanceof Error ? error.message : 'Update profil gagal.');
+    }
+  };
+
+  return (
+    <Card className="rounded-2xl border-border bg-card">
+      <CardHeader className="border-b border-border p-5">
+        <CardTitle className="flex items-center gap-3 text-lg">
+          <User className="size-5 text-primary" />
+          Profil Akun
+        </CardTitle>
+        <CardDescription>Nama disimpan di server. Email belum bisa diubah.</CardDescription>
+      </CardHeader>
+      <CardBody className="space-y-6 p-5">
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
+          <Avatar
+            src={user?.avatarUrl ?? undefined}
+            name={user?.name ?? 'U'}
+            className="h-20 w-20 border border-border"
+          />
+          <div className="min-w-0">
+            <h2 className="truncate text-2xl font-black text-foreground">{user?.name ?? 'User'}</h2>
+            <p className="truncate text-sm font-medium text-muted-foreground">{user?.email}</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <Badge variant="outline" className="border-primary/20 text-primary">
+                {user?.role ?? 'USER'}
+              </Badge>
+              <Badge variant="secondary">ID {user?.id.slice(0, 8)}</Badge>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Input
+            label="Nama"
+            value={profileName}
+            maxLength={80}
+            error={profileError ?? undefined}
+            onChange={(event) => {
+              setProfileName(event.target.value);
+              setProfileError(null);
+              setProfileMessage(null);
+            }}
+          />
+          <Input label="Email" value={user?.email ?? ''} disabled />
+        </div>
+
+        {profileMessage && <StatusBanner tone="success" icon={Check} message={profileMessage} />}
+
+        <div className="flex flex-col gap-3 border-t border-border pt-5 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs font-medium text-muted-foreground">
+            Avatar upload belum tersedia. Avatar URL aman bisa ditambahkan di fase berikutnya.
+          </p>
+          <Button
+            className="rounded-xl"
+            disabled={!profileDirty}
+            isLoading={updateProfileMutation.isPending}
+            onClick={handleProfileSave}
+          >
+            Simpan Profil
+          </Button>
+        </div>
+      </CardBody>
+    </Card>
+  );
+}
+
+function ChangePasswordCard({
+  changePasswordMutation,
+}: {
+  changePasswordMutation: ReturnType<typeof useChangePassword>;
+}) {
+  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
+  const [passwordMessage, setPasswordMessage] = useState<string | null>(null);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+
+  const passwordForm = useForm<PasswordFormValues>({
+    defaultValues: {
+      currentPassword: '',
+      newPassword: '',
+      confirmPassword: '',
+    },
+  });
+
+  const handlePasswordSubmit = passwordForm.handleSubmit(async (values) => {
+    setPasswordError(null);
+    setPasswordMessage(null);
+
+    const handleValidationErrors = (issues: z.ZodIssue[]) => {
+      for (const issue of issues) {
+        const field = issue.path[0] as keyof PasswordFormValues;
+        if (field === 'currentPassword' || field === 'newPassword' || field === 'confirmPassword') {
+          passwordForm.setError(field, { message: issue.message });
+        }
+      }
+    };
+
+    const parsed = passwordFormSchema.safeParse(values);
+    if (!parsed.success) {
+      handleValidationErrors(parsed.error.issues);
+      return;
+    }
+
+    try {
+      await changePasswordMutation.mutateAsync(parsed.data);
+      passwordForm.reset();
+      setPasswordMessage('Password berhasil diubah.');
+    } catch (error) {
+      setPasswordError(error instanceof Error ? error.message : 'Ubah password gagal.');
+    }
+  });
+
+  return (
+    <>
+      <Card className="rounded-2xl border-border bg-card">
+        <CardBody className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <KeyRound className="size-5 text-primary" />
+            <div>
+              <p className="font-bold text-foreground">Password</p>
+              <p className="text-sm text-muted-foreground">
+                Ubah password dengan verifikasi password saat ini.
+              </p>
+            </div>
+          </div>
+          <Button
+            variant="outline"
+            className="rounded-xl"
+            onClick={() => {
+              setPasswordDialogOpen(true);
+              setPasswordError(null);
+              setPasswordMessage(null);
+            }}
+          >
+            Ubah Password
+          </Button>
+        </CardBody>
+      </Card>
 
       <Dialog open={passwordDialogOpen} onOpenChange={setPasswordDialogOpen}>
         <DialogContent className="rounded-2xl">
@@ -686,50 +808,6 @@ export function SettingsPage() {
           </form>
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   );
 }
-
-interface StatusBannerProps {
-  readonly tone: 'success' | 'warning' | 'danger';
-  readonly icon: LucideIcon;
-  readonly message: string;
-}
-
-function StatusBanner({ tone, icon: Icon, message }: StatusBannerProps) {
-  return (
-    <div
-      className={cn(
-        'flex items-start gap-3 rounded-xl border px-4 py-3 text-sm font-medium',
-        tone === 'success' && 'border-emerald-500/20 bg-emerald-500/10 text-emerald-200',
-        tone === 'warning' && 'border-amber-500/20 bg-amber-500/10 text-amber-100',
-        tone === 'danger' && 'border-destructive/20 bg-destructive/10 text-destructive',
-      )}
-    >
-      <Icon className="mt-0.5 size-4 shrink-0" />
-      <span>{message}</span>
-    </div>
-  );
-}
-
-interface SecurityTileProps {
-  readonly icon: LucideIcon;
-  readonly title: string;
-  readonly status: string;
-  readonly desc: string;
-}
-
-function SecurityTile({ icon: Icon, title, status, desc }: SecurityTileProps) {
-  return (
-    <div className="rounded-2xl border border-border bg-background p-5">
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <Icon className="size-5 text-primary" />
-        <Badge variant="secondary">{status}</Badge>
-      </div>
-      <p className="font-bold text-foreground">{title}</p>
-      <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{desc}</p>
-    </div>
-  );
-}
-
-export default SettingsPage;

@@ -92,6 +92,106 @@ function toPersistedCandidateInput(
   };
 }
 
+async function handleReusableCandidates(
+  sessionId: string,
+  userId: string,
+  session: NonNullable<Awaited<ReturnType<typeof directorRepo.findSession>>>,
+  durationConfig: ReturnType<typeof resolveTargetDurationRangeConfig>,
+  analysisConfig: Prisma.JsonObject & { maxClipDuration: number },
+) {
+  const reusableCandidates = session.asset
+    ? await directorAnalysisReuseService.getReusableCandidates(
+        session.asset,
+        durationConfig.targetDurationRange,
+      )
+    : null;
+  const reusableHardMaxDurationMs = resolveHardMaxCandidateDurationMs(
+    analysisConfig.maxClipDuration,
+  );
+  const normalizedReusableCandidates = reusableCandidates
+    ? removeOverlappingCandidates(
+        filterCandidatesByMaxDuration(reusableCandidates, reusableHardMaxDurationMs),
+      )
+    : null;
+  const compatibleReusableCandidates = normalizedReusableCandidates
+    ? preferCandidatesWithinTargetDurationRange(
+        normalizedReusableCandidates,
+        durationConfig.targetDurationRange,
+      )
+    : null;
+
+  if (
+    reusableCandidates &&
+    compatibleReusableCandidates &&
+    compatibleReusableCandidates.candidates.length !== reusableCandidates.length
+  ) {
+    logger.info(
+      {
+        sessionId,
+        droppedCount: reusableCandidates.length - compatibleReusableCandidates.candidates.length,
+        hardMaxDurationMs: reusableHardMaxDurationMs,
+        targetDurationRange: durationConfig.targetDurationRange,
+        rangeFallbackApplied: compatibleReusableCandidates.fallbackApplied,
+      },
+      'Ignored stale reusable candidates outside short duration preference',
+    );
+  }
+
+  if (compatibleReusableCandidates && compatibleReusableCandidates.candidates.length > 0) {
+    const completedAt = new Date();
+    const completedJob = await directorRepo.upsertAnalysisJobBySession(
+      sessionId,
+      {
+        idempotencyKey: `${sessionId}:analyze:reused`,
+        status: DirectorJobStatus.COMPLETED,
+        startedAt: completedAt,
+        completedAt,
+        metrics: {
+          reused: true,
+          candidateCount: compatibleReusableCandidates.candidates.length,
+          targetDurationRange: durationConfig.targetDurationRange,
+          rangeFallbackApplied: compatibleReusableCandidates.fallbackApplied,
+        },
+        config: analysisConfig,
+      },
+      {
+        status: DirectorJobStatus.COMPLETED,
+        startedAt: session.analysisJob?.startedAt ?? completedAt,
+        completedAt,
+        errorMessage: null,
+        metrics: {
+          reused: true,
+          candidateCount: compatibleReusableCandidates.candidates.length,
+          targetDurationRange: durationConfig.targetDurationRange,
+          rangeFallbackApplied: compatibleReusableCandidates.fallbackApplied,
+        },
+        config: analysisConfig,
+      },
+    );
+
+    await directorRepo.replaceAnalysisCandidates(
+      completedJob.id,
+      compatibleReusableCandidates.candidates.map((candidate, index) =>
+        toPersistedCandidateInput(candidate, index + 1),
+      ),
+    );
+
+    await directorRepo.updateStep(sessionId, userId, DirectorStep.PICKING);
+    logger.info(
+      {
+        sessionId,
+        candidateCount: compatibleReusableCandidates.candidates.length,
+        targetDurationRange: durationConfig.targetDurationRange,
+        rangeFallbackApplied: compatibleReusableCandidates.fallbackApplied,
+      },
+      'Director analysis reused cached candidates',
+    );
+    return completedJob;
+  }
+
+  return null;
+}
+
 export const directorAnalysisService = {
   /**
    * Start analysis job
@@ -157,91 +257,15 @@ export const directorAnalysisService = {
       );
     }
 
-    const reusableCandidates = await directorAnalysisReuseService.getReusableCandidates(
-      session.asset,
-      durationConfig.targetDurationRange,
+    const reusedJob = await handleReusableCandidates(
+      sessionId,
+      userId,
+      session,
+      durationConfig,
+      analysisConfig,
     );
-    const reusableHardMaxDurationMs = resolveHardMaxCandidateDurationMs(
-      analysisConfig.maxClipDuration,
-    );
-    const normalizedReusableCandidates = reusableCandidates
-      ? removeOverlappingCandidates(
-          filterCandidatesByMaxDuration(reusableCandidates, reusableHardMaxDurationMs),
-        )
-      : null;
-    const compatibleReusableCandidates = normalizedReusableCandidates
-      ? preferCandidatesWithinTargetDurationRange(
-          normalizedReusableCandidates,
-          durationConfig.targetDurationRange,
-        )
-      : null;
-
-    if (
-      reusableCandidates &&
-      compatibleReusableCandidates &&
-      compatibleReusableCandidates.candidates.length !== reusableCandidates.length
-    ) {
-      logger.info(
-        {
-          sessionId,
-          droppedCount: reusableCandidates.length - compatibleReusableCandidates.candidates.length,
-          hardMaxDurationMs: reusableHardMaxDurationMs,
-          targetDurationRange: durationConfig.targetDurationRange,
-          rangeFallbackApplied: compatibleReusableCandidates.fallbackApplied,
-        },
-        'Ignored stale reusable candidates outside short duration preference',
-      );
-    }
-    if (compatibleReusableCandidates && compatibleReusableCandidates.candidates.length > 0) {
-      const completedAt = new Date();
-      const completedJob = await directorRepo.upsertAnalysisJobBySession(
-        sessionId,
-        {
-          idempotencyKey: `${sessionId}:analyze:reused`,
-          status: DirectorJobStatus.COMPLETED,
-          startedAt: completedAt,
-          completedAt,
-          metrics: {
-            reused: true,
-            candidateCount: compatibleReusableCandidates.candidates.length,
-            targetDurationRange: durationConfig.targetDurationRange,
-            rangeFallbackApplied: compatibleReusableCandidates.fallbackApplied,
-          },
-          config: analysisConfig,
-        },
-        {
-          status: DirectorJobStatus.COMPLETED,
-          startedAt: session.analysisJob?.startedAt ?? completedAt,
-          completedAt,
-          errorMessage: null,
-          metrics: {
-            reused: true,
-            candidateCount: compatibleReusableCandidates.candidates.length,
-            targetDurationRange: durationConfig.targetDurationRange,
-            rangeFallbackApplied: compatibleReusableCandidates.fallbackApplied,
-          },
-          config: analysisConfig,
-        },
-      );
-
-      await directorRepo.replaceAnalysisCandidates(
-        completedJob.id,
-        compatibleReusableCandidates.candidates.map((candidate, index) =>
-          toPersistedCandidateInput(candidate, index + 1),
-        ),
-      );
-
-      await directorRepo.updateStep(sessionId, userId, DirectorStep.PICKING);
-      logger.info(
-        {
-          sessionId,
-          candidateCount: compatibleReusableCandidates.candidates.length,
-          targetDurationRange: durationConfig.targetDurationRange,
-          rangeFallbackApplied: compatibleReusableCandidates.fallbackApplied,
-        },
-        'Director analysis reused cached candidates',
-      );
-      return completedJob;
+    if (reusedJob) {
+      return reusedJob;
     }
 
     const job = await directorRepo.upsertAnalysisJobBySession(
@@ -289,7 +313,7 @@ export const directorAnalysisService = {
   async getAnalysisResult(sessionId: string, userId: string) {
     const session = await directorRepo.findSession(sessionId, userId);
 
-    if (!session || !session.analysisJob) {
+    if (!session?.analysisJob) {
       throw new Error('Analysis not found');
     }
 
@@ -310,9 +334,13 @@ export const directorAnalysisService = {
         ),
         resolvedConfig.targetDurationRange,
       );
+      const mappedCandidates = reusableCandidatesByDuration.candidates.map((c) => ({
+        ...c,
+        analysisJobId: session.analysisJob?.id ?? '',
+      }));
       return {
         ...session.analysisJob,
-        candidates: reusableCandidatesByDuration.candidates,
+        candidates: mappedCandidates,
       };
     }
 
@@ -363,15 +391,20 @@ export const directorAnalysisService = {
     }
 
     const resolvedConfig = resolveClipDurationConfig(session.analysisJob.config);
-    const sourceCandidates =
-      session.analysisJob.candidates.length > 0
-        ? session.analysisJob.candidates
-        : session.asset
-          ? ((await directorAnalysisReuseService.getReusableCandidates(
-              session.asset,
-              resolvedConfig.targetDurationRange,
-            )) ?? [])
-          : [];
+    let sourceCandidates = session.analysisJob.candidates;
+    if (sourceCandidates.length === 0) {
+      const reusable = session.asset
+        ? ((await directorAnalysisReuseService.getReusableCandidates(
+            session.asset,
+            resolvedConfig.targetDurationRange,
+          )) ?? [])
+        : [];
+      sourceCandidates = reusable.map((c) => ({
+        ...c,
+        metadata: c.metadata as Prisma.JsonValue,
+        analysisJobId: session.analysisJob?.id ?? '',
+      }));
+    }
     const hardMaxDurationMs = resolveHardMaxCandidateDurationMs(resolvedConfig.maxClipDurationMs);
     const validationCandidates = sourceCandidates.map((candidate, index) => ({
       ...candidate,

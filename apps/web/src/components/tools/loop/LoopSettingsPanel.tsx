@@ -80,129 +80,26 @@ export function LoopSettingsPanel({
         </div>
       </CardHeader>
       <CardBody className="space-y-6 p-5">
-        <section className="space-y-3">
-          <SectionTitle icon={Film} title="Durasi hasil" />
-          <div className="grid grid-cols-2 gap-2">
-            {DURATION_PRESETS.map((preset) => {
-              const available = TIER_LEVEL[tier] >= TIER_LEVEL[preset.minTier];
-              return (
-                <button
-                  key={preset.milliseconds}
-                  type="button"
-                  disabled={!available}
-                  onClick={() =>
-                    patch({ output: { ...document.output, targetDurationMs: preset.milliseconds } })
-                  }
-                  className={cn(
-                    'h-12 rounded-xl border text-sm font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-35',
-                    document.output.targetDurationMs === preset.milliseconds
-                      ? 'border-primary bg-primary/10 text-primary'
-                      : 'border-border/60 bg-muted/10 hover:bg-muted/20',
-                  )}
-                >
-                  {preset.label}
-                </button>
-              );
-            })}
-          </div>
-          {segmentMs > 0 ? (
-            <div className="flex items-center justify-between rounded-xl bg-muted/15 px-3 py-2.5 text-xs font-semibold">
-              <span className="text-muted-foreground">Hasil aktual</span>
-              <span>
-                {formatDuration(summary?.actualDurationMs ?? estimatedDurationMs)} -{' '}
-                {summary?.cycleCount ?? estimateCycles} putaran
-              </span>
-            </div>
-          ) : null}
-          {(summary?.adjustedToTier ?? estimateAdjustedToTier) ? (
-            <p className="text-xs font-semibold text-primary">
-              Durasi disesuaikan dengan batas paket kamu.
-            </p>
-          ) : null}
-        </section>
+        <DurationSettings
+          document={document}
+          tier={tier}
+          summary={summary}
+          segmentMs={segmentMs}
+          estimatedDurationMs={estimatedDurationMs}
+          estimateCycles={estimateCycles}
+          estimateAdjustedToTier={estimateAdjustedToTier}
+          patch={patch}
+        />
 
         {document.trim.enabled && sourceInfo ? (
-          <section className="space-y-3 rounded-xl border border-primary/25 bg-primary/5 p-3.5">
-            <p className="flex items-start gap-2 text-xs font-semibold text-foreground">
-              <Info size={15} className="mt-0.5 shrink-0 text-primary" />
-              Draft lama ini menggunakan potongan video ({formatDuration(startMs)} -{' '}
-              {formatDuration(endMs)}).
-            </p>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-10 w-full rounded-lg border-primary/25 text-primary"
-              onClick={() => patch({ trim: { enabled: false, startMs: 0 } })}
-            >
-              Gunakan Video Penuh
-            </Button>
-          </section>
+          <TrimWarningSection startMs={startMs} endMs={endMs} patch={patch} />
         ) : null}
 
-        <section className="space-y-3 border-t border-border/40 pt-5">
-          <p className="text-[11px] font-black uppercase text-muted-foreground">Sambungan loop</p>
-          <div className="grid grid-cols-2 gap-2">
-            <Choice
-              selected={!smooth}
-              label="Loop Asli"
-              onClick={() => patch({ transition: { mode: 'repeat' } })}
-            />
-            <Choice
-              selected={smooth}
-              label="Loop Seamless"
-              disabled={segmentMs < 1000}
-              onClick={() => patch({ transition: { mode: 'smooth' } })}
-            />
-          </div>
-          <p className="text-xs font-medium text-muted-foreground">
-            {smooth
-              ? 'Terbaik untuk ambience satu sudut dengan gerakan dan cahaya stabil. Cut atau perubahan besar tetap dapat terlihat.'
-              : 'Mengulang langsung, cocok jika akhir dan awal video sudah menyatu.'}
-          </p>
-        </section>
+        <TransitionSettings smooth={smooth} segmentMs={segmentMs} patch={patch} />
 
-        {sourceInfo?.hasAudio ? (
-          <section className="flex items-center justify-between border-t border-border/40 pt-5">
-            <SectionTitle icon={VolumeX} title="Mute audio bawaan" />
-            <Switch
-              checked={document.audioMuted}
-              onCheckedChange={(audioMuted) => patch({ audioMuted })}
-            />
-          </section>
-        ) : null}
+        {sourceInfo?.hasAudio ? <AudioSettings document={document} patch={patch} /> : null}
 
-        <section className="space-y-3 border-t border-border/40 pt-5">
-          <p className="text-[11px] font-black uppercase text-muted-foreground">Format video</p>
-          <div className="grid grid-cols-2 gap-2">
-            {RATIOS.map((ratio) => (
-              <button
-                key={ratio.value}
-                type="button"
-                className={cn(
-                  'flex h-16 items-center gap-3 rounded-xl border px-3 text-left transition-colors',
-                  ratio.value === 'original' && 'col-span-2',
-                  document.output.aspectRatio === ratio.value
-                    ? 'border-primary bg-primary/10 text-primary'
-                    : 'border-border/60 bg-muted/10 hover:bg-muted/20',
-                )}
-                onClick={() => patch({ output: { ...document.output, aspectRatio: ratio.value } })}
-              >
-                <RatioMark ratio={ratio.value} sourceInfo={sourceInfo} />
-                <span>
-                  <span className="block text-sm font-bold">{ratio.label}</span>
-                  <span className="block text-xs font-semibold text-muted-foreground">
-                    {ratio.value === 'original' ? 'Rasio sumber' : ratio.value}
-                  </span>
-                </span>
-              </button>
-            ))}
-          </div>
-          {document.output.aspectRatio !== 'original' ? (
-            <p className="text-xs font-medium text-muted-foreground">
-              Video akan dibuat Fit dengan blur background otomatis.
-            </p>
-          ) : null}
-        </section>
+        <AspectRatioSettings document={document} sourceInfo={sourceInfo} patch={patch} />
 
         <Button
           size="lg"
@@ -217,6 +114,198 @@ export function LoopSettingsPanel({
   );
 }
 
+function DurationSettings({
+  document,
+  tier,
+  summary,
+  segmentMs,
+  estimatedDurationMs,
+  estimateCycles,
+  estimateAdjustedToTier,
+  patch,
+}: {
+  document: LoopCreatorProjectDocument;
+  tier: 'FREE' | 'CREATOR' | 'PRO';
+  summary: {
+    actualDurationMs: number;
+    cycleCount: number;
+    adjustedToTier: boolean;
+  } | null;
+  segmentMs: number;
+  estimatedDurationMs: number;
+  estimateCycles: number;
+  estimateAdjustedToTier: boolean;
+  patch: (value: Partial<LoopCreatorProjectDocument>) => void;
+}) {
+  return (
+    <section className="space-y-3">
+      <SectionTitle icon={Film} title="Durasi hasil" />
+      <div className="grid grid-cols-2 gap-2">
+        {DURATION_PRESETS.map((preset) => {
+          const available = TIER_LEVEL[tier] >= TIER_LEVEL[preset.minTier];
+          return (
+            <button
+              key={preset.milliseconds}
+              type="button"
+              disabled={!available}
+              onClick={() =>
+                patch({ output: { ...document.output, targetDurationMs: preset.milliseconds } })
+              }
+              className={cn(
+                'h-12 rounded-xl border text-sm font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-35',
+                document.output.targetDurationMs === preset.milliseconds
+                  ? 'border-primary bg-primary/10 text-primary'
+                  : 'border-border/60 bg-muted/10 hover:bg-muted/20',
+              )}
+            >
+              {preset.label}
+            </button>
+          );
+        })}
+      </div>
+      {segmentMs > 0 ? (
+        <div className="flex items-center justify-between rounded-xl bg-muted/15 px-3 py-2.5 text-xs font-semibold">
+          <span className="text-muted-foreground">Hasil aktual</span>
+          <span>
+            {formatDuration(summary?.actualDurationMs ?? estimatedDurationMs)} -{' '}
+            {summary?.cycleCount ?? estimateCycles} putaran
+          </span>
+        </div>
+      ) : null}
+      {(summary?.adjustedToTier ?? estimateAdjustedToTier) ? (
+        <p className="text-xs font-semibold text-primary">
+          Durasi disesuaikan dengan batas paket kamu.
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
+function TrimWarningSection({
+  startMs,
+  endMs,
+  patch,
+}: {
+  startMs: number;
+  endMs: number;
+  patch: (value: Partial<LoopCreatorProjectDocument>) => void;
+}) {
+  return (
+    <section className="space-y-3 rounded-xl border border-primary/25 bg-primary/5 p-3.5">
+      <p className="flex items-start gap-2 text-xs font-semibold text-foreground">
+        <Info size={15} className="mt-0.5 shrink-0 text-primary" />
+        Draft lama ini menggunakan potongan video ({formatDuration(startMs)} -{' '}
+        {formatDuration(endMs)}).
+      </p>
+      <Button
+        variant="outline"
+        size="sm"
+        className="h-10 w-full rounded-lg border-primary/25 text-primary"
+        onClick={() => patch({ trim: { enabled: false, startMs: 0 } })}
+      >
+        Gunakan Video Penuh
+      </Button>
+    </section>
+  );
+}
+
+function TransitionSettings({
+  smooth,
+  segmentMs,
+  patch,
+}: {
+  smooth: boolean;
+  segmentMs: number;
+  patch: (value: Partial<LoopCreatorProjectDocument>) => void;
+}) {
+  return (
+    <section className="space-y-3 border-t border-border/40 pt-5">
+      <p className="text-[11px] font-black uppercase text-muted-foreground">Sambungan loop</p>
+      <div className="grid grid-cols-2 gap-2">
+        <Choice
+          selected={!smooth}
+          label="Loop Asli"
+          onClick={() => patch({ transition: { mode: 'repeat' } })}
+        />
+        <Choice
+          selected={smooth}
+          label="Loop Seamless"
+          disabled={segmentMs < 1000}
+          onClick={() => patch({ transition: { mode: 'smooth' } })}
+        />
+      </div>
+      <p className="text-xs font-medium text-muted-foreground">
+        {smooth
+          ? 'Terbaik untuk ambience satu sudut dengan gerakan dan cahaya stabil. Cut atau perubahan besar tetap dapat terlihat.'
+          : 'Mengulang langsung, cocok jika akhir dan awal video sudah menyatu.'}
+      </p>
+    </section>
+  );
+}
+
+function AudioSettings({
+  document,
+  patch,
+}: {
+  document: LoopCreatorProjectDocument;
+  patch: (value: Partial<LoopCreatorProjectDocument>) => void;
+}) {
+  return (
+    <section className="flex items-center justify-between border-t border-border/40 pt-5">
+      <SectionTitle icon={VolumeX} title="Mute audio bawaan" />
+      <Switch
+        checked={document.audioMuted}
+        onCheckedChange={(audioMuted) => patch({ audioMuted })}
+      />
+    </section>
+  );
+}
+
+function AspectRatioSettings({
+  document,
+  sourceInfo,
+  patch,
+}: {
+  document: LoopCreatorProjectDocument;
+  sourceInfo?: LoopSourceInfo;
+  patch: (value: Partial<LoopCreatorProjectDocument>) => void;
+}) {
+  return (
+    <section className="space-y-3 border-t border-border/40 pt-5">
+      <p className="text-[11px] font-black uppercase text-muted-foreground">Format video</p>
+      <div className="grid grid-cols-2 gap-2">
+        {RATIOS.map((ratio) => (
+          <button
+            key={ratio.value}
+            type="button"
+            className={cn(
+              'flex h-16 items-center gap-3 rounded-xl border px-3 text-left transition-colors',
+              ratio.value === 'original' && 'col-span-2',
+              document.output.aspectRatio === ratio.value
+                ? 'border-primary bg-primary/10 text-primary'
+                : 'border-border/60 bg-muted/10 hover:bg-muted/20',
+            )}
+            onClick={() => patch({ output: { ...document.output, aspectRatio: ratio.value } })}
+          >
+            <RatioMark ratio={ratio.value} sourceInfo={sourceInfo} />
+            <span>
+              <span className="block text-sm font-bold">{ratio.label}</span>
+              <span className="block text-xs font-semibold text-muted-foreground">
+                {ratio.value === 'original' ? 'Rasio sumber' : ratio.value}
+              </span>
+            </span>
+          </button>
+        ))}
+      </div>
+      {document.output.aspectRatio === 'original' ? null : (
+        <p className="text-xs font-medium text-muted-foreground">
+          Video akan dibuat Fit dengan blur background otomatis.
+        </p>
+      )}
+    </section>
+  );
+}
+
 function RatioMark({
   ratio,
   sourceInfo,
@@ -224,12 +313,12 @@ function RatioMark({
   ratio: LoopCreatorProjectDocument['output']['aspectRatio'];
   sourceInfo?: LoopSourceInfo;
 }) {
-  const value =
-    ratio === 'original'
-      ? sourceInfo
-        ? sourceInfo.width / sourceInfo.height
-        : 16 / 9
-      : { '16:9': 16 / 9, '9:16': 9 / 16, '1:1': 1, '4:5': 4 / 5 }[ratio];
+  let value: number;
+  if (ratio === 'original') {
+    value = sourceInfo ? sourceInfo.width / sourceInfo.height : 16 / 9;
+  } else {
+    value = { '16:9': 16 / 9, '9:16': 9 / 16, '1:1': 1, '4:5': 4 / 5 }[ratio];
+  }
   return (
     <span className="flex h-10 w-12 shrink-0 items-center justify-center rounded-lg bg-muted/20">
       <span

@@ -26,6 +26,222 @@ import {
 import { transcriptTranslateService } from './transcript-translate.service';
 import { whisperRunner } from './whisper-runner';
 
+async function persistTranscribeSuccess(
+  session: { id: string },
+  selectedClipId: string,
+  engine: string,
+  language: string,
+  segments: SubtitleSegment[],
+) {
+  await prisma.directorClipTranscript.upsert({
+    where: { selectedClipId },
+    create: {
+      sessionId: session.id,
+      selectedClipId,
+      status: 'COMPLETED',
+      engine,
+      language,
+      segments: segments as object[],
+      completedAt: new Date(),
+    },
+    update: {
+      status: 'COMPLETED',
+      engine,
+      segments: segments as object[],
+      language,
+      errorMessage: null,
+      completedAt: new Date(),
+    },
+  });
+}
+
+async function persistTranscribeFailure(
+  session: { id: string },
+  selectedClipId: string,
+  engine: string,
+  errorMsg: string,
+) {
+  await prisma.directorClipTranscript.upsert({
+    where: { selectedClipId },
+    create: {
+      sessionId: session.id,
+      selectedClipId,
+      status: 'FAILED',
+      engine,
+      errorMessage: errorMsg,
+    },
+    update: {
+      status: 'FAILED',
+      engine,
+      errorMessage: errorMsg,
+      completedAt: new Date(),
+    },
+  });
+}
+
+type TranscribeSession = { id: string; transcribeJob?: { id: string; segments: unknown } | null };
+
+function resolveTranscribeOptions(
+  options: {
+    language?: TranscribeLanguage;
+    subtitleMode?: 'original' | 'translate';
+    subtitleTargetLanguage?: TranscribeLanguage | null;
+  } = {},
+) {
+  const targetLanguage = normalizeTranscribeLanguage(options.language, env.TRANSCRIBE_LANGUAGE);
+  const subtitleMode = options.subtitleMode === 'translate' ? 'translate' : 'original';
+  const subtitleTargetLanguage =
+    subtitleMode === 'translate'
+      ? normalizeTranscribeLanguage(options.subtitleTargetLanguage, 'en')
+      : null;
+
+  if (subtitleMode === 'translate' && isAutoTranscribeLanguage(subtitleTargetLanguage)) {
+    throw new Error('Bahasa target terjemahan harus spesifik (contoh: "en", "es", "ja").');
+  }
+
+  return { targetLanguage, subtitleMode, subtitleTargetLanguage };
+}
+
+function resolveTranscribePaths(asset: { storageKey: string }) {
+  const cleanStorageKey = asset.storageKey.replace(/^uploads\//, '');
+  const inputPath = path.join(env.MEDIA_INPUT_DIR, cleanStorageKey);
+  const audioProxyDir = path.join(env.TEMP_DIR, 'director/audio-proxies');
+  return { inputPath, audioProxyDir, cleanStorageKey };
+}
+
+async function handleCacheHit(
+  bypassCache: boolean | undefined,
+  cacheKey: string,
+  session: TranscribeSession,
+  selectedClipId: string,
+): Promise<boolean> {
+  if (bypassCache) return false;
+
+  const cachedTranscript = await transcribeCacheService.getCachedTranscript(cacheKey);
+  if (!cachedTranscript) return false;
+
+  await updateProgressMeta(session.transcribeJob?.id, session.transcribeJob?.segments, {
+    phase: 'cache-hit',
+    currentClipId: selectedClipId,
+  });
+
+  await persistTranscribeSuccess(
+    session,
+    selectedClipId,
+    'WHISPER_CACHE',
+    cachedTranscript.language ?? 'en',
+    cachedTranscript.segments as SubtitleSegment[],
+  );
+
+  return true;
+}
+
+class TranscribePipelineError extends Error {
+  transcriptEngine: string;
+  originalError: unknown;
+
+  constructor(originalError: unknown, transcriptEngine: string) {
+    super(originalError instanceof Error ? originalError.message : String(originalError));
+    this.name = 'TranscribePipelineError';
+    this.transcriptEngine = transcriptEngine;
+    this.originalError = originalError;
+  }
+}
+
+interface TranscribePipelineOptions {
+  inputPath: string;
+  audioProxyDir: string;
+  startMs: number;
+  endMs: number;
+  selectedClipId: string;
+  targetLanguage: TranscribeLanguage;
+  subtitleMode: 'original' | 'translate';
+  subtitleTargetLanguage: TranscribeLanguage | null;
+  session: TranscribeSession;
+}
+
+async function executeTranscribePipeline({
+  inputPath,
+  audioProxyDir,
+  startMs,
+  endMs,
+  selectedClipId,
+  targetLanguage,
+  subtitleMode,
+  subtitleTargetLanguage,
+  session,
+}: TranscribePipelineOptions) {
+  let audioProxyPath = '';
+  let transcriptEngine = 'WHISPER_LOCAL';
+
+  try {
+    await updateProgressMeta(session.transcribeJob?.id, session.transcribeJob?.segments, {
+      phase: 'extracting-audio',
+      currentClipId: selectedClipId,
+    });
+
+    audioProxyPath = await directorProcessor.extractClipAudioProxy(
+      inputPath,
+      audioProxyDir,
+      startMs,
+      endMs,
+    );
+
+    await updateProgressMeta(session.transcribeJob?.id, session.transcribeJob?.segments, {
+      phase: 'running-whisper',
+      currentClipId: selectedClipId,
+    });
+
+    const result = await whisperRunner.runWhisperOnAudio(audioProxyPath, targetLanguage);
+    transcriptEngine = result.provider === 'http' ? 'WHISPER_HTTP' : 'WHISPER_LOCAL';
+
+    if (!result.success || !result.segments) {
+      throw new Error(result.error || 'Whisper returned no segments');
+    }
+
+    const normalizedSegments = await recoverMissingTailSegments({
+      inputPath,
+      audioProxyDir,
+      clipStartMs: startMs,
+      clipEndMs: endMs,
+      selectedClipId,
+      language: targetLanguage,
+      segments: transcribeNormalizer.normalizeSegments(result.segments),
+    });
+
+    const finalLanguage =
+      subtitleMode === 'translate'
+        ? (subtitleTargetLanguage ?? DEFAULT_TRANSCRIBE_LANGUAGE)
+        : result.language;
+
+    let finalSegments = normalizedSegments;
+    if (subtitleMode === 'translate' && subtitleTargetLanguage) {
+      await updateProgressMeta(session.transcribeJob?.id, session.transcribeJob?.segments, {
+        phase: 'translating-transcript',
+        currentClipId: selectedClipId,
+      });
+
+      finalSegments = await transcriptTranslateService.translateSegments(
+        normalizedSegments,
+        subtitleTargetLanguage,
+      );
+    }
+
+    await updateProgressMeta(session.transcribeJob?.id, session.transcribeJob?.segments, {
+      phase: 'saving-transcript',
+      currentClipId: selectedClipId,
+    });
+
+    return { finalSegments, finalLanguage, transcriptEngine };
+  } catch (error) {
+    throw new TranscribePipelineError(error, transcriptEngine);
+  } finally {
+    if (audioProxyPath) {
+      await unlinkIfExists(audioProxyPath);
+    }
+  }
+}
+
 async function updateProgressMeta(
   transcribeJobId: string | undefined,
   currentSegments: unknown,
@@ -239,7 +455,7 @@ export const transcribeService = {
 
     await transcribeCacheService.setCachedTranscript(cacheKey, {
       language: transcribed.language,
-      segments: transcribed.segments as object[],
+      segments: transcribed.segments,
     });
 
     return {
@@ -271,7 +487,7 @@ export const transcribeService = {
 
     await transcribeCacheService.setCachedTranscript(cacheKey, {
       language: targetLanguage,
-      segments: options.segments as object[],
+      segments: options.segments,
     });
 
     return cacheKey;
@@ -311,17 +527,9 @@ export const transcribeService = {
       throw new Error('Selected clip or asset not found');
     }
 
-    const { storageKey, contentHash, sourceUrlNormalized } = asset;
-    const targetLanguage = normalizeTranscribeLanguage(options.language, env.TRANSCRIBE_LANGUAGE);
-    const subtitleMode = options.subtitleMode === 'translate' ? 'translate' : 'original';
-    const subtitleTargetLanguage =
-      subtitleMode === 'translate'
-        ? normalizeTranscribeLanguage(options.subtitleTargetLanguage, 'en')
-        : null;
+    const { targetLanguage, subtitleMode, subtitleTargetLanguage } =
+      resolveTranscribeOptions(options);
 
-    if (subtitleMode === 'translate' && isAutoTranscribeLanguage(subtitleTargetLanguage)) {
-      throw new Error('Bahasa target terjemahan harus spesifik (contoh: "en", "es", "ja").');
-    }
     const { startMs, endMs } = resolveSelectedClipRangeMs({
       candidateStartMs: candidate.startMs,
       candidateEndMs: candidate.endMs,
@@ -329,18 +537,13 @@ export const transcribeService = {
       trimEndMs,
     });
 
-    // Fix: Resolve input path correctly using MEDIA_INPUT_DIR
-    // storageKey might be 'uploads/director/xyz.mp4' or 'director/xyz.mp4'
-    // We want: MEDIA_INPUT_DIR/director/xyz.mp4 (assuming MEDIA_INPUT_DIR is /app/uploads)
-    const cleanStorageKey = storageKey.replace(/^uploads\//, ''); // Strip leading 'uploads/' if present
-    const inputPath = path.join(env.MEDIA_INPUT_DIR, cleanStorageKey);
-    const audioProxyDir = path.join(env.TEMP_DIR, 'director/audio-proxies');
+    const { inputPath, audioProxyDir, cleanStorageKey } = resolveTranscribePaths(asset);
 
     // Debug logging
     logger.info(
       {
         selectedClipId,
-        storageKey,
+        storageKey: asset.storageKey,
         cleanStorageKey,
         inputPath,
         audioProxyDir,
@@ -350,7 +553,7 @@ export const transcribeService = {
       'Transcribe: Resolving paths',
     );
 
-    const assetFingerprint = contentHash ?? sourceUrlNormalized ?? storageKey;
+    const assetFingerprint = asset.contentHash ?? asset.sourceUrlNormalized ?? asset.storageKey;
     const cacheKey = transcribeCacheService.buildFingerprint({
       assetFingerprint,
       startMs,
@@ -358,134 +561,49 @@ export const transcribeService = {
       trimStartMs,
       trimEndMs,
       language: targetLanguage,
-      subtitleMode,
+      subtitleMode: subtitleMode as 'original' | 'translate',
       subtitleTargetLanguage,
     });
 
-    // Ensure proxy dir exists
     await fs.mkdir(audioProxyDir, { recursive: true });
 
-    let audioProxyPath = '';
     let transcriptEngine = 'WHISPER_LOCAL';
 
     try {
-      if (!options.bypassCache) {
-        const cachedTranscript = await transcribeCacheService.getCachedTranscript(cacheKey);
-        if (cachedTranscript) {
-          await updateProgressMeta(session.transcribeJob?.id, session.transcribeJob?.segments, {
-            phase: 'cache-hit',
-            currentClipId: selectedClipId,
-          });
-
-          await prisma.directorClipTranscript.upsert({
-            where: { selectedClipId },
-            create: {
-              sessionId: session.id,
-              selectedClipId,
-              status: 'COMPLETED',
-              engine: 'WHISPER_CACHE',
-              language: cachedTranscript.language,
-              segments: cachedTranscript.segments,
-              completedAt: new Date(),
-            },
-            update: {
-              status: 'COMPLETED',
-              engine: 'WHISPER_CACHE',
-              segments: cachedTranscript.segments,
-              language: cachedTranscript.language,
-              errorMessage: null,
-              completedAt: new Date(),
-            },
-          });
-          return;
-        }
+      if (await handleCacheHit(options.bypassCache, cacheKey, session, selectedClipId)) {
+        return;
       }
 
-      await updateProgressMeta(session.transcribeJob?.id, session.transcribeJob?.segments, {
-        phase: 'extracting-audio',
-        currentClipId: selectedClipId,
-      });
-
-      // 1. Extract Audio
-      audioProxyPath = await directorProcessor.extractClipAudioProxy(
+      const {
+        finalSegments,
+        finalLanguage,
+        transcriptEngine: usedEngine,
+      } = await executeTranscribePipeline({
         inputPath,
         audioProxyDir,
         startMs,
         endMs,
-      );
-
-      await updateProgressMeta(session.transcribeJob?.id, session.transcribeJob?.segments, {
-        phase: 'running-whisper',
-        currentClipId: selectedClipId,
-      });
-
-      // 2. Run Whisper
-      const result = await whisperRunner.runWhisperOnAudio(audioProxyPath, targetLanguage);
-      transcriptEngine = result.provider === 'http' ? 'WHISPER_HTTP' : 'WHISPER_LOCAL';
-
-      if (!result.success || !result.segments) {
-        throw new Error(result.error || 'Whisper returned no segments');
-      }
-
-      // 3. Normalize
-      const normalizedSegments = await recoverMissingTailSegments({
-        inputPath,
-        audioProxyDir,
-        clipStartMs: startMs,
-        clipEndMs: endMs,
         selectedClipId,
-        language: targetLanguage,
-        segments: transcribeNormalizer.normalizeSegments(result.segments),
+        targetLanguage,
+        subtitleMode: subtitleMode as 'original' | 'translate',
+        subtitleTargetLanguage,
+        session,
       });
-      const finalLanguage =
-        subtitleMode === 'translate'
-          ? (subtitleTargetLanguage ?? DEFAULT_TRANSCRIBE_LANGUAGE)
-          : result.language;
-      const finalSegments =
-        subtitleMode === 'translate' && subtitleTargetLanguage
-          ? await (async () => {
-              await updateProgressMeta(session.transcribeJob?.id, session.transcribeJob?.segments, {
-                phase: 'translating-transcript',
-                currentClipId: selectedClipId,
-              });
 
-              return transcriptTranslateService.translateSegments(
-                normalizedSegments,
-                subtitleTargetLanguage,
-              );
-            })()
-          : normalizedSegments;
-
-      await updateProgressMeta(session.transcribeJob?.id, session.transcribeJob?.segments, {
-        phase: 'saving-transcript',
-        currentClipId: selectedClipId,
-      });
+      transcriptEngine = usedEngine;
 
       // 4. Persist to DB
-      await prisma.directorClipTranscript.upsert({
-        where: { selectedClipId },
-        create: {
-          sessionId: session.id,
-          selectedClipId,
-          status: 'COMPLETED',
-          engine: transcriptEngine,
-          language: finalLanguage,
-          segments: finalSegments as object[],
-          completedAt: new Date(),
-        },
-        update: {
-          status: 'COMPLETED',
-          engine: transcriptEngine,
-          segments: finalSegments as object[],
-          language: finalLanguage,
-          errorMessage: null,
-          completedAt: new Date(),
-        },
-      });
+      await persistTranscribeSuccess(
+        session,
+        selectedClipId,
+        transcriptEngine,
+        finalLanguage ?? 'en',
+        finalSegments,
+      );
 
       await transcribeCacheService.setCachedTranscript(cacheKey, {
         language: finalLanguage,
-        segments: finalSegments as object[],
+        segments: finalSegments,
       });
 
       logger.info(
@@ -498,33 +616,19 @@ export const transcribeService = {
         'Clip transcription completed',
       );
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Unknown error';
-      logger.error({ selectedClipId, err }, 'Clip transcription failed');
+      let actualError: unknown = err;
+      if (err instanceof TranscribePipelineError) {
+        actualError = err.originalError;
+        transcriptEngine = err.transcriptEngine;
+      }
+
+      const errorMsg = actualError instanceof Error ? actualError.message : 'Unknown error';
+      logger.error({ selectedClipId, err: actualError }, 'Clip transcription failed');
 
       // Update DB to FAILED
-      await prisma.directorClipTranscript.upsert({
-        where: { selectedClipId },
-        create: {
-          sessionId: session.id,
-          selectedClipId,
-          status: 'FAILED',
-          engine: transcriptEngine,
-          errorMessage: errorMsg,
-        },
-        update: {
-          status: 'FAILED',
-          engine: transcriptEngine,
-          errorMessage: errorMsg,
-          completedAt: new Date(), // Mark as done (failed)
-        },
-      });
+      await persistTranscribeFailure(session, selectedClipId, transcriptEngine, errorMsg);
 
-      throw err; // Re-throw to fail the worker job (allowing retry)
-    } finally {
-      // Cleanup temp audio
-      if (audioProxyPath) {
-        await unlinkIfExists(audioProxyPath);
-      }
+      throw actualError; // Re-throw to fail the worker job (allowing retry)
     }
   },
 };

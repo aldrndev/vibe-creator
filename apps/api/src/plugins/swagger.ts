@@ -11,7 +11,7 @@
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
 import { ERROR_CODES } from '@vibe-creator/shared';
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { jsonSchemaTransform } from 'fastify-type-provider-zod';
 import { env } from '@/config/env';
 import { AuditAction, audit } from '@/lib/audit';
@@ -19,6 +19,69 @@ import { verifyAccessToken } from '@/lib/jwt';
 import { logger } from '@/lib/logger';
 import { prisma } from '@/lib/prisma';
 import { sendError } from '@/utils/response';
+
+async function verifySwaggerAccess(
+  request: FastifyRequest,
+  reply: FastifyReply,
+  allowedIps: string[],
+  url: string,
+) {
+  if (allowedIps.length > 0 && !allowedIps.includes(request.ip)) {
+    await audit({
+      requestId: request.id,
+      action: AuditAction.ACCESS_DENIED,
+      ipAddress: request.ip,
+      userAgent: request.headers['user-agent'] ?? undefined,
+      metadata: { route: url, reason: 'ip_not_allowed' },
+    });
+    return sendError(reply, ERROR_CODES.FORBIDDEN, 'Access denied', 403);
+  }
+
+  const authHeader = request.headers.authorization;
+  if (!authHeader?.startsWith('Bearer ')) {
+    await audit({
+      requestId: request.id,
+      action: AuditAction.ACCESS_DENIED,
+      ipAddress: request.ip,
+      userAgent: request.headers['user-agent'] ?? undefined,
+      metadata: { route: url, reason: 'missing_auth' },
+    });
+    return sendError(reply, ERROR_CODES.UNAUTHORIZED, 'Authentication required', 401);
+  }
+
+  const token = authHeader.slice(7);
+  try {
+    const payload = await verifyAccessToken(token);
+    const user = await prisma.user.findUnique({
+      where: { id: payload.sub },
+    });
+
+    if (user?.role !== 'ADMIN') {
+      await audit({
+        requestId: request.id,
+        userId: payload.sub,
+        tenantId: payload.tid,
+        action: AuditAction.ACCESS_DENIED,
+        ipAddress: request.ip,
+        userAgent: request.headers['user-agent'] ?? undefined,
+        metadata: { route: url, reason: 'not_admin' },
+      });
+      return sendError(reply, ERROR_CODES.FORBIDDEN, 'Access denied', 403);
+    }
+
+    await audit({
+      requestId: request.id,
+      userId: user.id,
+      tenantId: payload.tid,
+      action: AuditAction.ADMIN_ACTION,
+      ipAddress: request.ip,
+      userAgent: request.headers['user-agent'] ?? undefined,
+      metadata: { route: url, action: 'swagger_access' },
+    });
+  } catch {
+    return sendError(reply, ERROR_CODES.UNAUTHORIZED, 'Authentication required', 401);
+  }
+}
 
 /**
  * Register Swagger documentation plugin
@@ -46,62 +109,7 @@ export async function registerSwagger(fastify: FastifyInstance): Promise<void> {
       if (!url.startsWith('/documentation') && !url.startsWith('/openapi.json')) {
         return;
       }
-
-      if (allowedIps.length > 0 && !allowedIps.includes(request.ip)) {
-        await audit({
-          requestId: request.id,
-          action: AuditAction.ACCESS_DENIED,
-          ipAddress: request.ip,
-          userAgent: request.headers['user-agent'] ?? undefined,
-          metadata: { route: url, reason: 'ip_not_allowed' },
-        });
-        return sendError(reply, ERROR_CODES.FORBIDDEN, 'Access denied', 403);
-      }
-
-      const authHeader = request.headers.authorization;
-      if (!authHeader?.startsWith('Bearer ')) {
-        await audit({
-          requestId: request.id,
-          action: AuditAction.ACCESS_DENIED,
-          ipAddress: request.ip,
-          userAgent: request.headers['user-agent'] ?? undefined,
-          metadata: { route: url, reason: 'missing_auth' },
-        });
-        return sendError(reply, ERROR_CODES.UNAUTHORIZED, 'Authentication required', 401);
-      }
-
-      const token = authHeader.slice(7);
-      try {
-        const payload = await verifyAccessToken(token);
-        const user = await prisma.user.findUnique({
-          where: { id: payload.sub },
-        });
-
-        if (!user || user.role !== 'ADMIN') {
-          await audit({
-            requestId: request.id,
-            userId: payload.sub,
-            tenantId: payload.tid,
-            action: AuditAction.ACCESS_DENIED,
-            ipAddress: request.ip,
-            userAgent: request.headers['user-agent'] ?? undefined,
-            metadata: { route: url, reason: 'not_admin' },
-          });
-          return sendError(reply, ERROR_CODES.FORBIDDEN, 'Access denied', 403);
-        }
-
-        await audit({
-          requestId: request.id,
-          userId: user.id,
-          tenantId: payload.tid,
-          action: AuditAction.ADMIN_ACTION,
-          ipAddress: request.ip,
-          userAgent: request.headers['user-agent'] ?? undefined,
-          metadata: { route: url, action: 'swagger_access' },
-        });
-      } catch {
-        return sendError(reply, ERROR_CODES.UNAUTHORIZED, 'Authentication required', 401);
-      }
+      return verifySwaggerAccess(request, reply, allowedIps, url);
     });
   }
 

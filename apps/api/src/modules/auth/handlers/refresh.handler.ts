@@ -20,6 +20,35 @@ import {
 } from '../auth.cookies';
 import { ACCESS_TOKEN_DURATION_MINUTES, REFRESH_TOKEN_DURATION_DAYS } from '../auth.session';
 
+async function handleReplayDetection(
+  request: FastifyRequest,
+  reply: FastifyReply,
+  userId: string,
+  sessionId: string,
+  tokenFamily: string | null,
+) {
+  await prisma.userSession.deleteMany({
+    where: tokenFamily ? { tokenFamily } : { userId },
+  });
+  await audit({
+    requestId: request.id,
+    userId,
+    tenantId: userId,
+    sessionId,
+    action: AuditAction.TOKEN_REPLAY_DETECTED,
+    ipAddress: request.ip,
+    userAgent: request.headers['user-agent'] ?? undefined,
+    metadata: { tokenFamily },
+  });
+  clearRefreshTokenCookie(reply);
+  return sendError(
+    reply,
+    ERROR_CODES.TOKEN_EXPIRED,
+    'Refresh token tidak valid atau sudah expired',
+    401,
+  );
+}
+
 export async function refreshHandler(request: FastifyRequest, reply: FastifyReply) {
   try {
     const refreshToken = request.cookies[REFRESH_TOKEN_COOKIE];
@@ -82,26 +111,7 @@ export async function refreshHandler(request: FastifyRequest, reply: FastifyRepl
 
     // Replay detection
     if (session.consumedAt) {
-      await prisma.userSession.deleteMany({
-        where: tokenFamily ? { tokenFamily } : { userId: session.userId },
-      });
-      await audit({
-        requestId: request.id,
-        userId: session.userId,
-        tenantId: session.userId,
-        sessionId: session.id,
-        action: AuditAction.TOKEN_REPLAY_DETECTED,
-        ipAddress: request.ip,
-        userAgent: request.headers['user-agent'] ?? undefined,
-        metadata: { tokenFamily },
-      });
-      clearRefreshTokenCookie(reply);
-      return sendError(
-        reply,
-        ERROR_CODES.TOKEN_EXPIRED,
-        'Refresh token tidak valid atau sudah expired',
-        401,
-      );
+      return handleReplayDetection(request, reply, session.userId, session.id, tokenFamily);
     }
 
     // Generate new tokens
@@ -145,26 +155,7 @@ export async function refreshHandler(request: FastifyRequest, reply: FastifyRepl
     );
 
     if (!rotationResult.rotated) {
-      await prisma.userSession.deleteMany({
-        where: tokenFamily ? { tokenFamily } : { userId: session.userId },
-      });
-      await audit({
-        requestId: request.id,
-        userId: session.userId,
-        tenantId: session.userId,
-        sessionId: session.id,
-        action: AuditAction.TOKEN_REPLAY_DETECTED,
-        ipAddress: request.ip,
-        userAgent: request.headers['user-agent'] ?? undefined,
-        metadata: { tokenFamily },
-      });
-      clearRefreshTokenCookie(reply);
-      return sendError(
-        reply,
-        ERROR_CODES.TOKEN_EXPIRED,
-        'Refresh token tidak valid atau sudah expired',
-        401,
-      );
+      return handleReplayDetection(request, reply, session.userId, session.id, tokenFamily);
     }
 
     setRefreshTokenCookie(reply, newRefreshToken, newRefreshExpiresAt);

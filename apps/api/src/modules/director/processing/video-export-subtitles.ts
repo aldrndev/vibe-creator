@@ -299,6 +299,34 @@ export function resolveSubtitleFontSize(
   return Math.max(DIRECTOR_SUBTITLE_FONT_SIZE_MIN, scaledFontSize);
 }
 
+function parseSpeakerStyle(item: unknown): SubtitleSpeakerStyle | null {
+  if (!item || typeof item !== 'object' || Array.isArray(item)) {
+    return null;
+  }
+
+  const speaker = 'speaker' in item && typeof item.speaker === 'string' ? item.speaker.trim() : '';
+  const label = 'label' in item && typeof item.label === 'string' ? item.label.trim() : speaker;
+  const textColorToken =
+    'textColorToken' in item && typeof item.textColorToken === 'string'
+      ? item.textColorToken.trim()
+      : '';
+  const bgColorToken =
+    'bgColorToken' in item && typeof item.bgColorToken === 'string'
+      ? item.bgColorToken.trim()
+      : undefined;
+
+  if (!speaker || !label || !textColorToken) {
+    return null;
+  }
+
+  return {
+    speaker,
+    label,
+    textColorToken,
+    ...(bgColorToken ? { bgColorToken } : {}),
+  };
+}
+
 export function normalizeSubtitleSpeakerStyles(value: unknown): SubtitleSpeakerStyle[] {
   if (!Array.isArray(value)) {
     return [];
@@ -306,32 +334,12 @@ export function normalizeSubtitleSpeakerStyles(value: unknown): SubtitleSpeakerS
 
   const speakerStyles: SubtitleSpeakerStyle[] = [];
   for (const item of value) {
-    if (!item || typeof item !== 'object' || Array.isArray(item)) {
+    const style = parseSpeakerStyle(item);
+    if (!style) {
       continue;
     }
 
-    const speaker =
-      'speaker' in item && typeof item.speaker === 'string' ? item.speaker.trim() : '';
-    const label = 'label' in item && typeof item.label === 'string' ? item.label.trim() : speaker;
-    const textColorToken =
-      'textColorToken' in item && typeof item.textColorToken === 'string'
-        ? item.textColorToken.trim()
-        : '';
-    const bgColorToken =
-      'bgColorToken' in item && typeof item.bgColorToken === 'string'
-        ? item.bgColorToken.trim()
-        : undefined;
-
-    if (!speaker || !label || !textColorToken) {
-      continue;
-    }
-
-    speakerStyles.push({
-      speaker,
-      label,
-      textColorToken,
-      ...(bgColorToken ? { bgColorToken } : {}),
-    });
+    speakerStyles.push(style);
 
     if (speakerStyles.length >= MAX_SPEAKER_STYLE_COUNT) {
       break;
@@ -523,7 +531,7 @@ function resolveSpeakerSubtitleStyle(
   style: SubtitleStyleOptions | undefined,
   speaker: string | undefined,
 ): SubtitleStyleOptions | undefined {
-  if (!style || style.speakerMode !== 'speaker-colors' || !speaker) {
+  if (style?.speakerMode !== 'speaker-colors' || !speaker) {
     return style;
   }
 
@@ -1483,12 +1491,12 @@ function resolveSubtitleCenterY(
     return defaultCenterY;
   }
 
-  const targetCenterY =
-    position === 'top'
-      ? renderHeight * TOP_TARGET_RATIO + halfBlock
-      : position === 'center'
-        ? defaultCenterY
-        : renderHeight * BOTTOM_TARGET_RATIO - halfBlock;
+  let targetCenterY = renderHeight * BOTTOM_TARGET_RATIO - halfBlock;
+  if (position === 'top') {
+    targetCenterY = renderHeight * TOP_TARGET_RATIO + halfBlock;
+  } else if (position === 'center') {
+    targetCenterY = defaultCenterY;
+  }
 
   return clamp(targetCenterY, minCenterY, maxCenterY);
 }
