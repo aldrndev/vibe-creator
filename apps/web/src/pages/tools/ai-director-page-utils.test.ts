@@ -3,6 +3,7 @@ import {
   isPlainAiDirectorEntry,
   resolveHydratedStep,
   shouldClearPlainEntrySession,
+  shouldSyncActiveSessionToSearch,
 } from '@/pages/tools/ai-director-page-utils';
 import type { DirectorStep } from '@/stores/director-store';
 
@@ -111,6 +112,48 @@ describe('shouldClearPlainEntrySession', () => {
         isPlainEntry: false,
         activeSessionId: 'session-from-url',
         hasInitializedManualEntry: false,
+      }),
+    ).toBe(false);
+  });
+});
+
+describe('shouldSyncActiveSessionToSearch', () => {
+  it('does not expose a freshly created import session before it has an asset', () => {
+    expect(
+      shouldSyncActiveSessionToSearch({
+        activeSessionId: 'fresh-session',
+        step: 'IMPORT',
+        hasAsset: false,
+      }),
+    ).toBe(false);
+  });
+
+  it('exposes an import session after an asset is attached', () => {
+    expect(
+      shouldSyncActiveSessionToSearch({
+        activeSessionId: 'asset-session',
+        step: 'IMPORT',
+        hasAsset: true,
+      }),
+    ).toBe(true);
+  });
+
+  it('exposes non-import sessions even when the asset payload is not present locally', () => {
+    expect(
+      shouldSyncActiveSessionToSearch({
+        activeSessionId: 'analysis-session',
+        step: 'ANALYZING',
+        hasAsset: false,
+      }),
+    ).toBe(true);
+  });
+
+  it('does not expose an empty session state', () => {
+    expect(
+      shouldSyncActiveSessionToSearch({
+        activeSessionId: null,
+        step: 'IMPORT',
+        hasAsset: false,
       }),
     ).toBe(false);
   });

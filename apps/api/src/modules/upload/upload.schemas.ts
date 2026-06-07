@@ -25,7 +25,12 @@ export const errorResponseSchema = z.object({
   error: z.object({
     code: z.string(),
     message: z.string(),
+    details: z.record(z.string(), z.unknown()).optional(),
   }),
+});
+
+export const uploadQuerySchema = z.object({
+  purpose: z.enum(['media', 'ai-director']).optional().default('media'),
 });
 
 // ============================================================================
@@ -37,6 +42,7 @@ export const uploadVideoRouteSchema = {
   summary: 'Upload video file',
   description: 'Upload a video file for processing. Maximum size depends on subscription.',
   consumes: ['multipart/form-data'],
+  querystring: uploadQuerySchema,
   response: {
     200: uploadResponseSchema,
     400: errorResponseSchema,

@@ -4,6 +4,7 @@ import { env } from '@/config/env';
 import { createCircuitBreaker } from '@/lib/circuit-breaker';
 import { logger } from '@/lib/logger';
 import { assertSafeUrl } from '@/utils/ssrf';
+import type { DownloadVideoOptions } from '../download.service';
 
 interface CobaltResponse {
   status: 'error' | 'redirect' | 'tunnel' | 'picker';
@@ -17,6 +18,12 @@ interface CobaltRequestPayload {
   url: string;
   filenameStyle: 'basic';
   downloadMode: 'auto';
+}
+
+function assertWithinMaxBytes(bytes: number, maxBytes?: number): void {
+  if (typeof maxBytes === 'number' && bytes > maxBytes) {
+    throw new Error('Downloaded file exceeds the allowed size');
+  }
 }
 
 export function buildCobaltRequestPayload(url: string): CobaltRequestPayload {
@@ -50,6 +57,7 @@ export const downloadCobaltService = {
     url: string,
     outputPath: string,
     onProgress?: (percent: number) => void,
+    options?: DownloadVideoOptions,
   ): Promise<{ title: string; metadata: Record<string, unknown> }> {
     await assertSafeUrl(url);
 
@@ -123,6 +131,7 @@ export const downloadCobaltService = {
 
     const contentLength = fileResponse.headers.get('content-length');
     const total = contentLength ? parseInt(contentLength, 10) : 0;
+    assertWithinMaxBytes(total, options?.maxBytes);
 
     // If we can't track progress or response.body is null, fallback to buffer
     if (!fileResponse.body || total === 0) {
@@ -132,6 +141,7 @@ export const downloadCobaltService = {
       if (buffer.length === 0) {
         throw new Error('Downloaded file is empty (0 bytes)');
       }
+      assertWithinMaxBytes(buffer.length, options?.maxBytes);
       await writeFile(outputPath, buffer);
       if (onProgress) onProgress(100);
     } else {
@@ -147,6 +157,7 @@ export const downloadCobaltService = {
         if (done) break;
 
         loaded += value.length;
+        assertWithinMaxBytes(loaded, options?.maxBytes);
         if (onProgress && total > 0) {
           // Progress from 50% to 99% for the actual download
           onProgress(50 + Math.min((loaded / total) * 50, 49));

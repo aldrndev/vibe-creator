@@ -54,7 +54,7 @@ const envSchema = z.object({
   FRONTEND_URL: z.url(),
 
   // Video Processing
-  MAX_VIDEO_DURATION_MS: z.coerce.number().default(3600000), // 60 minutes
+  MAX_VIDEO_DURATION_MS: z.coerce.number().default(7200000), // 120 minutes
   MAX_UPLOAD_SIZE_MB: z.coerce.number().default(2048), // 2GB
   TEMP_DIR: z.string().default('./temp'),
   OUTPUT_DIR: z.string().default('./output'),
@@ -74,6 +74,15 @@ const envSchema = z.object({
   YOUTUBE_API_KEY: optionalNonEmptyStringSchema,
   OLLAMA_BASE_URL: optionalUrlSchema,
   OLLAMA_MODEL: z.string().min(1).default('qwen3:14b'),
+  DIRECTOR_ANALYSIS_REFINE_LIMIT: z.coerce.number().int().min(1).max(20).default(12),
+  DIRECTOR_ANALYSIS_FINAL_LIMIT: z.coerce.number().int().min(1).max(20).default(7),
+  DIRECTOR_LOCAL_RERANK_ENABLED: z
+    .enum(['true', 'false', '1', '0'])
+    .optional()
+    .transform((val) => (val === undefined ? false : val === 'true' || val === '1')),
+  DIRECTOR_LOCAL_RERANK_TIMEOUT_MS: z.coerce.number().int().positive().default(20000),
+  DIRECTOR_CLIP_PREVIEW_CONCURRENCY: z.coerce.number().int().min(1).max(3).default(1),
+  DIRECTOR_FINAL_PREVIEW_CONCURRENCY: z.coerce.number().int().min(1).max(2).default(1),
   WHISPER_MODEL_SIZE: z
     .enum(['tiny', 'base', 'small', 'medium', 'large-v2', 'large-v3'])
     .default('medium'),

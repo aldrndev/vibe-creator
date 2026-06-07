@@ -26,14 +26,13 @@ description: Add a new feature following project rules and planning flow.
    - Create/update components, services, API endpoints
    - Follow architecture pattern in rules (Controller → Service → Repository)
    - Follow naming conventions and file structure from `2.3-blueprint.md`
-// turbo
+   - After each significant change: `pnpm biome check --changed --diagnostic-level=warn`
 6. Write tests per `7.1-testing.md`:
    - Unit tests for new logic
    - Integration tests for new API endpoints
    - Test co-change rule: every logic change MUST have a corresponding test change
 7. Update `PROJECT.yaml` features list (add the new feature)
-// turbo
-8. Run verification: `pnpm biome check .` + `pnpm tsc --noEmit` + `pnpm test`
+8. Final verification: `pnpm biome check --changed --diagnostic-level=warn` + `pnpm tsc --noEmit` + `pnpm test`
 9. Display change summary
 
 ## Rules

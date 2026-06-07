@@ -1,5 +1,7 @@
 import { logger } from '@/lib/logger';
+import { directorClipPreviewWorker } from '@/modules/director/clip-preview.worker';
 import { directorWorker } from '@/modules/director/director.worker';
+import { directorFinalPreviewWorker } from '@/modules/director/final-preview.worker';
 import { trendingRetentionWorker } from '@/modules/trending/jobs/retention.processor';
 import { trendingRefreshWorker } from '@/modules/trending/jobs/trending.processor';
 import { initTrendingSchedules } from '@/modules/trending/jobs/trending.queue';
@@ -24,6 +26,22 @@ export async function startWorkers() {
     logger.error({ err }, '🎬 Director Worker error');
   });
 
+  directorClipPreviewWorker.on('ready', () => {
+    logger.info('🎞️ Director Clip Preview Worker ready');
+  });
+
+  directorClipPreviewWorker.on('error', (err) => {
+    logger.error({ err }, '🎞️ Director Clip Preview Worker error');
+  });
+
+  directorFinalPreviewWorker.on('ready', () => {
+    logger.info('🎞️ Director Final Preview Worker ready');
+  });
+
+  directorFinalPreviewWorker.on('error', (err) => {
+    logger.error({ err }, '🎞️ Director Final Preview Worker error');
+  });
+
   // Trending Workers
   trendingRefreshWorker.on('ready', () => {
     logger.info('📈 Trending Refresh Worker ready');
@@ -44,6 +62,8 @@ export async function startWorkers() {
   // Keep workers alive
   return {
     directorWorker,
+    directorClipPreviewWorker,
+    directorFinalPreviewWorker,
     trendingRefreshWorker,
     trendingRetentionWorker,
   };

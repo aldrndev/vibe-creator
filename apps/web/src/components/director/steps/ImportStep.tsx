@@ -1,17 +1,39 @@
-import { AlertCircle, FileVideo, Link as LinkIcon, Plus, Sparkles, Wand2 } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Badge, Button, Card, CardBody, Input } from '@/components/ui';
+import {
+  type DirectorSourceTierLimit,
+  getDirectorSourceTierLimits,
+  type SubscriptionTier,
+} from '@vibe-creator/shared';
+import {
+  AlertCircle,
+  CheckCircle2,
+  FileVideo,
+  Link as LinkIcon,
+  Plus,
+  Sparkles,
+  Wand2,
+} from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Button, Card, CardBody, Input } from '@/components/ui';
 import type { TrendingImportContext } from '@/lib/ai-director-trending-context';
-import { targetDurationRangeOptions } from '@/lib/director-target-duration';
 import { cn } from '@/lib/utils';
-import { authFetch } from '@/services/api';
+import { authFetch, getApiUrl } from '@/services/api';
+import { useAuthStore } from '@/stores/auth-store';
 import type { DirectorSession } from '@/stores/director-store';
 import { useDirectorStore } from '@/stores/director-store';
+import {
+  isExpiredDirectorSessionError,
+  normalizeDirectorImportErrorMessage,
+  readDirectorApiData,
+  readDirectorApiSuccess,
+} from './import-session-recovery';
 import { SupportedSourcesModal } from './SupportedSourcesModal';
 import { TrendingImportEntry } from './trending-import-entry';
 
 const INITIAL_UPLOAD_PROGRESS = 0;
+const LOCAL_VIDEO_METADATA_TIMEOUT_MS = 2500;
+const supportedSourceLabels = ['YouTube', 'TikTok', 'Instagram', 'Facebook'] as const;
 type AssetIngestStatus = 'UPLOADING' | 'READY' | 'FAILED';
+type FileUploadPhase = 'idle' | 'checking' | 'uploading' | 'importing';
 
 interface AssetStatusResponseData {
   readonly status: AssetIngestStatus;
@@ -24,6 +46,175 @@ interface ImportStepProps {
   readonly initialSourceUrl?: string | null;
   readonly trendingImportContext?: TrendingImportContext | null;
   readonly onClearInitialContext?: () => void;
+}
+
+type DirectorSessionAsset = NonNullable<DirectorSession['asset']>;
+
+interface DirectorAssetImportResponse extends Omit<DirectorSessionAsset, 'ingestStatus'> {
+  readonly ingestStatus?: AssetIngestStatus;
+}
+
+interface UploadVideoResponse {
+  readonly uploadToken: string;
+}
+
+interface UploadDirectorVideoOptions {
+  readonly file: File;
+  readonly onProgress: (progress: number) => void;
+}
+
+function buildXhrResponse(xhr: XMLHttpRequest): Response {
+  const headers = new Headers();
+  const rawHeaders = xhr.getAllResponseHeaders().trim();
+
+  if (rawHeaders) {
+    for (const line of rawHeaders.split(/[\r\n]+/)) {
+      const separatorIndex = line.indexOf(':');
+      if (separatorIndex <= 0) {
+        continue;
+      }
+
+      headers.append(line.slice(0, separatorIndex).trim(), line.slice(separatorIndex + 1).trim());
+    }
+  }
+
+  return new Response(xhr.responseText, {
+    status: xhr.status,
+    statusText: xhr.statusText,
+    headers,
+  });
+}
+
+function uploadDirectorVideoWithCurrentToken({
+  file,
+  onProgress,
+}: UploadDirectorVideoOptions): Promise<Response> {
+  return new Promise((resolve, reject) => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const xhr = new globalThis.XMLHttpRequest();
+    xhr.open('POST', getApiUrl('/api/v1/upload/video?purpose=ai-director'));
+    xhr.withCredentials = true;
+
+    const token = useAuthStore.getState().accessToken;
+    if (token) {
+      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    }
+
+    xhr.upload.onprogress = (event) => {
+      if (!event.lengthComputable || event.total <= 0) {
+        return;
+      }
+
+      onProgress(Math.min(99, Math.round((event.loaded / event.total) * 100)));
+    };
+
+    const rejectUpload = () =>
+      reject(
+        new Error(
+          'Upload terputus. Coba lagi dengan koneksi stabil, atau gunakan Import URL jika video tersedia di sumber yang didukung.',
+        ),
+      );
+
+    xhr.onload = () => resolve(buildXhrResponse(xhr));
+    xhr.onerror = rejectUpload;
+    xhr.onabort = rejectUpload;
+    xhr.ontimeout = rejectUpload;
+
+    xhr.send(formData);
+  });
+}
+
+async function uploadDirectorVideoWithProgress(
+  options: UploadDirectorVideoOptions,
+): Promise<Response> {
+  if (!useAuthStore.getState().accessToken) {
+    await useAuthStore.getState().refreshAccessToken();
+  }
+
+  let response = await uploadDirectorVideoWithCurrentToken(options);
+
+  if (response.status === 401) {
+    const refreshed = await useAuthStore.getState().refreshAccessToken();
+    if (refreshed) {
+      options.onProgress(0);
+      response = await uploadDirectorVideoWithCurrentToken(options);
+    }
+  }
+
+  return response;
+}
+
+function resolveClientDirectorLimits(
+  role: 'USER' | 'ADMIN' | undefined,
+  tier: SubscriptionTier | undefined,
+): DirectorSourceTierLimit | null {
+  if (role === 'ADMIN') {
+    return null;
+  }
+
+  return getDirectorSourceTierLimits(tier ?? 'FREE');
+}
+
+function buildFileTooLargeMessage(limits: DirectorSourceTierLimit): string {
+  return `File melebihi batas paket kamu. Maksimal ${limits.maxSizeLabel} atau ${limits.maxDurationLabel}. Pilih video yang lebih kecil, kompres video, atau upgrade paket.`;
+}
+
+function buildVideoTooLongMessage(limits: DirectorSourceTierLimit): string {
+  return `Durasi video melebihi batas paket kamu. Maksimal ${limits.maxDurationLabel}. Pilih video yang lebih pendek atau upgrade paket.`;
+}
+
+function getFileUploadStatusLabel(phase: FileUploadPhase): string {
+  switch (phase) {
+    case 'checking':
+      return 'Mengecek file...';
+    case 'uploading':
+      return 'Mengupload video...';
+    case 'importing':
+      return 'Menyiapkan analisis...';
+    case 'idle':
+      return '';
+  }
+}
+
+function readLocalVideoDurationMs(file: File): Promise<number | null> {
+  if (!file.type.startsWith('video/')) {
+    return Promise.resolve(null);
+  }
+
+  return new Promise((resolve) => {
+    const objectUrl = globalThis.URL.createObjectURL(file);
+    const video = document.createElement('video');
+    let isSettled = false;
+    let timeoutId: ReturnType<typeof globalThis.setTimeout>;
+
+    const cleanup = () => {
+      globalThis.URL.revokeObjectURL(objectUrl);
+      video.removeAttribute('src');
+      video.load();
+    };
+
+    const settle = (durationMs: number | null) => {
+      if (isSettled) {
+        return;
+      }
+      isSettled = true;
+      globalThis.clearTimeout(timeoutId);
+      cleanup();
+      resolve(durationMs);
+    };
+
+    timeoutId = globalThis.setTimeout(() => settle(null), LOCAL_VIDEO_METADATA_TIMEOUT_MS);
+
+    video.preload = 'metadata';
+    video.onloadedmetadata = () => {
+      const durationMs = Number.isFinite(video.duration) ? Math.round(video.duration * 1000) : null;
+      settle(durationMs);
+    };
+    video.onerror = () => settle(null);
+    video.src = objectUrl;
+  });
 }
 
 function getAssetProgress(
@@ -69,26 +260,6 @@ function clearPollingInterval(intervalId: ReturnType<typeof setInterval> | undef
   }
 }
 
-function getDirectorApiErrorMessage(data: unknown, fallback: string): string {
-  if (!data || typeof data !== 'object' || !('error' in data)) {
-    return fallback;
-  }
-
-  const errorValue = data.error;
-  if (!errorValue || typeof errorValue !== 'object' || !('message' in errorValue)) {
-    return fallback;
-  }
-
-  return typeof errorValue.message === 'string' && errorValue.message.trim()
-    ? errorValue.message
-    : fallback;
-}
-
-function isExpiredSessionMessage(message: string): boolean {
-  const normalized = message.toLowerCase();
-  return normalized.includes('expired') || normalized.includes('kedaluwarsa');
-}
-
 export const ImportStep = ({
   initialTopic,
   initialSourceUrl,
@@ -103,20 +274,21 @@ export const ImportStep = ({
     error,
     isWaitingForAsset,
     downloadProgress,
-    targetDurationRange,
     setSession,
     setStep,
     setLoading,
     setError,
-    setTargetDurationRange,
     setWaitingForAsset,
     setDownloadProgress,
     reset,
   } = useDirectorStore();
+  const { user, subscription } = useAuthStore();
 
   const [isSourcesModalOpen, setIsSourcesModalOpen] = useState(false);
   const [isSubmittingImport, setIsSubmittingImport] = useState(false);
   const [isPreparingAnalysis, setIsPreparingAnalysis] = useState(false);
+  const [fileUploadPhase, setFileUploadPhase] = useState<FileUploadPhase>('idle');
+  const [fileUploadProgress, setFileUploadProgress] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const sessionRef = useRef(activeSession);
   const resumeAnalysisKeyRef = useRef<string | null>(null);
@@ -125,6 +297,19 @@ export const ImportStep = ({
   const activeSessionId = activeSession?.id ?? null;
   const assetId = activeSession?.asset?.id ?? null;
   const assetStatus = activeSession?.asset?.ingestStatus ?? null;
+  const clientSourceLimits = useMemo(
+    () => resolveClientDirectorLimits(user?.role, subscription?.tier),
+    [subscription?.tier, user?.role],
+  );
+  const isUploadingFile = fileUploadPhase !== 'idle';
+  const maxRequirementLabel = clientSourceLimits
+    ? `Maks ${clientSourceLimits.maxSizeLabel} / ${clientSourceLimits.maxDurationLabel}`
+    : 'Maks internal admin';
+  const sourceRequirements = useMemo(
+    () => ['Minimal 5 menit', maxRequirementLabel, 'Podcast, interview, edukasi, reaction panjang'],
+    [maxRequirementLabel],
+  );
+  const fileUploadStatusLabel = getFileUploadStatusLabel(fileUploadPhase);
 
   useEffect(() => {
     sessionRef.current = activeSession;
@@ -155,30 +340,33 @@ export const ImportStep = ({
     onClearInitialContext?.();
   };
 
-  const handleCreateSession = async () => {
+  const createSession = useCallback(async (): Promise<DirectorSession> => {
+    const response = await authFetch('/api/v1/director/sessions', {
+      method: 'POST',
+    });
+    const session = await readDirectorApiData<DirectorSession>(
+      response,
+      'Failed to create session',
+    );
+    setSession(session);
+    return session;
+  }, [setSession]);
+
+  const handleCreateSession = useCallback(async () => {
     try {
-      const res = await authFetch('/api/v1/director/sessions', {
-        method: 'POST',
-      });
-      if (!res.ok) throw new Error('Failed to create session');
-      const data = await res.json();
-      if (data.success) {
-        setSession(data.data);
-        return data.data;
-      }
-      throw new Error(getDirectorApiErrorMessage(data, 'Failed to create session'));
+      return await createSession();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
     }
     return null;
-  };
+  }, [createSession, setError]);
 
   const rollbackSession = useCallback(
     async (sessionId: string, preserveError?: string) => {
       try {
         await authFetch(`/api/v1/director/sessions/${sessionId}`, { method: 'DELETE' });
-      } catch (e) {
-        console.error('Failed to rollback session', e);
+      } catch {
+        // Best-effort cleanup only; user-facing recovery continues below.
       }
       reset();
       if (preserveError) {
@@ -196,17 +384,13 @@ export const ImportStep = ({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            targetDurationRange,
+            targetDurationRange: 'auto',
           }),
         });
-        const data = await res.json();
-        if (data.success) {
-          setStep('ANALYZING');
-          setWaitingForAsset(false);
-          setLoading(false);
-        } else {
-          throw new Error(getDirectorApiErrorMessage(data, 'Analysis start failed'));
-        }
+        await readDirectorApiSuccess(res, 'Analysis start failed');
+        setStep('ANALYZING');
+        setWaitingForAsset(false);
+        setLoading(false);
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Analysis failed';
         setWaitingForAsset(false);
@@ -216,7 +400,95 @@ export const ImportStep = ({
         setIsPreparingAnalysis(false);
       }
     },
-    [rollbackSession, setLoading, setStep, setWaitingForAsset, targetDurationRange],
+    [rollbackSession, setLoading, setStep, setWaitingForAsset],
+  );
+
+  const recoverExpiredSession = useCallback(
+    async (preservedImportUrl?: string): Promise<DirectorSession | null> => {
+      reset();
+      setWaitingForAsset(false);
+      setDownloadProgress(0);
+      setLoading(false);
+
+      if (preservedImportUrl) {
+        setImportUrl(preservedImportUrl);
+      }
+
+      try {
+        return await createSession();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Gagal membuat sesi AI Director baru');
+        return null;
+      }
+    },
+    [
+      createSession,
+      reset,
+      setDownloadProgress,
+      setError,
+      setImportUrl,
+      setLoading,
+      setWaitingForAsset,
+    ],
+  );
+
+  const importUrlIntoSession = useCallback(
+    async (session: DirectorSession, urlToImport: string) => {
+      const response = await authFetch(`/api/v1/director/sessions/${session.id}/import`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'url', url: urlToImport }),
+      });
+      const importData = await readDirectorApiData<DirectorAssetImportResponse>(
+        response,
+        'Import failed',
+      );
+      const newAsset: DirectorSessionAsset = {
+        ...importData,
+        ingestStatus: importData.ingestStatus ?? 'UPLOADING',
+      };
+
+      setWaitingForAsset(true);
+      setSession({
+        ...session,
+        asset: newAsset,
+      });
+
+      if (importData.ingestStatus === 'READY') {
+        setDownloadProgress(100);
+        await startAnalysis(session.id);
+      }
+    },
+    [setDownloadProgress, setSession, setWaitingForAsset, startAnalysis],
+  );
+
+  const importUploadTokenIntoSession = useCallback(
+    async (session: DirectorSession, uploadToken: string) => {
+      const response = await authFetch(`/api/v1/director/sessions/${session.id}/import`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'file',
+          filePath: uploadToken,
+        }),
+      });
+      const importData = await readDirectorApiData<DirectorAssetImportResponse>(
+        response,
+        'Import failed',
+      );
+      const importedAsset: DirectorSessionAsset = {
+        ...importData,
+        ingestStatus: 'READY',
+      };
+
+      setSession({
+        ...session,
+        asset: importedAsset,
+      });
+      setDownloadProgress(100);
+      await startAnalysis(session.id);
+    },
+    [setDownloadProgress, setSession, startAnalysis],
   );
 
   const handleUrlImport = async (urlOverride?: string) => {
@@ -228,8 +500,7 @@ export const ImportStep = ({
 
     setIsSubmittingImport(true);
     setError(null);
-    let session = activeSession;
-    session ??= await handleCreateSession();
+    const session = await handleCreateSession();
     if (!session || !urlToImport) {
       setIsSubmittingImport(false);
       return;
@@ -237,103 +508,138 @@ export const ImportStep = ({
 
     try {
       setDownloadProgress(0);
-      const res = await authFetch(`/api/v1/director/sessions/${session.id}/import`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'url', url: urlToImport }),
-      });
-      const data = await res.json();
-      if (!data.success) throw new Error(getDirectorApiErrorMessage(data, 'Import failed'));
-
-      const newAsset = { ...data.data, ingestStatus: 'UPLOADING' };
-      setWaitingForAsset(true);
-      setSession({
-        ...session,
-        asset: newAsset,
-      });
-
-      if (data.data.ingestStatus === 'READY') {
-        setDownloadProgress(100);
-        await startAnalysis(session.id);
-      }
+      await importUrlIntoSession(session, urlToImport);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Import failed';
       setWaitingForAsset(false);
-      if (isExpiredSessionMessage(msg)) {
-        reset();
-        setImportUrl(urlToImport);
-        setError('Sesi lama sudah expired. Mulai sesi baru lalu coba lagi.');
-      } else if (session) {
-        void rollbackSession(session.id, msg);
-      } else {
-        setError(msg);
+
+      if (isExpiredDirectorSessionError(err)) {
+        const replacementSession = await recoverExpiredSession(urlToImport);
+        if (!replacementSession) {
+          return;
+        }
+
+        try {
+          await importUrlIntoSession(replacementSession, urlToImport);
+        } catch (retryError) {
+          const retryMessage = normalizeDirectorImportErrorMessage(retryError, 'Import failed');
+          if (isExpiredDirectorSessionError(retryError)) {
+            reset();
+            setImportUrl(urlToImport);
+            setError('Sesi AI Director sudah expired. Mulai sesi baru atau cek Riwayat.');
+          } else {
+            void rollbackSession(replacementSession.id, retryMessage);
+          }
+        }
+        return;
       }
+
+      const msg = normalizeDirectorImportErrorMessage(err, 'Import failed');
+      void rollbackSession(session.id, msg);
     } finally {
       setIsSubmittingImport(false);
     }
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const inputElement = e.currentTarget;
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setLoading(true);
     setError(null);
-    let session = activeSession;
-    session ??= await handleCreateSession();
+    setFileUploadPhase('checking');
+    setFileUploadProgress(0);
+
+    if (clientSourceLimits && file.size > clientSourceLimits.maxSizeBytes) {
+      setError(buildFileTooLargeMessage(clientSourceLimits));
+      inputElement.value = '';
+      setFileUploadPhase('idle');
+      return;
+    }
+
+    const localDurationMs = await readLocalVideoDurationMs(file);
+    if (
+      clientSourceLimits &&
+      localDurationMs !== null &&
+      localDurationMs < clientSourceLimits.minDurationMs
+    ) {
+      setError(
+        'Video terlalu pendek. AI Director butuh video minimal 5 menit. Untuk video pendek, gunakan Video Studio.',
+      );
+      inputElement.value = '';
+      setFileUploadPhase('idle');
+      return;
+    }
+
+    if (
+      clientSourceLimits &&
+      localDurationMs !== null &&
+      localDurationMs > clientSourceLimits.maxDurationMs
+    ) {
+      setError(buildVideoTooLongMessage(clientSourceLimits));
+      inputElement.value = '';
+      setFileUploadPhase('idle');
+      return;
+    }
+
+    setLoading(true);
+    const session = await handleCreateSession();
     if (!session) {
       setLoading(false);
+      setFileUploadPhase('idle');
       return;
     }
 
     try {
       setWaitingForAsset(false);
       setDownloadProgress(0);
+      setFileUploadPhase('uploading');
 
-      const formData = new FormData();
-      formData.append('file', file);
-
-      const uploadRes = await authFetch('/api/v1/upload/video', {
-        method: 'POST',
-        body: formData,
+      const uploadRes = await uploadDirectorVideoWithProgress({
+        file,
+        onProgress: setFileUploadProgress,
       });
+      setFileUploadProgress(100);
 
-      const uploadData = await uploadRes.json();
-      if (!uploadData.success) {
-        throw new Error(getDirectorApiErrorMessage(uploadData, 'Upload failed'));
+      const uploadData = await readDirectorApiData<UploadVideoResponse>(uploadRes, 'Upload failed');
+
+      try {
+        setFileUploadPhase('importing');
+        await importUploadTokenIntoSession(session, uploadData.uploadToken);
+      } catch (importError) {
+        if (!isExpiredDirectorSessionError(importError)) {
+          throw importError;
+        }
+
+        const replacementSession = await recoverExpiredSession();
+        if (!replacementSession) {
+          setFileUploadPhase('idle');
+          setFileUploadProgress(0);
+          return;
+        }
+
+        try {
+          setFileUploadPhase('importing');
+          await importUploadTokenIntoSession(replacementSession, uploadData.uploadToken);
+        } catch (retryError) {
+          const retryMessage = normalizeDirectorImportErrorMessage(retryError, 'Import failed');
+          if (isExpiredDirectorSessionError(retryError)) {
+            reset();
+            setFileUploadPhase('idle');
+            setFileUploadProgress(0);
+            setError('Sesi AI Director sudah expired. Mulai sesi baru atau cek Riwayat.');
+          } else {
+            void rollbackSession(replacementSession.id, retryMessage);
+          }
+        }
       }
-
-      const importRes = await authFetch(`/api/v1/director/sessions/${session.id}/import`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'file',
-          filePath: uploadData.data.uploadToken,
-        }),
-      });
-
-      const importData = await importRes.json();
-      if (!importData.success) {
-        throw new Error(getDirectorApiErrorMessage(importData, 'Import failed'));
-      }
-
-      setSession({
-        ...session,
-        asset: { ...importData.data, ingestStatus: 'READY' },
-      });
-      setDownloadProgress(100);
-      await startAnalysis(session.id);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Upload failed';
+      const msg = normalizeDirectorImportErrorMessage(err, 'Upload failed');
       setLoading(false);
-      if (isExpiredSessionMessage(msg)) {
-        reset();
-        setError('Sesi lama sudah expired. Mulai sesi baru lalu pilih video lagi.');
-      } else if (session) {
-        void rollbackSession(session.id, msg);
-      } else {
-        setError(msg);
-      }
+      setFileUploadPhase('idle');
+      setFileUploadProgress(0);
+      void rollbackSession(session.id, msg);
+    } finally {
+      inputElement.value = '';
     }
   };
 
@@ -463,7 +769,7 @@ export const ImportStep = ({
           </div>
         ) : null}
 
-        <CardBody className="p-6 sm:p-10 flex flex-col items-center text-center gap-3">
+        <CardBody className="p-6 sm:p-10 flex flex-col items-center text-center gap-4">
           {trendingImportContext ? (
             <>
               {error ? (
@@ -474,12 +780,10 @@ export const ImportStep = ({
               ) : null}
               <TrendingImportEntry
                 context={trendingImportContext}
-                targetDurationRange={targetDurationRange}
                 isSubmittingImport={isSubmittingImport}
                 isWaitingForAsset={isWaitingForAsset}
                 isPreparingAnalysis={isPreparingAnalysis}
                 downloadProgress={downloadProgress}
-                onTargetDurationRangeChange={setTargetDurationRange}
                 onStartAnalysis={() => {
                   void handleUrlImport(trendingImportContext.sourceUrl);
                 }}
@@ -488,17 +792,34 @@ export const ImportStep = ({
             </>
           ) : (
             <>
-              <div className="w-12 h-12 rounded-xl bg-linear-to-br from-primary via-orange-500 to-rose-600 flex items-center justify-center mb-2">
-                <Wand2 className="w-6 h-6 text-white drop-shadow-sm" />
+              <div className="flex flex-col items-center gap-3">
+                <div className="inline-flex items-center gap-2 rounded-full border border-primary/15 bg-primary/5 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-primary">
+                  <Wand2 size={14} strokeWidth={2.5} />
+                  AI Director
+                </div>
+                <div className="space-y-2">
+                  <h2 className="text-2xl font-black tracking-tight text-foreground sm:text-3xl">
+                    Masukkan video panjang
+                  </h2>
+                  <p className="mx-auto max-w-xl text-sm font-medium leading-relaxed text-muted-foreground sm:text-base">
+                    Upload file atau tempel URL, lalu AI Director mencari momen terbaik untuk
+                    dijadikan Short.
+                  </p>
+                </div>
               </div>
 
-              <div className="space-y-3">
-                <h2 className="text-3xl sm:text-4xl font-black tracking-tight bg-clip-text text-transparent bg-linear-to-br from-primary via-orange-500 to-rose-600">
-                  AI Director
-                </h2>
-                <p className="text-muted-foreground max-w-md mx-auto leading-relaxed font-medium">
-                  Ubah video panjang kamu menjadi Shorts yang viral dalam hitungan menit. 🚀
-                </p>
+              <div className="flex w-full flex-wrap items-center justify-center gap-2">
+                {sourceRequirements.map((requirement) => (
+                  <div
+                    key={requirement}
+                    className="inline-flex min-h-9 items-center gap-2 rounded-full border border-border/50 bg-muted/20 px-3 py-1.5 text-left"
+                  >
+                    <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-primary" />
+                    <p className="text-xs font-bold leading-tight text-muted-foreground">
+                      {requirement}
+                    </p>
+                  </div>
+                ))}
               </div>
 
               {error && (
@@ -509,10 +830,10 @@ export const ImportStep = ({
               )}
 
               {initialTopic || initialSourceUrl ? (
-                <div className="w-full rounded-3xl border border-primary/20 bg-primary/10 p-4 text-left">
+                <div className="w-full rounded-3xl border border-primary/15 bg-primary/5 p-4 text-left">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div className="flex min-w-0 gap-3">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-primary/15 text-primary">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
                         <Sparkles size={18} />
                       </div>
                       <div className="min-w-0 space-y-1">
@@ -520,7 +841,7 @@ export const ImportStep = ({
                           Ide dari Trending
                         </p>
                         {initialTopic ? (
-                          <p className="text-base font-black leading-snug text-foreground break-words">
+                          <p className="text-base font-black leading-snug text-foreground wrap-break-word">
                             {initialTopic}
                           </p>
                         ) : null}
@@ -530,7 +851,7 @@ export const ImportStep = ({
                           </p>
                         ) : null}
                         <p className="text-xs font-medium leading-relaxed text-muted-foreground">
-                          Klik Mulai Impor untuk download video sumber, lalu AI Director akan
+                          Klik Mulai Analisis untuk download video sumber, lalu AI Director akan
                           mencari potongan short terbaik.
                         </p>
                       </div>
@@ -550,58 +871,65 @@ export const ImportStep = ({
                 </div>
               ) : null}
 
-              <div className="w-full rounded-3xl border border-border/40 bg-muted/10 p-4 sm:p-5">
-                <div className="mb-3 text-left">
-                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground/60">
-                    Target Durasi Short
-                  </p>
-                  <p className="mt-1 text-xs font-medium text-muted-foreground">
-                    Analisa kandidat akan diprioritaskan mengikuti rentang durasi ini.
-                  </p>
-                </div>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-                  {targetDurationRangeOptions.map((option) => (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() => setTargetDurationRange(option.value)}
-                      className={cn(
-                        'rounded-2xl border px-2 py-2 text-center transition-all',
-                        targetDurationRange === option.value
-                          ? 'border-primary/40 bg-primary/10 text-primary'
-                          : 'border-border/40 bg-card/40 text-muted-foreground hover:border-primary/30 hover:text-foreground',
-                      )}
-                      disabled={isSubmittingImport || isWaitingForAsset || isPreparingAnalysis}
-                    >
-                      <p className="text-[11px] font-black tracking-wide">{option.label}</p>
-                      <p className="mt-1 text-[10px] font-medium opacity-80">{option.helper}</p>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-6 mt-2">
+              <div className="mt-1 grid w-full grid-cols-1 gap-5 md:grid-cols-2">
                 {/* Upload Zone */}
                 <button
                   type="button"
-                  onClick={() => !isWaitingForAsset && fileInputRef.current?.click()}
+                  onClick={() =>
+                    !isWaitingForAsset && !isUploadingFile && fileInputRef.current?.click()
+                  }
                   className={cn(
-                    'group/upload relative min-h-64 rounded-3xl border-2 border-dashed border-border/40 transition-all flex flex-col items-center justify-center gap-4 bg-muted/5 overflow-hidden',
-                    isWaitingForAsset
-                      ? 'opacity-50 cursor-not-allowed'
-                      : 'hover:border-primary/60 hover:bg-primary/5 cursor-pointer active:scale-[0.98]',
+                    'group/upload relative flex min-h-56 flex-col items-center justify-center gap-4 overflow-hidden rounded-3xl border-2 border-dashed border-border/40 bg-muted/5 transition-all',
+                    isWaitingForAsset || isUploadingFile
+                      ? 'cursor-not-allowed opacity-50'
+                      : 'cursor-pointer hover:border-primary/45 hover:bg-primary/3 active:scale-[0.98]',
                   )}
-                  disabled={isWaitingForAsset}
+                  disabled={isWaitingForAsset || isUploadingFile}
                 >
-                  <div className="w-14 h-14 rounded-2xl bg-muted/50 group-hover/upload:bg-primary/20 flex items-center justify-center transition-all duration-300 group-hover/upload:scale-110">
-                    <FileVideo className="w-7 h-7 text-muted-foreground group-hover/upload:text-primary transition-colors" />
+                  {isUploadingFile ? (
+                    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-5 bg-background/90 p-8 backdrop-blur-md">
+                      <div className="w-full max-w-sm space-y-3">
+                        <div className="flex items-end justify-between text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                          <span className="flex items-center gap-2">
+                            <div className="size-2 animate-pulse rounded-full bg-primary" />
+                            {fileUploadStatusLabel}
+                          </span>
+                          {fileUploadPhase === 'uploading' ? (
+                            <span className="text-sm text-primary">
+                              {Math.round(fileUploadProgress)}%
+                            </span>
+                          ) : null}
+                        </div>
+                        <div className="h-3 w-full overflow-hidden rounded-full border border-border/20 bg-muted shadow-inner">
+                          <div
+                            className={cn(
+                              'h-full bg-linear-to-r from-primary via-orange-500 to-rose-600 transition-all duration-300 ease-out',
+                              fileUploadPhase === 'uploading' ? '' : 'animate-pulse',
+                            )}
+                            style={{
+                              width:
+                                fileUploadPhase === 'uploading' ? `${fileUploadProgress}%` : '100%',
+                            }}
+                          />
+                        </div>
+                      </div>
+                      <p className="text-center text-[11px] font-black uppercase tracking-widest text-muted-foreground/60">
+                        Biarkan halaman ini tetap terbuka sampai selesai.
+                      </p>
+                    </div>
+                  ) : null}
+                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-muted/50 transition-all duration-300 group-hover/upload:scale-110 group-hover/upload:bg-primary/10">
+                    <FileVideo className="h-7 w-7 text-muted-foreground transition-colors group-hover/upload:text-primary" />
                   </div>
-                  <div className="text-center px-4">
-                    <p className="font-bold text-foreground group-hover/upload:text-primary transition-colors">
+                  <div className="px-4 text-center">
+                    <p className="font-bold text-foreground transition-colors group-hover/upload:text-primary">
                       Upload File Video
                     </p>
-                    <p className="text-[11px] text-muted-foreground mt-1 font-medium bg-muted/30 px-3 py-1 rounded-full inline-block">
-                      MP4, MOV • Maks 200MB
+                    <p className="mt-1 inline-block rounded-full bg-muted/30 px-3 py-1 text-[11px] font-medium text-muted-foreground">
+                      MP4, MOV •{' '}
+                      {clientSourceLimits
+                        ? `Maks ${clientSourceLimits.maxSizeLabel}`
+                        : 'Maks internal'}
                     </p>
                   </div>
                   <input
@@ -610,49 +938,52 @@ export const ImportStep = ({
                     accept="video/*"
                     className="hidden"
                     onChange={handleFileUpload}
-                    disabled={isWaitingForAsset}
+                    disabled={isWaitingForAsset || isUploadingFile}
                   />
                 </button>
 
                 {/* URL Zone */}
-                <div className="min-h-64 rounded-3xl border border-border/50 bg-muted/5 p-8 flex flex-col justify-between relative overflow-hidden group/url">
+                <div className="group/url relative flex min-h-56 flex-col justify-between overflow-hidden rounded-3xl border border-border/50 bg-muted/5 p-6 sm:p-7">
                   {isWaitingForAsset ? (
-                    <div className="absolute inset-0 z-10 bg-background/90 backdrop-blur-md flex flex-col items-center justify-center p-8 gap-5">
+                    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-5 bg-background/90 p-8 backdrop-blur-md">
                       <div className="w-full space-y-3">
-                        <div className="flex justify-between items-end text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                        <div className="flex items-end justify-between text-xs font-bold uppercase tracking-widest text-muted-foreground">
                           <span className="flex items-center gap-2">
-                            <div className="size-2 rounded-full bg-primary animate-pulse" />
+                            <div className="size-2 animate-pulse rounded-full bg-primary" />
                             Mengunduh...
                           </span>
-                          <span className="text-primary text-sm">
+                          <span className="text-sm text-primary">
                             {Math.round(downloadProgress)}%
                           </span>
                         </div>
-                        <div className="w-full h-3 bg-muted rounded-full overflow-hidden shadow-inner border border-border/20">
+                        <div className="h-3 w-full overflow-hidden rounded-full border border-border/20 bg-muted shadow-inner">
                           <div
                             className="h-full bg-linear-to-r from-primary via-orange-500 to-rose-600 transition-all duration-300 ease-out"
                             style={{ width: `${downloadProgress}%` }}
                           />
                         </div>
                       </div>
-                      <p className="text-[11px] font-black uppercase tracking-widest text-muted-foreground/60 animate-pulse text-center">
+                      <p className="animate-pulse text-center text-[11px] font-black uppercase tracking-widest text-muted-foreground/60">
                         Mencari kualitas visual terbaik...
                       </p>
                     </div>
                   ) : null}
 
-                  <div className="flex flex-col items-center gap-3">
-                    <div className="w-14 h-14 rounded-2xl bg-muted/50 flex items-center justify-center group-hover/url:scale-110 transition-transform duration-300">
-                      <LinkIcon className="w-7 h-7 text-muted-foreground" />
+                  <div className="mb-2 flex flex-col items-center gap-3">
+                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-muted/50 transition-transform duration-300 group-hover/url:scale-110">
+                      <LinkIcon className="h-7 w-7 text-muted-foreground" />
                     </div>
                     <p className="font-bold text-foreground">
                       {initialSourceUrl && importUrl === initialSourceUrl
                         ? 'URL Trending Siap Diimpor'
                         : 'Impor dari URL'}
                     </p>
+                    <p className="max-w-xs text-xs font-medium leading-relaxed text-muted-foreground">
+                      Cocok untuk video online dari sumber yang didukung.
+                    </p>
                   </div>
 
-                  <div className="space-y-3">
+                  <div className="space-y-3 pt-1">
                     <Input
                       placeholder="Tempel link YouTube, TikTok..."
                       leftIcon={<LinkIcon size={20} />}
@@ -660,44 +991,52 @@ export const ImportStep = ({
                       onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                         setImportUrl(e.target.value)
                       }
-                      disabled={isSubmittingImport || isWaitingForAsset || isPreparingAnalysis}
+                      disabled={
+                        isSubmittingImport ||
+                        isUploadingFile ||
+                        isWaitingForAsset ||
+                        isPreparingAnalysis
+                      }
                     />
                     <Button
                       className="w-full rounded-2xl font-bold"
                       variant="default"
                       disabled={
-                        !importUrl || isSubmittingImport || isWaitingForAsset || isPreparingAnalysis
+                        !importUrl ||
+                        isSubmittingImport ||
+                        isWaitingForAsset ||
+                        isPreparingAnalysis ||
+                        isUploadingFile
                       }
                       isLoading={isSubmittingImport}
                       onClick={() => {
                         void handleUrlImport();
                       }}
                     >
-                      Mulai Impor
+                      Mulai Analisis
                     </Button>
                   </div>
                 </div>
               </div>
 
-              <div className="flex flex-wrap justify-center gap-3 mt-4">
-                {['YouTube', 'TikTok', 'Instagram', 'Facebook'].map((platform) => (
-                  <Badge
-                    key={platform}
-                    variant="secondary"
-                    className="px-4 py-1.5 rounded-full cursor-pointer hover:bg-primary/10 hover:text-primary transition-all duration-300 border border-transparent hover:border-primary/20 font-bold text-[10px] uppercase tracking-wider"
-                  >
-                    {platform}
-                  </Badge>
-                ))}
-                <Badge
-                  variant="default"
-                  className="px-4 py-1.5 rounded-full cursor-pointer transition-all duration-300 font-bold text-[10px] uppercase tracking-wider"
+              <div className="mt-2 flex flex-col items-center justify-center gap-2 text-center sm:flex-row">
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground/60">
+                  Sumber: {supportedSourceLabels.join(', ')}
+                </p>
+                <button
+                  type="button"
+                  className="inline-flex items-center rounded-full border border-border/50 bg-card/40 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-primary transition-colors hover:border-primary/25 hover:bg-primary/5"
                   onClick={() => setIsSourcesModalOpen(true)}
                 >
-                  <Plus size={14} className="mr-1.5" />
-                  Lainnya
-                </Badge>
+                  <Plus size={13} className="mr-1.5" />
+                  Lihat sumber lain
+                </button>
               </div>
+              <p className="max-w-3xl text-xs font-medium leading-relaxed text-muted-foreground">
+                Saat upload dari device, biarkan halaman tetap terbuka sampai selesai. Untuk video
+                online dari sumber yang didukung, Import URL bisa lebih stabil karena prosesnya
+                berjalan di server.
+              </p>
             </>
           )}
         </CardBody>

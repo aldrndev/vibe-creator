@@ -1,9 +1,6 @@
-import { Download, MonitorPlay, RefreshCcw, Scissors, X } from 'lucide-react';
+import { Download, MonitorPlay, RefreshCcw, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  LivePreviewMedia,
-  PreviewBadges,
-} from '@/components/director/steps/editing-live-preview-media';
+import { LivePreviewMedia } from '@/components/director/steps/editing-live-preview-media';
 import {
   canPlayFinalPreview,
   estimatePreviewProgressPercent,
@@ -13,7 +10,7 @@ import {
 import { deriveLivePreviewScene } from '@/components/director/steps/editing-live-preview-utils';
 import { Badge, Button, Modal, ModalBody, ModalContent } from '@/components/ui';
 import { useAuthenticatedObjectUrl } from '@/hooks/use-authenticated-object-url';
-import { getEffectiveRefineSettings, getResolvedContentMode } from '@/lib/director-refine-settings';
+import { getEffectiveRefineSettings } from '@/lib/director-refine-settings';
 import { logger } from '@/lib/logger';
 import { cn } from '@/lib/utils';
 import { authFetch, downloadAuthenticatedFile } from '@/services/api';
@@ -34,6 +31,232 @@ interface EditingLivePreviewProps {
   readonly refineSettings: Record<string, RefineSettings>;
 }
 
+type FinalPreviewJobStatus = 'READY' | 'QUEUED' | 'PROCESSING' | 'FAILED';
+
+const FINAL_PREVIEW_POLL_INTERVAL_MS = 1400;
+const FINAL_PREVIEW_PROGRESS_TICK_MS = 220;
+
+interface FinalPreviewJobData {
+  readonly status: FinalPreviewJobStatus;
+  readonly previewFileName: string;
+  readonly previewUrl?: string;
+  readonly downloadUrl?: string;
+  readonly progress?: number;
+}
+
+function parseFinalPreviewJobData(payload: unknown): FinalPreviewJobData | null {
+  if (typeof payload !== 'object' || payload === null || !('data' in payload)) {
+    return null;
+  }
+
+  const data = payload.data;
+  if (typeof data !== 'object' || data === null || !('status' in data)) {
+    return null;
+  }
+
+  const status = data.status;
+  if (status !== 'READY' && status !== 'QUEUED' && status !== 'PROCESSING' && status !== 'FAILED') {
+    return null;
+  }
+
+  if (!('previewFileName' in data) || typeof data.previewFileName !== 'string') {
+    return null;
+  }
+
+  return {
+    status,
+    previewFileName: data.previewFileName,
+    previewUrl:
+      'previewUrl' in data && typeof data.previewUrl === 'string' ? data.previewUrl : undefined,
+    downloadUrl:
+      'downloadUrl' in data && typeof data.downloadUrl === 'string' ? data.downloadUrl : undefined,
+    progress: 'progress' in data && typeof data.progress === 'number' ? data.progress : undefined,
+  };
+}
+
+async function readFinalPreviewJobData(
+  url: string,
+  init?: RequestInit,
+): Promise<FinalPreviewJobData> {
+  const response = await authFetch(url, init);
+  const payload = (await response.json()) as {
+    success?: boolean;
+    error?: { message?: string };
+  };
+
+  if (!response.ok || payload.success === false) {
+    throw new Error(payload.error?.message || 'Preview belum dapat dibuat');
+  }
+
+  const data = parseFinalPreviewJobData(payload);
+  if (!data) {
+    throw new Error('Preview belum dapat dibuat');
+  }
+
+  return data;
+}
+
+function waitForPreviewPoll(delayMs: number): Promise<void> {
+  return new Promise((resolve) => {
+    globalThis.setTimeout(resolve, delayMs);
+  });
+}
+
+function buildFinalPreviewStatusUrl(activeSessionId: string, previewFileName: string): string {
+  return `/api/v1/director/sessions/${activeSessionId}/export/preview/status?previewFileName=${encodeURIComponent(
+    previewFileName,
+  )}`;
+}
+
+async function startFinalPreviewJob(
+  activeSessionId: string,
+  previewPayloadJson: string,
+): Promise<FinalPreviewJobData> {
+  return readFinalPreviewJobData(`/api/v1/director/sessions/${activeSessionId}/export/preview`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: previewPayloadJson,
+  });
+}
+
+async function pollFinalPreviewJob(params: {
+  readonly activeSessionId: string;
+  readonly previewFileName: string;
+  readonly onProgress: (progress: number) => void;
+  readonly shouldContinue: () => boolean;
+}): Promise<FinalPreviewJobData> {
+  const { activeSessionId, previewFileName, onProgress, shouldContinue } = params;
+
+  while (shouldContinue()) {
+    await waitForPreviewPoll(FINAL_PREVIEW_POLL_INTERVAL_MS);
+    if (!shouldContinue()) {
+      throw new Error('Preview request cancelled');
+    }
+
+    const status = await readFinalPreviewJobData(
+      buildFinalPreviewStatusUrl(activeSessionId, previewFileName),
+    );
+
+    if (status.status === 'READY') {
+      return status;
+    }
+
+    if (status.status === 'FAILED') {
+      throw new Error('Preview belum dapat dibuat');
+    }
+
+    if (typeof status.progress === 'number') {
+      onProgress(status.progress);
+    }
+  }
+
+  throw new Error('Preview request cancelled');
+}
+
+function resolveReadyFinalPreviewUrls(data: FinalPreviewJobData): {
+  readonly previewUrl: string;
+  readonly downloadUrl: string;
+} {
+  if (!data.previewUrl || !data.downloadUrl) {
+    throw new Error('Preview belum dapat dibuat');
+  }
+
+  return {
+    previewUrl: data.previewUrl,
+    downloadUrl: data.downloadUrl,
+  };
+}
+
+function applyReadyFinalPreviewState(params: {
+  readonly data: FinalPreviewJobData;
+  readonly latestPayload: string | null;
+  readonly requestedPayload: string;
+  readonly setLastGeneratedPayloadKey: (value: string) => void;
+  readonly setPreviewDownloadPath: (value: string) => void;
+  readonly setPreviewError: (value: string | null) => void;
+  readonly setPreviewFileName: (value: string) => void;
+  readonly setPreviewProgressPercent: (value: number) => void;
+  readonly setPreviewStatus: (value: PreviewStatus) => void;
+  readonly setRenderPreviewPath: (value: string) => void;
+}): void {
+  const readyUrls = resolveReadyFinalPreviewUrls(params.data);
+
+  params.setPreviewProgressPercent(100);
+  params.setRenderPreviewPath(readyUrls.previewUrl);
+  params.setPreviewDownloadPath(readyUrls.downloadUrl);
+  params.setPreviewFileName(params.data.previewFileName);
+  params.setPreviewError(null);
+
+  if (params.requestedPayload === params.latestPayload) {
+    params.setLastGeneratedPayloadKey(params.requestedPayload);
+    params.setPreviewStatus('ready');
+    return;
+  }
+
+  params.setPreviewStatus('dirty');
+}
+
+async function generateAndInstallFinalPreview(params: {
+  readonly activeSessionId: string;
+  readonly isCurrentRequest: () => boolean;
+  readonly requestedPayload: string;
+  readonly setLastGeneratedPayloadKey: (value: string) => void;
+  readonly setPreviewDownloadPath: (value: string) => void;
+  readonly setPreviewError: (value: string | null) => void;
+  readonly setPreviewFileName: (value: string) => void;
+  readonly setPreviewProgressPercent: (value: number) => void;
+  readonly setPreviewStatus: (value: PreviewStatus) => void;
+  readonly setRenderPreviewPath: (value: string) => void;
+  readonly updatePreviewProgress: (progress: number) => void;
+  readonly getLatestPayload: () => string | null;
+}): Promise<void> {
+  const initialPreview = await startFinalPreviewJob(
+    params.activeSessionId,
+    params.requestedPayload,
+  );
+  if (!params.isCurrentRequest()) {
+    return;
+  }
+
+  params.setPreviewFileName(initialPreview.previewFileName);
+
+  if (initialPreview.status === 'READY') {
+    applyReadyFinalPreviewState({
+      data: initialPreview,
+      latestPayload: params.getLatestPayload(),
+      requestedPayload: params.requestedPayload,
+      setLastGeneratedPayloadKey: params.setLastGeneratedPayloadKey,
+      setPreviewDownloadPath: params.setPreviewDownloadPath,
+      setPreviewError: params.setPreviewError,
+      setPreviewFileName: params.setPreviewFileName,
+      setPreviewProgressPercent: params.setPreviewProgressPercent,
+      setPreviewStatus: params.setPreviewStatus,
+      setRenderPreviewPath: params.setRenderPreviewPath,
+    });
+    return;
+  }
+
+  params.updatePreviewProgress(initialPreview.progress ?? 0);
+  const readyPreview = await pollFinalPreviewJob({
+    activeSessionId: params.activeSessionId,
+    previewFileName: initialPreview.previewFileName,
+    onProgress: params.updatePreviewProgress,
+    shouldContinue: params.isCurrentRequest,
+  });
+  applyReadyFinalPreviewState({
+    data: readyPreview,
+    latestPayload: params.getLatestPayload(),
+    requestedPayload: params.requestedPayload,
+    setLastGeneratedPayloadKey: params.setLastGeneratedPayloadKey,
+    setPreviewDownloadPath: params.setPreviewDownloadPath,
+    setPreviewError: params.setPreviewError,
+    setPreviewFileName: params.setPreviewFileName,
+    setPreviewProgressPercent: params.setPreviewProgressPercent,
+    setPreviewStatus: params.setPreviewStatus,
+    setRenderPreviewPath: params.setRenderPreviewPath,
+  });
+}
+
 export function EditingLivePreview({
   activeSession,
   exportSettings,
@@ -41,7 +264,6 @@ export function EditingLivePreview({
   selectedClips,
   refineSettings,
 }: Readonly<EditingLivePreviewProps>) {
-  const clearCandidateSelection = useDirectorStore((state) => state.clearCandidateSelection);
   const setStep = useDirectorStore((state) => state.setStep);
   const [renderPreviewPath, setRenderPreviewPath] = useState<string | null>(null);
   const [previewDownloadPath, setPreviewDownloadPath] = useState<string | null>(null);
@@ -55,20 +277,34 @@ export function EditingLivePreview({
   const [lastAttemptPayloadKey, setLastAttemptPayloadKey] = useState<string | null>(null);
   const requestVersionRef = useRef(0);
   const latestPayloadRef = useRef<string | null>(null);
+  const autoStartedPayloadRef = useRef<string | null>(null);
 
   const primaryClip = selectedClips[0];
+  const effectiveExportSettings: ExportSettings = useMemo(
+    () => ({
+      ...exportSettings,
+      aspectRatio: '9:16',
+    }),
+    [exportSettings],
+  );
   const activeRefineSettings = primaryClip
     ? getEffectiveRefineSettings(primaryClip, refineSettings[primaryClip.id])
     : undefined;
   const scene = deriveLivePreviewScene(
-    exportSettings,
+    effectiveExportSettings,
     subtitleStyle,
     primaryClip,
     activeRefineSettings,
   );
   const previewPayload = useMemo(
-    () => buildPreviewPayload(primaryClip, activeRefineSettings, exportSettings, subtitleStyle),
-    [activeRefineSettings, exportSettings, primaryClip, subtitleStyle],
+    () =>
+      buildPreviewPayload(
+        primaryClip,
+        activeRefineSettings,
+        effectiveExportSettings,
+        subtitleStyle,
+      ),
+    [activeRefineSettings, effectiveExportSettings, primaryClip, subtitleStyle],
   );
   const previewPayloadJson = previewPayload ? JSON.stringify(previewPayload) : null;
 
@@ -87,6 +323,7 @@ export function EditingLivePreview({
       setPreviewStatus('idle');
       setLastGeneratedPayloadKey(null);
       setLastAttemptPayloadKey(null);
+      autoStartedPayloadRef.current = null;
       setPreviewProgressPercent(0);
       setPreviewError(null);
       setDownloadError(null);
@@ -98,6 +335,7 @@ export function EditingLivePreview({
       setPreviewStatus('idle');
       setLastGeneratedPayloadKey(null);
       setLastAttemptPayloadKey(null);
+      autoStartedPayloadRef.current = null;
       setPreviewProgressPercent(0);
       setPreviewError(null);
       setDownloadError(null);
@@ -155,53 +393,25 @@ export function EditingLivePreview({
 
     const progressIntervalId = globalThis.setInterval(() => {
       bumpPreviewProgress();
-    }, 220);
+    }, FINAL_PREVIEW_PROGRESS_TICK_MS);
 
     try {
-      const response = await authFetch(
-        `/api/v1/director/sessions/${activeSessionId}/export/preview`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: requestedPayload,
+      await generateAndInstallFinalPreview({
+        activeSessionId,
+        getLatestPayload: () => latestPayloadRef.current,
+        isCurrentRequest: () => requestVersionRef.current === requestVersion,
+        requestedPayload,
+        setLastGeneratedPayloadKey,
+        setPreviewDownloadPath,
+        setPreviewError,
+        setPreviewFileName,
+        setPreviewProgressPercent,
+        setPreviewStatus,
+        setRenderPreviewPath,
+        updatePreviewProgress: (progress) => {
+          setPreviewProgressPercent((previous) => Math.max(previous, progress));
         },
-      );
-      const payload = (await response.json()) as {
-        success: boolean;
-        data?: {
-          previewFileName?: string;
-          previewUrl?: string;
-          downloadUrl?: string;
-        };
-        error?: { message?: string };
-      };
-
-      if (
-        !response.ok ||
-        !payload.success ||
-        !payload.data?.previewUrl ||
-        !payload.data?.downloadUrl ||
-        !payload.data?.previewFileName
-      ) {
-        throw new Error(payload.error?.message || 'Video akhir gagal digenerate');
-      }
-
-      if (requestVersionRef.current !== requestVersion) {
-        return;
-      }
-
-      setPreviewProgressPercent(100);
-      setRenderPreviewPath(payload.data.previewUrl);
-      setPreviewDownloadPath(payload.data.downloadUrl);
-      setPreviewFileName(payload.data.previewFileName);
-      setPreviewError(null);
-
-      if (requestedPayload === latestPayloadRef.current) {
-        setLastGeneratedPayloadKey(requestedPayload);
-        setPreviewStatus('ready');
-      } else {
-        setPreviewStatus('dirty');
-      }
+      });
     } catch (error) {
       if (requestVersionRef.current !== requestVersion) {
         return;
@@ -210,11 +420,28 @@ export function EditingLivePreview({
       logger.error('Generate preview failed', error);
       setPreviewProgressPercent(0);
       setPreviewStatus('failed');
-      setPreviewError(error instanceof Error ? error.message : 'Video akhir gagal dimuat');
+      setPreviewError(error instanceof Error ? error.message : 'Preview belum dapat dibuat');
     } finally {
       globalThis.clearInterval(progressIntervalId);
     }
   }, [activeSessionId, previewPayloadJson]);
+
+  useEffect(() => {
+    if (!activeSessionId || !previewPayloadJson) {
+      return;
+    }
+
+    if (previewStatus !== 'idle' && previewStatus !== 'dirty') {
+      return;
+    }
+
+    if (autoStartedPayloadRef.current === previewPayloadJson) {
+      return;
+    }
+
+    autoStartedPayloadRef.current = previewPayloadJson;
+    void handleGeneratePreview();
+  }, [activeSessionId, handleGeneratePreview, previewPayloadJson, previewStatus]);
 
   const handleDownloadPreview = useCallback(async () => {
     if (!previewDownloadPath || previewStatus !== 'ready') {
@@ -229,7 +456,7 @@ export function EditingLivePreview({
       );
     } catch (error) {
       logger.error('Preview download failed', error);
-      setDownloadError('Unduhan gagal. Coba generate ulang lalu unduh lagi.');
+      setDownloadError('Download gagal. Coba generate ulang lalu download lagi.');
     }
   }, [activeSession?.id, previewDownloadPath, previewFileName, previewStatus]);
 
@@ -243,18 +470,13 @@ export function EditingLivePreview({
       ? `/api/v1/director/sessions/${activeSession.id}/clips/${primaryClip.candidate.id}/poster`
       : null,
   );
-  const resolvedContentMode =
-    primaryClip && activeRefineSettings
-      ? getResolvedContentMode(primaryClip.candidate, activeRefineSettings)
-      : null;
   const showGeneratingState = previewStatus === 'generating';
-  const shouldDisableGenerate = !previewPayloadJson || previewStatus === 'generating';
   const shouldEnableDownload = previewStatus === 'ready' && Boolean(previewDownloadPath);
+  const shouldShowRegenerateButton = previewStatus === 'dirty' || previewStatus === 'failed';
   const canPlayPreview = canPlayFinalPreview(previewStatus, previewVideoUrl);
-  const handlePickNewClip = useCallback(() => {
-    clearCandidateSelection();
-    setStep('PICKING');
-  }, [clearCandidateSelection, setStep]);
+  const handleBackToEdit = useCallback(() => {
+    setStep('EDITING');
+  }, [setStep]);
 
   useEffect(() => {
     if (!canPlayPreview && isPlayingModalOpen) {
@@ -279,7 +501,7 @@ export function EditingLivePreview({
 
   return (
     <div className="space-y-4 rounded-3xl border border-border/40 bg-muted/20 p-4">
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
           <div className="h-9 w-9 shrink-0 rounded-xl border border-primary/20 bg-primary/10 flex items-center justify-center">
             <MonitorPlay size={18} className="text-primary" />
@@ -287,10 +509,16 @@ export function EditingLivePreview({
           <div className="min-w-0">
             <h4 className="font-black tracking-tight text-base leading-none">Video Akhir</h4>
             <p className="mt-1 text-[11px] leading-4 text-muted-foreground">
-              Generate video akhir, lalu download hasil yang sama.
+              Cek hasil final, lalu download video.
             </p>
           </div>
         </div>
+        <Badge
+          variant="outline"
+          className="shrink-0 rounded-full border-border/50 bg-muted/25 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-muted-foreground"
+        >
+          Output: 9:16 · {effectiveExportSettings.quality}
+        </Badge>
       </div>
 
       <div
@@ -301,20 +529,10 @@ export function EditingLivePreview({
         )}
       >
         <LivePreviewMedia {...mediaProps} />
-        {/* Status badge overlaid on top-right of video */}
         <div className="absolute top-2 right-2 z-10 pointer-events-none">
           <Badge className="shrink-0 rounded-full border-border/50 bg-black/60 backdrop-blur-sm px-2.5 py-1 text-[10px] text-white pointer-events-auto">
             {getPreviewBadgeText(previewStatus, previewProgressPercent)}
           </Badge>
-        </div>
-        {/* Feature badges overlaid at bottom of video, above player controls */}
-        <div className="absolute top-2 left-2 z-10 pointer-events-none flex flex-wrap gap-1 max-w-[calc(100%-5rem)]">
-          <PreviewBadges
-            resolvedContentMode={resolvedContentMode}
-            exportSettings={exportSettings}
-            subtitleStyle={subtitleStyle}
-            activeRefineSettings={activeRefineSettings}
-          />
         </div>
       </div>
 
@@ -346,22 +564,20 @@ export function EditingLivePreview({
       </Modal>
 
       <div className="grid grid-cols-1 gap-2">
-        <Button
-          onClick={() => {
-            void handleGeneratePreview();
-          }}
-          disabled={shouldDisableGenerate}
-          className="h-11 rounded-2xl text-xs font-semibold tracking-normal"
-        >
-          {previewStatus === 'dirty' || previewStatus === 'failed' ? (
+        {shouldShowRegenerateButton ? (
+          <Button
+            onClick={() => {
+              void handleGeneratePreview();
+            }}
+            disabled={!previewPayloadJson}
+            className="h-11 rounded-2xl text-xs font-semibold tracking-normal"
+          >
             <RefreshCcw size={14} className="mr-2" />
-          ) : (
-            <MonitorPlay size={14} className="mr-2" />
-          )}
-          {getGenerateButtonText(previewStatus)}
-        </Button>
+            Generate Ulang
+          </Button>
+        ) : null}
         <Button
-          variant="secondary"
+          variant={shouldEnableDownload ? 'default' : 'secondary'}
           onClick={() => {
             void handleDownloadPreview();
           }}
@@ -371,20 +587,14 @@ export function EditingLivePreview({
           <Download size={14} className="mr-2" />
           Download Video
         </Button>
-        {previewStatus === 'ready' ? (
-          <>
-            <div className="my-1 h-px bg-border/55" />
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={handlePickNewClip}
-              className="h-11 rounded-2xl text-xs font-semibold tracking-normal text-muted-foreground hover:text-foreground"
-            >
-              <Scissors size={14} className="mr-2" />
-              Pilih Klip Baru
-            </Button>
-          </>
-        ) : null}
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={handleBackToEdit}
+          className="h-11 rounded-2xl text-xs font-semibold tracking-normal text-muted-foreground hover:text-foreground"
+        >
+          Kembali Edit
+        </Button>
       </div>
 
       {previewError ? (
@@ -443,26 +653,14 @@ function buildPreviewPayload(
 function getPreviewBadgeText(status: PreviewStatus, progress: number): string {
   switch (status) {
     case 'ready':
-      return 'Siap Diunduh';
+      return 'Preview siap';
     case 'dirty':
-      return 'Perlu Generate Ulang';
+      return 'Perlu generate ulang';
     case 'generating':
-      return `Membuat Video ${progress}%`;
+      return `Menyiapkan preview ${progress}%`;
     case 'failed':
-      return 'Generate Gagal';
+      return 'Preview gagal';
     default:
-      return 'Belum Generate';
-  }
-}
-
-function getGenerateButtonText(status: PreviewStatus): string {
-  switch (status) {
-    case 'generating':
-      return 'Membuat Video...';
-    case 'dirty':
-    case 'failed':
-      return 'Generate Ulang Video';
-    default:
-      return 'Generate Video';
+      return 'Menyiapkan preview';
   }
 }

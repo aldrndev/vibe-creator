@@ -22,6 +22,9 @@ import {
 } from './transcribe-progress';
 
 type TranscribeJob = NonNullable<Awaited<ReturnType<typeof directorRepo.createTranscribeJob>>>;
+type DirectorSessionForTranscribe = NonNullable<
+  Awaited<ReturnType<typeof directorRepo.findSession>>
+>;
 export interface StartTranscribeOptions {
   forceRefresh?: boolean;
   language?: TranscribeLanguage;
@@ -81,6 +84,24 @@ function resolveRequestedLanguage(
   return normalizeTranscribeLanguage(optionsLanguage, DEFAULT_TRANSCRIBE_LANGUAGE);
 }
 
+function hasCompletedTranscriptsForSelection(
+  session: DirectorSessionForTranscribe,
+  requestedLanguage: TranscribeLanguage,
+): boolean {
+  return session.selectedClips.every((clip) => {
+    if (!clip.transcript || clip.transcript.status !== DirectorJobStatus.COMPLETED) {
+      return false;
+    }
+
+    const transcriptLanguage = clip.transcript.language;
+    if (!transcriptLanguage || isAutoTranscribeLanguage(requestedLanguage)) {
+      return true;
+    }
+
+    return normalizeTranscribeLanguage(transcriptLanguage, requestedLanguage) === requestedLanguage;
+  });
+}
+
 export const directorTranscribeService = {
   /**
    * Start transcription job
@@ -138,8 +159,12 @@ export const directorTranscribeService = {
       const isActiveStatus =
         status === DirectorJobStatus.PENDING || status === DirectorJobStatus.PROCESSING;
 
-      // If active or completed, return existing
-      if (isActiveStatus || (!forceRefresh && status === DirectorJobStatus.COMPLETED)) {
+      const completedSelectionIsReusable =
+        status === DirectorJobStatus.COMPLETED &&
+        hasCompletedTranscriptsForSelection(session, requestedLanguage);
+
+      // If active or completed for the current selected clips, return existing.
+      if (isActiveStatus || (!forceRefresh && completedSelectionIsReusable)) {
         const activeJobLanguage = normalizeTranscribeLanguage(
           session.transcribeJob.language,
           requestedLanguage,
@@ -159,11 +184,17 @@ export const directorTranscribeService = {
         };
       }
 
-      // Force refresh or retry failed job by resetting state.
-      if (status === DirectorJobStatus.FAILED || forceRefresh) {
+      // Force refresh, stale completed job, or failed job by resetting state.
+      if (status === DirectorJobStatus.FAILED || forceRefresh || !completedSelectionIsReusable) {
         logger.info(
-          { sessionId, jobId: session.transcribeJob.id, forceRefresh },
-          'Resetting transcribe job for retry',
+          {
+            sessionId,
+            jobId: session.transcribeJob.id,
+            forceRefresh,
+            staleCompletedJob:
+              status === DirectorJobStatus.COMPLETED && !completedSelectionIsReusable,
+          },
+          'Resetting transcribe job for current selected clips',
         );
         job = await directorRepo.updateTranscribeJob(session.transcribeJob.id, {
           status: DirectorJobStatus.PENDING,

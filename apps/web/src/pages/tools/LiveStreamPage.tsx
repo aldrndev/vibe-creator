@@ -6,6 +6,7 @@ import { LiveStreamSettings } from '@/components/tools/livestream/LiveStreamSett
 import { TopupModal } from '@/components/tools/TopupModal';
 import { PageTransition } from '@/components/ui/PageTransition';
 import { ContinueWorkspaceDialog } from '@/components/workspace/ContinueWorkspaceDialog';
+import { useScrollToTopOnChange } from '@/hooks/use-scroll-to-top-on-change';
 import { useLiveStream } from '@/hooks/useLiveStream';
 import { useMutableSearchParams } from '@/lib/route-search';
 
@@ -44,6 +45,9 @@ export function LiveStreamPage() {
     handleStartStream,
     handleStopStream,
   } = useLiveStream({ sessionId });
+
+  const liveStreamStepKey = isStreaming ? 'live' : hasSourceVideo ? 'destination' : 'source';
+  useScrollToTopOnChange(liveStreamStepKey);
 
   useEffect(() => {
     if (sessionId) {

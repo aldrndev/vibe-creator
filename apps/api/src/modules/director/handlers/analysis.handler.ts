@@ -32,6 +32,7 @@ import { directorProcessor } from '../director.processor';
 import type { DirectorAnalysisJobData } from '../director.queue';
 import { directorAnalysisAiRerankService } from '../services/analysis-ai-rerank.service';
 import { directorAnalysisReuseService } from '../services/analysis-reuse.service';
+import { directorAnalysisTranscriptRefinementService } from '../services/analysis-transcript-refinement.service';
 
 const TEMP_DIR = join(env.MEDIA_INPUT_DIR, 'temp');
 const HARD_MAX_CLIP_DURATION_SEC = 120;
@@ -57,7 +58,10 @@ function resolveAnalysisRefineOptions(config: unknown): {
       : {};
   const maxCandidates = Math.max(
     1,
-    Math.round(parsePositiveNumber(cfg.maxCandidates, DEFAULT_MAX_CANDIDATES)),
+    Math.min(
+      env.DIRECTOR_ANALYSIS_REFINE_LIMIT,
+      Math.round(parsePositiveNumber(cfg.maxCandidates, DEFAULT_MAX_CANDIDATES)),
+    ),
   );
 
   const minDurationSec = Math.max(
@@ -103,7 +107,7 @@ export async function processAnalysisJob(job: Job<DirectorAnalysisJobData>) {
 
   const session = await prisma.directorSession.findUnique({
     where: { id: sessionId },
-    include: { analysisJob: true },
+    include: { analysisJob: true, asset: true },
   });
 
   if (!session) {
@@ -175,12 +179,25 @@ export async function processAnalysisJob(job: Job<DirectorAnalysisJobData>) {
       })),
       analysisRefineOptions.targetDurationRange,
     );
-    const rerankedCandidates = await directorAnalysisAiRerankService.rerankCandidates(
-      durationPreferredCandidates.candidates,
-      {
+    const assetFingerprint =
+      session.asset?.contentHash ?? session.asset?.sourceUrlNormalized ?? session.asset?.storageKey;
+    const mediaDurationMs =
+      session.asset?.durationMs ??
+      Math.max(0, ...durationPreferredCandidates.candidates.map((candidate) => candidate.endMs));
+    const transcriptRefinedCandidates = assetFingerprint
+      ? await directorAnalysisTranscriptRefinementService.refineCandidates({
+          candidates: durationPreferredCandidates.candidates,
+          inputPath: filePath,
+          audioProxyDir: TEMP_DIR,
+          assetFingerprint,
+          mediaDurationMs,
+        })
+      : durationPreferredCandidates.candidates;
+    const rerankedCandidates = (
+      await directorAnalysisAiRerankService.rerankCandidates(transcriptRefinedCandidates, {
         targetDurationRange: analysisRefineOptions.targetDurationRange,
-      },
-    );
+      })
+    ).slice(0, env.DIRECTOR_ANALYSIS_FINAL_LIMIT);
 
     logger.info(
       {

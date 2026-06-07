@@ -3,23 +3,12 @@
   "vcs": {
     "enabled": true,
     "clientKind": "git",
-    "useIgnoreFile": true
+    "useIgnoreFile": true,
+    "defaultBranch": "main"
   },
   "files": {
     "ignoreUnknown": true,
-    "includes": [
-      "**",
-      "!node_modules",
-      "!dist",
-      "!build",
-      "!coverage",
-      "!playwright-report",
-      "!test-results",
-      "!apps/web/playwright-report",
-      "!apps/web/test-results",
-      "!apps/web/src/routeTree.gen.ts",
-      "!*.min.js"
-    ]
+    "includes": ["**", "!pnpm-lock.yaml", "!**/globals.css"]
   },
   "formatter": {
     "enabled": true,
@@ -34,11 +23,6 @@
       "semicolons": "always",
       "trailingCommas": "all",
       "arrowParentheses": "always"
-    }
-  },
-  "css": {
-    "parser": {
-      "tailwindDirectives": true
     }
   },
   "linter": {
@@ -60,31 +44,35 @@
         "useConst": "error",
         "noUnusedTemplateLiteral": "warn",
         "useImportType": "error",
-        "noNonNullAssertion": "warn"
+        "noNonNullAssertion": "warn",
+        "noNestedTernary": "error",
+        "noNegationElse": "warn"
       },
       "correctness": {
         "noUnusedVariables": "warn",
         "noUnusedImports": "error",
-        "useExhaustiveDependencies": "warn"
+        "useExhaustiveDependencies": "warn",
+        "noReactPropAssignments": "error"
       },
       "complexity": {
-        "noExcessiveCognitiveComplexity": "off",
-        "noForEach": "off"
+        "noExcessiveCognitiveComplexity": {
+          "level": "error",
+          "options": { "maxAllowedComplexity": 15 }
+        },
+        "noForEach": "error"
       },
       "performance": {
-        "noAccumulatingSpread": "warn",
-        "noImgElement": "off"
+        "noAccumulatingSpread": "warn"
       },
       "security": {
-        "noDangerouslySetInnerHtml": "error"
+        "noDangerouslySetInnerHtml": "error",
+        "noGlobalEval": "error"
       }
     },
     "domains": {
-      "next": "recommended",
       "react": "recommended"
     }
   },
-  "overrides": [],
   "assist": {
     "actions": {
       "source": {

@@ -20,7 +20,7 @@ function ExportStatusPanel({
   errorMessage,
 }: ExportStatusPanelProps) {
   let title = 'Merender Short Final...';
-  if (isCompleted) title = 'Short Siap Diunduh';
+  if (isCompleted) title = 'Short Siap Download';
   else if (isFailed) title = 'Render Gagal';
 
   let description =
@@ -153,7 +153,7 @@ export const ExportStep = () => {
       );
     } catch (error) {
       logger.error('Director export download failed', error);
-      setDownloadError('File export sudah selesai dibuat, tetapi unduhan gagal dibuka.');
+      setDownloadError('File export sudah selesai dibuat, tetapi download gagal dibuka.');
     }
   };
 
@@ -233,7 +233,7 @@ export const ExportStep = () => {
                 }}
               >
                 <Download size={16} className="mr-2" />
-                Unduh Short
+                Download Short
                 <div className="absolute inset-0 bg-linear-to-r from-primary via-orange-500 to-rose-600 opacity-0 group-hover/btn:opacity-100 transition-opacity duration-300" />
               </Button>
             )}

@@ -21,24 +21,24 @@ function clampScore(value: number): number {
 }
 
 function getDurationFitScoreAuto(durationSeconds: number): number {
-  if (durationSeconds >= 40 && durationSeconds <= 60) {
+  if (durationSeconds >= 45 && durationSeconds <= 75) {
     return 92;
   }
 
-  if (durationSeconds > 60 && durationSeconds <= 80) {
+  if (durationSeconds >= 30 && durationSeconds < 45) {
+    return 86;
+  }
+
+  if (durationSeconds > 75 && durationSeconds <= 90) {
     return 84;
   }
 
-  if (durationSeconds >= 30 && durationSeconds < 40) {
+  if (durationSeconds > 90 && durationSeconds <= 120) {
     return 76;
   }
 
-  if (durationSeconds > 80 && durationSeconds <= 95) {
-    return 60;
-  }
-
   if (durationSeconds >= 20 && durationSeconds < 30) {
-    return 54;
+    return 60;
   }
 
   return 38;

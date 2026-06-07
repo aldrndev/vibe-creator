@@ -8,8 +8,8 @@ export interface ClipDurationConfig {
   maxClipDurationMs: number;
 }
 
-export const DEFAULT_MIN_CLIP_DURATION_MS = 15_000;
-export const DEFAULT_MAX_CLIP_DURATION_MS = 60_000;
+export const DEFAULT_MIN_CLIP_DURATION_MS = 30_000;
+export const DEFAULT_MAX_CLIP_DURATION_MS = 90_000;
 export const DEFAULT_MAX_CANDIDATES = 20;
 export const DIALOG_COMPLETION_EXTENSION_MS = 30_000;
 export const ABSOLUTE_MAX_SHORT_DURATION_MS = 120_000;
@@ -89,8 +89,8 @@ export function resolveTargetDurationRangeConfig(
   if (!targetDurationRange || targetDurationRange === 'auto') {
     return {
       targetDurationRange: 'auto',
-      minClipDurationMs: DEFAULT_MIN_CLIP_DURATION_MS,
-      maxClipDurationMs: DEFAULT_MAX_CLIP_DURATION_MS,
+      minClipDurationMs: 30_000,
+      maxClipDurationMs: 90_000,
     };
   }
 

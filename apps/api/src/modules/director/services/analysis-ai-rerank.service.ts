@@ -1,4 +1,5 @@
 import type { Prisma } from '@prisma/client';
+import { env } from '@/config/env';
 import { logger } from '@/lib/logger';
 import {
   resolveTargetDurationRangeConfig,
@@ -11,6 +12,12 @@ import {
   type AnalysisAiRating,
   requestAnalysisAiRatings,
 } from './analysis-ai-rerank-client';
+import {
+  type AnalysisRuleScoreBreakdown,
+  type DirectorRerankProvider,
+  scoreCandidateWithRules,
+  toRuleScoreMetadata,
+} from './analysis-rule-scorer';
 
 interface AnalysisAiCandidateInput {
   startMs: number;
@@ -21,10 +28,18 @@ interface AnalysisAiCandidateInput {
   scoreBreakdown: HeuristicScoreBreakdown;
   previewStorageKey?: string | null;
   videoPreviewStorageKey?: string | null;
+  refinementVersion?: number;
+  sourceStartMs?: number;
+  sourceEndMs?: number;
+  refinedStartMs?: number;
+  refinedEndMs?: number;
+  transcriptWindow?: Prisma.JsonObject;
+  transcriptCacheKey?: string | null;
 }
 
 interface AnalysisAiRerankMetadata {
   provider: AnalysisAiProvider;
+  rerankProvider: DirectorRerankProvider;
   label: string;
   reason: string;
   viralScore: number;
@@ -32,6 +47,7 @@ interface AnalysisAiRerankMetadata {
   clarityScore: number;
   heuristicScore: number;
   compositeScore: number;
+  ruleScores: AnalysisRuleScoreBreakdown;
   contentModeSuggestion: HeuristicScoreBreakdown['contentModeSuggestion'];
   scoreBreakdown: HeuristicScoreBreakdown;
 }
@@ -47,9 +63,9 @@ interface AnalysisAiScoreResult {
   finalCompositeScore: number;
 }
 
-const IDEAL_SHORT_MIN_SECONDS = 40;
-const IDEAL_SHORT_MAX_SECONDS = 60;
-const EXTENDED_SHORT_MAX_SECONDS = 80;
+const IDEAL_SHORT_MIN_SECONDS = 30;
+const IDEAL_SHORT_MAX_SECONDS = 90;
+const EXTENDED_SHORT_MAX_SECONDS = 120;
 const FAST_CLIP_MAX_SECONDS = 20;
 const MAX_SHORT_SECONDS = 120;
 const STRONG_DIALOG_SCORE = 72;
@@ -57,6 +73,7 @@ const MEDIUM_DIALOG_SCORE = 62;
 const DIALOG_COMPLETION_DURATION_FIT = 82;
 const HIGH_VISUAL_PENALTY = 25;
 const MEDIUM_VISUAL_PENALTY = 14;
+const TRANSCRIPT_WINDOW_PADDING_MS = 8_000;
 
 interface DurationReadinessWindow {
   idealShortMinSeconds: number;
@@ -186,7 +203,11 @@ function getShortReadinessScore(
   durationWindow: DurationReadinessWindow,
 ): number {
   const heuristicScore = getHeuristicScore(candidate);
-  return clampScore(heuristicScore + getShortReadinessAdjustment(candidate, durationWindow));
+  const ruleScores = scoreCandidateWithRules(candidate);
+  return clampScore(
+    ruleScores.compositeScore * 0.72 +
+      (heuristicScore + getShortReadinessAdjustment(candidate, durationWindow)) * 0.28,
+  );
 }
 
 function buildHeuristicLabelMeta(
@@ -248,19 +269,23 @@ function buildHeuristicMeta(
   durationWindow: DurationReadinessWindow,
 ): AnalysisAiScoreResult {
   const heuristicScore = getHeuristicScore(candidate);
+  const ruleScores = scoreCandidateWithRules(candidate);
   const shortReadinessScore = getShortReadinessScore(candidate, durationWindow);
   const labelMeta = buildHeuristicLabelMeta(candidate, durationWindow);
+  const primaryLabel = ruleScores.reasonLabels[0] ?? labelMeta.label;
 
   return {
     metadata: {
       provider: 'heuristic',
-      label: labelMeta.label,
+      rerankProvider: 'rules',
+      label: primaryLabel,
       reason: labelMeta.reason,
       viralScore: clampScore(shortReadinessScore + 2),
-      hookScore: clampScore(shortReadinessScore + 2),
-      clarityScore: clampScore(shortReadinessScore + 4),
+      hookScore: ruleScores.hookScore,
+      clarityScore: ruleScores.clarityScore,
       heuristicScore,
       compositeScore: shortReadinessScore,
+      ruleScores,
       contentModeSuggestion: candidate.scoreBreakdown.contentModeSuggestion,
       scoreBreakdown: candidate.scoreBreakdown,
     },
@@ -268,10 +293,23 @@ function buildHeuristicMeta(
   };
 }
 
-function buildMetadata(meta: AnalysisAiRerankMetadata): Prisma.JsonObject {
+function buildMetadata(
+  meta: AnalysisAiRerankMetadata,
+  candidate: AnalysisAiCandidateInput,
+): Prisma.JsonObject {
+  const ruleMetadata = toRuleScoreMetadata(meta.ruleScores, meta.rerankProvider);
+  const transcriptWindow =
+    candidate.transcriptWindow ??
+    ({
+      startMs: Math.max(0, candidate.startMs - TRANSCRIPT_WINDOW_PADDING_MS),
+      endMs: candidate.endMs + TRANSCRIPT_WINDOW_PADDING_MS,
+      status: 'pending-selection-transcribe',
+    } satisfies Prisma.JsonObject);
+
   return {
     aiRerank: {
       provider: meta.provider,
+      rerankProvider: meta.rerankProvider,
       label: meta.label,
       reason: meta.reason,
       viralScore: meta.viralScore,
@@ -280,6 +318,7 @@ function buildMetadata(meta: AnalysisAiRerankMetadata): Prisma.JsonObject {
       heuristicScore: meta.heuristicScore,
       compositeScore: meta.compositeScore,
       contentModeSuggestion: meta.contentModeSuggestion,
+      reasonLabels: meta.ruleScores.reasonLabels,
     },
     scoreBreakdown: {
       energy: meta.scoreBreakdown.energy,
@@ -289,7 +328,16 @@ function buildMetadata(meta: AnalysisAiRerankMetadata): Prisma.JsonObject {
       topSignals: meta.scoreBreakdown.topSignals,
       badges: meta.scoreBreakdown.badges,
       contentModeSuggestion: meta.scoreBreakdown.contentModeSuggestion,
+      rule: ruleMetadata.scoreBreakdown,
     },
+    refinementVersion: candidate.refinementVersion ?? 1,
+    sourceStartMs: candidate.sourceStartMs ?? candidate.startMs,
+    sourceEndMs: candidate.sourceEndMs ?? candidate.endMs,
+    refinedStartMs: candidate.refinedStartMs ?? candidate.startMs,
+    refinedEndMs: candidate.refinedEndMs ?? candidate.endMs,
+    transcriptWindow,
+    transcriptCacheKey: candidate.transcriptCacheKey ?? null,
+    rerankProvider: meta.rerankProvider,
   };
 }
 
@@ -300,6 +348,7 @@ function buildCompositeScore(
 ): AnalysisAiScoreResult {
   const heuristicScore = getHeuristicScore(candidate);
   const shortReadinessScore = getShortReadinessScore(candidate, durationWindow);
+  const ruleScores = scoreCandidateWithRules(candidate);
 
   if (!rating) {
     return buildHeuristicMeta(candidate, durationWindow);
@@ -308,11 +357,16 @@ function buildCompositeScore(
   const aiCompositeScore = clampScore(
     rating.viralScore * 0.45 + rating.hookScore * 0.35 + rating.clarityScore * 0.2,
   );
-  const finalCompositeScore = clampScore(aiCompositeScore * 0.7 + shortReadinessScore * 0.3);
+  const weightedCompositeScore = clampScore(shortReadinessScore * 0.65 + aiCompositeScore * 0.35);
+  const finalCompositeScore =
+    ruleScores.riskFlags.length > 0
+      ? Math.min(weightedCompositeScore, ruleScores.compositeScore)
+      : weightedCompositeScore;
 
   return {
     metadata: {
       provider: 'heuristic',
+      rerankProvider: 'rules',
       label: rating.label.trim(),
       reason: rating.reason.trim(),
       viralScore: clampScore(rating.viralScore),
@@ -320,12 +374,14 @@ function buildCompositeScore(
       clarityScore: clampScore(rating.clarityScore),
       heuristicScore,
       compositeScore: aiCompositeScore,
+      ruleScores,
       contentModeSuggestion: candidate.scoreBreakdown.contentModeSuggestion,
       scoreBreakdown: {
         ...candidate.scoreBreakdown,
         badges: Array.from(
           new Set([
             ...candidate.scoreBreakdown.badges,
+            ...ruleScores.reasonLabels,
             ...(rating.hookScore >= 85 ? ['Hook Kuat'] : []),
           ]),
         ),
@@ -334,6 +390,7 @@ function buildCompositeScore(
             ...candidate.scoreBreakdown.topSignals,
             `Hook ${clampScore(rating.hookScore)}`,
             `Clarity ${clampScore(rating.clarityScore)}`,
+            `Completion ${ruleScores.completionScore}`,
           ]),
         ).slice(0, 4),
       },
@@ -349,6 +406,7 @@ function applyProviderToMetadata(
   return {
     ...metadata,
     provider,
+    rerankProvider: provider === 'ollama' ? 'ollama' : metadata.rerankProvider,
   };
 }
 
@@ -365,23 +423,31 @@ export const directorAnalysisAiRerankService = {
     let provider: AnalysisAiProvider = 'heuristic';
     let ratings: AnalysisAiRating[] | null = null;
 
-    try {
-      const response = await requestAnalysisAiRatings(
-        candidates.map<AnalysisAiPromptCandidate>((candidate) => ({
-          durationSeconds: getDurationSeconds(candidate),
-          heuristicScore: getHeuristicScore(candidate),
-          rank: candidate.rank,
-          tags: candidate.tags,
-          energy: candidate.scoreBreakdown.energy,
-          dialogDensity: candidate.scoreBreakdown.dialogDensity,
-          durationFit: candidate.scoreBreakdown.durationFit,
-          visualPenalty: candidate.scoreBreakdown.visualPenalty,
-        })),
-      );
-      provider = response.provider;
-      ratings = response.ratings;
-    } catch (error) {
-      logger.warn({ error }, 'Analysis AI rerank request failed');
+    if (env.DIRECTOR_LOCAL_RERANK_ENABLED) {
+      try {
+        const response = await requestAnalysisAiRatings(
+          candidates.map<AnalysisAiPromptCandidate>((candidate) => {
+            const ruleScores = scoreCandidateWithRules(candidate);
+            return {
+              durationSeconds: getDurationSeconds(candidate),
+              heuristicScore: getHeuristicScore(candidate),
+              rank: candidate.rank,
+              tags: candidate.tags,
+              energy: candidate.scoreBreakdown.energy,
+              dialogDensity: candidate.scoreBreakdown.dialogDensity,
+              durationFit: candidate.scoreBreakdown.durationFit,
+              visualPenalty: candidate.scoreBreakdown.visualPenalty,
+              completionScore: ruleScores.completionScore,
+              standaloneScore: ruleScores.standaloneScore,
+              reasonLabels: ruleScores.reasonLabels,
+            };
+          }),
+        );
+        provider = response.provider;
+        ratings = response.ratings;
+      } catch (error) {
+        logger.warn({ error }, 'Analysis AI rerank request failed');
+      }
     }
 
     const ratedCandidates = candidates
@@ -394,7 +460,7 @@ export const directorAnalysisAiRerankService = {
           ...candidate,
           score: scoreResult.finalCompositeScore / 100,
           rank: candidate.rank,
-          metadata: buildMetadata(metadata),
+          metadata: buildMetadata(metadata, candidate),
           _compositeScore: scoreResult.finalCompositeScore,
         };
       })

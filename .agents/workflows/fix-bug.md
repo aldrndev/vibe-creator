@@ -25,12 +25,12 @@ description: Debug and fix a bug with root cause analysis and regression testing
 6. Implement fix:
    - Fix the bug
    - Follow coding standards in rules
+   - After fix: `pnpm biome check --changed --diagnostic-level=warn`
 7. Write regression test:
    - Test that FAILS before the fix
    - Test that PASSES after the fix
    - Ensure this test prevents the bug from recurring
-// turbo
-8. Run verification: `pnpm biome check .` + `pnpm tsc --noEmit` + `pnpm test`
+8. Final verification: `pnpm biome check --changed --diagnostic-level=warn` + `pnpm tsc --noEmit` + `pnpm test`
 9. Display summary: root cause → fix → test
 
 ## Rules

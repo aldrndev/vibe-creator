@@ -10,7 +10,7 @@ description: Apply the AI rules system to an existing project without restructur
 2. Working directory MUST already have `.agents/workflows/` pre-populated by the developer
 
 ## Rules Source
-// turbo
+
 All rule files and configs are sourced from: `/Users/aldrnmrsd/Documents/Coding/Rules/`
 
 ## Profile → Active Modules
@@ -61,11 +61,7 @@ All rule files and configs are sourced from: `/Users/aldrnmrsd/Documents/Coding/
    - `deploy` filled per existing deploy configuration (if found)
 5. Ask developer to **review & approve** PROJECT.yaml
 6. Once YAML is approved:
-// turbo
    - Copy active rule modules from `<rules-source>/agents/rules/` → `.agents/rules/` (only modules listed in `active_modules`)
-// turbo
-   - Copy `<rules-source>/GEMINI.md` → project root
-// turbo
    - Copy `<rules-source>/AGENTS.md` → project root
 7. **Handle existing configs** (ask before each):
    - If project has NO `biome.json`: copy from `<rules-source>/configs/biome.json`
@@ -75,13 +71,17 @@ All rule files and configs are sourced from: `/Users/aldrnmrsd/Documents/Coding/
      - Add/Overwrite all options defined in the template
      - Do NOT overwrite existing framework-specific options (`module`, `target`, `paths`, etc.) that are absent from the template
    - If project has NO `tsconfig.json`: ask developer which framework to use, then generate appropriate `tsconfig.json` with strict options merged
-8. Apply approved package changes:
+8. **Merge `.gitignore`**:
+   - Merge entries from `<rules-source>/configs/.gitignore` into existing `.gitignore` (add missing entries only)
+   - If no `.gitignore` exists → copy `<rules-source>/configs/.gitignore` as-is
+   - IMPORTANT: Biome uses `useIgnoreFile: true` — build/cache/generated file ignores MUST be in `.gitignore`, not in `biome.json`
+9. Apply approved package changes:
    - Upgrade packages to `@latest`, add missing, swap alternatives
    - Run `pnpm install`
    - Run `pnpm audit` — fix any vulnerabilities found
    - Run `pnpm outdated` — verify all packages are up to date
-9. Display setup summary
-10. Recommend developer to run `/review` to check compliance against active rules
+10. Display setup summary
+11. Recommend developer to run `/review` to check compliance against active rules
 
 ## Rules
 

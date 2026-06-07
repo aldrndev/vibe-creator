@@ -133,7 +133,150 @@ async function recoverMissingTailSegments(params: {
   }
 }
 
+interface TranscribeClipRangeForCacheOptions {
+  inputPath: string;
+  audioProxyDir: string;
+  assetFingerprint: string;
+  startMs: number;
+  endMs: number;
+  language?: TranscribeLanguage;
+  bypassCache?: boolean;
+}
+
+interface TranscribeClipRangeForCacheResult {
+  cacheKey: string;
+  cacheHit: boolean;
+  language?: string;
+  segments: SubtitleSegment[];
+}
+
+function isSubtitleSegment(segment: unknown): segment is SubtitleSegment {
+  return (
+    typeof segment === 'object' &&
+    segment !== null &&
+    'startMs' in segment &&
+    'endMs' in segment &&
+    'text' in segment &&
+    typeof segment.startMs === 'number' &&
+    typeof segment.endMs === 'number' &&
+    typeof segment.text === 'string'
+  );
+}
+
+function parseCachedSubtitleSegments(segments: object[]): SubtitleSegment[] {
+  return segments.filter(isSubtitleSegment).sort((left, right) => left.startMs - right.startMs);
+}
+
+async function transcribeRangeFromAudio(params: {
+  inputPath: string;
+  audioProxyDir: string;
+  startMs: number;
+  endMs: number;
+  language: TranscribeLanguage;
+}): Promise<{ language?: string; segments: SubtitleSegment[] }> {
+  await fs.mkdir(params.audioProxyDir, { recursive: true });
+
+  let audioProxyPath = '';
+  try {
+    audioProxyPath = await directorProcessor.extractClipAudioProxy(
+      params.inputPath,
+      params.audioProxyDir,
+      params.startMs,
+      params.endMs,
+    );
+
+    const result = await whisperRunner.runWhisperOnAudio(audioProxyPath, params.language);
+    if (!result.success || !result.segments) {
+      throw new Error(result.error || 'Whisper returned no segments');
+    }
+
+    return {
+      language: result.language,
+      segments: transcribeNormalizer.normalizeSegments(result.segments),
+    };
+  } finally {
+    if (audioProxyPath) {
+      await unlinkIfExists(audioProxyPath);
+    }
+  }
+}
+
 export const transcribeService = {
+  async transcribeClipRangeForCache(
+    options: TranscribeClipRangeForCacheOptions,
+  ): Promise<TranscribeClipRangeForCacheResult> {
+    const targetLanguage = normalizeTranscribeLanguage(options.language, env.TRANSCRIBE_LANGUAGE);
+    const cacheKey = transcribeCacheService.buildFingerprint({
+      assetFingerprint: options.assetFingerprint,
+      startMs: options.startMs,
+      endMs: options.endMs,
+      trimStartMs: 0,
+      trimEndMs: 0,
+      language: targetLanguage,
+      subtitleMode: 'original',
+      subtitleTargetLanguage: null,
+    });
+
+    if (!options.bypassCache) {
+      const cachedTranscript = await transcribeCacheService.getCachedTranscript(cacheKey);
+      if (cachedTranscript) {
+        return {
+          cacheKey,
+          cacheHit: true,
+          language: cachedTranscript.language,
+          segments: parseCachedSubtitleSegments(cachedTranscript.segments),
+        };
+      }
+    }
+
+    const transcribed = await transcribeRangeFromAudio({
+      inputPath: options.inputPath,
+      audioProxyDir: options.audioProxyDir,
+      startMs: options.startMs,
+      endMs: options.endMs,
+      language: targetLanguage,
+    });
+
+    await transcribeCacheService.setCachedTranscript(cacheKey, {
+      language: transcribed.language,
+      segments: transcribed.segments as object[],
+    });
+
+    return {
+      cacheKey,
+      cacheHit: false,
+      language: transcribed.language,
+      segments: transcribed.segments,
+    };
+  },
+
+  async cacheTranscriptRange(options: {
+    assetFingerprint: string;
+    startMs: number;
+    endMs: number;
+    language?: TranscribeLanguage | string;
+    segments: SubtitleSegment[];
+  }): Promise<string> {
+    const targetLanguage = normalizeTranscribeLanguage(options.language, env.TRANSCRIBE_LANGUAGE);
+    const cacheKey = transcribeCacheService.buildFingerprint({
+      assetFingerprint: options.assetFingerprint,
+      startMs: options.startMs,
+      endMs: options.endMs,
+      trimStartMs: 0,
+      trimEndMs: 0,
+      language: targetLanguage,
+      subtitleMode: 'original',
+      subtitleTargetLanguage: null,
+    });
+
+    await transcribeCacheService.setCachedTranscript(cacheKey, {
+      language: targetLanguage,
+      segments: options.segments as object[],
+    });
+
+    return cacheKey;
+  },
+
   /**
    * Orchestrate transcription for a single selected clip:
    * 1. Extract audio proxy

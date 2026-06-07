@@ -45,6 +45,7 @@ export interface Candidate {
   metadata?: {
     aiRerank?: {
       provider: 'openai' | 'ollama' | 'heuristic';
+      rerankProvider?: 'rules' | 'ollama' | 'heuristic';
       label: string;
       reason: string;
       viralScore: number;
@@ -52,6 +53,7 @@ export interface Candidate {
       clarityScore: number;
       heuristicScore: number;
       compositeScore: number;
+      reasonLabels?: string[];
       contentModeSuggestion:
         | 'podcast'
         | 'interview'
@@ -67,6 +69,18 @@ export interface Candidate {
       visualPenalty: number;
       topSignals: string[];
       badges: string[];
+      rule?: {
+        hookScore: number;
+        completionScore: number;
+        standaloneScore: number;
+        clarityScore: number;
+        durationScore: number;
+        visualScore: number;
+        energyScore: number;
+        compositeScore: number;
+        reasonLabels: string[];
+        riskFlags: string[];
+      };
       contentModeSuggestion:
         | 'podcast'
         | 'interview'
@@ -75,6 +89,24 @@ export interface Candidate {
         | 'cinematic'
         | 'general';
     };
+    refinementVersion?: number;
+    sourceStartMs?: number;
+    sourceEndMs?: number;
+    refinedStartMs?: number;
+    refinedEndMs?: number;
+    transcriptCacheKey?: string | null;
+    transcriptWindow?: {
+      startMs?: number;
+      endMs?: number;
+      status?: 'completed' | 'failed' | 'pending-selection-transcribe' | string;
+      boundaryConfidence?: 'high' | 'medium' | 'low' | string;
+      isHanging?: boolean;
+      isThin?: boolean;
+      segmentCount?: number;
+      wordCount?: number;
+      cacheHit?: boolean;
+    };
+    rerankProvider?: 'rules' | 'ollama' | 'heuristic';
   };
 }
 

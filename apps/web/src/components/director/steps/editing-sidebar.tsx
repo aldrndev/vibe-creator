@@ -1,14 +1,11 @@
 import { Captions, ScanFace, Scissors, Sparkles, Type, Waves } from 'lucide-react';
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
-import { EditingLivePreview } from '@/components/director/steps/editing-live-preview';
 import { subtitlePresets } from '@/components/director/steps/editing-presets';
 import { EditingSubtitleSpeakerControls } from '@/components/director/steps/editing-subtitle-speaker-controls';
 import { EditorFontSelect } from '@/components/editor-font-select';
 import { Card, CardBody, Switch, Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui';
 import {
   type ContentMode,
-  getCandidateSuggestedContentMode,
-  getContentModeLabel,
   getEffectiveRefineSettings,
   getResolvedContentMode,
 } from '@/lib/director-refine-settings';
@@ -16,7 +13,6 @@ import { directorSubtitleColorOptions } from '@/lib/director-subtitle-colors';
 import { resolveDirectorSubtitleFontFamily } from '@/lib/director-subtitle-fonts';
 import {
   clampSubtitleFontSize,
-  resolveSubtitleFontSizeMax,
   resolveSubtitleFontSizePreset,
   resolveSubtitleFontSizePresetValue,
   type SubtitleFontSizeContext,
@@ -24,15 +20,27 @@ import {
 } from '@/lib/director-subtitle-style';
 import { cn } from '@/lib/utils';
 import type {
-  DirectorSession,
   ExportSettings,
   RefineSettings,
   SelectedClip,
   SubtitleStyle,
 } from '@/stores/director-store';
 
+const subtitleAnimationOptions: Array<{
+  value: SubtitleStyle['animation'];
+  label: string;
+  description: string;
+}> = [
+  { value: 'none', label: 'Static', description: 'Teks tetap stabil.' },
+  { value: 'fade', label: 'Fade', description: 'Masuk lembut.' },
+  { value: 'typewriter', label: 'Karaoke', description: 'Ikuti ritme ucapan.' },
+  { value: 'word', label: 'Word', description: 'Muncul per kata.' },
+  { value: 'pop-word', label: 'Pop', description: 'Energi cepat.' },
+  { value: 'phrase', label: 'Cinema', description: 'Frasa sinematik.' },
+  { value: 'line', label: 'Line', description: 'Baris berganti.' },
+];
+
 interface EditingSidebarProps {
-  readonly activeSession: DirectorSession | null;
   readonly exportSettings: ExportSettings;
   readonly subtitleStyle: SubtitleStyle;
   readonly selectedClips: SelectedClip[];
@@ -43,10 +51,22 @@ interface EditingSidebarProps {
     value: boolean,
   ) => void;
   readonly onApplyContentMode: (mode: RefineSettings['contentMode']) => void;
+  readonly isTranscribing: boolean;
+}
+
+function normalizePresetSubtitleStyle(style: Partial<SubtitleStyle>): Partial<SubtitleStyle> {
+  if (style.speakerMode === 'speaker-colors' || style.stylePreset === 'podcast-duo') {
+    return style;
+  }
+
+  return {
+    ...style,
+    speakerMode: 'single',
+    speakerStyles: [],
+  };
 }
 
 export function EditingSidebar({
-  activeSession,
   exportSettings,
   subtitleStyle,
   selectedClips,
@@ -54,6 +74,7 @@ export function EditingSidebar({
   onUpdateSubtitleStyle,
   onUpdateRefineSetting,
   onApplyContentMode,
+  isTranscribing,
 }: Readonly<EditingSidebarProps>) {
   const primaryClip = selectedClips[0];
   const activeRefineSettings = primaryClip
@@ -79,11 +100,6 @@ export function EditingSidebar({
       exportSettings.aspectRatio,
     ],
   );
-  const subtitleFontSizeMax = resolveSubtitleFontSizeMax(subtitleFontSizeContext);
-  const suggestedMode = primaryClip
-    ? getCandidateSuggestedContentMode(primaryClip.candidate)
-    : null;
-
   useEffect(() => {
     const clampedFontSize = clampSubtitleFontSize(subtitleStyle.fontSize, subtitleFontSizeContext);
     if (clampedFontSize !== subtitleStyle.fontSize) {
@@ -113,53 +129,40 @@ export function EditingSidebar({
     <div className="w-full lg:w-[24rem] xl:w-104 shrink-0 self-start pb-6 lg:pb-8">
       <Card className="bg-card/70 border-border/50 backdrop-blur-xl rounded-4xl overflow-hidden">
         <CardBody className="p-4 sm:p-5">
-          <Tabs defaultValue="refine" className="w-full">
+          <Tabs defaultValue="subtitle" className="w-full">
             <TabsList className="h-11 w-full rounded-2xl bg-muted/30 border border-border/40 p-1">
               <TabsTrigger
+                value="subtitle"
+                className="flex-1 rounded-xl text-[11px] font-black uppercase tracking-widest data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+              >
+                <span className="inline-flex items-center gap-1.5">
+                  Subtitle
+                  {isTranscribing ? (
+                    <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
+                  ) : null}
+                </span>
+              </TabsTrigger>
+              <TabsTrigger
                 value="refine"
-                className="flex-1 rounded-xl text-[11px] font-black uppercase tracking-widest data-[state=active]:bg-card data-[state=active]:text-primary"
+                className="flex-1 rounded-xl text-[11px] font-black uppercase tracking-widest data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
               >
                 Setting
               </TabsTrigger>
-              <TabsTrigger
-                value="subtitle"
-                className="flex-1 rounded-xl text-[11px] font-black uppercase tracking-widest data-[state=active]:bg-card data-[state=active]:text-primary"
-              >
-                Subtitle
-              </TabsTrigger>
-              <TabsTrigger
-                value="preview"
-                className="flex-1 rounded-xl text-[11px] font-black uppercase tracking-widest data-[state=active]:bg-card data-[state=active]:text-primary"
-              >
-                Video
-              </TabsTrigger>
             </TabsList>
-
-            <TabsContent value="refine" className="mt-4">
-              <RefineCard
-                activeRefineSettings={activeRefineSettings}
-                suggestedMode={suggestedMode}
-                onUpdateRefineSetting={onUpdateRefineSetting}
-                onApplyContentMode={onApplyContentMode}
-              />
-            </TabsContent>
 
             <TabsContent value="subtitle" className="mt-4">
               <SubtitleStyleCard
                 subtitleStyle={subtitleStyle}
                 onUpdateSubtitleStyle={handleUpdateSubtitleStyle}
-                subtitleFontSizeMax={subtitleFontSizeMax}
                 subtitleFontSizeContext={subtitleFontSizeContext}
               />
             </TabsContent>
 
-            <TabsContent value="preview" forceMount className="mt-4 data-[state=inactive]:hidden">
-              <EditingLivePreview
-                activeSession={activeSession}
-                exportSettings={exportSettings}
-                subtitleStyle={subtitleStyle}
-                selectedClips={selectedClips}
-                refineSettings={refineSettings}
+            <TabsContent value="refine" className="mt-4">
+              <RefineCard
+                activeRefineSettings={activeRefineSettings}
+                onUpdateRefineSetting={onUpdateRefineSetting}
+                onApplyContentMode={onApplyContentMode}
               />
             </TabsContent>
           </Tabs>
@@ -175,19 +178,10 @@ export function EditingSidebar({
 
 function RefineCard({
   activeRefineSettings,
-  suggestedMode,
   onUpdateRefineSetting,
   onApplyContentMode,
 }: Readonly<{
   activeRefineSettings: RefineSettings | null;
-  suggestedMode:
-    | 'podcast'
-    | 'interview'
-    | 'talking-head'
-    | 'product-review'
-    | 'cinematic'
-    | 'general'
-    | null;
   onUpdateRefineSetting: (
     key: 'faceTracking' | 'removeSilence' | 'optimizeHook' | 'stabilize',
     value: boolean,
@@ -215,12 +209,9 @@ function RefineCard({
           </div>
           <div>
             <h4 className="font-black tracking-tight text-lg">Setting Short</h4>
-            {suggestedMode ? (
-              <p className="text-xs text-muted-foreground">
-                Mode short (rekomendasi AI) :{' '}
-                <span className="font-semibold">{getContentModeLabel(suggestedMode)}</span>
-              </p>
-            ) : null}
+            <p className="text-xs text-muted-foreground">
+              Atur framing, tempo, dan stabilitas klip sebelum preview final.
+            </p>
           </div>
         </div>
 
@@ -232,7 +223,7 @@ function RefineCard({
             {[
               { value: 'auto', label: 'Auto' },
               { value: 'podcast', label: 'Podcast' },
-              { value: 'interview', label: 'Interview' },
+              { value: 'interview', label: 'Dialog' },
               { value: 'product-review', label: 'Product' },
               { value: 'cinematic', label: 'Cinema' },
             ].map((mode) => (
@@ -320,12 +311,10 @@ function RefineToggleRow({
 function SubtitleStyleCard({
   subtitleStyle,
   onUpdateSubtitleStyle,
-  subtitleFontSizeMax,
   subtitleFontSizeContext,
 }: Readonly<{
   subtitleStyle: SubtitleStyle;
   onUpdateSubtitleStyle: (style: Partial<SubtitleStyle>) => void;
-  subtitleFontSizeMax: number;
   subtitleFontSizeContext: SubtitleFontSizeContext;
 }>) {
   const [activePresetId, setActivePresetId] = useState(
@@ -352,9 +341,7 @@ function SubtitleStyleCard({
     subtitleStyle.fontToken,
   );
   const showSpeakerStyleControls =
-    subtitleStyle.speakerMode === 'speaker-colors' ||
-    subtitleStyle.stylePreset === 'podcast-duo' ||
-    subtitleStyle.speakerStyles.length > 0;
+    subtitleStyle.speakerMode === 'speaker-colors' || subtitleStyle.stylePreset === 'podcast-duo';
   const sizePresetOptions: Array<{
     value: SubtitleFontSizePreset;
     label: string;
@@ -384,14 +371,24 @@ function SubtitleStyleCard({
           <div className="w-10 h-10 rounded-xl bg-orange-500/10 flex items-center justify-center border border-orange-500/20">
             <Captions size={20} className="text-orange-500" />
           </div>
-          <h4 className="font-black tracking-tight text-lg">Gaya Subtitle</h4>
+          <div>
+            <h4 className="font-black tracking-tight text-lg">Gaya Subtitle</h4>
+            <p className="text-xs text-muted-foreground">
+              Pilih preset, font, warna, dan animasi subtitle.
+            </p>
+          </div>
         </div>
 
         <div className="space-y-3">
-          <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 block ml-1">
-            Preset Subtitle
+          <div className="ml-1 flex items-center justify-between gap-3">
+            <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
+              Preset Subtitle
+            </div>
+            <span className="rounded-full border border-border/40 bg-muted/25 px-2.5 py-1 text-[10px] font-black text-muted-foreground">
+              {subtitlePresets.length} preset
+            </span>
           </div>
-          <div className="space-y-2">
+          <div className="max-h-[19.5rem] space-y-2 overflow-y-auto pr-1">
             {subtitlePresets.map((preset) => {
               const isActive = activePresetId === preset.id;
 
@@ -401,7 +398,7 @@ function SubtitleStyleCard({
                   key={preset.id}
                   onClick={() => {
                     setActivePresetId(preset.id);
-                    onUpdateSubtitleStyle(preset.subtitleStyle);
+                    onUpdateSubtitleStyle(normalizePresetSubtitleStyle(preset.subtitleStyle));
                   }}
                   className={cn(
                     'w-full rounded-2xl border px-4 py-3 text-left transition-all hover:-translate-y-0.5 hover:shadow-sm',
@@ -420,7 +417,7 @@ function SubtitleStyleCard({
                     <span
                       aria-hidden="true"
                       className={cn(
-                        'mt-1 h-5 w-5 shrink-0 rounded-full border shadow-sm',
+                        'mt-1 h-3.5 w-3.5 shrink-0 rounded-full border shadow-sm',
                         getPresetSwatchClass(preset.subtitleStyle.textColorToken),
                       )}
                     />
@@ -461,9 +458,6 @@ function SubtitleStyleCard({
               </button>
             ))}
           </div>
-          <p className="text-[10px] text-muted-foreground">
-            Dinamis sesuai mode, posisi, rasio, dan kualitas video (max {subtitleFontSizeMax}px).
-          </p>
         </div>
 
         <div className="space-y-3">
@@ -517,16 +511,8 @@ function SubtitleStyleCard({
               Animasi Subtitle
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-1.5 bg-muted/30 rounded-2xl p-1.5 border border-border/40">
-            {[
-              { value: 'none', label: 'Static' },
-              { value: 'fade', label: 'Fade' },
-              { value: 'typewriter', label: 'Karaoke' },
-              { value: 'word', label: 'Word by Word' },
-              { value: 'pop-word', label: 'Pop Word' },
-              { value: 'phrase', label: 'Cinema' },
-              { value: 'line', label: 'Line' },
-            ].map((animation) => (
+          <div className="grid grid-cols-2 gap-2">
+            {subtitleAnimationOptions.map((animation) => (
               <button
                 type="button"
                 key={animation.value}
@@ -536,13 +522,27 @@ function SubtitleStyleCard({
                   })
                 }
                 className={cn(
-                  'px-2 py-1.5 rounded-xl text-[10px] font-black transition-all',
+                  'flex min-h-[3.75rem] items-start justify-between gap-2 rounded-2xl border px-2.5 py-2 text-left transition-all',
                   subtitleStyle.animation === animation.value
-                    ? 'bg-card text-orange-500 border border-orange-500/30'
-                    : 'text-muted-foreground hover:text-foreground',
+                    ? 'border-orange-500/35 bg-orange-500/5 text-orange-500'
+                    : 'border-border/40 bg-muted/20 text-muted-foreground hover:border-orange-500/25 hover:text-foreground',
                 )}
               >
-                {animation.label}
+                <span className="min-w-0">
+                  <span className="block text-[11px] font-black">{animation.label}</span>
+                  <span className="mt-0.5 block text-[10px] font-semibold leading-4 text-muted-foreground">
+                    {animation.description}
+                  </span>
+                </span>
+                <span
+                  aria-hidden="true"
+                  className={cn(
+                    'h-2.5 w-2.5 shrink-0 rounded-full border',
+                    subtitleStyle.animation === animation.value
+                      ? 'border-orange-500 bg-orange-500'
+                      : 'border-muted-foreground/35',
+                  )}
+                />
               </button>
             ))}
           </div>

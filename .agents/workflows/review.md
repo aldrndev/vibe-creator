@@ -17,7 +17,7 @@ description: Quick overall code review against all active rules.
 | Aspect | Check | Source Rule |
 |--------|-------|-------------|
 | Type Safety | Any `any` usage? | 1.1-core |
-| Biome | `biome check .` clean? | 1.1-core |
+| Biome | `biome check .` clean? (0 errors + 0 warnings) | 1.1-core |
 | TypeScript | `tsc --noEmit` clean? | 1.1-core |
 | Testing | Tests passing? Co-change compliant? | 7.1-testing |
 | Security | Hardcoded secrets? Auth proper? | 8.1-security |
@@ -26,8 +26,8 @@ description: Quick overall code review against all active rules.
 | Deps | `pnpm audit` + `pnpm outdated` clean? | 1.1-core |
 | Quality Gates | All gates in PROJECT.yaml pass? | PROJECT.yaml |
 
-// turbo
-3. Run automated checks: `pnpm biome check .` + `pnpm tsc --noEmit` + `pnpm test`
+
+3. Run automated checks: `pnpm biome check . --diagnostic-level=warn` + `pnpm tsc --noEmit` + `pnpm test`
 4. Display summary table:
    - ✅ Pass / ❌ Fail / ⚠️ Warning per aspect
 5. For each ❌ or ⚠️, recommend specific workflow:

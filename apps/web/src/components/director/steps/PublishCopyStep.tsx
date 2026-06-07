@@ -87,8 +87,8 @@ export function PublishCopyStep() {
           <CardBody className="p-6 sm:p-8 space-y-5">
             <h4 className="font-black tracking-tight text-lg">Lanjutkan Flow</h4>
             <p className="text-sm leading-6 text-muted-foreground">
-              Kembali ke Video Studio jika transkrip belum pas, atau generate jika copy publish
-              sudah siap.
+              Kembali ke Edit Short jika transkrip belum pas, atau generate jika copy publish sudah
+              siap.
             </p>
 
             <Button
@@ -100,7 +100,7 @@ export function PublishCopyStep() {
               }}
             >
               <ArrowLeft size={14} className="mr-2" />
-              Kembali ke Video
+              Kembali Edit
             </Button>
 
             <Button
@@ -112,7 +112,7 @@ export function PublishCopyStep() {
               isLoading={isLoading}
               disabled={isLoading || selectedClips.length === 0}
             >
-              Generate Video Akhir
+              Generate Preview
             </Button>
           </CardBody>
         </Card>

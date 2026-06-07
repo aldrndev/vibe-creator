@@ -340,12 +340,12 @@ export function generateVideoGenPrompt(input: VideoGenPromptInput): string {
 }
 
 export function generateImagePrompt(input: ImagePromptInput): string {
-  const lensInfo =
-    input.style === 'photorealistic' || input.subject === 'person'
-      ? PHOTOGRAPHY_TERMS.portrait
-      : input.style === 'landscape'
-        ? PHOTOGRAPHY_TERMS.landscape
-        : '';
+  let lensInfo = '';
+  if (input.style === 'photorealistic' || input.subject === 'person') {
+    lensInfo = PHOTOGRAPHY_TERMS.portrait;
+  } else if (input.style === 'landscape') {
+    lensInfo = PHOTOGRAPHY_TERMS.landscape;
+  }
 
   const model = (input as { targetModel?: string }).targetModel;
 

@@ -10,11 +10,8 @@ description: Update project dependencies to latest stable versions with safety c
 
 ## Steps
 
-// turbo
 1. Read `PROJECT.yaml` for profile and current packages
-// turbo
 2. Run `pnpm outdated` — get list of outdated packages with current + latest versions
-// turbo
 3. Run `pnpm audit` — identify vulnerabilities
 4. For each outdated or vulnerable package, **search the web** for:
    - Changelog / release notes for breaking changes
@@ -28,12 +25,9 @@ description: Update project dependencies to latest stable versions with safety c
 6. Ask developer to **approve** updates (approve all or select per package)
 7. Once approved:
    - Update `package.json`
-// turbo
    - Run `pnpm install`
-// turbo
    - Run `pnpm test` — verify no breakage
-// turbo
-   - Run `pnpm biome check .` + `pnpm tsc --noEmit`
+   - Run `pnpm biome check . --diagnostic-level=warn` + `pnpm tsc --noEmit`
 8. If tests fail after update:
    - Identify the package causing the failure
    - Propose migration fix and apply

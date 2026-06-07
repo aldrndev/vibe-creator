@@ -6,6 +6,8 @@ const envMock = {
   OPENAI_API_KEY: '',
   OLLAMA_BASE_URL: 'http://localhost:11434/api',
   OLLAMA_MODEL: 'qwen3:14b',
+  DIRECTOR_LOCAL_RERANK_ENABLED: true,
+  DIRECTOR_LOCAL_RERANK_TIMEOUT_MS: 20000,
 };
 
 vi.mock('@/config/env', () => ({
@@ -38,6 +40,7 @@ describe('directorAnalysisAiRerankService', () => {
     fetchMock.mockReset();
     envMock.AI_COPY_PROVIDER = 'ollama';
     envMock.OPENAI_API_KEY = '';
+    envMock.DIRECTOR_LOCAL_RERANK_ENABLED = true;
   });
 
   it('reranks candidates using Ollama structured output', async () => {
@@ -98,12 +101,11 @@ describe('directorAnalysisAiRerankService', () => {
     expect(result[0]?.rank).toBe(1);
     expect(result[0]?.metadata.aiRerank).toMatchObject({
       provider: 'ollama',
-      label: 'Hook Cepat',
+      rerankProvider: 'ollama',
+      label: 'Paling Seimbang',
     });
-    expect(result[0]?.metadata.scoreBreakdown).toMatchObject({
-      badges: expect.arrayContaining(['Hook Kuat']),
-    });
-    expect(result[0]?.startMs).toBe(30000);
+    expect(result[0]?.startMs).toBe(0);
+    expect(result[1]?.startMs).toBe(30000);
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
@@ -131,9 +133,10 @@ describe('directorAnalysisAiRerankService', () => {
 
     expect(result[0]?.metadata.aiRerank).toMatchObject({
       provider: 'heuristic',
-      label: 'Hook Cepat',
+      label: 'Hook kuat',
+      rerankProvider: 'rules',
     });
-    expect(result[0]?.score).toBeGreaterThan(0.9);
+    expect(result[0]?.score).toBeLessThanOrEqual(0.7);
   });
 
   it('keeps short-readiness guard when AI score is high on risky long clip', async () => {
@@ -234,7 +237,32 @@ describe('directorAnalysisAiRerankService', () => {
 
     expect(result[0]?.metadata.aiRerank).toMatchObject({
       provider: 'heuristic',
-      label: 'Perlu Cek Ulang',
+      rerankProvider: 'rules',
+    });
+  });
+
+  it('keeps deterministic ranking when local rerank is disabled', async () => {
+    envMock.DIRECTOR_LOCAL_RERANK_ENABLED = false;
+
+    const { directorAnalysisAiRerankService } = await import(
+      '@/modules/director/services/analysis-ai-rerank.service'
+    );
+
+    const result = await directorAnalysisAiRerankService.rerankCandidates([
+      {
+        startMs: 0,
+        endMs: 54_000,
+        score: 0.76,
+        rank: 1,
+        tags: ['highlight'],
+        scoreBreakdown,
+      },
+    ]);
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(result[0]?.metadata.aiRerank).toMatchObject({
+      provider: 'heuristic',
+      rerankProvider: 'rules',
     });
   });
 });

@@ -3,7 +3,7 @@ import {
   CheckCircle2,
   FileVideo,
   Flame,
-  Gauge,
+  Info,
   Pause,
   Play,
   RefreshCw,
@@ -11,39 +11,41 @@ import {
   Timer,
   X,
 } from 'lucide-react';
-import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { getRecommendedCandidates } from '@/components/director/steps/picking-recommendations';
-import {
-  Button,
-  Modal,
-  ModalBody,
-  ModalContent,
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui';
+import { Button, Modal, ModalBody, ModalContent } from '@/components/ui';
 import { useAuthenticatedObjectUrl } from '@/hooks/use-authenticated-object-url';
 import { cn } from '@/lib/utils';
 import { authFetch } from '@/services/api';
 import type { Candidate, DirectorSession } from '@/stores/director-store';
 import { useDirectorStore } from '@/stores/director-store';
 
-interface CandidateCardProps {
-  readonly activeSession: DirectorSession;
-  readonly clip: Candidate;
-  readonly recommendation?: {
-    label: string;
-    reason: string;
-  };
-  readonly isSelected: boolean;
-  readonly isPlaying: boolean;
-  readonly onToggleSelection: () => void;
-  readonly onStartPlaying: () => void;
-  readonly onStopPlaying: () => void;
+type CandidateRecommendation = ReturnType<typeof getRecommendedCandidates>[number];
+
+function isTranscriptCompletionConfident(clip: Candidate): boolean {
+  return clip.metadata?.transcriptWindow?.boundaryConfidence === 'high';
+}
+
+function normalizeMomentLabel(label: string): string {
+  const normalized = label.trim().toLowerCase();
+
+  if (normalized.includes('kalimat') || normalized.includes('completion')) return 'Kalimat selesai';
+  if (normalized.includes('hook')) return 'Hook kuat';
+  if (normalized.includes('energy') || normalized.includes('energi')) return 'Energi tinggi';
+  if (normalized.includes('dialog')) return 'Dialog jelas';
+  if (normalized.includes('durasi') || normalized.includes('fast')) return 'Durasi pas';
+  if (normalized.includes('visual') || normalized.includes('clarity')) return 'Visual jelas';
+
+  return label
+    .split(/[\s_-]+/)
+    .filter(Boolean)
+    .map((word) => `${word.charAt(0).toUpperCase()}${word.slice(1).toLowerCase()}`)
+    .join(' ');
 }
 
 function getCandidateBadges(clip: Candidate, recommendationLabel?: string): string[] {
+  const ruleLabels =
+    clip.metadata?.aiRerank?.reasonLabels ?? clip.metadata?.scoreBreakdown?.rule?.reasonLabels;
   const badges = clip.metadata?.scoreBreakdown?.badges?.length
     ? clip.metadata.scoreBreakdown.badges
     : [
@@ -51,41 +53,151 @@ function getCandidateBadges(clip: Candidate, recommendationLabel?: string): stri
         Math.round((clip.endMs - clip.startMs) / 1000) <= 18 ? 'Fast' : 'Durasi Pas',
       ];
 
-  if (!recommendationLabel) {
-    return badges.slice(0, 2);
+  const rawBadges = [
+    ...(ruleLabels?.length ? ruleLabels : []),
+    ...badges,
+    ...(recommendationLabel ? [recommendationLabel] : []),
+  ];
+  const deduped = new Map<string, string>();
+
+  for (const badge of rawBadges) {
+    const normalized = normalizeMomentLabel(badge);
+    if (normalized === 'Kalimat selesai' && !isTranscriptCompletionConfident(clip)) {
+      continue;
+    }
+
+    deduped.set(normalized.toLowerCase(), normalized);
   }
 
-  return Array.from(new Set([...badges, recommendationLabel])).slice(0, 2);
+  return [...deduped.values()].slice(0, 2);
+}
+
+function getCandidateDurationSeconds(clip: Candidate): number {
+  return Math.max(1, Math.round((clip.endMs - clip.startMs) / 1000));
+}
+
+function getPrimaryMomentLabel(clip: Candidate, recommendation?: { label: string }): string {
+  if (recommendation?.label) {
+    return normalizeMomentLabel(recommendation.label);
+  }
+
+  const aiMeta = clip.metadata?.aiRerank;
+  const ruleLabels = aiMeta?.reasonLabels ?? clip.metadata?.scoreBreakdown?.rule?.reasonLabels;
+  if (ruleLabels?.[0]) {
+    return normalizeMomentLabel(ruleLabels[0]);
+  }
+
+  if (aiMeta) {
+    if (aiMeta.hookScore >= 80) return 'Hook kuat';
+    if (aiMeta.clarityScore >= 80) return 'Visual jelas';
+    if (aiMeta.viralScore >= 80) return 'Potensi viral';
+  }
+
+  const badges = clip.metadata?.scoreBreakdown?.badges ?? [];
+  const badge = badges[0] ?? clip.tags?.[0];
+  if (badge) {
+    return normalizeMomentLabel(badge);
+  }
+
+  const duration = getCandidateDurationSeconds(clip);
+  if (duration >= 20 && duration <= 90) {
+    return 'Durasi pas';
+  }
+
+  return 'Momen menonjol';
+}
+
+function getCandidateReason(clip: Candidate, recommendation?: { reason: string }): string {
+  const reason =
+    recommendation?.reason ??
+    clip.metadata?.aiRerank?.reason ??
+    clip.metadata?.scoreBreakdown?.topSignals?.[0];
+
+  if (!reason) {
+    return 'Klip ini punya ritme yang cukup kuat untuk dijadikan Short.';
+  }
+
+  return reason;
+}
+
+function getFeaturedCandidate(
+  candidates: readonly Candidate[],
+  recommendations: readonly CandidateRecommendation[],
+): Candidate | null {
+  const recommendedId = recommendations[0]?.candidateId;
+  const recommendedCandidate = recommendedId
+    ? candidates.find((candidate) => candidate.id === recommendedId)
+    : null;
+
+  return recommendedCandidate ?? candidates[0] ?? null;
 }
 
 function getBadgeIcon(badge: string) {
-  if (badge === 'High Energy' || badge === 'Hook Kuat') {
+  const normalizedBadge = badge.toLowerCase();
+
+  if (normalizedBadge === 'high energy' || normalizedBadge === 'hook kuat') {
     return <Flame size={10} className="shrink-0" />;
   }
 
-  if (badge === 'Durasi Pas' || badge === 'Fast') {
+  if (normalizedBadge === 'durasi pas' || normalizedBadge === 'fast') {
     return <Timer size={10} className="shrink-0" />;
   }
 
   return <Sparkles size={10} className="shrink-0" />;
 }
 
-function getCandidateScoreTooltip(clip: Candidate, recommendation?: { reason: string }): string[] {
-  const breakdown = clip.metadata?.scoreBreakdown;
-  const aiMeta = clip.metadata?.aiRerank;
-  const aiReason = aiMeta?.reason ?? recommendation?.reason;
+interface CandidatePosterProps {
+  readonly activeSession: DirectorSession;
+  readonly clip: Candidate;
+  readonly className?: string;
+  readonly imageClassName?: string;
+}
 
-  return [
-    `Skor final: ${Math.round(aiMeta?.compositeScore ?? clip.score * 100)}`,
-    breakdown ? `Energy: ${breakdown.energy}` : null,
-    breakdown ? `Dialog: ${breakdown.dialogDensity}` : null,
-    breakdown ? `Durasi fit: ${breakdown.durationFit}` : null,
-    breakdown && breakdown.visualPenalty > 0 ? `Penalty visual: ${breakdown.visualPenalty}` : null,
-    aiMeta ? `Viral: ${aiMeta.viralScore}` : null,
-    aiMeta ? `Hook: ${aiMeta.hookScore}` : null,
-    aiMeta ? `Clarity: ${aiMeta.clarityScore}` : null,
-    aiReason ? `AI: ${aiReason}` : null,
-  ].filter((line): line is string => Boolean(line));
+function CandidatePoster({
+  activeSession,
+  clip,
+  className,
+  imageClassName,
+}: Readonly<CandidatePosterProps>) {
+  const previewUrl = useAuthenticatedObjectUrl(
+    `/api/v1/director/sessions/${activeSession.id}/clips/${clip.id}/poster`,
+  );
+
+  if (!previewUrl) {
+    return (
+      <div
+        className={cn(
+          'flex h-full w-full items-center justify-center bg-muted/30 text-muted-foreground/35',
+          className,
+        )}
+      >
+        <FileVideo size={44} strokeWidth={1.5} />
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={previewUrl}
+      alt={`Preview klip ${clip.rank ?? 1}`}
+      className={cn('h-full w-full object-cover', className, imageClassName)}
+      onError={(event) => {
+        event.currentTarget.style.display = 'none';
+        event.currentTarget.parentElement?.classList.add('flex', 'items-center', 'justify-center');
+      }}
+    />
+  );
+}
+
+interface CandidateCardProps {
+  readonly activeSession: DirectorSession;
+  readonly clip: Candidate;
+  readonly recommendation?: CandidateRecommendation;
+  readonly isSelected: boolean;
+  readonly isPlaying: boolean;
+  readonly onToggleSelection: () => void;
+  readonly onStartPlaying: () => void;
+  readonly onStopPlaying: () => void;
 }
 
 function CandidateCard({
@@ -98,171 +210,241 @@ function CandidateCard({
   onStartPlaying,
   onStopPlaying,
 }: Readonly<CandidateCardProps>) {
-  const [isLandscape, setIsLandscape] = useState(false);
-  const previewUrl = useAuthenticatedObjectUrl(
-    `/api/v1/director/sessions/${activeSession.id}/clips/${clip.id}/poster`,
-  );
-  const duration = Math.round((clip.endMs - clip.startMs) / 1000);
-  const aspectClass = isLandscape ? 'aspect-video' : 'aspect-9/16';
-  const scoreTooltip = getCandidateScoreTooltip(clip, recommendation);
-  const visibleBadges = getCandidateBadges(clip, recommendation?.label);
+  const duration = getCandidateDurationSeconds(clip);
+  const primaryLabel = getPrimaryMomentLabel(clip, recommendation);
+  const visibleBadges = getCandidateBadges(clip, recommendation?.label)
+    .filter((badge) => normalizeMomentLabel(badge) !== primaryLabel)
+    .slice(0, 1);
   const playButtonLabel = isPlaying
     ? `Hentikan preview klip ${clip.rank}`
     : `Putar preview klip ${clip.rank}`;
-  let mediaContent: ReactNode;
-
-  if (previewUrl) {
-    mediaContent = (
-      <img
-        src={previewUrl}
-        alt={`Clip ${clip.rank}`}
-        className="w-full h-full object-contain opacity-90 group-hover:opacity-100 transition-opacity duration-500 bg-black"
-        onLoad={(e) => {
-          setIsLandscape(e.currentTarget.naturalWidth > e.currentTarget.naturalHeight);
-        }}
-        onError={(e) => {
-          e.currentTarget.style.display = 'none';
-          e.currentTarget.parentElement?.classList.add('flex', 'items-center', 'justify-center');
-        }}
-      />
-    );
-  } else {
-    mediaContent = (
-      <div className="w-full h-full flex items-center justify-center text-muted-foreground/30">
-        <FileVideo size={48} strokeWidth={1.5} />
-      </div>
-    );
-  }
 
   return (
-    <TooltipProvider delayDuration={200}>
-      <div
+    <div
+      className={cn(
+        'group relative aspect-video overflow-hidden rounded-2xl border bg-muted/20 transition-all duration-300',
+        isSelected
+          ? 'border-primary/80 shadow-lg shadow-primary/10'
+          : 'border-border/60 hover:border-primary/35',
+      )}
+    >
+      <button
+        type="button"
+        aria-pressed={isSelected}
+        aria-label={`Pilih klip durasi ${duration} detik`}
+        onClick={onToggleSelection}
+        className="absolute inset-0 z-20 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+      />
+      <div className="pointer-events-none absolute inset-0 bg-black">
+        <CandidatePoster
+          activeSession={activeSession}
+          clip={clip}
+          imageClassName="opacity-85 transition-opacity duration-300 group-hover:opacity-100"
+        />
+      </div>
+
+      <button
+        type="button"
+        onClick={(event) => {
+          event.stopPropagation();
+          if (isPlaying) {
+            onStopPlaying();
+            return;
+          }
+          onStartPlaying();
+        }}
+        className="absolute left-3 top-3 z-40 flex h-10 w-10 items-center justify-center rounded-2xl border border-white/15 bg-black/40 text-white backdrop-blur-md transition-all duration-300 hover:scale-105 hover:bg-black/55"
+        aria-label={playButtonLabel}
+      >
+        {isPlaying ? (
+          <Pause className="h-4 w-4 fill-white" />
+        ) : (
+          <Play className="h-4 w-4 fill-white" />
+        )}
+      </button>
+
+      <button
+        type="button"
+        onClick={(event) => {
+          event.stopPropagation();
+          onToggleSelection();
+        }}
+        aria-label={`Toggle select klip ${clip.rank ?? 1}`}
         className={cn(
-          'group relative bg-muted/20 rounded-2xl overflow-hidden border-2 transition-all duration-300',
-          aspectClass,
+          'absolute right-3 top-3 z-40 flex h-8 w-8 items-center justify-center rounded-2xl border-2 transition-all duration-300',
           isSelected
-            ? 'border-primary scale-[1.02] z-10'
-            : 'border-border/50 hover:border-primary/35 hover:scale-[1.01]',
+            ? 'border-primary bg-primary text-primary-foreground'
+            : 'border-white/30 bg-black/20 text-transparent backdrop-blur-md group-hover:border-white/65',
         )}
       >
-        <button
-          type="button"
-          aria-pressed={isSelected}
-          aria-label={`Pilih klip durasi ${duration} detik`}
-          onClick={(event) => {
-            event.stopPropagation();
-            onToggleSelection();
-          }}
-          className="absolute inset-0 z-20 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-        />
-        <div className="pointer-events-none absolute inset-0 bg-muted/40 transition-colors group-hover:bg-muted/30">
-          {mediaContent}
+        <CheckCircle2 size={16} strokeWidth={3} />
+      </button>
+
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 bg-linear-to-t from-black/90 via-black/40 to-transparent px-3 pt-16 pb-3">
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-black/40 px-2.5 py-1 text-[10px] font-bold text-white/90 backdrop-blur-sm">
+            <Info size={11} className="text-white/65" />
+            {primaryLabel}
+          </span>
+          <span className="inline-flex min-w-14 justify-center rounded-full border border-white/10 bg-black/45 px-2.5 py-1 text-[10px] font-black text-white backdrop-blur-sm">
+            {duration}s
+          </span>
         </div>
+        {visibleBadges.length > 0 ? (
+          <div className="flex flex-wrap gap-1.5">
+            {visibleBadges.map((badge) => (
+              <span
+                key={`${clip.id}-${badge}`}
+                className="inline-flex items-center gap-1.5 rounded-md border border-white/10 bg-black/30 px-2 py-1 text-[9px] font-bold tracking-wide text-white/85 backdrop-blur-sm"
+              >
+                {getBadgeIcon(badge)}
+                {normalizeMomentLabel(badge)}
+              </span>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
 
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            if (isPlaying) {
-              onStopPlaying();
-              return;
-            }
-            onStartPlaying();
-          }}
-          className="absolute top-4 left-4 z-40 w-10 h-10 rounded-2xl border border-white/20 bg-black/35 text-white backdrop-blur-md transition-all duration-300 hover:scale-105 hover:bg-black/50 flex items-center justify-center"
-          aria-label={playButtonLabel}
-        >
-          {isPlaying ? (
-            <Pause className="w-4 h-4 fill-white" />
-          ) : (
-            <Play className="w-4 h-4 fill-white" />
-          )}
-        </button>
+interface FeaturedCandidateCardProps {
+  readonly activeSession: DirectorSession;
+  readonly clip: Candidate;
+  readonly recommendation?: CandidateRecommendation;
+  readonly isSelected: boolean;
+  readonly isPlaying: boolean;
+  readonly isLoading: boolean;
+  readonly onStartPlaying: () => void;
+  readonly onStopPlaying: () => void;
+  readonly onUseCandidate: () => void;
+}
 
-        <button
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            onToggleSelection();
-          }}
-          aria-label={`Toggle select klip ${clip.rank}`}
-          className={cn(
-            'absolute top-4 right-4 z-40 w-7 h-7 rounded-2xl border-2 flex items-center justify-center transition-all duration-500',
-            isSelected
-              ? 'bg-primary border-primary text-white rotate-0 scale-110'
-              : 'bg-black/20 backdrop-blur-md border-white/30 text-transparent group-hover:border-white/60 -rotate-12 group-hover:rotate-0',
-          )}
-        >
-          <CheckCircle2 size={16} strokeWidth={3} />
-        </button>
+function FeaturedCandidateCard({
+  activeSession,
+  clip,
+  recommendation,
+  isSelected,
+  isPlaying,
+  isLoading,
+  onStartPlaying,
+  onStopPlaying,
+  onUseCandidate,
+}: Readonly<FeaturedCandidateCardProps>) {
+  const duration = getCandidateDurationSeconds(clip);
+  const primaryLabel = getPrimaryMomentLabel(clip, recommendation);
+  const reason = getCandidateReason(clip, recommendation);
+  const visibleBadges = getCandidateBadges(clip, recommendation?.label).filter(
+    (badge) => normalizeMomentLabel(badge) !== primaryLabel,
+  );
 
-        {!isPlaying && (
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 bg-linear-to-t from-black/95 via-black/50 to-transparent px-4 pt-24 pb-4 transition-colors duration-500 group-hover:from-black/98 group-hover:via-black/60">
-            <div className="flex items-center justify-between gap-2">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                    }}
-                    className="pointer-events-auto inline-flex min-w-24 justify-center rounded-lg border border-primary/30 bg-primary/20 px-3 py-1 text-center backdrop-blur-md"
-                    aria-label={`Lihat detail skor klip ${clip.rank}`}
-                  >
-                    <span className="inline-flex items-center justify-center gap-1 text-[10px] font-black text-primary uppercase tracking-tighter">
-                      <Gauge size={10} className="shrink-0" />
-                      SKOR {Math.round(clip.metadata?.aiRerank?.compositeScore ?? clip.score * 100)}
-                    </span>
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="top" className="max-w-xs space-y-1">
-                  {scoreTooltip.map((line) => (
-                    <p key={`${clip.id}-${line}`} className="text-xs leading-5">
-                      {line}
-                    </p>
-                  ))}
-                </TooltipContent>
-              </Tooltip>
-              <span className="inline-flex min-w-16 justify-center rounded-lg border border-white/10 bg-black/40 px-2 py-1 text-center text-[10px] font-black text-white backdrop-blur-sm">
-                {duration}s
+  return (
+    <div
+      className={cn(
+        'overflow-hidden rounded-2xl border bg-card/70 shadow-lg shadow-black/5 transition-colors sm:rounded-3xl',
+        isSelected ? 'border-primary/65' : 'border-border/60',
+      )}
+    >
+      <div className="grid gap-0 lg:grid-cols-[minmax(0,1.15fr)_minmax(300px,0.85fr)]">
+        <div className="relative aspect-video overflow-hidden bg-black lg:aspect-auto lg:min-h-76">
+          <CandidatePoster
+            activeSession={activeSession}
+            clip={clip}
+            imageClassName="opacity-90 transition-opacity duration-300 hover:opacity-100"
+          />
+          <button
+            type="button"
+            onClick={() => {
+              if (isPlaying) {
+                onStopPlaying();
+                return;
+              }
+              onStartPlaying();
+            }}
+            className="absolute left-5 top-5 z-30 flex h-12 w-12 items-center justify-center rounded-2xl border border-white/15 bg-black/45 text-white backdrop-blur-md transition hover:scale-105 hover:bg-black/60"
+          >
+            {isPlaying ? (
+              <Pause className="h-5 w-5 fill-white" />
+            ) : (
+              <Play className="h-5 w-5 fill-white" />
+            )}
+          </button>
+          <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/90 via-black/25 to-transparent p-5">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full bg-primary px-3 py-1 text-[10px] font-black uppercase tracking-wider text-primary-foreground">
+                Rekomendasi AI
+              </span>
+              <span className="rounded-full border border-white/15 bg-black/40 px-3 py-1 text-xs font-bold text-white backdrop-blur-sm">
+                #{clip.rank ?? 1}
+              </span>
+              <span className="rounded-full border border-white/15 bg-black/40 px-3 py-1 text-xs font-bold text-white backdrop-blur-sm">
+                {duration} detik
               </span>
             </div>
-            <div className="mt-3 flex flex-wrap gap-1.5">
-              {visibleBadges.map((badge) => (
-                <button
-                  key={`${clip.id}-${badge}`}
-                  type="button"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onToggleSelection();
-                  }}
-                  className="pointer-events-auto flex items-center gap-1.5 rounded-md border border-white/10 bg-black/30 px-2 py-1 text-[9px] font-bold tracking-wide text-white/90 backdrop-blur-sm transition-colors hover:border-primary/30 hover:bg-primary/20"
-                >
-                  {getBadgeIcon(badge)}
-                  <span>{badge}</span>
-                </button>
-              ))}
-              {(clip.metadata?.scoreBreakdown?.topSignals ?? [])
-                .slice(0, 2 - visibleBadges.length)
-                .map((signal) => (
-                  <button
-                    key={`${clip.id}-${signal}`}
-                    type="button"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      onToggleSelection();
-                    }}
-                    className="pointer-events-auto flex items-center gap-1.5 rounded-md border border-white/10 bg-black/30 px-2 py-1 text-[9px] font-bold tracking-wide text-white/90 backdrop-blur-sm transition-colors hover:border-primary/30 hover:bg-primary/20"
-                  >
-                    <Sparkles size={10} className="shrink-0 text-white/70" />
-                    <span className="capitalize">{signal.toLowerCase()}</span>
-                  </button>
-                ))}
-            </div>
           </div>
-        )}
+        </div>
+
+        <div className="flex flex-col justify-between gap-5 border-t border-border/60 p-5 sm:p-6 lg:border-l lg:border-t-0">
+          <div className="space-y-4 sm:space-y-5">
+            <div>
+              <p className="mb-2 text-[11px] font-black uppercase tracking-[0.24em] text-primary">
+                Pilihan terbaik
+              </p>
+              <h3 className="text-2xl font-black tracking-tight text-foreground">
+                Klip paling siap jadi Short
+              </h3>
+            </div>
+            <div className="rounded-2xl border border-border/60 bg-muted/15 p-4 sm:p-5">
+              <div className="mb-2 flex items-center gap-2 text-sm font-bold text-foreground">
+                <Sparkles size={16} className="text-primary" />
+                {primaryLabel}
+              </div>
+              <p className="text-sm font-medium leading-6 text-muted-foreground">{reason}</p>
+            </div>
+            {visibleBadges.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {visibleBadges.map((badge) => (
+                  <span
+                    key={`${clip.id}-featured-${badge}`}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-muted/20 px-3 py-1.5 text-xs font-bold text-muted-foreground"
+                  >
+                    {getBadgeIcon(badge)}
+                    {normalizeMomentLabel(badge)}
+                  </span>
+                ))}
+              </div>
+            ) : null}
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 lg:pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="min-h-11 rounded-2xl"
+              onClick={() => {
+                if (isPlaying) {
+                  onStopPlaying();
+                  return;
+                }
+                onStartPlaying();
+              }}
+            >
+              {isPlaying ? <Pause size={16} /> : <Play size={16} />}
+              Preview
+            </Button>
+            <Button
+              type="button"
+              className="min-h-11 rounded-2xl font-bold"
+              isLoading={isLoading}
+              onClick={onUseCandidate}
+            >
+              <CheckCircle2 size={16} />
+              Gunakan Klip Ini
+            </Button>
+          </div>
+        </div>
       </div>
-    </TooltipProvider>
+    </div>
   );
 }
 
@@ -272,74 +454,216 @@ interface VideoPreviewPlayerProps {
   readonly onStop?: () => void;
 }
 
-type PlayerState = 'loading' | 'ready' | 'error';
+type PlayerState = 'queued' | 'processing' | 'loading-file' | 'ready' | 'error';
+type PreviewJobStatus = 'READY' | 'QUEUED' | 'PROCESSING' | 'FAILED';
 
 const MAX_AUTO_RETRIES = 3;
 const RETRY_DELAY_MS = 3000;
+const STATUS_POLL_DELAY_MS = 1400;
+
+interface PreviewJobData {
+  status: PreviewJobStatus;
+  previewUrl?: string;
+  progress?: number;
+  errorMessage?: string;
+}
+
+function parsePreviewJobData(payload: unknown): PreviewJobData | null {
+  if (typeof payload !== 'object' || payload === null || !('data' in payload)) {
+    return null;
+  }
+
+  const data = payload.data;
+  if (typeof data !== 'object' || data === null || !('status' in data)) {
+    return null;
+  }
+
+  const status = data.status;
+  if (status !== 'READY' && status !== 'QUEUED' && status !== 'PROCESSING' && status !== 'FAILED') {
+    return null;
+  }
+
+  return {
+    status,
+    previewUrl:
+      'previewUrl' in data && typeof data.previewUrl === 'string' ? data.previewUrl : undefined,
+    progress: 'progress' in data && typeof data.progress === 'number' ? data.progress : undefined,
+    errorMessage:
+      'errorMessage' in data && typeof data.errorMessage === 'string'
+        ? data.errorMessage
+        : undefined,
+  };
+}
+
+async function readPreviewJobData(url: string, init?: RequestInit): Promise<PreviewJobData> {
+  const response = await authFetch(url, init);
+  if (!response.ok && response.status !== 202) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+
+  const payload = await response.json();
+  const data = parsePreviewJobData(payload);
+  if (!data) {
+    throw new Error('Invalid preview response');
+  }
+
+  return data;
+}
+
+async function fetchPreviewBlob(previewUrl: string, signal: AbortSignal): Promise<Blob> {
+  const response = await authFetch(previewUrl, { signal });
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+
+  const contentType = response.headers.get('Content-Type') ?? '';
+  if (!contentType.startsWith('video/')) {
+    throw new Error(`Unexpected content type: ${contentType}`);
+  }
+
+  return response.blob();
+}
+
+function getPreviewStatusText(
+  playerState: PlayerState,
+  progress: number | null,
+  attemptCount: number,
+): string {
+  if (playerState === 'queued') {
+    return 'Preview masuk antrean...';
+  }
+
+  if (playerState === 'processing') {
+    const progressText = typeof progress === 'number' ? ` ${Math.round(progress)}%` : '';
+    return `Menyiapkan preview${progressText}...`;
+  }
+
+  if (attemptCount <= 1) {
+    return 'Mengambil preview...';
+  }
+
+  return `Mencoba ulang (${attemptCount}/${MAX_AUTO_RETRIES})...`;
+}
 
 const VideoPreviewPlayer = ({ sessionId, clipId, onStop }: VideoPreviewPlayerProps) => {
-  const [playerState, setPlayerState] = useState<PlayerState>('loading');
+  const [playerState, setPlayerState] = useState<PlayerState>('queued');
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
   const [manualRetryKey, setManualRetryKey] = useState(0);
   const [attemptCount, setAttemptCount] = useState(0);
+  const [progress, setProgress] = useState<number | null>(null);
   const urlRef = useRef<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: manualRetryKey resets the retry cycle intentionally
   useEffect(() => {
     const controller = new AbortController();
-    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let timer: ReturnType<typeof setTimeout> | null = null;
 
-    const fetchPreview = async (attempt: number): Promise<void> => {
-      if (controller.signal.aborted) return;
-
-      setPlayerState('loading');
-      setAttemptCount(attempt);
-
-      try {
-        const response = await authFetch(
-          `/api/v1/director/sessions/${sessionId}/clips/${clipId}/preview`,
-          { signal: controller.signal },
-        );
-
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
-        }
-
-        const contentType = response.headers.get('Content-Type') ?? '';
-        if (!contentType.startsWith('video/')) {
-          throw new Error(`Unexpected content type: ${contentType}`);
-        }
-
-        const blob = await response.blob();
-        if (controller.signal.aborted) return;
-
-        if (urlRef.current) {
-          URL.revokeObjectURL(urlRef.current);
-        }
-
-        const nextUrl = URL.createObjectURL(blob);
-        urlRef.current = nextUrl;
-        setObjectUrl(nextUrl);
-        setPlayerState('ready');
-      } catch {
-        if (controller.signal.aborted) return;
-
-        if (attempt < MAX_AUTO_RETRIES) {
-          retryTimer = setTimeout(() => {
-            void fetchPreview(attempt + 1);
-          }, RETRY_DELAY_MS);
-        } else {
-          setPlayerState('error');
-        }
+    const markPreviewError = () => {
+      if (!controller.signal.aborted) {
+        setPlayerState('error');
       }
     };
 
-    void fetchPreview(1);
+    const installPreviewBlob = (blob: Blob) => {
+      if (urlRef.current) {
+        URL.revokeObjectURL(urlRef.current);
+      }
+
+      const nextUrl = URL.createObjectURL(blob);
+      urlRef.current = nextUrl;
+      setObjectUrl(nextUrl);
+      setPlayerState('ready');
+    };
+
+    const scheduleStatusPoll = () => {
+      timer = setTimeout(() => {
+        void pollPreviewStatus().catch(markPreviewError);
+      }, STATUS_POLL_DELAY_MS);
+    };
+
+    const scheduleFileRetry = (previewUrl: string, attempt: number) => {
+      timer = setTimeout(() => {
+        void fetchPreviewFile(previewUrl, attempt);
+      }, RETRY_DELAY_MS);
+    };
+
+    const handlePreviewFileFailure = (previewUrl: string, attempt: number) => {
+      if (controller.signal.aborted) {
+        return;
+      }
+
+      if (attempt < MAX_AUTO_RETRIES) {
+        scheduleFileRetry(previewUrl, attempt + 1);
+        return;
+      }
+
+      setPlayerState('error');
+    };
+
+    const handlePreviewJob = (data: PreviewJobData) => {
+      setProgress(data.progress ?? null);
+
+      if (data.status === 'READY' && data.previewUrl) {
+        void fetchPreviewFile(data.previewUrl, 1);
+        return;
+      }
+
+      if (data.status === 'FAILED') {
+        setPlayerState('error');
+        return;
+      }
+
+      setPlayerState(data.status === 'PROCESSING' ? 'processing' : 'queued');
+      scheduleStatusPoll();
+    };
+
+    const fetchPreviewFile = async (previewUrl: string, attempt: number): Promise<void> => {
+      if (controller.signal.aborted) return;
+
+      setPlayerState('loading-file');
+      setAttemptCount(attempt);
+
+      try {
+        const blob = await fetchPreviewBlob(previewUrl, controller.signal);
+        if (controller.signal.aborted) return;
+        installPreviewBlob(blob);
+      } catch {
+        handlePreviewFileFailure(previewUrl, attempt);
+      }
+    };
+
+    const pollPreviewStatus = async (): Promise<void> => {
+      const data = await readPreviewJobData(
+        `/api/v1/director/sessions/${sessionId}/clips/${clipId}/preview/status`,
+        { signal: controller.signal },
+      );
+      handlePreviewJob(data);
+    };
+
+    const startPreview = async (): Promise<void> => {
+      setPlayerState('queued');
+      setProgress(null);
+      setAttemptCount(0);
+
+      const data = await readPreviewJobData(
+        `/api/v1/director/sessions/${sessionId}/clips/${clipId}/preview`,
+        {
+          method: 'POST',
+          signal: controller.signal,
+        },
+      );
+      handlePreviewJob(data);
+    };
+
+    void startPreview().catch(() => {
+      markPreviewError();
+    });
 
     return () => {
       controller.abort();
-      if (retryTimer) clearTimeout(retryTimer);
+      if (timer) clearTimeout(timer);
       if (urlRef.current) {
         URL.revokeObjectURL(urlRef.current);
         urlRef.current = null;
@@ -397,20 +721,12 @@ const VideoPreviewPlayer = ({ sessionId, clipId, onStop }: VideoPreviewPlayerPro
     );
   }
 
-  if (playerState === 'loading' || !objectUrl) {
-    const statusText =
-      attemptCount <= 1
-        ? 'Menyiapkan video...'
-        : `Mencoba ulang (${attemptCount}/${MAX_AUTO_RETRIES})...`;
+  if (playerState !== 'ready' || !objectUrl) {
+    const statusText = getPreviewStatusText(playerState, progress, attemptCount);
     return (
       <div className="flex flex-col items-center justify-center gap-4 text-muted-foreground">
         <div className="w-12 h-12 rounded-full border-4 border-primary/30 border-t-primary animate-spin" />
         <span className="text-sm font-medium animate-pulse">{statusText}</span>
-        {attemptCount > 1 && (
-          <p className="max-w-xs text-center text-xs text-muted-foreground">
-            Server sedang menyiapkan preview klip ini untuk pertama kali...
-          </p>
-        )}
       </div>
     );
   }
@@ -445,20 +761,34 @@ export const PickingStep = () => {
     setSelectedClips,
   } = useDirectorStore();
   const recommendations = useMemo(() => getRecommendedCandidates(candidates), [candidates]);
+  const featuredCandidate = useMemo(
+    () => getFeaturedCandidate(candidates, recommendations),
+    [candidates, recommendations],
+  );
+  const featuredRecommendation = featuredCandidate
+    ? recommendations.find((item) => item.candidateId === featuredCandidate.id)
+    : undefined;
+  const otherCandidates = useMemo(
+    () => candidates.filter((candidate) => candidate.id !== featuredCandidate?.id).slice(0, 6),
+    [candidates, featuredCandidate?.id],
+  );
   const selectedCandidateId = selectedCandidateIds.values().next().value;
   const selectedCandidate = selectedCandidateId
     ? (candidates.find((candidate) => candidate.id === selectedCandidateId) ?? null)
     : null;
+  const selectedCandidateDuration = selectedCandidate
+    ? getCandidateDurationSeconds(selectedCandidate)
+    : null;
 
-  const handleClipSelection = async () => {
-    if (!activeSession || selectedCandidateIds.size === 0) return;
+  const handleClipSelection = async (candidateIds = Array.from(selectedCandidateIds)) => {
+    if (!activeSession || candidateIds.length === 0) return;
 
     try {
       setLoading(true);
       const res = await authFetch(`/api/v1/director/sessions/${activeSession.id}/clips`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clipIds: Array.from(selectedCandidateIds) }),
+        body: JSON.stringify({ clipIds: candidateIds }),
       });
       const data = await res.json();
 
@@ -477,47 +807,77 @@ export const PickingStep = () => {
 
   return (
     <div className="max-w-6xl mx-auto w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="flex flex-col justify-between items-start gap-4 mb-8">
+      <div className="mb-6 flex flex-col justify-between gap-2 sm:flex-row sm:items-end">
         <div>
           <h2 className="text-3xl font-black tracking-tight bg-clip-text text-transparent bg-linear-to-br from-primary via-orange-500 to-rose-600">
-            Pilih 1 Video Short Utama
+            Pilih Momen Terbaik
           </h2>
           <p className="text-muted-foreground font-medium">
-            Video pilihan anda akan diproses jadi video short lengkap dengan transkip atau subtitle
+            Pilih satu momen yang paling siap dijadikan Short.
           </p>
-        </div>
-        <div className="w-full rounded-2xl border border-amber-500/35 bg-amber-500/10 px-4 py-3 dark:border-amber-400/25 dark:bg-amber-500/10">
-          <div className="flex items-start gap-2.5">
-            <AlertCircle size={16} className="mt-0.5 shrink-0 text-amber-700 dark:text-amber-300" />
-            <div className="space-y-1">
-              <p className="text-[10px] font-black uppercase tracking-widest text-amber-800/90 dark:text-amber-200/90">
-                Catatan Preview
-              </p>
-              <p className="text-xs leading-5 text-amber-800/90 dark:text-amber-100/90">
-                Kualitas video pada preview di bawah akan diturunkan untuk mempercepat loading,
-                hasil export akhir akan mengikuti kualitas video asli.
-              </p>
-            </div>
-          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 pb-48">
-        {activeSession &&
-          candidates.map((clip) => (
-            <CandidateCard
-              key={clip.id}
-              activeSession={activeSession}
-              clip={clip}
-              recommendation={recommendations.find((item) => item.candidateId === clip.id)}
-              isSelected={selectedCandidateIds.has(clip.id)}
-              isPlaying={playingClipId === clip.id}
-              onToggleSelection={() => toggleCandidateSelection(clip.id)}
-              onStartPlaying={() => setPlayingClipId(clip.id)}
-              onStopPlaying={() => setPlayingClipId(null)}
-            />
-          ))}
-      </div>
+      {activeSession && featuredCandidate ? (
+        <section className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Sparkles size={16} className="text-primary" />
+            <h3 className="text-sm font-black uppercase tracking-[0.22em] text-muted-foreground">
+              Rekomendasi AI
+            </h3>
+          </div>
+          <FeaturedCandidateCard
+            activeSession={activeSession}
+            clip={featuredCandidate}
+            recommendation={featuredRecommendation}
+            isSelected={selectedCandidateIds.has(featuredCandidate.id)}
+            isPlaying={playingClipId === featuredCandidate.id}
+            isLoading={isLoading}
+            onStartPlaying={() => setPlayingClipId(featuredCandidate.id)}
+            onStopPlaying={() => setPlayingClipId(null)}
+            onUseCandidate={() => {
+              void handleClipSelection([featuredCandidate.id]);
+            }}
+          />
+        </section>
+      ) : null}
+
+      <section className="mt-6 pb-5 sm:pb-6">
+        <div className="mb-4 flex items-end justify-between gap-4">
+          <div>
+            <h3 className="text-xl font-black tracking-tight text-foreground">Kandidat Lainnya</h3>
+            <p className="text-sm font-medium text-muted-foreground">
+              Bandingkan alternatif lain jika rekomendasi utama belum cocok.
+            </p>
+          </div>
+          <span className="hidden rounded-full border border-border/60 bg-muted/15 px-3 py-1.5 text-xs font-bold text-muted-foreground sm:inline-flex">
+            {otherCandidates.length} pilihan
+          </span>
+        </div>
+
+        {otherCandidates.length > 0 ? (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-3">
+            {activeSession &&
+              otherCandidates.map((clip) => (
+                <CandidateCard
+                  key={clip.id}
+                  activeSession={activeSession}
+                  clip={clip}
+                  recommendation={recommendations.find((item) => item.candidateId === clip.id)}
+                  isSelected={selectedCandidateIds.has(clip.id)}
+                  isPlaying={playingClipId === clip.id}
+                  onToggleSelection={() => toggleCandidateSelection(clip.id)}
+                  onStartPlaying={() => setPlayingClipId(clip.id)}
+                  onStopPlaying={() => setPlayingClipId(null)}
+                />
+              ))}
+          </div>
+        ) : (
+          <div className="rounded-3xl border border-border/60 bg-card/50 p-6 text-sm font-medium text-muted-foreground">
+            AI hanya menemukan satu kandidat yang paling layak untuk video ini.
+          </div>
+        )}
+      </section>
 
       <Modal open={playingClipId !== null} onOpenChange={(open) => !open && setPlayingClipId(null)}>
         <ModalContent className="max-w-4xl overflow-hidden rounded-3xl border border-border/60 bg-card/95 p-0 shadow-2xl sm:rounded-4xl [&>button]:hidden">
@@ -543,28 +903,30 @@ export const PickingStep = () => {
         </ModalContent>
       </Modal>
 
-      <div className="sticky bottom-6 z-50 mt-6 animate-in fade-in slide-in-from-bottom-8 duration-500">
-        <div className="mx-auto w-full max-w-2xl bg-card/80 backdrop-blur-xl rounded-3xl border border-border/50 p-4 sm:p-5 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 shadow-lg shadow-black/10">
+      <div className="sticky bottom-0 z-50 mt-3 animate-in fade-in slide-in-from-bottom-8 duration-500">
+        <div className="mx-auto flex w-full max-w-lg flex-col items-stretch justify-between gap-3 rounded-2xl border border-border/50 bg-card/90 p-3 shadow-lg shadow-black/10 backdrop-blur-xl sm:flex-row sm:items-center">
           <div className="flex flex-1 flex-col gap-2">
             <div className="flex flex-col">
               <span className="text-sm font-black tracking-tight text-foreground">
-                {selectedCandidate ? '1 Klip Siap Diproses' : 'Belum Ada Klip Dipilih'}
+                {selectedCandidate ? 'Klip terpilih' : 'Pilih 1 momen untuk lanjut'}
               </span>
               <span className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">
                 {selectedCandidate
-                  ? `Durasi ${Math.round((selectedCandidate.endMs - selectedCandidate.startMs) / 1000)} detik`
+                  ? `${selectedCandidateDuration} detik · siap masuk Edit Short`
                   : 'Pilih 1 klip untuk lanjut'}
               </span>
             </div>
           </div>
           <Button
-            className="rounded-2xl px-8 font-black uppercase tracking-widest text-[11px] sm:self-end"
+            className="min-h-11 rounded-2xl px-6 text-[11px] font-black uppercase tracking-widest sm:self-end"
             variant="default"
             disabled={selectedCandidateIds.size === 0 || isLoading}
             isLoading={isLoading}
-            onClick={handleClipSelection}
+            onClick={() => {
+              void handleClipSelection();
+            }}
           >
-            Lanjutkan ke Editor
+            Gunakan Klip Ini
           </Button>
         </div>
       </div>

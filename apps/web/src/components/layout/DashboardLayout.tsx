@@ -311,6 +311,7 @@ export function DashboardLayout() {
         {/* Page content */}
         <main
           key={location.pathname}
+          data-scroll-root="true"
           className={cn(
             'flex-1 flex flex-col min-h-0 min-w-0', // base styles
             // For Modern Editor (Full Screen Tool), remove padding/overflow to let tool handle it

@@ -3,8 +3,16 @@ node_modules/
 
 # Build outputs
 dist/
+build/
 .next/
 out/
+.expo/
+
+# Generated files
+*.generated.*
+*.gen.*
+*.tsbuildinfo
+*.min.js
 
 # Environment files (all .env files except examples)
 .env
@@ -30,9 +38,18 @@ pnpm-debug.log*
 
 # Testing
 coverage/
+playwright-report/
+test-results/
+.playwright/
+
+# Storybook
+storybook-static/
 
 # Turbo
 .turbo/
+
+# Platform & Tooling
+.vercel/
 
 # Prisma
 prisma/*.db
@@ -55,6 +72,7 @@ __pycache__/
 *.py[cod]
 
 # Docker env files (secrets)
+docker-compose.override.yml
 .env.docker
 .env.docker.*
 infra/compose/.env.docker.infra
