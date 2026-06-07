@@ -41,7 +41,7 @@ async function main() {
   writeLine(`✅ Demo User created: ${demoUser.email}`);
 
   // Create admin user
-  const adminPassword = await hash('Qwer@0856');
+  const adminPassword = await hash('admin123');
   const adminUser = await prisma.user.upsert({
     where: { email: 'admin@vibecreator.id' },
     update: {},
@@ -87,6 +87,15 @@ async function main() {
 
   writeLine();
   writeLine('🎉 Database seeded successfully!');
+  writeLine();
+  writeLine('Demo Accounts:');
+  writeLine('┌─────────────────────────────────────────────────────────┐');
+  writeLine('│ Email                    │ Role    │ Tier  │');
+  writeLine('├─────────────────────────────────────────────────────────┤');
+  writeLine('│ demo@vibecreator.id      │ USER    │ CREATOR│');
+  writeLine('│ admin@vibecreator.id     │ ADMIN   │ PRO    │');
+  writeLine('│ free@vibecreator.id      │ USER    │ FREE   │');
+  writeLine('└─────────────────────────────────────────────────────────┘');
 }
 
 main()
