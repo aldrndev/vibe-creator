@@ -9,6 +9,7 @@ import { z } from 'zod';
 import { AuditAction, audit } from '@/lib/audit';
 import { logger } from '@/lib/logger';
 import { prisma } from '@/lib/prisma';
+import { getExportLimitForTier } from '@/lib/subscription-limits';
 import { verifyTurnstileToken } from '@/lib/turnstile';
 import { hashPassword } from '@/utils/crypto';
 import { sendCreated, sendError } from '@/utils/response';
@@ -44,7 +45,7 @@ export async function registerHandler(request: FastifyRequest, reply: FastifyRep
     return sendError(
       reply,
       ERROR_CODES.VALIDATION_ERROR,
-      'Registrasi gagal. Silakan periksa data Anda atau hubungi support.',
+      'Email ini sudah terdaftar. Silakan login ke akun Anda.',
       400,
     );
   }
@@ -61,7 +62,7 @@ export async function registerHandler(request: FastifyRequest, reply: FastifyRep
           tier: 'FREE',
           status: 'ACTIVE',
           exportsUsed: 0,
-          exportsLimit: 0,
+          exportsLimit: getExportLimitForTier('FREE'),
         },
       },
     },
@@ -71,6 +72,15 @@ export async function registerHandler(request: FastifyRequest, reply: FastifyRep
       name: true,
       avatarUrl: true,
       role: true,
+      subscription: {
+        select: {
+          tier: true,
+          status: true,
+          exportsUsed: true,
+          exportsLimit: true,
+          validUntil: true,
+        },
+      },
     },
   });
 
@@ -90,7 +100,14 @@ export async function registerHandler(request: FastifyRequest, reply: FastifyRep
   });
 
   return sendCreated(reply, {
-    user,
+    user: {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      avatarUrl: user.avatarUrl,
+      role: user.role,
+    },
+    subscription: user.subscription,
     accessToken: tokens.accessToken,
     expiresAt: tokens.accessExpiresAt,
   });

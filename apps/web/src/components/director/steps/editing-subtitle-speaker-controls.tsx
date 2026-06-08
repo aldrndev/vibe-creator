@@ -75,9 +75,9 @@ export function EditingSubtitleSpeakerControls({
       </div>
 
       {isSpeakerModeEnabled ? (
-        <div className="space-y-3">
+        <div className="space-y-4 divide-y divide-border/20 border-t border-border/20 mt-3 pt-4">
           {speakerStyles.map((speakerStyle) => (
-            <div key={speakerStyle.speaker} className="space-y-2">
+            <div key={speakerStyle.speaker} className="space-y-2.5 pt-4 first:pt-0">
               <div className="text-xs font-bold text-foreground">{speakerStyle.label}</div>
               <div className="grid grid-cols-4 gap-1.5">
                 {directorSubtitleColorOptions

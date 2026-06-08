@@ -1,17 +1,17 @@
-import { Download, MonitorPlay, RefreshCcw, X } from 'lucide-react';
+import { Download, MonitorPlay, Plus, RefreshCcw, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { LivePreviewMedia } from '@/components/director/steps/editing-live-preview-media';
 import {
   canPlayFinalPreview,
   estimatePreviewProgressPercent,
   type PreviewStatus,
-  resolvePreviewStatus,
 } from '@/components/director/steps/editing-live-preview-state';
 import { deriveLivePreviewScene } from '@/components/director/steps/editing-live-preview-utils';
 import { Badge, Button, Modal, ModalBody, ModalContent } from '@/components/ui';
 import { useAuthenticatedObjectUrl } from '@/hooks/use-authenticated-object-url';
 import { getEffectiveRefineSettings } from '@/lib/director-refine-settings';
 import { logger } from '@/lib/logger';
+import { useMutableSearchParams } from '@/lib/route-search';
 import { cn } from '@/lib/utils';
 import { authFetch, downloadAuthenticatedFile } from '@/services/api';
 import {
@@ -264,7 +264,8 @@ export function EditingLivePreview({
   selectedClips,
   refineSettings,
 }: Readonly<EditingLivePreviewProps>) {
-  const setStep = useDirectorStore((state) => state.setStep);
+  const [, setSearchParams] = useMutableSearchParams();
+  const { setStep, reset } = useDirectorStore();
   const [renderPreviewPath, setRenderPreviewPath] = useState<string | null>(null);
   const [previewDownloadPath, setPreviewDownloadPath] = useState<string | null>(null);
   const [previewFileName, setPreviewFileName] = useState<string | null>(null);
@@ -316,7 +317,7 @@ export function EditingLivePreview({
 
   useEffect(() => {
     requestVersionRef.current += 1;
-    if (!activeSessionId) {
+    if (!activeSessionId || !previewPayloadJson) {
       setRenderPreviewPath(null);
       setPreviewDownloadPath(null);
       setPreviewFileName(null);
@@ -328,45 +329,7 @@ export function EditingLivePreview({
       setPreviewError(null);
       setDownloadError(null);
     }
-  }, [activeSessionId]);
-
-  useEffect(() => {
-    if (!previewPayloadJson) {
-      setPreviewStatus('idle');
-      setLastGeneratedPayloadKey(null);
-      setLastAttemptPayloadKey(null);
-      autoStartedPayloadRef.current = null;
-      setPreviewProgressPercent(0);
-      setPreviewError(null);
-      setDownloadError(null);
-      setRenderPreviewPath(null);
-      setPreviewDownloadPath(null);
-      setPreviewFileName(null);
-      return;
-    }
-
-    if (previewStatus === 'generating') {
-      return;
-    }
-
-    setPreviewStatus(
-      resolvePreviewStatus({
-        previewPayloadJson,
-        previewStatus,
-        renderPreviewPath,
-        previewDownloadPath,
-        lastGeneratedPayloadKey,
-        lastAttemptPayloadKey,
-      }),
-    );
-  }, [
-    lastAttemptPayloadKey,
-    lastGeneratedPayloadKey,
-    previewDownloadPath,
-    previewPayloadJson,
-    previewStatus,
-    renderPreviewPath,
-  ]);
+  }, [activeSessionId, previewPayloadJson]);
 
   const handleGeneratePreview = useCallback(async () => {
     if (!activeSessionId || !previewPayloadJson) {
@@ -426,25 +389,46 @@ export function EditingLivePreview({
     }
   }, [activeSessionId, previewPayloadJson]);
 
+  const effectiveStatus = useMemo(() => {
+    if (previewStatus === 'generating') return 'generating';
+    if (previewStatus === 'failed') return 'failed';
+    if (previewStatus === 'ready') {
+      if (previewPayloadJson !== lastGeneratedPayloadKey) {
+        return 'dirty';
+      }
+      return 'ready';
+    }
+    return 'idle';
+  }, [previewStatus, previewPayloadJson, lastGeneratedPayloadKey]);
+
   useEffect(() => {
     if (!activeSessionId || !previewPayloadJson) {
       return;
     }
 
-    if (previewStatus !== 'idle' && previewStatus !== 'dirty') {
+    if (previewStatus === 'generating') {
       return;
     }
 
-    if (autoStartedPayloadRef.current === previewPayloadJson) {
+    if (
+      lastGeneratedPayloadKey === previewPayloadJson ||
+      lastAttemptPayloadKey === previewPayloadJson
+    ) {
       return;
     }
 
-    autoStartedPayloadRef.current = previewPayloadJson;
     void handleGeneratePreview();
-  }, [activeSessionId, handleGeneratePreview, previewPayloadJson, previewStatus]);
+  }, [
+    activeSessionId,
+    handleGeneratePreview,
+    previewPayloadJson,
+    previewStatus,
+    lastGeneratedPayloadKey,
+    lastAttemptPayloadKey,
+  ]);
 
   const handleDownloadPreview = useCallback(async () => {
-    if (!previewDownloadPath || previewStatus !== 'ready') {
+    if (!previewDownloadPath || effectiveStatus !== 'ready') {
       return;
     }
 
@@ -458,10 +442,10 @@ export function EditingLivePreview({
       logger.error('Preview download failed', error);
       setDownloadError('Download gagal. Coba generate ulang lalu download lagi.');
     }
-  }, [activeSession?.id, previewDownloadPath, previewFileName, previewStatus]);
+  }, [activeSession?.id, previewDownloadPath, previewFileName, effectiveStatus]);
 
   const previewVideoUrl = useAuthenticatedObjectUrl(
-    activeSession && primaryClip && renderPreviewPath && previewStatus === 'ready'
+    activeSession && primaryClip && renderPreviewPath && effectiveStatus === 'ready'
       ? renderPreviewPath
       : null,
   );
@@ -470,10 +454,10 @@ export function EditingLivePreview({
       ? `/api/v1/director/sessions/${activeSession.id}/clips/${primaryClip.candidate.id}/poster`
       : null,
   );
-  const showGeneratingState = previewStatus === 'generating';
-  const shouldEnableDownload = previewStatus === 'ready' && Boolean(previewDownloadPath);
-  const shouldShowRegenerateButton = previewStatus === 'dirty' || previewStatus === 'failed';
-  const canPlayPreview = canPlayFinalPreview(previewStatus, previewVideoUrl);
+  const showGeneratingState = effectiveStatus === 'generating';
+  const shouldEnableDownload = effectiveStatus === 'ready' && Boolean(previewDownloadPath);
+  const shouldShowRegenerateButton = effectiveStatus === 'dirty' || effectiveStatus === 'failed';
+  const canPlayPreview = canPlayFinalPreview(effectiveStatus, previewVideoUrl);
   const handleBackToEdit = useCallback(() => {
     setStep('EDITING');
   }, [setStep]);
@@ -499,12 +483,23 @@ export function EditingLivePreview({
     },
   };
 
+  const previewMaxWidthClass = useMemo(() => {
+    switch (exportSettings.aspectRatio) {
+      case '16:9':
+        return 'max-w-[24rem] sm:max-w-[34rem] lg:max-w-[40rem]';
+      case '1:1':
+        return 'max-w-[20rem] sm:max-w-[24rem] lg:max-w-[28rem]';
+      default: // 9:16
+        return 'max-w-[18rem] sm:max-w-[22rem]';
+    }
+  }, [exportSettings.aspectRatio]);
+
   return (
-    <div className="space-y-4 rounded-3xl border border-border/40 bg-muted/20 p-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <div className="mx-auto w-full max-w-2xl space-y-6 rounded-4xl border border-border/50 bg-card/70 p-5 shadow-sm backdrop-blur-xl sm:p-7 lg:p-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
-          <div className="h-9 w-9 shrink-0 rounded-xl border border-primary/20 bg-primary/10 flex items-center justify-center">
-            <MonitorPlay size={18} className="text-primary" />
+          <div className="flex items-center justify-center h-12 w-12 shrink-0 rounded-xl border border-primary/20 bg-primary/10">
+            <MonitorPlay size={24} className="text-primary" />
           </div>
           <div className="min-w-0">
             <h4 className="font-black tracking-tight text-base leading-none">Video Akhir</h4>
@@ -513,26 +508,41 @@ export function EditingLivePreview({
             </p>
           </div>
         </div>
-        <Badge
-          variant="outline"
-          className="shrink-0 rounded-full border-border/50 bg-muted/25 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-muted-foreground"
+        <button
+          type="button"
+          onClick={() => {
+            reset();
+            setSearchParams({}, { replace: true });
+          }}
+          className="shrink-0 flex items-center justify-center gap-2 border px-5 py-2.5 rounded-full text-xs font-black uppercase tracking-widest text-primary border-primary/20 bg-primary/10 hover:bg-primary/20 shadow-sm transition-all"
         >
-          Output: 9:16 · {effectiveExportSettings.quality}
-        </Badge>
+          <Plus size={16} strokeWidth={3} className="shrink-0" />
+          Buat Baru
+        </button>
       </div>
 
-      <div
-        className={cn(
-          'w-full rounded-4xl border border-border/50 overflow-hidden relative min-h-80',
-          scene.aspectClass,
-          scene.frameClass,
-        )}
-      >
-        <LivePreviewMedia {...mediaProps} />
-        <div className="absolute top-2 right-2 z-10 pointer-events-none">
-          <Badge className="shrink-0 rounded-full border-border/50 bg-black/60 backdrop-blur-sm px-2.5 py-1 text-[10px] text-white pointer-events-auto">
-            {getPreviewBadgeText(previewStatus, previewProgressPercent)}
-          </Badge>
+      <div className="w-full flex justify-center">
+        <div
+          className={cn(
+            'w-full rounded-4xl border border-border/50 overflow-hidden relative min-h-80 shadow-md',
+            previewMaxWidthClass,
+            scene.aspectClass,
+            scene.frameClass,
+          )}
+        >
+          <LivePreviewMedia {...mediaProps} />
+
+          <div className="absolute top-2 left-2 z-10 pointer-events-none">
+            <Badge className="shrink-0 rounded-full border-border/50 bg-black/60 backdrop-blur-sm px-2.5 py-1 text-[10px] text-white pointer-events-auto">
+              Output: 9:16 · {effectiveExportSettings.quality}
+            </Badge>
+          </div>
+
+          <div className="absolute top-2 right-2 z-10 pointer-events-none">
+            <Badge className="shrink-0 rounded-full border-border/50 bg-black/60 backdrop-blur-sm px-2.5 py-1 text-[10px] text-white pointer-events-auto">
+              {getPreviewBadgeText(effectiveStatus, previewProgressPercent)}
+            </Badge>
+          </div>
         </div>
       </div>
 
@@ -563,50 +573,54 @@ export function EditingLivePreview({
         </ModalContent>
       </Modal>
 
-      <div className="grid grid-cols-1 gap-2">
-        {shouldShowRegenerateButton ? (
-          <Button
-            onClick={() => {
-              void handleGeneratePreview();
-            }}
-            disabled={!previewPayloadJson}
-            className="h-11 rounded-2xl text-xs font-semibold tracking-normal"
-          >
-            <RefreshCcw size={14} className="mr-2" />
-            Generate Ulang
-          </Button>
-        ) : null}
-        <Button
-          variant={shouldEnableDownload ? 'default' : 'secondary'}
-          onClick={() => {
-            void handleDownloadPreview();
-          }}
-          disabled={!shouldEnableDownload}
-          className="h-11 rounded-2xl text-xs font-semibold tracking-normal border-primary/20 hover:bg-primary/5"
-        >
-          <Download size={14} className="mr-2" />
-          Download Video
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          onClick={handleBackToEdit}
-          className="h-11 rounded-2xl text-xs font-semibold tracking-normal text-muted-foreground hover:text-foreground"
-        >
-          Kembali Edit
-        </Button>
-      </div>
+      <div className="w-full flex flex-col items-center">
+        <div className={cn('w-full grid grid-cols-1 gap-2.5', previewMaxWidthClass)}>
+          <div className="grid grid-cols-1 gap-2 w-full">
+            {shouldShowRegenerateButton ? (
+              <Button
+                onClick={() => {
+                  void handleGeneratePreview();
+                }}
+                disabled={!previewPayloadJson}
+                className="h-11 rounded-2xl text-xs font-black uppercase tracking-widest transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:shadow-primary/10 active:scale-[0.98]"
+              >
+                <RefreshCcw size={14} className="mr-2" />
+                Generate Ulang
+              </Button>
+            ) : null}
+            <Button
+              variant={shouldEnableDownload ? 'default' : 'secondary'}
+              onClick={() => {
+                void handleDownloadPreview();
+              }}
+              disabled={!shouldEnableDownload}
+              className="h-11 rounded-2xl text-xs font-black uppercase tracking-widest transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:shadow-primary/20 active:scale-[0.98]"
+            >
+              <Download size={14} className="mr-2" />
+              Download Video
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={handleBackToEdit}
+              className="h-11 rounded-2xl text-xs font-black uppercase tracking-widest text-muted-foreground hover:text-foreground transition-all duration-300 active:scale-[0.98]"
+            >
+              Kembali Edit
+            </Button>
+          </div>
 
-      {previewError ? (
-        <div className="rounded-2xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-xs text-rose-500">
-          {previewError}
+          {previewError ? (
+            <div className="rounded-2xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-xs text-rose-500 w-full">
+              {previewError}
+            </div>
+          ) : null}
+          {downloadError ? (
+            <div className="rounded-2xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-xs text-rose-500 w-full">
+              {downloadError}
+            </div>
+          ) : null}
         </div>
-      ) : null}
-      {downloadError ? (
-        <div className="rounded-2xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-xs text-rose-500">
-          {downloadError}
-        </div>
-      ) : null}
+      </div>
     </div>
   );
 }

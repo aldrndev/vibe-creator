@@ -6,6 +6,7 @@ import {
   Info,
   Pause,
   Play,
+  Plus,
   RefreshCw,
   Sparkles,
   Timer,
@@ -15,6 +16,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { getRecommendedCandidates } from '@/components/director/steps/picking-recommendations';
 import { Button, Modal, ModalBody, ModalContent } from '@/components/ui';
 import { useAuthenticatedObjectUrl } from '@/hooks/use-authenticated-object-url';
+import { useMutableSearchParams } from '@/lib/route-search';
 import { cn } from '@/lib/utils';
 import { authFetch } from '@/services/api';
 import type { Candidate, DirectorSession } from '@/stores/director-store';
@@ -747,6 +749,7 @@ const VideoPreviewPlayer = ({ sessionId, clipId, onStop }: VideoPreviewPlayerPro
 };
 
 export const PickingStep = () => {
+  const [, setSearchParams] = useMutableSearchParams();
   const {
     activeSession,
     candidates,
@@ -759,6 +762,7 @@ export const PickingStep = () => {
     setLoading,
     setError,
     setSelectedClips,
+    reset,
   } = useDirectorStore();
   const recommendations = useMemo(() => getRecommendedCandidates(candidates), [candidates]);
   const featuredCandidate = useMemo(
@@ -807,7 +811,7 @@ export const PickingStep = () => {
 
   return (
     <div className="max-w-6xl mx-auto w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="mb-6 flex flex-col justify-between gap-2 sm:flex-row sm:items-end">
+      <div className="mb-4 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
           <h2 className="text-3xl font-black tracking-tight bg-clip-text text-transparent bg-linear-to-br from-primary via-orange-500 to-rose-600">
             Pilih Momen Terbaik
@@ -816,11 +820,22 @@ export const PickingStep = () => {
             Pilih satu momen yang paling siap dijadikan Short.
           </p>
         </div>
+        <button
+          type="button"
+          onClick={() => {
+            reset();
+            setSearchParams({}, { replace: true });
+          }}
+          className="self-end sm:self-auto shrink-0 flex items-center justify-center gap-2 border px-5 py-2.5 rounded-full text-xs font-black uppercase tracking-widest text-primary border-primary/20 bg-primary/10 hover:bg-primary/20 shadow-sm transition-all"
+        >
+          <Plus size={16} strokeWidth={3} className="shrink-0" />
+          Buat Baru
+        </button>
       </div>
 
       {activeSession && featuredCandidate ? (
-        <section className="space-y-3">
-          <div className="flex items-center gap-2">
+        <section className="space-y-3 mb-6">
+          <div className="flex items-center justify-end gap-2">
             <Sparkles size={16} className="text-primary" />
             <h3 className="text-sm font-black uppercase tracking-[0.22em] text-muted-foreground">
               Rekomendasi AI

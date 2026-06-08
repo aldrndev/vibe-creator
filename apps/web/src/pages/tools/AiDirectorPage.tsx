@@ -1,4 +1,4 @@
-import { AlertCircle, Plus } from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { StepIndicator } from '@/components/director/StepIndicator';
 import { AnalyzeStep } from '@/components/director/steps/AnalyzeStep';
@@ -365,15 +365,13 @@ function DirectorStepContent({
     case 'EXPORTING':
     case 'COMPLETED':
       return (
-        <div className="w-full max-w-4xl rounded-[2rem] border border-border/50 bg-card/70 p-4 shadow-sm backdrop-blur-xl sm:p-6 lg:p-8">
-          <EditingLivePreview
-            activeSession={activeSession}
-            exportSettings={exportSettings}
-            subtitleStyle={subtitleStyle}
-            selectedClips={selectedClips}
-            refineSettings={refineSettings}
-          />
-        </div>
+        <EditingLivePreview
+          activeSession={activeSession}
+          exportSettings={exportSettings}
+          subtitleStyle={subtitleStyle}
+          selectedClips={selectedClips}
+          refineSettings={refineSettings}
+        />
       );
     default:
       return null;
@@ -450,6 +448,25 @@ export function AiDirectorPage() {
     : resolveInitialSourceUrl(searchParams, queryTrendingImportContext);
 
   useScrollToTopOnChange(step);
+
+  const pageMaxWidthClass = useMemo(() => {
+    switch (step) {
+      case 'IMPORT':
+        return 'max-w-5xl';
+      case 'ANALYZING':
+        return 'max-w-3xl';
+      case 'PICKING':
+        return 'max-w-6xl';
+      case 'EDITING':
+      case 'PUBLISH_COPY':
+        return 'max-w-380';
+      case 'EXPORTING':
+      case 'COMPLETED':
+        return 'max-w-2xl';
+      default:
+        return 'max-w-5xl';
+    }
+  }, [step]);
 
   useEffect(() => {
     if (queryTrendingImportContext && !hasActiveSession) {
@@ -581,7 +598,7 @@ export function AiDirectorPage() {
 
   return (
     <div className="min-h-screen bg-background px-4 pt-3 pb-8 font-sans text-foreground md:px-8 md:pt-4 lg:pb-0">
-      <div className="max-w-400 mx-auto space-y-4">
+      <div className={`mx-auto w-full space-y-4 transition-all duration-300 ${pageMaxWidthClass}`}>
         {/* Header */}
         <div className="space-y-3">
           {showContinuePrompt && !hasActiveSession ? (
@@ -596,22 +613,6 @@ export function AiDirectorPage() {
                 setShowContinuePrompt(false);
               }}
             />
-          ) : null}
-
-          {hasActiveSession && !isClearingPlainEntrySession && step !== 'ANALYZING' ? (
-            <div className="flex justify-start">
-              <button
-                type="button"
-                onClick={() => {
-                  reset();
-                  setSearchParams({}, { replace: true });
-                }}
-                className="flex items-center justify-center gap-2 px-5 py-2.5 text-xs font-black uppercase tracking-widest rounded-full border border-primary/20 bg-primary/10 hover:bg-primary/20 text-primary transition-all shrink-0 shadow-sm"
-              >
-                <Plus size={16} strokeWidth={3} className="shrink-0" />
-                Buat Baru
-              </button>
-            </div>
           ) : null}
 
           <div className="w-full overflow-x-auto hide-scrollbar">
