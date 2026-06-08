@@ -807,7 +807,7 @@ export function SelectedClipCard({
                 </Badge>
               </div>
               <p className="mt-0.5 text-xs font-medium leading-5 text-muted-foreground">
-                Ubah teks subtitle jika belum sesuai di bawah.
+                Ubah teks subtitle di bawah jika belum sesuai.
               </p>
             </div>
             <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-1.5 sm:flex sm:justify-end">

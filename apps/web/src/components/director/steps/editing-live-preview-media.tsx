@@ -85,7 +85,7 @@ export function LivePreviewMedia({
           <div className="w-full mt-1.5 space-y-2">
             <div className="h-1.5 w-full rounded-full bg-white/10 overflow-hidden">
               <div
-                className="h-full rounded-full bg-gradient-to-r from-orange-500 to-rose-500 transition-all duration-300 ease-out shadow-[0_0_12px_rgba(249,115,22,0.4)]"
+                className="h-full rounded-full bg-linear-to-r from-orange-500 to-rose-500 transition-all duration-300 ease-out shadow-[0_0_12px_rgba(249,115,22,0.4)]"
                 style={{ width: `${previewProgressPercent}%` }}
               />
             </div>

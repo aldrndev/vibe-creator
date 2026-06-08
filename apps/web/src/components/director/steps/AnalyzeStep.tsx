@@ -217,12 +217,12 @@ export const AnalyzeStep = ({ onStartNew }: AnalyzeStepProps) => {
             {onStartNew ? (
               <Button
                 type="button"
-                variant="secondary"
+                variant="outline"
                 size="sm"
-                className="w-full rounded-2xl sm:w-auto"
+                className="w-full rounded-2xl sm:w-auto border-primary/25 bg-primary/10 text-primary hover:bg-primary/20 hover:border-primary/40 text-[11px] font-black uppercase tracking-widest transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] shadow-sm"
                 onClick={onStartNew}
               >
-                <RotateCcw size={15} className="mr-2" />
+                <RotateCcw size={14} className="mr-1.5" />
                 Buat Baru
               </Button>
             ) : null}
@@ -258,7 +258,7 @@ export const AnalyzeStep = ({ onStartNew }: AnalyzeStepProps) => {
                 <span className="text-[10px] font-black uppercase tracking-[0.16em]">Status</span>
               </div>
               <p className="text-sm font-black text-foreground">Sedang diproses</p>
-              <p className="mt-0.5 text-xs font-semibold text-muted-foreground">30-60 detik</p>
+              <p className="mt-0.5 text-xs font-semibold text-muted-foreground">Beberapa menit</p>
             </div>
           </div>
 
@@ -326,7 +326,7 @@ export const AnalyzeStep = ({ onStartNew }: AnalyzeStepProps) => {
           ) : null}
 
           <p className="mt-6 text-center text-xs font-semibold leading-5 text-muted-foreground">
-            Biasanya selesai dalam 30-60 detik. Tetap di halaman ini sampai kandidat muncul.
+            Biasanya selesai dalam beberapa menit. Tetap di halaman ini sampai kandidat muncul.
           </p>
         </CardBody>
       </Card>
