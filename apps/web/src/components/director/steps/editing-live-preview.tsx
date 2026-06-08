@@ -5,7 +5,6 @@ import {
   canPlayFinalPreview,
   estimatePreviewProgressPercent,
   type PreviewStatus,
-  resolvePreviewStatus,
 } from '@/components/director/steps/editing-live-preview-state';
 import { deriveLivePreviewScene } from '@/components/director/steps/editing-live-preview-utils';
 import { Badge, Button, Modal, ModalBody, ModalContent } from '@/components/ui';
@@ -316,7 +315,7 @@ export function EditingLivePreview({
 
   useEffect(() => {
     requestVersionRef.current += 1;
-    if (!activeSessionId) {
+    if (!activeSessionId || !previewPayloadJson) {
       setRenderPreviewPath(null);
       setPreviewDownloadPath(null);
       setPreviewFileName(null);
@@ -328,45 +327,7 @@ export function EditingLivePreview({
       setPreviewError(null);
       setDownloadError(null);
     }
-  }, [activeSessionId]);
-
-  useEffect(() => {
-    if (!previewPayloadJson) {
-      setPreviewStatus('idle');
-      setLastGeneratedPayloadKey(null);
-      setLastAttemptPayloadKey(null);
-      autoStartedPayloadRef.current = null;
-      setPreviewProgressPercent(0);
-      setPreviewError(null);
-      setDownloadError(null);
-      setRenderPreviewPath(null);
-      setPreviewDownloadPath(null);
-      setPreviewFileName(null);
-      return;
-    }
-
-    if (previewStatus === 'generating') {
-      return;
-    }
-
-    setPreviewStatus(
-      resolvePreviewStatus({
-        previewPayloadJson,
-        previewStatus,
-        renderPreviewPath,
-        previewDownloadPath,
-        lastGeneratedPayloadKey,
-        lastAttemptPayloadKey,
-      }),
-    );
-  }, [
-    lastAttemptPayloadKey,
-    lastGeneratedPayloadKey,
-    previewDownloadPath,
-    previewPayloadJson,
-    previewStatus,
-    renderPreviewPath,
-  ]);
+  }, [activeSessionId, previewPayloadJson]);
 
   const handleGeneratePreview = useCallback(async () => {
     if (!activeSessionId || !previewPayloadJson) {
@@ -426,25 +387,46 @@ export function EditingLivePreview({
     }
   }, [activeSessionId, previewPayloadJson]);
 
+  const effectiveStatus = useMemo(() => {
+    if (previewStatus === 'generating') return 'generating';
+    if (previewStatus === 'failed') return 'failed';
+    if (previewStatus === 'ready') {
+      if (previewPayloadJson !== lastGeneratedPayloadKey) {
+        return 'dirty';
+      }
+      return 'ready';
+    }
+    return 'idle';
+  }, [previewStatus, previewPayloadJson, lastGeneratedPayloadKey]);
+
   useEffect(() => {
     if (!activeSessionId || !previewPayloadJson) {
       return;
     }
 
-    if (previewStatus !== 'idle' && previewStatus !== 'dirty') {
+    if (previewStatus === 'generating') {
       return;
     }
 
-    if (autoStartedPayloadRef.current === previewPayloadJson) {
+    if (
+      lastGeneratedPayloadKey === previewPayloadJson ||
+      lastAttemptPayloadKey === previewPayloadJson
+    ) {
       return;
     }
 
-    autoStartedPayloadRef.current = previewPayloadJson;
     void handleGeneratePreview();
-  }, [activeSessionId, handleGeneratePreview, previewPayloadJson, previewStatus]);
+  }, [
+    activeSessionId,
+    handleGeneratePreview,
+    previewPayloadJson,
+    previewStatus,
+    lastGeneratedPayloadKey,
+    lastAttemptPayloadKey,
+  ]);
 
   const handleDownloadPreview = useCallback(async () => {
-    if (!previewDownloadPath || previewStatus !== 'ready') {
+    if (!previewDownloadPath || effectiveStatus !== 'ready') {
       return;
     }
 
@@ -458,10 +440,10 @@ export function EditingLivePreview({
       logger.error('Preview download failed', error);
       setDownloadError('Download gagal. Coba generate ulang lalu download lagi.');
     }
-  }, [activeSession?.id, previewDownloadPath, previewFileName, previewStatus]);
+  }, [activeSession?.id, previewDownloadPath, previewFileName, effectiveStatus]);
 
   const previewVideoUrl = useAuthenticatedObjectUrl(
-    activeSession && primaryClip && renderPreviewPath && previewStatus === 'ready'
+    activeSession && primaryClip && renderPreviewPath && effectiveStatus === 'ready'
       ? renderPreviewPath
       : null,
   );
@@ -470,10 +452,10 @@ export function EditingLivePreview({
       ? `/api/v1/director/sessions/${activeSession.id}/clips/${primaryClip.candidate.id}/poster`
       : null,
   );
-  const showGeneratingState = previewStatus === 'generating';
-  const shouldEnableDownload = previewStatus === 'ready' && Boolean(previewDownloadPath);
-  const shouldShowRegenerateButton = previewStatus === 'dirty' || previewStatus === 'failed';
-  const canPlayPreview = canPlayFinalPreview(previewStatus, previewVideoUrl);
+  const showGeneratingState = effectiveStatus === 'generating';
+  const shouldEnableDownload = effectiveStatus === 'ready' && Boolean(previewDownloadPath);
+  const shouldShowRegenerateButton = effectiveStatus === 'dirty' || effectiveStatus === 'failed';
+  const canPlayPreview = canPlayFinalPreview(effectiveStatus, previewVideoUrl);
   const handleBackToEdit = useCallback(() => {
     setStep('EDITING');
   }, [setStep]);
@@ -499,6 +481,17 @@ export function EditingLivePreview({
     },
   };
 
+  const previewMaxWidthClass = useMemo(() => {
+    switch (exportSettings.aspectRatio) {
+      case '16:9':
+        return 'max-w-[24rem] sm:max-w-[34rem] lg:max-w-[40rem]';
+      case '1:1':
+        return 'max-w-[20rem] sm:max-w-[24rem] lg:max-w-[28rem]';
+      default: // 9:16
+        return 'max-w-[18rem] sm:max-w-[22rem]';
+    }
+  }, [exportSettings.aspectRatio]);
+
   return (
     <div className="space-y-4 rounded-3xl border border-border/40 bg-muted/20 p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -521,18 +514,21 @@ export function EditingLivePreview({
         </Badge>
       </div>
 
-      <div
-        className={cn(
-          'w-full rounded-4xl border border-border/50 overflow-hidden relative min-h-80',
-          scene.aspectClass,
-          scene.frameClass,
-        )}
-      >
-        <LivePreviewMedia {...mediaProps} />
-        <div className="absolute top-2 right-2 z-10 pointer-events-none">
-          <Badge className="shrink-0 rounded-full border-border/50 bg-black/60 backdrop-blur-sm px-2.5 py-1 text-[10px] text-white pointer-events-auto">
-            {getPreviewBadgeText(previewStatus, previewProgressPercent)}
-          </Badge>
+      <div className="w-full flex justify-center">
+        <div
+          className={cn(
+            'w-full rounded-4xl border border-border/50 overflow-hidden relative min-h-80 shadow-md',
+            previewMaxWidthClass,
+            scene.aspectClass,
+            scene.frameClass,
+          )}
+        >
+          <LivePreviewMedia {...mediaProps} />
+          <div className="absolute top-2 right-2 z-10 pointer-events-none">
+            <Badge className="shrink-0 rounded-full border-border/50 bg-black/60 backdrop-blur-sm px-2.5 py-1 text-[10px] text-white pointer-events-auto">
+              {getPreviewBadgeText(effectiveStatus, previewProgressPercent)}
+            </Badge>
+          </div>
         </div>
       </div>
 
@@ -563,50 +559,54 @@ export function EditingLivePreview({
         </ModalContent>
       </Modal>
 
-      <div className="grid grid-cols-1 gap-2">
-        {shouldShowRegenerateButton ? (
-          <Button
-            onClick={() => {
-              void handleGeneratePreview();
-            }}
-            disabled={!previewPayloadJson}
-            className="h-11 rounded-2xl text-xs font-semibold tracking-normal"
-          >
-            <RefreshCcw size={14} className="mr-2" />
-            Generate Ulang
-          </Button>
-        ) : null}
-        <Button
-          variant={shouldEnableDownload ? 'default' : 'secondary'}
-          onClick={() => {
-            void handleDownloadPreview();
-          }}
-          disabled={!shouldEnableDownload}
-          className="h-11 rounded-2xl text-xs font-semibold tracking-normal border-primary/20 hover:bg-primary/5"
-        >
-          <Download size={14} className="mr-2" />
-          Download Video
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          onClick={handleBackToEdit}
-          className="h-11 rounded-2xl text-xs font-semibold tracking-normal text-muted-foreground hover:text-foreground"
-        >
-          Kembali Edit
-        </Button>
-      </div>
+      <div className="w-full flex flex-col items-center">
+        <div className={cn('w-full grid grid-cols-1 gap-2.5', previewMaxWidthClass)}>
+          <div className="grid grid-cols-1 gap-2 w-full">
+            {shouldShowRegenerateButton ? (
+              <Button
+                onClick={() => {
+                  void handleGeneratePreview();
+                }}
+                disabled={!previewPayloadJson}
+                className="h-11 rounded-2xl text-xs font-semibold tracking-normal"
+              >
+                <RefreshCcw size={14} className="mr-2" />
+                Generate Ulang
+              </Button>
+            ) : null}
+            <Button
+              variant={shouldEnableDownload ? 'default' : 'secondary'}
+              onClick={() => {
+                void handleDownloadPreview();
+              }}
+              disabled={!shouldEnableDownload}
+              className="h-11 rounded-2xl text-xs font-semibold tracking-normal border-primary/20 hover:bg-primary/5"
+            >
+              <Download size={14} className="mr-2" />
+              Download Video
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={handleBackToEdit}
+              className="h-11 rounded-2xl text-xs font-semibold tracking-normal text-muted-foreground hover:text-foreground"
+            >
+              Kembali Edit
+            </Button>
+          </div>
 
-      {previewError ? (
-        <div className="rounded-2xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-xs text-rose-500">
-          {previewError}
+          {previewError ? (
+            <div className="rounded-2xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-xs text-rose-500 w-full">
+              {previewError}
+            </div>
+          ) : null}
+          {downloadError ? (
+            <div className="rounded-2xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-xs text-rose-500 w-full">
+              {downloadError}
+            </div>
+          ) : null}
         </div>
-      ) : null}
-      {downloadError ? (
-        <div className="rounded-2xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-xs text-rose-500">
-          {downloadError}
-        </div>
-      ) : null}
+      </div>
     </div>
   );
 }

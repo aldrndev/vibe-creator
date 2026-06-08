@@ -725,9 +725,6 @@ export const EditingStep = () => {
             <h3 className="text-sm font-black uppercase tracking-[0.16em] text-foreground">
               Subtitle
             </h3>
-            <span className="text-sm font-semibold text-muted-foreground">
-              - Bahasa {formatTranscribeLanguageLabel(transcribeLanguage)}
-            </span>
           </div>
 
           <div className="relative flex w-full flex-col gap-2 rounded-2xl border border-border/40 bg-card p-2 shadow-sm">
@@ -758,8 +755,19 @@ export const EditingStep = () => {
               </button>
             </div>
 
+            {subtitleMode === 'original' ? (
+              <div className="flex items-center justify-between gap-3 h-[52px] border rounded-xl px-3 border-border/20 bg-muted/15">
+                <span className="shrink-0 text-[10px] font-black uppercase tracking-[0.15em] text-muted-foreground/70">
+                  Sumber
+                </span>
+                <span className="text-[11px] font-semibold tracking-wide text-foreground">
+                  {formatTranscribeLanguageLabel(transcribeLanguage)}
+                </span>
+              </div>
+            ) : null}
+
             {subtitleMode === 'translate' ? (
-              <div className="flex items-center justify-between gap-3 rounded-xl border border-border/20 bg-muted/15 px-3 py-2.5">
+              <div className="flex items-center justify-between gap-3 h-[52px] border rounded-xl px-3 border-border/20 bg-muted/15">
                 <label
                   htmlFor="subtitle-target-language"
                   className="shrink-0 text-[10px] font-black uppercase tracking-[0.15em] text-muted-foreground/70"

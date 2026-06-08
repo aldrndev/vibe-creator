@@ -15,9 +15,14 @@ import {
 import { Badge, Button } from '@/components/ui';
 import { useAuthenticatedObjectUrl } from '@/hooks/use-authenticated-object-url';
 import { directorSubtitleColorOptions } from '@/lib/director-subtitle-colors';
+import {
+  COMMON_SUBTITLE_TARGET_LANGUAGE_OPTIONS,
+  formatTranscribeLanguageLabel,
+} from '@/lib/transcribe-language';
 import { cn } from '@/lib/utils';
 import { authFetch } from '@/services/api';
 import type { SelectedClip, SubtitleStyle } from '@/stores/director-store';
+import { useDirectorStore } from '@/stores/director-store';
 
 export interface SelectedClipCardProps {
   readonly sessionId: string;
@@ -711,6 +716,22 @@ export function SelectedClipCard({
     handleAssignCueSpeaker,
     handleAssignSelectedSpeaker,
   } = useTranscriptEditor(clip, subtitleStyle, onUpdateTranscript);
+
+  const { subtitleMode, subtitleTargetLanguage, transcribeLanguage } = useDirectorStore();
+
+  const languageBadgeLabel = useMemo(() => {
+    if (subtitleMode === 'original') {
+      if (!transcribeLanguage || transcribeLanguage === 'mixed') {
+        return 'Bahasa Asli';
+      }
+      return formatTranscribeLanguageLabel(transcribeLanguage);
+    }
+    const targetOption = COMMON_SUBTITLE_TARGET_LANGUAGE_OPTIONS.find(
+      (opt) => opt.value === subtitleTargetLanguage,
+    );
+    return targetOption?.label ?? subtitleTargetLanguage ?? 'English';
+  }, [subtitleMode, transcribeLanguage, subtitleTargetLanguage]);
+
   return (
     <div className="relative z-10 flex flex-col gap-5">
       <div className="w-full flex justify-center">
@@ -773,9 +794,17 @@ export function SelectedClipCard({
       <div className="flex flex-col gap-4">
         <div>
           <div className="mb-2 ml-1 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-            <div className="min-w-0">
-              <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
-                Transkrip
+            <div className="min-w-0 sm:mb-3">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
+                  Transkrip
+                </span>
+                <Badge
+                  variant="outline"
+                  className="shrink-0 h-5 border rounded-full px-2 text-[9px] font-black uppercase tracking-wider border-blue-500/30 bg-blue-500/5 text-blue-400"
+                >
+                  {languageBadgeLabel}
+                </Badge>
               </div>
               <p className="mt-0.5 text-xs font-medium leading-5 text-muted-foreground">
                 Ubah teks subtitle jika belum sesuai di bawah.

@@ -365,7 +365,7 @@ function DirectorStepContent({
     case 'EXPORTING':
     case 'COMPLETED':
       return (
-        <div className="w-full max-w-4xl rounded-[2rem] border border-border/50 bg-card/70 p-4 shadow-sm backdrop-blur-xl sm:p-6 lg:p-8">
+        <div className="mx-auto w-full max-w-2xl rounded-[2rem] border border-border/50 bg-card/70 p-5 shadow-sm backdrop-blur-xl sm:p-7 lg:p-8">
           <EditingLivePreview
             activeSession={activeSession}
             exportSettings={exportSettings}

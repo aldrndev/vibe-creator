@@ -388,7 +388,7 @@ function SubtitleStyleCard({
               {subtitlePresets.length} preset
             </span>
           </div>
-          <div className="max-h-[19.5rem] space-y-2 overflow-y-auto pr-1">
+          <div className="max-h-78 space-y-2 overflow-y-auto pr-1">
             {subtitlePresets.map((preset) => {
               const isActive = activePresetId === preset.id;
 
@@ -522,7 +522,7 @@ function SubtitleStyleCard({
                   })
                 }
                 className={cn(
-                  'flex min-h-[3.75rem] items-start justify-between gap-2 rounded-2xl border px-2.5 py-2 text-left transition-all',
+                  'flex min-h-15 items-start justify-between gap-2 rounded-2xl border px-2.5 py-2 text-left transition-all',
                   subtitleStyle.animation === animation.value
                     ? 'border-orange-500/35 bg-orange-500/5 text-orange-500'
                     : 'border-border/40 bg-muted/20 text-muted-foreground hover:border-orange-500/25 hover:text-foreground',
