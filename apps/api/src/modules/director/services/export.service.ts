@@ -1,13 +1,19 @@
-/**
- * Director Export Service
- * Handles export jobs
- */
-
+import crypto from 'node:crypto';
+import { copyFile, mkdir } from 'node:fs/promises';
+import { join } from 'node:path';
 import { DirectorJobStatus, DirectorStep } from '@prisma/client';
+import { env } from '@/config/env';
 import { logger } from '@/lib/logger';
-import { assertWorkspaceActive } from '@/modules/workspace/workspace-lifecycle';
+import { prisma } from '@/lib/prisma';
+import {
+  assertWorkspaceActive,
+  getCompletedSessionExpiresAt,
+  getExportDownloadExpiresAt,
+} from '@/modules/workspace/workspace-lifecycle';
 import { buildDirectorQueueJobId, directorQueue } from '../director.queue';
 import { directorRepo } from '../director.repo';
+import type { SubtitleStyleOptions } from '../processing/video-export-subtitles';
+import { directorFinalPreviewService } from './final-preview.service';
 
 type ExportRefineSettings = Record<
   string,
@@ -103,6 +109,88 @@ export const directorExportService = {
         session.exportJob.status === DirectorJobStatus.PROCESSING)
     ) {
       return session.exportJob;
+    }
+
+    // Try to see if we have a generated preview we can reuse as the final export.
+    // This avoids double-rendering when the user clicks 'Download' from preview mode.
+    try {
+      const previewStyle = session.subtitleStyle
+        ? {
+            stylePreset: session.subtitleStyle.stylePreset,
+            fontToken: session.subtitleStyle.fontToken,
+            fontFamily: session.subtitleStyle.fontFamily ?? undefined,
+            textColorToken: session.subtitleStyle.textColorToken,
+            bgColorToken: session.subtitleStyle.bgColorToken,
+            fontSize: session.subtitleStyle.fontSize,
+            position: session.subtitleStyle.position as SubtitleStyleOptions['position'],
+            animation: session.subtitleStyle.animation,
+            speakerMode: session.subtitleStyle.speakerMode,
+            speakerStyles: session.subtitleStyle
+              .speakerStyles as SubtitleStyleOptions['speakerStyles'],
+          }
+        : undefined;
+
+      const previewTarget = await directorFinalPreviewService.resolveFinalPreviewTarget(
+        sessionId,
+        userId,
+        {
+          aspectRatio: options.aspectRatio,
+          quality: options.quality,
+          includeSubtitles: options.includeSubtitles,
+          normalizeAudio: options.normalizeAudio,
+          refineSettings: options.refineSettings,
+          subtitleStyle: previewStyle,
+        },
+      );
+
+      if (previewTarget.cached) {
+        const exportsDir = join(env.MEDIA_INPUT_DIR, 'director', 'exports');
+        await mkdir(exportsDir, { recursive: true });
+
+        const filename = `export_${crypto.randomUUID()}.mp4`;
+        const destPath = join(exportsDir, filename);
+
+        await copyFile(previewTarget.previewFilePath, destPath);
+
+        const completedAt = new Date();
+        const downloadExpiresAt = getExportDownloadExpiresAt(completedAt);
+
+        const job = await prisma.$transaction(async (tx) => {
+          const createdJob = await tx.directorExportJob.create({
+            data: {
+              sessionId,
+              idempotencyKey: `${sessionId}:export-preview-promo:${Date.now()}`,
+              status: DirectorJobStatus.COMPLETED,
+              aspectRatio: options.aspectRatio ?? '9:16',
+              quality: options.quality ?? '1080p',
+              includeSubtitles: options.includeSubtitles ?? true,
+              outputStorageKey: `director/exports/${filename}`,
+              completedAt,
+              downloadExpiresAt,
+            },
+          });
+
+          await tx.directorSession.update({
+            where: { id: sessionId },
+            data: {
+              step: DirectorStep.COMPLETED,
+              lifecycleStatus: 'COMPLETED',
+              completedAt,
+              expiresAt: getCompletedSessionExpiresAt(completedAt),
+            },
+          });
+
+          return createdJob;
+        });
+
+        logger.info(
+          { sessionId, jobId: job.id },
+          'Director export completed instantly from cached preview',
+        );
+        return job;
+      }
+    } catch (err) {
+      logger.warn({ sessionId, err }, 'Failed to check or reuse preview for final export');
     }
 
     const idempotencyKey = `${sessionId}:export:${Date.now()}`;

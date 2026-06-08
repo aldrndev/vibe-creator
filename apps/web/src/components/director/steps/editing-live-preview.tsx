@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query';
 import { Download, MonitorPlay, Plus, RefreshCcw, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { LivePreviewMedia } from '@/components/director/steps/editing-live-preview-media';
@@ -264,6 +265,7 @@ export function EditingLivePreview({
   selectedClips,
   refineSettings,
 }: Readonly<EditingLivePreviewProps>) {
+  const queryClient = useQueryClient();
   const [, setSearchParams] = useMutableSearchParams();
   const { setStep, reset } = useDirectorStore();
   const [renderPreviewPath, setRenderPreviewPath] = useState<string | null>(null);
@@ -428,21 +430,59 @@ export function EditingLivePreview({
   ]);
 
   const handleDownloadPreview = useCallback(async () => {
-    if (!previewDownloadPath || effectiveStatus !== 'ready') {
+    if (!activeSessionId || !previewPayload || effectiveStatus !== 'ready') {
       return;
     }
 
     try {
       setDownloadError(null);
+
+      // 1. Promote the cached preview to a completed export job
+      const exportOptions = {
+        aspectRatio: previewPayload.aspectRatio,
+        quality: previewPayload.quality,
+        includeSubtitles: previewPayload.includeSubtitles,
+        normalizeAudio: previewPayload.normalizeAudio,
+        refineSettings: previewPayload.refineSettings,
+      };
+
+      const promoteRes = await authFetch(`/api/v1/director/sessions/${activeSessionId}/export`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(exportOptions),
+      });
+
+      const promoteData = (await promoteRes.json()) as {
+        success?: boolean;
+        error?: { message?: string };
+      };
+
+      if (!promoteRes.ok || promoteData.success === false) {
+        throw new Error(promoteData.error?.message || 'Gagal memproses ekspor video');
+      }
+
+      // 2. Download from official export download path
+      const exportDownloadUrl = `/api/v1/director/sessions/${activeSessionId}/export/download`;
       await downloadAuthenticatedFile(
-        previewDownloadPath,
-        previewFileName ?? `short-video-${activeSession?.id ?? Date.now()}.mp4`,
+        exportDownloadUrl,
+        previewFileName ?? `short-video-${activeSessionId}.mp4`,
       );
+
+      // 3. Mark step completed locally in the store
+      setStep('COMPLETED');
+
+      // 4. Invalidate queries so dashboard/history reflect changes immediately
+      void queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
+      void queryClient.invalidateQueries({ queryKey: ['workspace-history'] });
     } catch (error) {
-      logger.error('Preview download failed', error);
-      setDownloadError('Download gagal. Coba generate ulang lalu download lagi.');
+      logger.error('Preview download/promotion failed', error);
+      setDownloadError(
+        error instanceof Error
+          ? error.message
+          : 'Download gagal. Coba generate ulang lalu download lagi.',
+      );
     }
-  }, [activeSession?.id, previewDownloadPath, previewFileName, effectiveStatus]);
+  }, [activeSessionId, previewPayload, previewFileName, effectiveStatus, queryClient, setStep]);
 
   const previewVideoUrl = useAuthenticatedObjectUrl(
     activeSession && primaryClip && renderPreviewPath && effectiveStatus === 'ready'

@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query';
 import { AlertCircle, CheckCircle2, Download, RotateCcw } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Button, Card, CardBody, Spinner } from '@/components/ui';
@@ -71,6 +72,7 @@ function ExportStatusPanel({
 }
 
 export const ExportStep = () => {
+  const queryClient = useQueryClient();
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const { activeSession, exportJob, setExportJob, reset, step } = useDirectorStore();
   const isTerminalStatus = exportJob?.status === 'COMPLETED' || exportJob?.status === 'FAILED';
@@ -105,12 +107,16 @@ export const ExportStep = () => {
             : null,
       });
 
+      if (isCompleted || isFailed) {
+        void queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
+      }
+
       return isCompleted || isFailed;
     } catch (error) {
       logger.error('Poll export error', error);
       return false;
     }
-  }, [activeSession, setExportJob]);
+  }, [activeSession, setExportJob, queryClient]);
 
   useEffect(() => {
     if (step !== 'EXPORTING' || !activeSession || isTerminalStatus) {
@@ -156,6 +162,7 @@ export const ExportStep = () => {
       }).catch((err) => {
         logger.warn('Failed to mark workspace as completed', err);
       });
+      void queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
     } catch (error) {
       logger.error('Director export download failed', error);
       setDownloadError('File export sudah selesai dibuat, tetapi download gagal dibuka.');

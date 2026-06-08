@@ -376,21 +376,22 @@ export function SettingsPage() {
                   Tema
                 </CardTitle>
                 <CardDescription>
-                  Vibe Creator memakai mode gelap sebagai tampilan utama untuk pengalaman video yang
-                  lebih fokus.
+                  Atur preferensi tampilan workspace Anda untuk kenyamanan mata yang optimal selama
+                  proses editing.
                 </CardDescription>
               </CardHeader>
               <CardBody className="p-5">
-                <div className="flex flex-col gap-4 rounded-2xl border border-primary/25 bg-primary/10 p-5 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-col gap-4 rounded-2xl border border-border/60 bg-muted/20 p-5 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-start gap-4">
-                    <div className="flex size-12 shrink-0 items-center justify-center rounded-2xl border border-primary/25 bg-background/60 text-primary">
+                    <div className="flex size-12 shrink-0 items-center justify-center rounded-2xl border border-border/60 bg-background text-foreground">
                       <Moon className="size-5" />
                     </div>
                     <div>
-                      <h3 className="text-base font-black text-foreground">Mode gelap aktif</h3>
+                      <h3 className="text-base font-black text-foreground">Mode Gelap (Aktif)</h3>
                       <p className="mt-1 max-w-2xl text-sm font-medium leading-relaxed text-muted-foreground">
-                        Untuk fase launch, tampilan dibuat dark-only agar preview video, timeline,
-                        dan workspace tetap konsisten.
+                        Tampilan gelap dirancang khusus untuk mengurangi ketegangan mata saat proses
+                        editing panjang serta memastikan akurasi warna preview video, timeline, dan
+                        aset visual Anda tetap konsisten.
                       </p>
                     </div>
                   </div>
