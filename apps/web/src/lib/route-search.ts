@@ -95,7 +95,26 @@ export const paymentSearchSchema = z
   })
   .catch({ payment: undefined });
 
+export const historySearchSchema = z
+  .object({
+    filter: z
+      .enum([
+        'all',
+        'ai-director',
+        'video-studio',
+        'loop-creator',
+        'reaction-video',
+        'live-stream',
+        'exports',
+        'expired',
+      ])
+      .optional()
+      .catch(undefined),
+  })
+  .catch({ filter: undefined });
+
 export type AiDirectorRouteSearch = z.infer<typeof aiDirectorSearchSchema>;
+export type HistoryRouteSearch = z.infer<typeof historySearchSchema>;
 export type LoopCreatorRouteSearch = z.infer<typeof loopCreatorSearchSchema>;
 export type SessionRouteSearch = z.infer<typeof sessionSearchSchema>;
 export type TrendingRouteSearch = z.infer<typeof trendingSearchSchema>;

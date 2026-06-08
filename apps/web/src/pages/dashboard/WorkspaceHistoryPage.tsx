@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from '@/components/ui';
 import { WorkspaceHistoryThumbnail } from '@/components/workspace/workspace-history-thumbnail';
+import { useMutableSearchParams } from '@/lib/route-search';
 import { downloadAuthenticatedFile } from '@/services/api';
 import {
   deleteWorkspace,
@@ -199,24 +200,102 @@ function shouldShowHistoryItem(item: WorkspaceItem, workspaceIds: ReadonlySet<st
   return true;
 }
 
-export function WorkspaceHistoryPage() {
-  const [filter, setFilter] = useState<HistoryFilter>('all');
-  const queryClient = useQueryClient();
-  const navigate = useNavigate();
+function HistoryErrorCard({ error }: { readonly error: unknown }) {
+  if (!error) return null;
+  return (
+    <Card className="border-destructive/30 bg-destructive/10">
+      <CardBody className="p-4 text-sm font-bold text-destructive">
+        Gagal memuat riwayat. Coba refresh halaman.
+      </CardBody>
+    </Card>
+  );
+}
 
-  const tool = filter === 'all' || filter === 'expired' ? undefined : filter;
-  const status = filter === 'expired' ? 'EXPIRED' : undefined;
-  const queryKey = ['workspace-history', tool, status];
+function HistoryLoadingGrid({ isLoading }: { readonly isLoading: boolean }) {
+  if (!isLoading) return null;
+  return (
+    <div className="grid gap-3 md:grid-cols-2">
+      {loadingCardIds.map((id) => (
+        <div key={id} className="h-38 animate-pulse rounded-xl bg-card" />
+      ))}
+    </div>
+  );
+}
 
-  const { data, error, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } =
-    useInfiniteQuery({
-      queryKey,
-      queryFn: ({ pageParam }) =>
-        listRecentWorkspaces({ tool, status, limit: 6, cursor: pageParam }),
-      initialPageParam: undefined as string | undefined,
-      getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
-    });
+function HistoryEmptyCard({ show }: { readonly show: boolean }) {
+  if (!show) return null;
+  return (
+    <Card>
+      <CardBody className="flex flex-col items-center justify-center gap-3 p-10 text-center">
+        <FolderClock className="h-10 w-10 text-muted-foreground" />
+        <div>
+          <h2 className="text-lg font-black">Belum ada riwayat</h2>
+          <p className="text-sm font-medium text-muted-foreground">
+            Draft dan export akan muncul setelah autosave atau export selesai.
+          </p>
+        </div>
+      </CardBody>
+    </Card>
+  );
+}
 
+interface AutoFetchOptions {
+  availableItemsCount: number;
+  endedItemsCount: number;
+  isLoading: boolean;
+  isFetchingNextPage: boolean;
+  hasNextPage: boolean;
+  fetchNextPage: () => void;
+}
+
+function useAutoFetchNextPage({
+  availableItemsCount,
+  endedItemsCount,
+  isLoading,
+  isFetchingNextPage,
+  hasNextPage,
+  fetchNextPage,
+}: AutoFetchOptions) {
+  const [lastDisplayedCount, setLastDisplayedCount] = useState(0);
+  const prevIsFetchingRef = useRef(false);
+  const prevIsLoadingRef = useRef(false);
+
+  useEffect(() => {
+    const currentCount = availableItemsCount + endedItemsCount;
+    if (currentCount !== lastDisplayedCount) {
+      setLastDisplayedCount(currentCount);
+    }
+  }, [availableItemsCount, endedItemsCount, lastDisplayedCount]);
+
+  useEffect(() => {
+    const wasFetching = prevIsFetchingRef.current && !isFetchingNextPage;
+    const wasLoading = prevIsLoadingRef.current && !isLoading;
+
+    if ((wasFetching || wasLoading) && hasNextPage) {
+      const currentCount = availableItemsCount + endedItemsCount;
+      const addedCount = currentCount - lastDisplayedCount;
+      if (addedCount < 6) {
+        void fetchNextPage();
+      }
+    }
+
+    prevIsFetchingRef.current = isFetchingNextPage;
+    prevIsLoadingRef.current = isLoading;
+  }, [
+    isFetchingNextPage,
+    isLoading,
+    availableItemsCount,
+    endedItemsCount,
+    lastDisplayedCount,
+    hasNextPage,
+    fetchNextPage,
+  ]);
+}
+
+function useWorkspaceMutations(
+  queryClient: ReturnType<typeof useQueryClient>,
+  navigate: ReturnType<typeof useNavigate>,
+) {
   const duplicateMutation = useMutation({
     mutationFn: duplicateWorkspace,
     onSuccess: async (result, item) => {
@@ -232,6 +311,42 @@ export function WorkspaceHistoryPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['workspace-history'] }),
   });
 
+  return { duplicateMutation, deleteMutation };
+}
+
+export function WorkspaceHistoryPage() {
+  const [searchParams, setSearchParams] = useMutableSearchParams();
+  const filterParam = searchParams.get('filter');
+  const filter = isHistoryFilter(filterParam ?? '') ? (filterParam as HistoryFilter) : 'all';
+
+  const setFilter = (newFilter: HistoryFilter) => {
+    const nextParams = new URLSearchParams(searchParams);
+    if (newFilter === 'all') {
+      nextParams.delete('filter');
+    } else {
+      nextParams.set('filter', newFilter);
+    }
+    setSearchParams(nextParams, { replace: true });
+  };
+
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+
+  const { duplicateMutation, deleteMutation } = useWorkspaceMutations(queryClient, navigate);
+
+  const tool = filter === 'all' || filter === 'expired' ? undefined : filter;
+  const status = filter === 'expired' ? 'EXPIRED' : undefined;
+  const queryKey = ['workspace-history', tool, status];
+
+  const { data, error, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } =
+    useInfiniteQuery({
+      queryKey,
+      queryFn: ({ pageParam }) =>
+        listRecentWorkspaces({ tool, status, limit: 6, cursor: pageParam }),
+      initialPageParam: undefined as string | undefined,
+      getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+    });
+
   const items = data?.pages.flatMap((page) => page.items) ?? [];
   const groupedExports = groupExportsBySource(items);
   const workspaceIds = new Set(items.filter(isWorkspaceProject).map((item) => item.id));
@@ -242,41 +357,14 @@ export function WorkspaceHistoryPage() {
   const hasVisibleHistory = availableItems.length > 0 || endedItems.length > 0;
   const selectedFilter = filters.find((item) => item.value === filter) ?? allHistoryFilter;
 
-  // Automatically fetch next page if loading or fetchNextPage yields 0 new visible items
-  const [lastDisplayedCount, setLastDisplayedCount] = useState(0);
-  const prevIsFetchingRef = useRef(false);
-  const prevIsLoadingRef = useRef(false);
-
-  useEffect(() => {
-    const currentCount = availableItems.length + endedItems.length;
-    if (currentCount !== lastDisplayedCount) {
-      setLastDisplayedCount(currentCount);
-    }
-  }, [availableItems.length, endedItems.length, lastDisplayedCount]);
-
-  useEffect(() => {
-    const wasFetching = prevIsFetchingRef.current && !isFetchingNextPage;
-    const wasLoading = prevIsLoadingRef.current && !isLoading;
-
-    if ((wasFetching || wasLoading) && hasNextPage) {
-      const currentCount = availableItems.length + endedItems.length;
-      const addedCount = currentCount - lastDisplayedCount;
-      if (addedCount < 6) {
-        void fetchNextPage();
-      }
-    }
-
-    prevIsFetchingRef.current = isFetchingNextPage;
-    prevIsLoadingRef.current = isLoading;
-  }, [
-    isFetchingNextPage,
+  useAutoFetchNextPage({
+    availableItemsCount: availableItems.length,
+    endedItemsCount: endedItems.length,
     isLoading,
-    availableItems.length,
-    endedItems.length,
-    lastDisplayedCount,
+    isFetchingNextPage,
     hasNextPage,
     fetchNextPage,
-  ]);
+  });
 
   return (
     <div className="min-h-full bg-background px-4 pt-6 pb-6 text-foreground md:px-8 lg:pb-0">
@@ -296,35 +384,11 @@ export function WorkspaceHistoryPage() {
           <HistoryFilterSelect selectedFilter={selectedFilter} setFilter={setFilter} />
         </div>
 
-        {error ? (
-          <Card className="border-destructive/30 bg-destructive/10">
-            <CardBody className="p-4 text-sm font-bold text-destructive">
-              Gagal memuat riwayat. Coba refresh halaman.
-            </CardBody>
-          </Card>
-        ) : null}
+        <HistoryErrorCard error={error} />
 
-        {isLoading ? (
-          <div className="grid gap-3 md:grid-cols-2">
-            {loadingCardIds.map((id) => (
-              <div key={id} className="h-38 animate-pulse rounded-xl bg-card" />
-            ))}
-          </div>
-        ) : null}
+        <HistoryLoadingGrid isLoading={isLoading} />
 
-        {!isLoading && !hasVisibleHistory ? (
-          <Card>
-            <CardBody className="flex flex-col items-center justify-center gap-3 p-10 text-center">
-              <FolderClock className="h-10 w-10 text-muted-foreground" />
-              <div>
-                <h2 className="text-lg font-black">Belum ada riwayat</h2>
-                <p className="text-sm font-medium text-muted-foreground">
-                  Draft dan export akan muncul setelah autosave atau export selesai.
-                </p>
-              </div>
-            </CardBody>
-          </Card>
-        ) : null}
+        <HistoryEmptyCard show={!isLoading && !hasVisibleHistory} />
 
         <HistoryAvailableList
           items={availableItems}

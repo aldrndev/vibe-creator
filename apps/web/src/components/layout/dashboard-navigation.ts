@@ -51,16 +51,16 @@ export const dashboardToolNavigation: ReadonlyArray<DashboardNavigationLink> = [
   { name: 'Live Streaming', href: '/tools/live-stream-history', icon: Radio },
 ];
 
-/** Top-level entries currently exposed from the dashboard sidebar. */
 export const dashboardNavigation: ReadonlyArray<DashboardNavigationItem> = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Trending', href: '/dashboard/trending', icon: TrendingUp },
-  { name: 'Riwayat', href: '/dashboard/history', icon: FolderClock },
   {
     name: 'Tools',
     icon: Video,
     children: dashboardToolNavigation,
   },
+  { name: 'Riwayat', href: '/dashboard/history', icon: FolderClock },
+  { name: 'Prompt Builder', href: '/dashboard/prompts', icon: Sparkles },
   { name: 'Community', href: '/dashboard/community', icon: Users },
   { name: 'Settings', href: '/dashboard/settings', icon: Settings },
 ];

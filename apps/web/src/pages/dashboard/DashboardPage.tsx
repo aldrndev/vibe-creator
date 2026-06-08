@@ -91,14 +91,24 @@ interface StatCardProps {
   readonly value: number;
   readonly icon: typeof FolderOpen;
   readonly to: string;
+  readonly search?: Record<string, unknown>;
   readonly accentClass: string;
   readonly hoverClass: string;
 }
 
-function StatCard({ label, value, icon: Icon, to, accentClass, hoverClass }: StatCardProps) {
+function StatCard({
+  label,
+  value,
+  icon: Icon,
+  to,
+  search,
+  accentClass,
+  hoverClass,
+}: StatCardProps) {
   return (
     <Link
       to={to}
+      search={search}
       className={cn(
         'group flex h-full min-h-28 flex-col justify-center rounded-2xl border border-border/60 bg-card/70 p-3.5 transition-all duration-300 hover:-translate-y-1 hover:bg-card/95 hover:shadow-md',
         hoverClass,
@@ -425,7 +435,7 @@ export function DashboardPage() {
                   label="Proyek Aktif"
                   value={summary.stats.activeProjects}
                   icon={FolderOpen}
-                  to="/dashboard/projects"
+                  to="/dashboard/history"
                   accentClass="text-sky-400 bg-sky-500/10 border-sky-500/15"
                   hoverClass="hover:border-sky-500/30 hover:shadow-[0_0_20px_rgba(56,189,248,0.05)]"
                 />
@@ -442,6 +452,7 @@ export function DashboardPage() {
                   value={summary.stats.exports}
                   icon={Download}
                   to="/dashboard/history"
+                  search={{ filter: 'exports' }}
                   accentClass="text-emerald-400 bg-emerald-500/10 border-emerald-500/15"
                   hoverClass="hover:border-emerald-500/30 hover:shadow-[0_0_20px_rgba(16,185,129,0.05)]"
                 />
@@ -449,7 +460,8 @@ export function DashboardPage() {
                   label="Download Aktif"
                   value={summary.stats.downloads}
                   icon={FolderClock}
-                  to="/dashboard/downloads"
+                  to="/dashboard/history"
+                  search={{ filter: 'exports' }}
                   accentClass="text-amber-400 bg-amber-500/10 border-amber-500/15"
                   hoverClass="hover:border-amber-500/30 hover:shadow-[0_0_20px_rgba(245,158,11,0.05)]"
                 />

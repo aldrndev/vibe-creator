@@ -201,7 +201,8 @@ export const dashboardService = {
 
     const [
       subscription,
-      activeProjects,
+      activeProjectsCount,
+      activeDirectorSessionsCount,
       prompts,
       genericExports,
       directorExports,
@@ -222,10 +223,26 @@ export const dashboardService = {
           OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
         },
       }),
+      prisma.directorSession.count({
+        where: {
+          userId: input.userId,
+          deletedAt: null,
+          lifecycleStatus: LifecycleStatus.ACTIVE,
+          OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+        },
+      }),
       prisma.prompt.count({ where: { userId: input.userId } }),
-      prisma.exportHistory.count({ where: { userId: input.userId } }),
+      prisma.exportHistory.count({
+        where: {
+          userId: input.userId,
+          status: { not: ExportStatus.FAILED },
+        },
+      }),
       prisma.directorExportJob.count({
-        where: { session: { userId: input.userId, deletedAt: null } },
+        where: {
+          status: { not: DirectorJobStatus.FAILED },
+          session: { userId: input.userId, deletedAt: null },
+        },
       }),
       prisma.exportHistory.count({
         where: {
@@ -251,6 +268,8 @@ export const dashboardService = {
         limit: RECENT_QUERY_LIMIT,
       }),
     ]);
+
+    const activeProjects = activeProjectsCount + activeDirectorSessionsCount;
 
     const recentWorkspaces = recentResult.items
       .map(toRecentWorkspace)

@@ -55,12 +55,25 @@ export function DashboardThumbnail({ thumbnailUrl, tool, className }: DashboardT
   return (
     <div
       className={cn(
-        'relative shrink-0 overflow-hidden rounded-lg border border-border/60 bg-muted/20',
+        'relative shrink-0 overflow-hidden rounded-lg border border-border/60 bg-black/40',
         className,
       )}
     >
       {objectUrl ? (
-        <img src={objectUrl} alt="" className="h-full w-full object-cover" aria-hidden="true" />
+        <>
+          <img
+            src={objectUrl}
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover blur-md opacity-40"
+            aria-hidden="true"
+          />
+          <img
+            src={objectUrl}
+            alt=""
+            className="relative h-full w-full object-contain"
+            aria-hidden="true"
+          />
+        </>
       ) : (
         <div className="flex h-full w-full items-center justify-center text-muted-foreground">
           {getFallbackIcon(tool)}

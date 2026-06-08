@@ -36,11 +36,9 @@ import { Route as AppToolsAiDirectorRouteImport } from './routes/_app.tools.ai-d
 import { Route as AppDashboardTrendingRouteImport } from './routes/_app.dashboard_.trending'
 import { Route as AppDashboardSettingsRouteImport } from './routes/_app.dashboard_.settings'
 import { Route as AppDashboardPromptsRouteImport } from './routes/_app.dashboard_.prompts'
-import { Route as AppDashboardProjectsRouteImport } from './routes/_app.dashboard_.projects'
 import { Route as AppDashboardPricingRouteImport } from './routes/_app.dashboard_.pricing'
 import { Route as AppDashboardHistoryRouteImport } from './routes/_app.dashboard_.history'
 import { Route as AppDashboardExportsRouteImport } from './routes/_app.dashboard_.exports'
-import { Route as AppDashboardDownloadsRouteImport } from './routes/_app.dashboard_.downloads'
 import { Route as AppDashboardCommunityRouteImport } from './routes/_app.dashboard_.community'
 import { Route as AppDashboardAdminRouteImport } from './routes/_app.dashboard_.admin'
 import { Route as AppToolsStoryDirectorProjectIdRouteImport } from './routes/_app.tools.story-director_.$projectId'
@@ -181,11 +179,6 @@ const AppDashboardPromptsRoute = AppDashboardPromptsRouteImport.update({
   path: '/dashboard/prompts',
   getParentRoute: () => AppRoute,
 } as any)
-const AppDashboardProjectsRoute = AppDashboardProjectsRouteImport.update({
-  id: '/dashboard_/projects',
-  path: '/dashboard/projects',
-  getParentRoute: () => AppRoute,
-} as any)
 const AppDashboardPricingRoute = AppDashboardPricingRouteImport.update({
   id: '/dashboard_/pricing',
   path: '/dashboard/pricing',
@@ -199,11 +192,6 @@ const AppDashboardHistoryRoute = AppDashboardHistoryRouteImport.update({
 const AppDashboardExportsRoute = AppDashboardExportsRouteImport.update({
   id: '/dashboard_/exports',
   path: '/dashboard/exports',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppDashboardDownloadsRoute = AppDashboardDownloadsRouteImport.update({
-  id: '/dashboard_/downloads',
-  path: '/dashboard/downloads',
   getParentRoute: () => AppRoute,
 } as any)
 const AppDashboardCommunityRoute = AppDashboardCommunityRouteImport.update({
@@ -245,11 +233,9 @@ export interface FileRoutesByFullPath {
   '/register': typeof AuthRegisterRoute
   '/dashboard/admin': typeof AppDashboardAdminRoute
   '/dashboard/community': typeof AppDashboardCommunityRoute
-  '/dashboard/downloads': typeof AppDashboardDownloadsRoute
   '/dashboard/exports': typeof AppDashboardExportsRoute
   '/dashboard/history': typeof AppDashboardHistoryRoute
   '/dashboard/pricing': typeof AppDashboardPricingRoute
-  '/dashboard/projects': typeof AppDashboardProjectsRoute
   '/dashboard/prompts': typeof AppDashboardPromptsRoute
   '/dashboard/settings': typeof AppDashboardSettingsRoute
   '/dashboard/trending': typeof AppDashboardTrendingRoute
@@ -281,11 +267,9 @@ export interface FileRoutesByTo {
   '/register': typeof AuthRegisterRoute
   '/dashboard/admin': typeof AppDashboardAdminRoute
   '/dashboard/community': typeof AppDashboardCommunityRoute
-  '/dashboard/downloads': typeof AppDashboardDownloadsRoute
   '/dashboard/exports': typeof AppDashboardExportsRoute
   '/dashboard/history': typeof AppDashboardHistoryRoute
   '/dashboard/pricing': typeof AppDashboardPricingRoute
-  '/dashboard/projects': typeof AppDashboardProjectsRoute
   '/dashboard/prompts': typeof AppDashboardPromptsRoute
   '/dashboard/settings': typeof AppDashboardSettingsRoute
   '/dashboard/trending': typeof AppDashboardTrendingRoute
@@ -321,11 +305,9 @@ export interface FileRoutesById {
   '/_auth/register': typeof AuthRegisterRoute
   '/_app/dashboard_/admin': typeof AppDashboardAdminRoute
   '/_app/dashboard_/community': typeof AppDashboardCommunityRoute
-  '/_app/dashboard_/downloads': typeof AppDashboardDownloadsRoute
   '/_app/dashboard_/exports': typeof AppDashboardExportsRoute
   '/_app/dashboard_/history': typeof AppDashboardHistoryRoute
   '/_app/dashboard_/pricing': typeof AppDashboardPricingRoute
-  '/_app/dashboard_/projects': typeof AppDashboardProjectsRoute
   '/_app/dashboard_/prompts': typeof AppDashboardPromptsRoute
   '/_app/dashboard_/settings': typeof AppDashboardSettingsRoute
   '/_app/dashboard_/trending': typeof AppDashboardTrendingRoute
@@ -359,11 +341,9 @@ export interface FileRouteTypes {
     | '/register'
     | '/dashboard/admin'
     | '/dashboard/community'
-    | '/dashboard/downloads'
     | '/dashboard/exports'
     | '/dashboard/history'
     | '/dashboard/pricing'
-    | '/dashboard/projects'
     | '/dashboard/prompts'
     | '/dashboard/settings'
     | '/dashboard/trending'
@@ -395,11 +375,9 @@ export interface FileRouteTypes {
     | '/register'
     | '/dashboard/admin'
     | '/dashboard/community'
-    | '/dashboard/downloads'
     | '/dashboard/exports'
     | '/dashboard/history'
     | '/dashboard/pricing'
-    | '/dashboard/projects'
     | '/dashboard/prompts'
     | '/dashboard/settings'
     | '/dashboard/trending'
@@ -434,11 +412,9 @@ export interface FileRouteTypes {
     | '/_auth/register'
     | '/_app/dashboard_/admin'
     | '/_app/dashboard_/community'
-    | '/_app/dashboard_/downloads'
     | '/_app/dashboard_/exports'
     | '/_app/dashboard_/history'
     | '/_app/dashboard_/pricing'
-    | '/_app/dashboard_/projects'
     | '/_app/dashboard_/prompts'
     | '/_app/dashboard_/settings'
     | '/_app/dashboard_/trending'
@@ -662,13 +638,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppDashboardPromptsRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/dashboard_/projects': {
-      id: '/_app/dashboard_/projects'
-      path: '/dashboard/projects'
-      fullPath: '/dashboard/projects'
-      preLoaderRoute: typeof AppDashboardProjectsRouteImport
-      parentRoute: typeof AppRoute
-    }
     '/_app/dashboard_/pricing': {
       id: '/_app/dashboard_/pricing'
       path: '/dashboard/pricing'
@@ -688,13 +657,6 @@ declare module '@tanstack/react-router' {
       path: '/dashboard/exports'
       fullPath: '/dashboard/exports'
       preLoaderRoute: typeof AppDashboardExportsRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/dashboard_/downloads': {
-      id: '/_app/dashboard_/downloads'
-      path: '/dashboard/downloads'
-      fullPath: '/dashboard/downloads'
-      preLoaderRoute: typeof AppDashboardDownloadsRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/dashboard_/community': {
@@ -739,11 +701,9 @@ interface AppRouteChildren {
   AppDashboardRoute: typeof AppDashboardRoute
   AppDashboardAdminRoute: typeof AppDashboardAdminRoute
   AppDashboardCommunityRoute: typeof AppDashboardCommunityRoute
-  AppDashboardDownloadsRoute: typeof AppDashboardDownloadsRoute
   AppDashboardExportsRoute: typeof AppDashboardExportsRoute
   AppDashboardHistoryRoute: typeof AppDashboardHistoryRoute
   AppDashboardPricingRoute: typeof AppDashboardPricingRoute
-  AppDashboardProjectsRoute: typeof AppDashboardProjectsRoute
   AppDashboardPromptsRoute: typeof AppDashboardPromptsRoute
   AppDashboardSettingsRoute: typeof AppDashboardSettingsRoute
   AppDashboardTrendingRoute: typeof AppDashboardTrendingRoute
@@ -766,11 +726,9 @@ const AppRouteChildren: AppRouteChildren = {
   AppDashboardRoute: AppDashboardRoute,
   AppDashboardAdminRoute: AppDashboardAdminRoute,
   AppDashboardCommunityRoute: AppDashboardCommunityRoute,
-  AppDashboardDownloadsRoute: AppDashboardDownloadsRoute,
   AppDashboardExportsRoute: AppDashboardExportsRoute,
   AppDashboardHistoryRoute: AppDashboardHistoryRoute,
   AppDashboardPricingRoute: AppDashboardPricingRoute,
-  AppDashboardProjectsRoute: AppDashboardProjectsRoute,
   AppDashboardPromptsRoute: AppDashboardPromptsRoute,
   AppDashboardSettingsRoute: AppDashboardSettingsRoute,
   AppDashboardTrendingRoute: AppDashboardTrendingRoute,
