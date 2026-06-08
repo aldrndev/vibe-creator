@@ -138,7 +138,7 @@ export function LandingPage() {
       </header>
 
       <main>
-        <section className="container mx-auto px-4 pb-14 pt-14 sm:px-6 sm:pb-20 sm:pt-20">
+        <section className="container mx-auto px-4 pb-14 pt-14 sm:px-6 sm:pt-20 min-h-screen">
           <div className="grid items-center gap-10 lg:grid-cols-[0.95fr_1.05fr]">
             <motion.div
               initial={{ opacity: 0, y: 24 }}
