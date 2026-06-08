@@ -106,6 +106,7 @@ RUN pnpm install --prod --frozen-lockfile --ignore-scripts
 WORKDIR /app/apps/api
 COPY --from=builder /app/apps/api/dist ./dist
 COPY --from=builder /app/apps/api/prisma ./prisma
+COPY --from=builder /app/apps/api/prisma.config.ts ./prisma.config.ts
 
 # Generate Prisma Engine locally for production
 WORKDIR /app/apps/api
