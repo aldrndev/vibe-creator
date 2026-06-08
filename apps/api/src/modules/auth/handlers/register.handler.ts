@@ -11,6 +11,7 @@ import { logger } from '@/lib/logger';
 import { prisma } from '@/lib/prisma';
 import { verifyTurnstileToken } from '@/lib/turnstile';
 import { hashPassword } from '@/utils/crypto';
+import { getExportLimitForTier } from '@/lib/subscription-limits';
 import { sendCreated, sendError } from '@/utils/response';
 import { setRefreshTokenCookie } from '../auth.cookies';
 import { createSession } from '../auth.session';
@@ -61,7 +62,7 @@ export async function registerHandler(request: FastifyRequest, reply: FastifyRep
           tier: 'FREE',
           status: 'ACTIVE',
           exportsUsed: 0,
-          exportsLimit: 0,
+          exportsLimit: getExportLimitForTier('FREE'),
         },
       },
     },
