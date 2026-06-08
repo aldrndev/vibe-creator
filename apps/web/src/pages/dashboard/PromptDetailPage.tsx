@@ -147,7 +147,7 @@ export function PromptDetailPage() {
     : prompt.versions[0];
 
   return (
-    <PageTransition className="pb-20 lg:pb-10">
+    <PageTransition className="pb-6 lg:pb-10">
       <div className="max-w-[1400px] mx-auto space-y-8">
         {/* Header */}
         <div className="flex flex-col gap-4">

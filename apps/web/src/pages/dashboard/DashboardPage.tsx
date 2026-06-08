@@ -442,7 +442,7 @@ export function DashboardPage() {
               </div>
             </div>
 
-            <section className="space-y-4 pb-[calc(4.75rem+env(safe-area-inset-bottom))] md:pb-6">
+            <section className="space-y-4 pb-6">
               <div className="flex items-center gap-2">
                 <Zap size={18} className="text-primary" />
                 <h2 className="text-lg font-bold text-foreground">Aksi Cepat</h2>

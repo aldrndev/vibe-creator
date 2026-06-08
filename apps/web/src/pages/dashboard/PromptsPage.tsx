@@ -254,7 +254,7 @@ export function PromptsPage() {
   }
 
   return (
-    <PageTransition className="pb-20 lg:pb-10">
+    <PageTransition className="pb-6 lg:pb-10">
       <div className="max-w-[1400px] mx-auto space-y-8">
         <div className="flex flex-col gap-4">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">

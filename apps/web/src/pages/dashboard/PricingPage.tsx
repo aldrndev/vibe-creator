@@ -250,7 +250,7 @@ export function PricingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background px-4 py-6 pb-24 md:px-8 lg:pb-10">
+    <div className="min-h-screen bg-background px-4 py-6 pb-6 md:px-8 lg:pb-10">
       <div className="mx-auto max-w-7xl space-y-8">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div className="flex items-start gap-4">

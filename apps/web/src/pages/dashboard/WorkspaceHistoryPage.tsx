@@ -279,7 +279,7 @@ export function WorkspaceHistoryPage() {
   ]);
 
   return (
-    <div className="min-h-full bg-background px-4 pt-6 pb-[calc(4.75rem+env(safe-area-inset-bottom))] text-foreground md:px-8 md:pb-6 lg:pb-0">
+    <div className="min-h-full bg-background px-4 pt-6 pb-6 text-foreground md:px-8 lg:pb-0">
       <div className="mx-auto max-w-6xl space-y-6">
         <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div>

@@ -285,7 +285,7 @@ function ReactionPageHeader({
   return (
     <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex items-center gap-4">
-        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-linear-to-br from-orange-500 to-primary text-white shadow-lg shadow-primary/20">
+        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-linear-to-br from-orange-500 to-primary text-white">
           <Video size={24} />
         </div>
         <div>

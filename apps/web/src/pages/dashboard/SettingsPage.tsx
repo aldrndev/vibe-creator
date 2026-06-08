@@ -315,7 +315,7 @@ export function SettingsPage() {
   const paymentStatus = searchParams.get('payment');
 
   return (
-    <div className="pb-28 lg:pb-14">
+    <div className="pb-6 lg:pb-14">
       <div className="mx-auto max-w-[1320px] space-y-7 px-1 md:space-y-9">
         <header className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
           <div className="space-y-1.5">
