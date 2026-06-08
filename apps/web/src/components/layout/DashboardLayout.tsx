@@ -20,6 +20,9 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
 } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/auth-store';
@@ -282,17 +285,26 @@ export function DashboardLayout() {
         </div>
 
         {/* Floating Toggle Button positioned near the top on the border line */}
-        <button
-          type="button"
-          onClick={toggleSidebar}
-          className={cn(
-            'hidden lg:flex absolute top-4 z-50 h-8 w-8 items-center justify-center rounded-full border border-border bg-background text-muted-foreground shadow-md transition-all duration-200 hover:scale-110 hover:text-foreground active:scale-95 cursor-pointer lg:pointer-events-auto',
-            sidebarCollapsed ? 'left-4' : '-right-4',
-          )}
-          aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        >
-          {sidebarCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
-        </button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onClick={toggleSidebar}
+              className={cn(
+                'hidden lg:flex absolute z-50 items-center justify-center transition-all duration-200 active:scale-95 cursor-pointer lg:pointer-events-auto',
+                sidebarCollapsed
+                  ? 'left-0 top-4 h-8 w-6 rounded-r-full rounded-l-none border border-l-0 border-primary/30 bg-linear-to-br from-primary via-orange-500 to-rose-600 text-white shadow-lg shadow-primary/20 pl-1 hover:w-7 hover:opacity-90'
+                  : 'right-4 top-4 h-8 w-8 rounded-full border border-border bg-background text-muted-foreground shadow-md hover:scale-110 hover:text-foreground',
+              )}
+              aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            >
+              {sidebarCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={16} />}
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="right" align="center">
+            {sidebarCollapsed ? 'Show Menu' : 'Hide Menu'}
+          </TooltipContent>
+        </Tooltip>
       </aside>
 
       {/* Main content */}
@@ -366,7 +378,7 @@ export function DashboardLayout() {
               ? 'overflow-hidden p-0'
               : cn(
                   'overflow-y-auto overflow-x-hidden p-4 pb-4 md:p-6 md:pb-6 lg:pb-0',
-                  sidebarCollapsed && 'lg:pl-16',
+                  sidebarCollapsed && 'lg:pl-12',
                 ),
           )}
         >

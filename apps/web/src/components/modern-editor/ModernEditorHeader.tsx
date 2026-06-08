@@ -230,7 +230,7 @@ export function ModernEditorHeader({
       <header
         className={cn(
           'h-16 border-b border-border/60 flex items-center justify-between px-4 md:px-6 bg-card/80 backdrop-blur-xl shrink-0 z-30 transition-all duration-300',
-          'group-data-[sidebar-collapsed=true]/layout:lg:pl-16',
+          'group-data-[sidebar-collapsed=true]/layout:lg:pl-12',
         )}
       >
         <div className="flex min-w-0 items-center gap-3 md:gap-4">
