@@ -1,4 +1,4 @@
-import { AlertCircle, Zap } from 'lucide-react';
+import { AlertCircle, Loader2, Zap } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   type DirectorTranscribeProgressMeta,
@@ -28,7 +28,13 @@ import {
 import { cn } from '@/lib/utils';
 import { authFetch } from '@/services/api';
 import { useAuthStore } from '@/stores/auth-store';
-import { type TranscribeJob, useDirectorStore } from '@/stores/director-store';
+import {
+  type DirectorSession,
+  type SelectedClip,
+  type SubtitleStyle,
+  type TranscribeJob,
+  useDirectorStore,
+} from '@/stores/director-store';
 
 const DEFAULT_SUBTITLE_TARGET_LANGUAGE = 'en';
 const SAVE_NOTICE_DISPLAY_MS = 2400;
@@ -171,31 +177,10 @@ function getPreviewDownloadButtonLabel(params: {
   return 'Preview & Download';
 }
 
-export const EditingStep = () => {
-  const { user, subscription } = useAuthStore();
-  const {
-    activeSession,
-    selectedClips,
-    setSelectedClips,
-    refineSettings,
-    subtitleStyle,
-    updateSubtitleStyle,
-    updateRefineSetting,
-    setRefineSettings,
-    exportSettings,
-    transcribeJob,
-    setTranscribeJob,
-    transcribeLanguage,
-    setTranscribeLanguage,
-    subtitleMode,
-    subtitleTargetLanguage,
-    setSubtitleMode,
-    setSubtitleTargetLanguage,
-    setStep,
-    error,
-    setError,
-  } = useDirectorStore();
-  const autoTranscribeSessionRef = useRef<string | null>(null);
+function useDirectorSaveStates(
+  activeSession: DirectorSession | null,
+  subtitleStyle: SubtitleStyle,
+) {
   const subtitleSyncKeyRef = useRef<string | null>(null);
   const failedTranscriptUpdateRef = useRef<{
     clipId: string;
@@ -203,49 +188,133 @@ export const EditingStep = () => {
   } | null>(null);
   const [subtitleSaveState, setSubtitleSaveState] = useState<SaveState>('idle');
   const [transcriptSaveState, setTranscriptSaveState] = useState<SaveState>('idle');
-  const isTranscribing = shouldPollTranscribeStatus(transcribeJob?.status);
-  const transcribeProgressMeta = getTranscribeProgressMeta(transcribeJob);
-  const primaryClip = selectedClips[0];
-  const hasMultipleSelectedClips = selectedClips.length > 1;
-  const effectiveExportSettings = useMemo(
-    () =>
-      resolveDirectorEffectiveExportSettings(exportSettings, {
-        role: user?.role,
-        tier: subscription?.tier,
-      }),
-    [exportSettings, subscription?.tier, user?.role],
-  );
-  const subtitleTargetLanguageSelectValue = resolveSubtitleTargetLanguage(subtitleTargetLanguage);
-  const isSavingBeforePreview = subtitleSaveState === 'saving' || transcriptSaveState === 'saving';
-  const hasSaveErrorBeforePreview =
-    subtitleSaveState === 'error' || transcriptSaveState === 'error';
-  const previewDownloadButtonLabel = getPreviewDownloadButtonLabel({
-    hasSaveErrorBeforePreview,
-    isSavingBeforePreview,
-  });
-  const subtitleStatusState = getSubtitleStatusState({
-    isTranscribing,
-    subtitleSaveState,
-    transcribeFailed: transcribeJob?.status === 'FAILED',
-    transcribePhase: transcribeProgressMeta?.phase,
-  });
 
-  const refreshSelectedClips = useCallback(async () => {
-    if (!activeSession) {
+  const saveSubtitleStyle = useCallback(async (): Promise<boolean> => {
+    if (!activeSession) return false;
+    try {
+      setSubtitleSaveState('saving');
+      const response = await authFetch(`/api/v1/director/sessions/${activeSession.id}/subtitle`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(subtitleStyle),
+      });
+      if (!response.ok) throw new Error(`Update subtitle style failed: ${response.status}`);
+      subtitleSyncKeyRef.current = JSON.stringify(subtitleStyle);
+      setSubtitleSaveState('saved');
+      return true;
+    } catch (error) {
+      logger.error('Update subtitle style failed', error);
+      setSubtitleSaveState('error');
+      return false;
+    }
+  }, [activeSession, subtitleStyle]);
+
+  const saveTranscriptSegments = useCallback(
+    async (clipId: string, segments: TranscriptSegment[]): Promise<boolean> => {
+      if (!activeSession) return false;
+      try {
+        setTranscriptSaveState('saving');
+        const response = await authFetch(
+          `/api/v1/director/sessions/${activeSession.id}/clips/${clipId}/transcript`,
+          {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ segments }),
+          },
+        );
+        if (!response.ok) throw new Error(`Update transcript failed: ${response.status}`);
+        failedTranscriptUpdateRef.current = null;
+        setTranscriptSaveState('saved');
+        return true;
+      } catch (error) {
+        logger.error('Update transcript failed', error);
+        failedTranscriptUpdateRef.current = { clipId, segments };
+        setTranscriptSaveState('error');
+        return false;
+      }
+    },
+    [activeSession],
+  );
+
+  const handleRetryTranscriptSave = useCallback(() => {
+    const failedUpdate = failedTranscriptUpdateRef.current;
+    if (!failedUpdate) {
       return;
     }
 
-    try {
-      const clipsRes = await authFetch(`/api/v1/director/sessions/${activeSession.id}/clips`);
-      const clipsData = await clipsRes.json();
+    void saveTranscriptSegments(failedUpdate.clipId, failedUpdate.segments);
+  }, [saveTranscriptSegments]);
 
-      if (clipsData.success) {
-        setSelectedClips(clipsData.data);
-      }
-    } catch (error) {
-      logger.error('Load clips error', error);
+  useEffect(() => {
+    if (!activeSession) {
+      subtitleSyncKeyRef.current = null;
+      return;
     }
-  }, [activeSession, setSelectedClips]);
+
+    const serializedStyle = JSON.stringify(subtitleStyle);
+    if (subtitleSyncKeyRef.current === null) {
+      subtitleSyncKeyRef.current = serializedStyle;
+      return;
+    }
+
+    if (subtitleSyncKeyRef.current === serializedStyle) return;
+
+    const timeoutId = globalThis.setTimeout(() => {
+      void saveSubtitleStyle();
+    }, 300);
+
+    return () => {
+      globalThis.clearTimeout(timeoutId);
+    };
+  }, [activeSession, saveSubtitleStyle, subtitleStyle]);
+
+  useEffect(() => {
+    if (subtitleSaveState !== 'saved') return;
+    const timeoutId = globalThis.setTimeout(() => {
+      setSubtitleSaveState('idle');
+    }, SAVE_NOTICE_DISPLAY_MS);
+    return () => {
+      globalThis.clearTimeout(timeoutId);
+    };
+  }, [subtitleSaveState]);
+
+  useEffect(() => {
+    if (transcriptSaveState !== 'saved') return;
+    const timeoutId = globalThis.setTimeout(() => {
+      setTranscriptSaveState('idle');
+    }, SAVE_NOTICE_DISPLAY_MS);
+    return () => {
+      globalThis.clearTimeout(timeoutId);
+    };
+  }, [transcriptSaveState]);
+
+  return {
+    subtitleSaveState,
+    transcriptSaveState,
+    saveSubtitleStyle,
+    saveTranscriptSegments,
+    handleRetryTranscriptSave,
+  };
+}
+
+function useDirectorTranscribe(
+  activeSession: DirectorSession | null,
+  selectedClips: SelectedClip[],
+  transcribeLanguage: string,
+  subtitleMode: SubtitleMode,
+  subtitleTargetLanguage: string | undefined,
+  transcribeJob: TranscribeJob | null,
+  refreshSelectedClips: () => Promise<void>,
+) {
+  const {
+    setTranscribeJob,
+    setTranscribeLanguage,
+    setSubtitleMode,
+    setSubtitleTargetLanguage,
+    setError,
+  } = useDirectorStore();
+
+  const autoTranscribeSessionRef = useRef<string | null>(null);
 
   const pollTranscriptionStatus = useCallback(async () => {
     if (!activeSession) {
@@ -361,67 +430,6 @@ export const EditingStep = () => {
     ],
   );
 
-  const saveSubtitleStyle = useCallback(async (): Promise<boolean> => {
-    if (!activeSession) {
-      return false;
-    }
-
-    try {
-      setSubtitleSaveState('saving');
-      const response = await authFetch(`/api/v1/director/sessions/${activeSession.id}/subtitle`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(subtitleStyle),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Update subtitle style failed: ${response.status}`);
-      }
-
-      subtitleSyncKeyRef.current = JSON.stringify(subtitleStyle);
-      setSubtitleSaveState('saved');
-      return true;
-    } catch (error) {
-      logger.error('Update subtitle style failed', error);
-      setSubtitleSaveState('error');
-      return false;
-    }
-  }, [activeSession, subtitleStyle]);
-
-  const saveTranscriptSegments = useCallback(
-    async (clipId: string, segments: TranscriptSegment[]): Promise<boolean> => {
-      if (!activeSession) {
-        return false;
-      }
-
-      try {
-        setTranscriptSaveState('saving');
-        const response = await authFetch(
-          `/api/v1/director/sessions/${activeSession.id}/clips/${clipId}/transcript`,
-          {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ segments }),
-          },
-        );
-
-        if (!response.ok) {
-          throw new Error(`Update transcript failed: ${response.status}`);
-        }
-
-        failedTranscriptUpdateRef.current = null;
-        setTranscriptSaveState('saved');
-        return true;
-      } catch (error) {
-        logger.error('Update transcript failed', error);
-        failedTranscriptUpdateRef.current = { clipId, segments };
-        setTranscriptSaveState('error');
-        return false;
-      }
-    },
-    [activeSession],
-  );
-
   useEffect(() => {
     if (!activeSession || selectedClips.length === 0) {
       autoTranscribeSessionRef.current = null;
@@ -473,58 +481,123 @@ export const EditingStep = () => {
     transcribeLanguage,
   ]);
 
-  useEffect(() => {
+  return {
+    pollTranscriptionStatus,
+    handleStartTranscribe,
+  };
+}
+
+function EditingStepAlerts({
+  error,
+  hasMultipleSelectedClips,
+}: {
+  error: string | null;
+  hasMultipleSelectedClips: boolean;
+}) {
+  return (
+    <>
+      {error && (
+        <div className="flex items-center gap-2 text-rose-500 bg-rose-500/10 px-4 py-3 rounded-2xl text-sm border border-rose-500/20">
+          <AlertCircle size={18} className="shrink-0" />
+          <span className="font-semibold text-left">{error}</span>
+        </div>
+      )}
+
+      {hasMultipleSelectedClips ? (
+        <div className="flex items-start gap-2 text-amber-500 bg-amber-500/10 px-4 py-3 rounded-2xl text-sm border border-amber-500/20">
+          <AlertCircle size={18} className="mt-0.5 shrink-0" />
+          <span className="font-medium text-left">
+            Sistem edit sekarang fokus 1 short per sesi. Clip pertama dipakai sebagai short aktif.
+          </span>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+export const EditingStep = () => {
+  const { user, subscription } = useAuthStore();
+  const {
+    activeSession,
+    selectedClips,
+    setSelectedClips,
+    refineSettings,
+    subtitleStyle,
+    updateSubtitleStyle,
+    updateRefineSetting,
+    setRefineSettings,
+    exportSettings,
+    transcribeJob,
+    transcribeLanguage,
+    subtitleMode,
+    subtitleTargetLanguage,
+    setSubtitleMode,
+    setSubtitleTargetLanguage,
+    setStep,
+    error,
+    setError,
+  } = useDirectorStore();
+
+  const {
+    subtitleSaveState,
+    transcriptSaveState,
+    saveTranscriptSegments,
+    saveSubtitleStyle,
+    handleRetryTranscriptSave,
+  } = useDirectorSaveStates(activeSession, subtitleStyle);
+  const isTranscribing = shouldPollTranscribeStatus(transcribeJob?.status);
+  const transcribeProgressMeta = getTranscribeProgressMeta(transcribeJob);
+  const primaryClip = selectedClips[0];
+  const hasMultipleSelectedClips = selectedClips.length > 1;
+  const effectiveExportSettings = useMemo(
+    () =>
+      resolveDirectorEffectiveExportSettings(exportSettings, {
+        role: user?.role,
+        tier: subscription?.tier,
+      }),
+    [exportSettings, subscription?.tier, user?.role],
+  );
+  const subtitleTargetLanguageSelectValue = resolveSubtitleTargetLanguage(subtitleTargetLanguage);
+  const isSavingBeforePreview = subtitleSaveState === 'saving' || transcriptSaveState === 'saving';
+  const hasSaveErrorBeforePreview =
+    subtitleSaveState === 'error' || transcriptSaveState === 'error';
+  const previewDownloadButtonLabel = getPreviewDownloadButtonLabel({
+    hasSaveErrorBeforePreview,
+    isSavingBeforePreview,
+  });
+  const subtitleStatusState = getSubtitleStatusState({
+    isTranscribing,
+    subtitleSaveState,
+    transcribeFailed: transcribeJob?.status === 'FAILED',
+    transcribePhase: transcribeProgressMeta?.phase,
+  });
+
+  const refreshSelectedClips = useCallback(async () => {
     if (!activeSession) {
-      subtitleSyncKeyRef.current = null;
       return;
     }
 
-    const serializedStyle = JSON.stringify(subtitleStyle);
-    if (subtitleSyncKeyRef.current === null) {
-      subtitleSyncKeyRef.current = serializedStyle;
-      return;
+    try {
+      const clipsRes = await authFetch(`/api/v1/director/sessions/${activeSession.id}/clips`);
+      const clipsData = await clipsRes.json();
+
+      if (clipsData.success) {
+        setSelectedClips(clipsData.data);
+      }
+    } catch (error) {
+      logger.error('Load clips error', error);
     }
+  }, [activeSession, setSelectedClips]);
 
-    if (subtitleSyncKeyRef.current === serializedStyle) {
-      return;
-    }
-
-    const timeoutId = globalThis.setTimeout(() => {
-      void saveSubtitleStyle();
-    }, 300);
-
-    return () => {
-      globalThis.clearTimeout(timeoutId);
-    };
-  }, [activeSession, saveSubtitleStyle, subtitleStyle]);
-
-  useEffect(() => {
-    if (subtitleSaveState !== 'saved') {
-      return;
-    }
-
-    const timeoutId = globalThis.setTimeout(() => {
-      setSubtitleSaveState('idle');
-    }, SAVE_NOTICE_DISPLAY_MS);
-
-    return () => {
-      globalThis.clearTimeout(timeoutId);
-    };
-  }, [subtitleSaveState]);
-
-  useEffect(() => {
-    if (transcriptSaveState !== 'saved') {
-      return;
-    }
-
-    const timeoutId = globalThis.setTimeout(() => {
-      setTranscriptSaveState('idle');
-    }, SAVE_NOTICE_DISPLAY_MS);
-
-    return () => {
-      globalThis.clearTimeout(timeoutId);
-    };
-  }, [transcriptSaveState]);
+  const { pollTranscriptionStatus, handleStartTranscribe } = useDirectorTranscribe(
+    activeSession,
+    selectedClips,
+    transcribeLanguage,
+    subtitleMode,
+    subtitleTargetLanguage,
+    transcribeJob,
+    refreshSelectedClips,
+  );
 
   const handleUpdateTranscript = async (clipId: string, segments: TranscriptSegment[]) => {
     if (!activeSession) return;
@@ -545,16 +618,7 @@ export const EditingStep = () => {
     void saveTranscriptSegments(clipId, segments);
   };
 
-  const handleRetryTranscriptSave = useCallback(() => {
-    const failedUpdate = failedTranscriptUpdateRef.current;
-    if (!failedUpdate) {
-      return;
-    }
-
-    void saveTranscriptSegments(failedUpdate.clipId, failedUpdate.segments);
-  }, [saveTranscriptSegments]);
-
-  const handleRemoveClip = async (clipId: string) => {
+  const handleRemoveClip = async (clipId: string): Promise<void> => {
     if (!activeSession) {
       return;
     }
@@ -666,15 +730,15 @@ export const EditingStep = () => {
             </span>
           </div>
 
-          <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
-            <div className="grid w-full grid-cols-2 gap-1.5 rounded-2xl border border-border/40 bg-muted/25 p-1.5">
+          <div className="relative flex w-full flex-col gap-2 rounded-2xl border border-border/40 bg-card p-2 shadow-sm">
+            <div className="grid grid-cols-2 gap-1.5 rounded-xl border border-border/20 bg-muted/25 p-1.5">
               <button
                 type="button"
                 onClick={() => setSubtitleMode('original')}
                 className={cn(
-                  'rounded-xl border px-2 py-2 text-[11px] font-black uppercase tracking-[0.12em] transition-all',
+                  'rounded-lg border px-2 py-1.5 text-[11px] font-black uppercase tracking-[0.12em] transition-all',
                   subtitleMode === 'original'
-                    ? 'border-primary bg-primary text-primary-foreground'
+                    ? 'border-primary bg-primary text-primary-foreground shadow-sm'
                     : 'border-transparent text-muted-foreground hover:bg-muted/40 hover:text-foreground',
                 )}
               >
@@ -684,62 +748,64 @@ export const EditingStep = () => {
                 type="button"
                 onClick={() => setSubtitleMode('translate')}
                 className={cn(
-                  'rounded-xl border px-2 py-2 text-[11px] font-black uppercase tracking-[0.12em] transition-all',
+                  'rounded-lg border px-2 py-1.5 text-[11px] font-black uppercase tracking-[0.12em] transition-all',
                   subtitleMode === 'translate'
-                    ? 'border-primary bg-primary text-primary-foreground'
+                    ? 'border-primary bg-primary text-primary-foreground shadow-sm'
                     : 'border-transparent text-muted-foreground hover:bg-muted/40 hover:text-foreground',
                 )}
               >
                 Terjemahkan
               </button>
             </div>
+
+            {subtitleMode === 'translate' ? (
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-border/20 bg-muted/15 px-3 py-2.5">
+                <label
+                  htmlFor="subtitle-target-language"
+                  className="shrink-0 text-[10px] font-black uppercase tracking-[0.15em] text-muted-foreground/70"
+                >
+                  Tujuan
+                </label>
+                <Select
+                  value={subtitleTargetLanguageSelectValue}
+                  onValueChange={(value) => {
+                    setSubtitleTargetLanguage(value);
+                  }}
+                >
+                  <SelectTrigger
+                    id="subtitle-target-language"
+                    className="h-8 w-full min-w-0 rounded-lg border-border/50 bg-card/50 px-2.5 text-[11px] font-semibold tracking-wide"
+                  >
+                    <SelectValue placeholder="Pilih bahasa" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {COMMON_SUBTITLE_TARGET_LANGUAGE_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value} className="text-xs">
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : null}
+
             <Button
               size="sm"
               variant="secondary"
-              className="h-11 rounded-2xl border-primary/20 px-5 font-bold hover:bg-primary/5 lg:min-w-44"
+              className="h-9 w-full rounded-xl border-primary/20 font-bold shadow-sm transition-all hover:bg-primary/5 disabled:opacity-80"
               onClick={() => {
                 void handleStartTranscribe({ forceRefresh: true });
               }}
               disabled={isTranscribing}
             >
-              <Zap
-                size={14}
-                className={cn('mr-0.5', isTranscribing ? 'animate-pulse' : 'text-primary')}
-              />
+              {isTranscribing ? (
+                <Loader2 size={14} className="mr-1.5 animate-spin text-primary" />
+              ) : (
+                <Zap size={14} className="mr-1.5 text-primary" />
+              )}
               {isTranscribing ? 'Mentranskripsi...' : 'Transkripsi Ulang'}
             </Button>
           </div>
-
-          {subtitleMode === 'translate' ? (
-            <div className="grid gap-2 rounded-2xl border border-border/35 bg-muted/15 p-3 sm:grid-cols-[auto_minmax(0,18rem)] sm:items-center sm:justify-between">
-              <label
-                htmlFor="subtitle-target-language"
-                className="text-[10px] font-black uppercase tracking-[0.15em] text-muted-foreground/70"
-              >
-                Bahasa Tujuan
-              </label>
-              <Select
-                value={subtitleTargetLanguageSelectValue}
-                onValueChange={(value) => {
-                  setSubtitleTargetLanguage(value);
-                }}
-              >
-                <SelectTrigger
-                  id="subtitle-target-language"
-                  className="h-9 rounded-xl border-border/50 bg-muted/20 px-3 text-xs font-semibold tracking-wide"
-                >
-                  <SelectValue placeholder="Pilih bahasa subtitle" />
-                </SelectTrigger>
-                <SelectContent>
-                  {COMMON_SUBTITLE_TARGET_LANGUAGE_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          ) : null}
 
           <div className="min-h-10" aria-live="polite">
             {subtitleStatusState ? (
@@ -749,7 +815,15 @@ export const EditingStep = () => {
                   getSubtitleStatusClass(subtitleStatusState.tone),
                 )}
               >
-                <span className="min-w-0 truncate">{subtitleStatusState.label}</span>
+                <span className="min-w-0 flex items-center truncate">
+                  {subtitleStatusState.label}
+                  {isTranscribing && (
+                    <Loader2
+                      size={12}
+                      className="ml-1.5 animate-spin text-muted-foreground/60 shrink-0"
+                    />
+                  )}
+                </span>
                 {subtitleStatusRetry ? (
                   <button
                     type="button"
@@ -764,21 +838,7 @@ export const EditingStep = () => {
           </div>
         </div>
 
-        {error && (
-          <div className="flex items-center gap-2 text-rose-500 bg-rose-500/10 px-4 py-3 rounded-2xl text-sm border border-rose-500/20">
-            <AlertCircle size={18} className="shrink-0" />
-            <span className="font-semibold text-left">{error}</span>
-          </div>
-        )}
-
-        {hasMultipleSelectedClips ? (
-          <div className="flex items-start gap-2 text-amber-500 bg-amber-500/10 px-4 py-3 rounded-2xl text-sm border border-amber-500/20">
-            <AlertCircle size={18} className="mt-0.5 shrink-0" />
-            <span className="font-medium text-left">
-              Sistem edit sekarang fokus 1 short per sesi. Clip pertama dipakai sebagai short aktif.
-            </span>
-          </div>
-        ) : null}
+        <EditingStepAlerts error={error} hasMultipleSelectedClips={hasMultipleSelectedClips} />
 
         {activeSession && primaryClip ? (
           <SelectedClipCard
@@ -791,6 +851,7 @@ export const EditingStep = () => {
             subtitleStyle={subtitleStyle}
             transcriptSaveState={transcriptSaveState}
             onRetryTranscriptSave={handleRetryTranscriptSave}
+            isTranscribing={isTranscribing}
           />
         ) : null}
 
@@ -799,7 +860,9 @@ export const EditingStep = () => {
             <Button
               type="button"
               onClick={() => setStep('EXPORTING')}
-              disabled={!primaryClip || isSavingBeforePreview || hasSaveErrorBeforePreview}
+              disabled={
+                !primaryClip || isSavingBeforePreview || hasSaveErrorBeforePreview || isTranscribing
+              }
               className="pointer-events-auto h-12 min-w-56 rounded-2xl px-6 text-sm font-black shadow-primary/15"
             >
               {previewDownloadButtonLabel}

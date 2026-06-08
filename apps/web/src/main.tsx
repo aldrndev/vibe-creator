@@ -5,9 +5,9 @@ import { createRoot } from 'react-dom/client';
 import { TooltipProvider } from '@/components/ui';
 import { registerEditorFontFaces } from '@/lib/editor-font-loader';
 import './index.css';
-import { createAppRouter } from './router';
 
 import { queryClient } from '@/lib/query-client';
+import { createAppRouter } from './router';
 
 registerEditorFontFaces();
 const rootElement = document.getElementById('root');

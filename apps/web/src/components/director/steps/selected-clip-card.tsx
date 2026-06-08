@@ -1,10 +1,11 @@
 import { Check, FileVideo, Loader2, Pause, Play, RefreshCcw, UsersRound } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   applyTranscriptCueEdit,
   applyTranscriptCueSpeaker,
   buildTranscriptSpeakerOptions,
   formatSrtRange,
+  type TranscriptCue,
   type TranscriptSegment,
 } from '@/components/director/steps/editing-transcript-cues';
 import {
@@ -27,25 +28,7 @@ export interface SelectedClipCardProps {
   readonly subtitleStyle: SubtitleStyle;
   readonly transcriptSaveState?: 'idle' | 'saving' | 'saved' | 'error';
   readonly onRetryTranscriptSave?: () => void;
-}
-
-function serializeTranscriptSegments(segments: TranscriptSegment[]): TranscriptSegment[] {
-  return segments.map((segment) => ({
-    startMs: segment.startMs,
-    endMs: segment.endMs,
-    text: segment.text,
-    ...(segment.speaker ? { speaker: segment.speaker } : {}),
-    ...(segment.words?.length
-      ? {
-          words: segment.words.map((word) => ({
-            startMs: word.startMs,
-            endMs: word.endMs,
-            text: word.text,
-            ...(word.speaker ? { speaker: word.speaker } : {}),
-          })),
-        }
-      : {}),
-  }));
+  readonly isTranscribing?: boolean;
 }
 
 const defaultTranscriptSpeakerStyles: SubtitleStyle['speakerStyles'] = [
@@ -191,52 +174,259 @@ function TranscriptSaveStatusBadge({
   );
 }
 
-/**
- * Render one ready-to-edit short with transcript editing controls.
- */
-export function SelectedClipCard({
-  sessionId,
-  clip,
+function ClipPreviewMedia({
+  candidateId,
   index,
-  onRemoveClip,
-  onUpdateTranscript,
-  subtitleStyle,
-  transcriptSaveState = 'idle',
-  onRetryTranscriptSave,
-}: Readonly<SelectedClipCardProps>) {
-  const [isLandscape, setIsLandscape] = useState(false);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [previewVideoUrl, setPreviewVideoUrl] = useState<string | null>(null);
-  const [previewState, setPreviewState] = useState<ClipPreviewState>('idle');
-  const [previewProgress, setPreviewProgress] = useState<number | null>(null);
-  const [previewRequestKey, setPreviewRequestKey] = useState(0);
-  const previewUrlRef = useRef<string | null>(null);
-  const [selectedCueIds, setSelectedCueIds] = useState<Set<string>>(() => new Set());
-  const candidateId = clip.candidate.id;
-  const posterUrl = useAuthenticatedObjectUrl(
-    `/api/v1/director/sessions/${sessionId}/clips/${candidateId}/poster`,
+  isPlaying,
+  posterUrl,
+  previewVideoUrl,
+  setIsLandscape,
+  setIsPlaying,
+}: {
+  candidateId: string;
+  index: number;
+  isPlaying: boolean;
+  posterUrl: string | null;
+  previewVideoUrl: string | null;
+  setIsLandscape: (landscape: boolean) => void;
+  setIsPlaying: (playing: boolean) => void;
+}) {
+  if (isPlaying && previewVideoUrl) {
+    return (
+      <video
+        key={`${candidateId}-preview`}
+        src={previewVideoUrl}
+        autoPlay
+        playsInline
+        controls
+        className="w-full h-full object-contain bg-black"
+        onLoadedMetadata={(event) => {
+          setIsLandscape(event.currentTarget.videoWidth > event.currentTarget.videoHeight);
+        }}
+        onEnded={() => {
+          setIsPlaying(false);
+        }}
+      >
+        <track kind="captions" srcLang="id" label="Preview clip tanpa caption" />
+      </video>
+    );
+  }
+
+  if (posterUrl) {
+    return (
+      <img
+        src={posterUrl}
+        alt={`Preview clip ${index + 1}`}
+        loading="lazy"
+        decoding="async"
+        className="w-full h-full object-contain bg-black opacity-90 group-hover:opacity-100 transition-opacity"
+        onLoad={(event) => {
+          setIsLandscape(event.currentTarget.naturalWidth > event.currentTarget.naturalHeight);
+        }}
+      />
+    );
+  }
+
+  return (
+    <div className="w-full h-full flex items-center justify-center text-muted-foreground/30">
+      <FileVideo size={32} strokeWidth={1.5} />
+    </div>
   );
-  const duration = Math.round((clip.candidate.endMs - clip.candidate.startMs) / 1000);
-  const aspectClass = isLandscape ? 'aspect-video' : 'aspect-9/16';
-  const previewMaxWidthClass = isLandscape
-    ? 'max-w-[24rem] sm:max-w-[34rem] lg:max-w-[40rem]'
-    : 'max-w-[20rem] sm:max-w-[24rem]';
-  const isPreviewLoading =
-    previewState === 'queued' || previewState === 'processing' || previewState === 'loading-file';
-  const previewLabel = isPlaying
-    ? `Hentikan preview clip ${index + 1}`
-    : `Putar preview clip ${index + 1}`;
+}
+
+function TranscriptCueEditorItem({
+  cue,
+  cueIndex,
+  showSpeakerControls,
+  selectedCueIds,
+  handleToggleCueSelection,
+  subtitleStyle,
+  speakerOptions,
+  handleAssignCueSpeaker,
+  transcriptSegments,
+  handleUpdateTranscriptSegments,
+}: {
+  cue: TranscriptCue;
+  cueIndex: number;
+  showSpeakerControls: boolean;
+  selectedCueIds: Set<string>;
+  handleToggleCueSelection: (cueId: string, checked: boolean) => void;
+  subtitleStyle: SubtitleStyle;
+  speakerOptions: { label: string; value: string }[];
+  handleAssignCueSpeaker: (cueId: string, speaker: string) => void;
+  transcriptSegments: TranscriptSegment[];
+  handleUpdateTranscriptSegments: (segments: TranscriptSegment[]) => void;
+}) {
+  const resizeTextarea = (element: HTMLTextAreaElement) => {
+    element.style.height = 'auto';
+    element.style.height = `${Math.max(element.scrollHeight, 56)}px`;
+  };
+
+  return (
+    <div className="rounded-2xl border border-border/35 bg-muted/20 px-2.5 py-2.5 sm:px-3">
+      <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        {showSpeakerControls ? (
+          <label className="flex min-w-0 items-center gap-2">
+            <input
+              type="checkbox"
+              checked={selectedCueIds.has(cue.id)}
+              onChange={(event) => handleToggleCueSelection(cue.id, event.currentTarget.checked)}
+              className="peer sr-only"
+              aria-label={`Pilih baris ${cueIndex + 1}`}
+            />
+            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-border/60 bg-card/70 text-white transition-all peer-checked:border-orange-500 peer-checked:bg-orange-500 peer-focus-visible:ring-2 peer-focus-visible:ring-orange-500/35">
+              <Check
+                size={13}
+                strokeWidth={3}
+                className={cn(
+                  'transition-opacity',
+                  selectedCueIds.has(cue.id) ? 'opacity-100' : 'opacity-0',
+                )}
+              />
+            </span>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/55">
+              Baris {cueIndex + 1}
+            </span>
+          </label>
+        ) : (
+          <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/55">
+            Baris {cueIndex + 1}
+          </span>
+        )}
+        <div className="flex min-w-0 flex-wrap items-center gap-2 sm:justify-end">
+          {showSpeakerControls ? (
+            <div className="flex min-w-0 items-center gap-1.5">
+              {cue.speaker ? (
+                <span
+                  aria-hidden="true"
+                  className={cn(
+                    'h-2.5 w-2.5 rounded-full border',
+                    getTranscriptSpeakerSwatchClass(cue.speaker, subtitleStyle),
+                  )}
+                />
+              ) : null}
+              <select
+                value={cue.speaker ?? ''}
+                onChange={(event) => handleAssignCueSpeaker(cue.id, event.target.value)}
+                className="h-7 min-w-28 rounded-xl border border-border/40 bg-card/50 px-2 text-[10px] font-bold text-foreground outline-none transition-all focus:border-orange-500/40"
+                aria-label={`Speaker baris ${cueIndex + 1}`}
+              >
+                <option value="" disabled>
+                  Pembicara
+                </option>
+                {speakerOptions.map((speaker) => (
+                  <option key={speaker.value} value={speaker.value}>
+                    {speaker.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
+          <span className="text-[10px] font-semibold text-muted-foreground/70 tabular-nums">
+            {formatSrtRange(cue.startMs, cue.endMs)}
+          </span>
+        </div>
+      </div>
+      <textarea
+        className="w-full resize-none rounded-xl border border-border/35 bg-card/35 px-3 py-2 text-sm leading-relaxed text-foreground/85 shadow-sm transition-all hover:bg-card/55 focus:border-primary/50 focus:bg-card focus:outline-none focus:ring-1 focus:ring-primary/20"
+        rows={1}
+        defaultValue={cue.text}
+        onBlur={(e) => {
+          const value = e.target.value;
+          if (!transcriptSegments.length || value.trim() === cue.text.trim()) return;
+          const updated = applyTranscriptCueEdit({
+            segments: transcriptSegments as TranscriptSegment[],
+            cue,
+            nextText: value,
+          });
+
+          handleUpdateTranscriptSegments(updated);
+        }}
+        onInput={(e) => {
+          resizeTextarea(e.currentTarget);
+        }}
+        onFocus={(e) => {
+          resizeTextarea(e.currentTarget);
+        }}
+      />
+    </div>
+  );
+}
+
+function TranscriptSpeakerPanel({
+  selectedCueCount,
+  speakerChips,
+  speakerOptions,
+  handleAssignSelectedSpeaker,
+}: {
+  selectedCueCount: number;
+  speakerChips: Array<{ label: string; value: string; swatchClass: string }>;
+  speakerOptions: Array<{ label: string; value: string }>;
+  handleAssignSelectedSpeaker: (speaker: string) => void;
+}) {
+  return (
+    <div className="mb-3 shrink-0 rounded-2xl border border-border/35 bg-muted/15 p-2.5">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <span className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
+          <UsersRound size={12} />
+          Pembicara
+        </span>
+        <span className="text-[10px] font-semibold text-muted-foreground">
+          {selectedCueCount} dipilih
+        </span>
+      </div>
+      <div className="mb-2 grid grid-cols-2 gap-1.5">
+        {speakerChips.map((speaker) => (
+          <span
+            key={`chip-${speaker.value}`}
+            className="inline-flex min-w-0 items-center gap-1.5 rounded-xl border border-border/35 bg-card/35 px-2 py-1 text-[10px] font-bold text-muted-foreground"
+          >
+            <span
+              aria-hidden="true"
+              className={cn('h-2.5 w-2.5 rounded-full border', speaker.swatchClass)}
+            />
+            <span className="truncate">{speaker.label}</span>
+          </span>
+        ))}
+      </div>
+      <div className="grid grid-cols-2 gap-1.5">
+        {speakerOptions.map((speaker) => (
+          <button
+            type="button"
+            key={speaker.value}
+            disabled={selectedCueCount === 0}
+            onClick={() => handleAssignSelectedSpeaker(speaker.value)}
+            className="rounded-xl border border-border/40 bg-card/35 px-2.5 py-1.5 text-[10px] font-bold text-muted-foreground transition-all enabled:hover:border-orange-500/35 enabled:hover:text-orange-500 disabled:cursor-not-allowed disabled:opacity-45"
+          >
+            Set {speaker.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function useTranscriptEditor(
+  clip: SelectedClip,
+  subtitleStyle: SubtitleStyle,
+  onUpdateTranscript: (clipId: string, newTranscript: TranscriptSegment[]) => void,
+) {
+  const [selectedCueIds, setSelectedCueIds] = useState<Set<string>>(() => new Set());
+
   const transcriptSegments = clip.transcript?.segments ?? [];
   const transcriptCues = useMemo(
     () => buildStableTranscriptEditorCues(transcriptSegments as TranscriptSegment[]),
     [transcriptSegments],
   );
+
   const showSpeakerControls =
     subtitleStyle.speakerMode === 'speaker-colors' || subtitleStyle.stylePreset === 'podcast-duo';
+
   const speakerOptions = useMemo(
     () => buildTranscriptSpeakerOptions(transcriptSegments as TranscriptSegment[]),
     [transcriptSegments],
   );
+
   const speakerChips = useMemo(
     () =>
       speakerOptions.map((speaker) => ({
@@ -245,7 +435,7 @@ export function SelectedClipCard({
       })),
     [speakerOptions, subtitleStyle],
   );
-  const transcriptPresetBadgeLabel = getSubtitlePresetBadgeLabel(subtitleStyle.stylePreset);
+
   const hasTranscriptCues = transcriptCues.length > 0;
   const selectedCueCount = selectedCueIds.size;
 
@@ -262,6 +452,86 @@ export function SelectedClipCard({
       return next.size === current.size ? current : next;
     });
   }, [transcriptCues]);
+
+  const handleUpdateTranscriptSegments = useCallback(
+    (segments: TranscriptSegment[]) => {
+      onUpdateTranscript(clip.id, segments);
+    },
+    [clip.id, onUpdateTranscript],
+  );
+
+  const handleToggleCueSelection = useCallback((cueId: string, checked: boolean) => {
+    setSelectedCueIds((current) => {
+      const next = new Set(current);
+      if (checked) {
+        next.add(cueId);
+      } else {
+        next.delete(cueId);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleAssignCueSpeaker = useCallback(
+    (cueId: string, speaker: string) => {
+      const cue = transcriptCues.find((candidate) => candidate.id === cueId);
+      if (!cue || !transcriptSegments.length) {
+        return;
+      }
+
+      const updated = applyTranscriptCueSpeaker({
+        segments: transcriptSegments as TranscriptSegment[],
+        cue,
+        speaker,
+      });
+      handleUpdateTranscriptSegments(updated);
+    },
+    [transcriptCues, transcriptSegments, handleUpdateTranscriptSegments],
+  );
+
+  const handleAssignSelectedSpeaker = useCallback(
+    (speaker: string) => {
+      if (!selectedCueIds.size || !transcriptSegments.length) {
+        return;
+      }
+
+      const selectedCues = transcriptCues.filter((cue) => selectedCueIds.has(cue.id));
+      const updated = selectedCues.reduce(
+        (segments, cue) => applyTranscriptCueSpeaker({ segments, cue, speaker }),
+        transcriptSegments as TranscriptSegment[],
+      );
+      handleUpdateTranscriptSegments(updated);
+      setSelectedCueIds(new Set());
+    },
+    [selectedCueIds, transcriptCues, transcriptSegments, handleUpdateTranscriptSegments],
+  );
+
+  return {
+    transcriptSegments,
+    transcriptCues,
+    showSpeakerControls,
+    speakerOptions,
+    speakerChips,
+    hasTranscriptCues,
+    selectedCueCount,
+    selectedCueIds,
+    handleUpdateTranscriptSegments,
+    handleToggleCueSelection,
+    handleAssignCueSpeaker,
+    handleAssignSelectedSpeaker,
+  };
+}
+
+/**
+ * Render one ready-to-edit short with transcript editing controls.
+ */
+function useClipPreview(sessionId: string, candidateId: string) {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [previewVideoUrl, setPreviewVideoUrl] = useState<string | null>(null);
+  const [previewState, setPreviewState] = useState<ClipPreviewState>('idle');
+  const [previewProgress, setPreviewProgress] = useState<number | null>(null);
+  const [previewRequestKey, setPreviewRequestKey] = useState(0);
+  const previewUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!candidateId) {
@@ -380,100 +650,82 @@ export function SelectedClipCard({
     };
   }, [candidateId, previewRequestKey, previewVideoUrl, sessionId]);
 
-  const mediaContent = useMemo(() => {
-    if (isPlaying && previewVideoUrl) {
-      return (
-        <video
-          key={`${candidateId}-preview`}
-          src={previewVideoUrl}
-          autoPlay
-          playsInline
-          controls
-          className="w-full h-full object-contain bg-black"
-          onLoadedMetadata={(event) => {
-            setIsLandscape(event.currentTarget.videoWidth > event.currentTarget.videoHeight);
-          }}
-          onEnded={() => {
-            setIsPlaying(false);
-          }}
-        >
-          <track kind="captions" srcLang="id" label="Preview clip tanpa caption" />
-        </video>
-      );
-    }
+  return {
+    isPlaying,
+    setIsPlaying,
+    previewVideoUrl,
+    previewState,
+    previewProgress,
+    previewRequestKey,
+    setPreviewRequestKey,
+  };
+}
 
-    if (posterUrl) {
-      return (
-        <img
-          src={posterUrl}
-          alt={`Preview clip ${index + 1}`}
-          loading="lazy"
-          decoding="async"
-          className="w-full h-full object-contain bg-black opacity-90 group-hover:opacity-100 transition-opacity"
-          onLoad={(event) => {
-            setIsLandscape(event.currentTarget.naturalWidth > event.currentTarget.naturalHeight);
-          }}
-        />
-      );
-    }
+export function SelectedClipCard({
+  sessionId,
+  clip,
+  index,
+  onRemoveClip,
+  onUpdateTranscript,
+  subtitleStyle,
+  transcriptSaveState = 'idle',
+  onRetryTranscriptSave,
+  isTranscribing,
+}: Readonly<SelectedClipCardProps>) {
+  const [isLandscape, setIsLandscape] = useState(false);
+  const candidateId = clip.candidate.id;
 
-    return (
-      <div className="w-full h-full flex items-center justify-center text-muted-foreground/30">
-        <FileVideo size={32} strokeWidth={1.5} />
-      </div>
-    );
-  }, [candidateId, index, isPlaying, posterUrl, previewVideoUrl]);
-  const resizeTextarea = (element: HTMLTextAreaElement) => {
-    element.style.height = 'auto';
-    element.style.height = `${Math.max(element.scrollHeight, 56)}px`;
-  };
-  const handleUpdateTranscriptSegments = (segments: TranscriptSegment[]) => {
-    onUpdateTranscript(clip.id, serializeTranscriptSegments(segments));
-  };
-  const handleToggleCueSelection = (cueId: string, checked: boolean) => {
-    setSelectedCueIds((current) => {
-      const next = new Set(current);
-      if (checked) {
-        next.add(cueId);
-      } else {
-        next.delete(cueId);
-      }
-      return next;
-    });
-  };
-  const handleAssignCueSpeaker = (cueId: string, speaker: string) => {
-    const cue = transcriptCues.find((candidate) => candidate.id === cueId);
-    if (!cue || !transcriptSegments.length) {
-      return;
-    }
-
-    const updated = applyTranscriptCueSpeaker({
-      segments: transcriptSegments as TranscriptSegment[],
-      cue,
-      speaker,
-    });
-    handleUpdateTranscriptSegments(updated);
-  };
-  const handleAssignSelectedSpeaker = (speaker: string) => {
-    if (!selectedCueIds.size || !transcriptSegments.length) {
-      return;
-    }
-
-    const selectedCues = transcriptCues.filter((cue) => selectedCueIds.has(cue.id));
-    const updated = selectedCues.reduce(
-      (segments, cue) => applyTranscriptCueSpeaker({ segments, cue, speaker }),
-      transcriptSegments as TranscriptSegment[],
-    );
-    handleUpdateTranscriptSegments(updated);
-    setSelectedCueIds(new Set());
-  };
+  const {
+    isPlaying,
+    setIsPlaying,
+    previewVideoUrl,
+    previewState,
+    previewProgress,
+    setPreviewRequestKey,
+  } = useClipPreview(sessionId, candidateId);
+  const posterUrl = useAuthenticatedObjectUrl(
+    `/api/v1/director/sessions/${sessionId}/clips/${candidateId}/poster`,
+  );
+  const duration = Math.round((clip.candidate.endMs - clip.candidate.startMs) / 1000);
+  const aspectClass = isLandscape ? 'aspect-video' : 'aspect-9/16';
+  const previewMaxWidthClass = isLandscape
+    ? 'max-w-[24rem] sm:max-w-[34rem] lg:max-w-[40rem]'
+    : 'max-w-[20rem] sm:max-w-[24rem]';
+  const isPreviewLoading =
+    previewState === 'queued' || previewState === 'processing' || previewState === 'loading-file';
+  const previewLabel = isPlaying
+    ? `Hentikan preview clip ${index + 1}`
+    : `Putar preview clip ${index + 1}`;
+  const transcriptPresetBadgeLabel = getSubtitlePresetBadgeLabel(subtitleStyle.stylePreset);
+  const {
+    transcriptSegments,
+    transcriptCues,
+    showSpeakerControls,
+    speakerOptions,
+    speakerChips,
+    hasTranscriptCues,
+    selectedCueCount,
+    selectedCueIds,
+    handleUpdateTranscriptSegments,
+    handleToggleCueSelection,
+    handleAssignCueSpeaker,
+    handleAssignSelectedSpeaker,
+  } = useTranscriptEditor(clip, subtitleStyle, onUpdateTranscript);
   return (
     <div className="relative z-10 flex flex-col gap-5">
       <div className="w-full flex justify-center">
         <div
           className={`w-full ${previewMaxWidthClass} ${aspectClass} bg-black rounded-2xl overflow-hidden relative border border-border/50 shrink-0 shadow-sm`}
         >
-          {mediaContent}
+          <ClipPreviewMedia
+            candidateId={candidateId}
+            index={index}
+            isPlaying={isPlaying}
+            posterUrl={posterUrl}
+            previewVideoUrl={previewVideoUrl}
+            setIsLandscape={setIsLandscape}
+            setIsPlaying={setIsPlaying}
+          />
           <button
             type="button"
             onClick={() => {
@@ -554,150 +806,56 @@ export function SelectedClipCard({
               </Button>
             </div>
           </div>
-          {hasTranscriptCues && showSpeakerControls ? (
-            <div className="mb-3 rounded-2xl border border-border/35 bg-muted/15 p-2.5">
-              <div className="mb-2 flex items-center justify-between gap-2">
-                <span className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
-                  <UsersRound size={12} />
-                  Pembicara
-                </span>
-                <span className="text-[10px] font-semibold text-muted-foreground">
-                  {selectedCueCount} dipilih
-                </span>
-              </div>
-              <div className="mb-2 grid grid-cols-2 gap-1.5">
-                {speakerChips.map((speaker) => (
-                  <span
-                    key={`chip-${speaker.value}`}
-                    className="inline-flex min-w-0 items-center gap-1.5 rounded-xl border border-border/35 bg-card/35 px-2 py-1 text-[10px] font-bold text-muted-foreground"
-                  >
-                    <span
-                      aria-hidden="true"
-                      className={cn('h-2.5 w-2.5 rounded-full border', speaker.swatchClass)}
-                    />
-                    <span className="truncate">{speaker.label}</span>
-                  </span>
-                ))}
-              </div>
-              <div className="grid grid-cols-2 gap-1.5">
-                {speakerOptions.map((speaker) => (
-                  <button
-                    type="button"
-                    key={speaker.value}
-                    disabled={selectedCueCount === 0}
-                    onClick={() => handleAssignSelectedSpeaker(speaker.value)}
-                    className="rounded-xl border border-border/40 bg-card/35 px-2.5 py-1.5 text-[10px] font-bold text-muted-foreground transition-all enabled:hover:border-orange-500/35 enabled:hover:text-orange-500 disabled:cursor-not-allowed disabled:opacity-45"
-                  >
-                    Set {speaker.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ) : null}
           <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 mb-2 block ml-1 sr-only">
             Transkrip
           </div>
-          <div className="flex max-h-[27rem] flex-col gap-2.5 overflow-y-auto">
-            {hasTranscriptCues ? (
-              transcriptCues.map((cue, cueIndex) => (
-                <div
-                  key={`${clip.id}-${cue.id}-${cue.text}`}
-                  className="rounded-2xl border border-border/35 bg-muted/20 px-2.5 py-2.5 sm:px-3"
-                >
-                  <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    {showSpeakerControls ? (
-                      <label className="flex min-w-0 items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={selectedCueIds.has(cue.id)}
-                          onChange={(event) =>
-                            handleToggleCueSelection(cue.id, event.currentTarget.checked)
-                          }
-                          className="peer sr-only"
-                          aria-label={`Pilih baris ${cueIndex + 1}`}
-                        />
-                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-border/60 bg-card/70 text-white transition-all peer-checked:border-orange-500 peer-checked:bg-orange-500 peer-focus-visible:ring-2 peer-focus-visible:ring-orange-500/35">
-                          <Check
-                            size={13}
-                            strokeWidth={3}
-                            className={cn(
-                              'transition-opacity',
-                              selectedCueIds.has(cue.id) ? 'opacity-100' : 'opacity-0',
-                            )}
-                          />
-                        </span>
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/55">
-                          Baris {cueIndex + 1}
-                        </span>
-                      </label>
-                    ) : (
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/55">
-                        Baris {cueIndex + 1}
-                      </span>
-                    )}
-                    <div className="flex min-w-0 flex-wrap items-center gap-2 sm:justify-end">
-                      {showSpeakerControls ? (
-                        <div className="flex min-w-0 items-center gap-1.5">
-                          {cue.speaker ? (
-                            <span
-                              aria-hidden="true"
-                              className={cn(
-                                'h-2.5 w-2.5 rounded-full border',
-                                getTranscriptSpeakerSwatchClass(cue.speaker, subtitleStyle),
-                              )}
-                            />
-                          ) : null}
-                          <select
-                            value={cue.speaker ?? ''}
-                            onChange={(event) => handleAssignCueSpeaker(cue.id, event.target.value)}
-                            className="h-7 min-w-28 rounded-xl border border-border/40 bg-card/50 px-2 text-[10px] font-bold text-foreground outline-none transition-all focus:border-orange-500/40"
-                            aria-label={`Speaker baris ${cueIndex + 1}`}
-                          >
-                            <option value="" disabled>
-                              Pembicara
-                            </option>
-                            {speakerOptions.map((speaker) => (
-                              <option key={speaker.value} value={speaker.value}>
-                                {speaker.label}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      ) : null}
-                      <span className="text-[10px] font-semibold text-muted-foreground/70 tabular-nums">
-                        {formatSrtRange(cue.startMs, cue.endMs)}
-                      </span>
-                    </div>
-                  </div>
-                  <textarea
-                    className="w-full resize-none rounded-xl border border-border/35 bg-card/35 px-3 py-2 text-sm leading-relaxed text-foreground/85 shadow-sm transition-all hover:bg-card/55 focus:border-primary/50 focus:bg-card focus:outline-none focus:ring-1 focus:ring-primary/20"
-                    rows={1}
-                    defaultValue={cue.text}
-                    onBlur={(e) => {
-                      const value = e.target.value;
-                      if (!transcriptSegments.length || value.trim() === cue.text.trim()) return;
-                      const updated = applyTranscriptCueEdit({
-                        segments: transcriptSegments as TranscriptSegment[],
-                        cue,
-                        nextText: value,
-                      });
-
-                      handleUpdateTranscriptSegments(updated);
-                    }}
-                    onInput={(e) => {
-                      resizeTextarea(e.currentTarget);
-                    }}
-                    onFocus={(e) => {
-                      resizeTextarea(e.currentTarget);
-                    }}
-                  />
-                </div>
-              ))
-            ) : (
-              <div className="w-full bg-muted/50 border border-border/50 rounded-2xl p-4 text-sm text-muted-foreground/50 text-center italic min-h-24 flex items-center justify-center">
-                Subtitle akan muncul setelah transkripsi selesai.
+          <div className="relative">
+            {isTranscribing && (
+              <div className="absolute inset-0 z-50 flex flex-col items-center justify-center gap-3 rounded-2xl bg-background/50 backdrop-blur-[2px]">
+                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                <span className="text-xs font-bold text-muted-foreground">
+                  Memproses transkrip...
+                </span>
               </div>
             )}
+            <div
+              className={cn(
+                'flex max-h-108 flex-col pr-1',
+                isTranscribing ? 'overflow-hidden' : 'overflow-y-auto',
+              )}
+            >
+              {hasTranscriptCues && showSpeakerControls ? (
+                <TranscriptSpeakerPanel
+                  selectedCueCount={selectedCueCount}
+                  speakerChips={speakerChips}
+                  speakerOptions={speakerOptions}
+                  handleAssignSelectedSpeaker={handleAssignSelectedSpeaker}
+                />
+              ) : null}
+              <div className="flex flex-col gap-2.5">
+                {hasTranscriptCues ? (
+                  transcriptCues.map((cue, cueIndex) => (
+                    <TranscriptCueEditorItem
+                      key={`${clip.id}-${cue.id}-${cue.text}`}
+                      cue={cue as TranscriptCue}
+                      cueIndex={cueIndex}
+                      showSpeakerControls={showSpeakerControls}
+                      selectedCueIds={selectedCueIds}
+                      handleToggleCueSelection={handleToggleCueSelection}
+                      subtitleStyle={subtitleStyle}
+                      speakerOptions={speakerOptions}
+                      handleAssignCueSpeaker={handleAssignCueSpeaker}
+                      transcriptSegments={transcriptSegments as TranscriptSegment[]}
+                      handleUpdateTranscriptSegments={handleUpdateTranscriptSegments}
+                    />
+                  ))
+                ) : (
+                  <div className="w-full bg-muted/50 border border-border/50 rounded-2xl p-4 text-sm text-muted-foreground/50 text-center italic min-h-24 flex items-center justify-center">
+                    Subtitle akan muncul setelah transkripsi selesai.
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </div>
