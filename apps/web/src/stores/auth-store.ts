@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { queryClient } from '@/lib/query-client';
 
 export interface User {
   id: string;
@@ -126,6 +127,9 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     } catch {
       // Ignore network errors - still clear state
     }
+
+    // Clear React Query cache so no data leaks to the next user
+    queryClient.clear();
 
     // THEN clear state after cookie is cleared
     set({
