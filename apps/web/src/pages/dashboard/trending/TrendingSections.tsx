@@ -6,7 +6,7 @@ import { Skeleton } from '@/components/ui/SkeletonLoader';
 import { buildTrendingDirectorUrl } from '@/lib/ai-director-trending-context';
 import { cn } from '@/lib/utils';
 import type { TrendingItem } from './trending.types';
-import { getFormatLabel, getMetricSummary, getSourceLabel } from './trending-utils';
+import { formatIsoDuration, getFormatLabel, getMetricSummary, getSourceLabel } from './trending-utils';
 
 const THUMBNAIL_DEFAULT_SRC =
   'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 338"%3E%3Crect width="600" height="338" fill="%2318171d"/%3E%3Cpath d="M250 119h100v100H250z" rx="14" fill="%2327242d"/%3E%3Cpath d="M282 149v40l42-20-42-20z" fill="%23ff4b1f"/%3E%3Ctext x="300" y="265" text-anchor="middle" font-family="Arial" font-size="26" font-weight="700" fill="%239b97a3"%3EYouTube Trending%3C/text%3E%3C/svg%3E';
@@ -130,6 +130,7 @@ function TrendingActions({ item, compact = false, tone = 'primary' }: TrendingAc
 
 export function TrendingHero({ item }: Readonly<{ item: TrendingItem }>) {
   const metric = getMetricSummary(item);
+  const duration = item.metrics.duration ? formatIsoDuration(item.metrics.duration as string) : '';
 
   return (
     <div className="group relative overflow-hidden rounded-3xl border border-yellow-500/30 bg-card/50 shadow-2xl shadow-yellow-900/10">
@@ -151,6 +152,11 @@ export function TrendingHero({ item }: Readonly<{ item: TrendingItem }>) {
           <div className="absolute top-4 left-4 z-10 flex items-center gap-2 rounded-lg bg-yellow-500 px-3 py-1.5 text-sm font-extrabold text-black shadow-lg shadow-yellow-500/20">
             <Trophy size={16} className="fill-black" /> #1 TRENDING
           </div>
+          {duration ? (
+            <span className="absolute bottom-3 right-3 z-10 rounded-md bg-black/85 px-2 py-0.5 text-xs font-black tracking-wider text-white backdrop-blur-md">
+              {duration}
+            </span>
+          ) : null}
         </div>
 
         <div className="flex-1 space-y-6 pb-2">
@@ -181,6 +187,7 @@ export function TrendingBento({ items }: Readonly<{ items: TrendingItem[] }>) {
         const rank = item.rank ?? index + 2;
         const isSilver = rank === 2;
         const isBronze = rank === 3;
+        const duration = item.metrics.duration ? formatIsoDuration(item.metrics.duration as string) : '';
 
         return (
           <article
@@ -206,6 +213,11 @@ export function TrendingBento({ items }: Readonly<{ items: TrendingItem[] }>) {
               >
                 {isSilver || isBronze ? <Medal size={12} /> : null}#{rank}
               </div>
+              {duration ? (
+                <span className="absolute bottom-3 right-3 z-10 rounded-md bg-black/85 px-2 py-0.5 text-xs font-black tracking-wider text-white backdrop-blur-md">
+                  {duration}
+                </span>
+              ) : null}
             </div>
 
             <div className="flex flex-1 flex-col gap-3 p-4">
@@ -244,6 +256,7 @@ export function TrendingBillboard({ items }: Readonly<{ items: TrendingItem[] }>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
         {items.map((item, index) => {
           const rank = item.rank ?? index + 6;
+          const duration = item.metrics.duration ? formatIsoDuration(item.metrics.duration as string) : '';
 
           return (
             <article
@@ -262,6 +275,11 @@ export function TrendingBillboard({ items }: Readonly<{ items: TrendingItem[] }>
                 <span className="absolute top-2 left-2 rounded-lg bg-black/70 px-2 py-1 text-xs font-black text-white backdrop-blur">
                   #{rank}
                 </span>
+                {duration ? (
+                  <span className="absolute bottom-2 right-2 z-10 rounded-md bg-black/80 px-2 py-0.5 text-xs font-black tracking-wider text-white backdrop-blur-sm">
+                    {duration}
+                  </span>
+                ) : null}
               </div>
 
               <div className="flex flex-1 flex-col pt-3">
@@ -292,6 +310,7 @@ export function TrendingBillboard({ items }: Readonly<{ items: TrendingItem[] }>
 export function TrendingFeedItem({ item, index }: Readonly<{ item: TrendingItem; index: number }>) {
   const navigate = useNavigate();
   const rank = item.rank ?? index;
+  const duration = item.metrics.duration ? formatIsoDuration(item.metrics.duration as string) : '';
 
   return (
     <article className="group grid grid-cols-[1.75rem_96px_minmax(0,1fr)] gap-3 rounded-2xl border border-border/25 bg-card/30 p-2.5 transition-colors hover:border-primary/20 hover:bg-card/60 sm:grid-cols-[1.75rem_116px_minmax(0,1fr)_auto] sm:items-center">
@@ -307,6 +326,11 @@ export function TrendingFeedItem({ item, index }: Readonly<{ item: TrendingItem;
           className="h-full w-full object-cover"
           onError={handleThumbnailError}
         />
+        {duration ? (
+          <span className="absolute bottom-1 right-1 z-10 rounded bg-black/80 px-1.5 py-0.5 text-[10px] font-black tracking-wider text-white backdrop-blur-xs">
+            {duration}
+          </span>
+        ) : null}
       </div>
 
       <div className="min-w-0 space-y-2 sm:max-w-[520px] sm:pr-4">

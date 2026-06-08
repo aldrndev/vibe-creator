@@ -24,6 +24,9 @@ interface YouTubeApiVideo {
     readonly viewCount?: string;
     readonly likeCount?: string;
   };
+  readonly contentDetails?: {
+    readonly duration?: string;
+  };
 }
 
 interface YouTubeApiResponse {
@@ -36,7 +39,7 @@ function buildYouTubeMostPopularUrl(region: string): string | null {
   }
 
   const params = new URLSearchParams({
-    part: 'snippet,statistics',
+    part: 'snippet,statistics,contentDetails',
     chart: 'mostPopular',
     regionCode: region,
     maxResults: '50',
@@ -49,6 +52,7 @@ function buildYouTubeMostPopularUrl(region: string): string | null {
 function mapYouTubeVideo(video: YouTubeApiVideo, index: number): ScrapedItem {
   const viewCount = Number.parseInt(video.statistics?.viewCount ?? '0', 10);
   const likeCount = Number.parseInt(video.statistics?.likeCount ?? '0', 10);
+  const duration = video.contentDetails?.duration ?? '';
 
   return {
     externalId: `yt-${video.id}`,
@@ -60,6 +64,7 @@ function mapYouTubeVideo(video: YouTubeApiVideo, index: number): ScrapedItem {
     metrics: {
       traffic: viewCount.toLocaleString(),
       value: likeCount,
+      duration: duration,
     },
     category: CATEGORY_MAP[video.snippet.categoryId] || 'Entertainment',
     type: TRENDING_TYPES.VIDEO,
