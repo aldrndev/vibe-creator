@@ -1,7 +1,7 @@
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { Download, FolderClock, History, RotateCcw, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Badge,
   Button,
@@ -241,6 +241,42 @@ export function WorkspaceHistoryPage() {
   const endedItems = displayedItems.filter(isEndedItem);
   const hasVisibleHistory = availableItems.length > 0 || endedItems.length > 0;
   const selectedFilter = filters.find((item) => item.value === filter) ?? allHistoryFilter;
+
+  // Automatically fetch next page if loading or fetchNextPage yields 0 new visible items
+  const [lastDisplayedCount, setLastDisplayedCount] = useState(0);
+  const prevIsFetchingRef = useRef(false);
+  const prevIsLoadingRef = useRef(false);
+
+  useEffect(() => {
+    const currentCount = availableItems.length + endedItems.length;
+    if (currentCount !== lastDisplayedCount) {
+      setLastDisplayedCount(currentCount);
+    }
+  }, [availableItems.length, endedItems.length, lastDisplayedCount]);
+
+  useEffect(() => {
+    const wasFetching = prevIsFetchingRef.current && !isFetchingNextPage;
+    const wasLoading = prevIsLoadingRef.current && !isLoading;
+
+    if ((wasFetching || wasLoading) && hasNextPage) {
+      const currentCount = availableItems.length + endedItems.length;
+      const addedCount = currentCount - lastDisplayedCount;
+      if (addedCount < 6) {
+        void fetchNextPage();
+      }
+    }
+
+    prevIsFetchingRef.current = isFetchingNextPage;
+    prevIsLoadingRef.current = isLoading;
+  }, [
+    isFetchingNextPage,
+    isLoading,
+    availableItems.length,
+    endedItems.length,
+    lastDisplayedCount,
+    hasNextPage,
+    fetchNextPage,
+  ]);
 
   return (
     <div className="min-h-full bg-background px-4 pt-6 pb-[calc(4.75rem+env(safe-area-inset-bottom))] text-foreground md:px-8 md:pb-6 lg:pb-0">
