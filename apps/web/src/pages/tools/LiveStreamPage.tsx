@@ -11,7 +11,7 @@ import { useLiveStream } from '@/hooks/useLiveStream';
 import { useMutableSearchParams } from '@/lib/route-search';
 
 export function LiveStreamPage() {
-  const [searchParams] = useMutableSearchParams();
+  const [searchParams, setSearchParams] = useMutableSearchParams();
   const sessionId = searchParams.get('session');
   const [showContinueDialog, setShowContinueDialog] = useState(!sessionId);
   const {
@@ -39,6 +39,7 @@ export function LiveStreamPage() {
     showTopup,
     setShowTopup,
     errorMessage,
+    isHydrating,
 
     // Actions
     handleFileSelect,
@@ -59,6 +60,14 @@ export function LiveStreamPage() {
       setShowContinueDialog(false);
     }
   }, [sessionId]);
+
+  useEffect(() => {
+    if (sessionId && errorMessage && !isHydrating) {
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.delete('session');
+      setSearchParams(nextParams, { replace: true });
+    }
+  }, [sessionId, errorMessage, isHydrating, searchParams, setSearchParams]);
 
   return (
     <PageTransition className="min-h-screen bg-background px-4 pt-6 pb-8 md:px-8 lg:pb-0">

@@ -441,13 +441,22 @@ export function useLoopCreator(sessionId?: string) {
     title,
   ]);
 
-  const downloadResult = useCallback(() => {
-    if (!renderResult) return;
-    void downloadAuthenticatedFile(
-      exportApi.getDownloadUrl(renderResult.jobId),
-      renderResult.filename,
-    );
-  }, [renderResult]);
+  const downloadResult = useCallback(async () => {
+    if (!renderResult || !projectId) return;
+    try {
+      await downloadAuthenticatedFile(
+        exportApi.getDownloadUrl(renderResult.jobId),
+        renderResult.filename,
+      );
+      await authFetch(`/api/v1/workspaces/loop-creator/${projectId}/complete`, {
+        method: 'POST',
+      }).catch((err) => {
+        logger.warn('Failed to mark loop creator workspace as completed', err);
+      });
+    } catch (error) {
+      logger.error('Loop export download failed', error);
+    }
+  }, [renderResult, projectId]);
 
   return {
     projectId,

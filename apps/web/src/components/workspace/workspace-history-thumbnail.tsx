@@ -93,7 +93,7 @@ export function WorkspaceHistoryThumbnail({
       ref={elementRef}
       className={cn(
         'relative shrink-0 overflow-hidden rounded-lg border border-border/60 bg-muted/20',
-        compact ? 'h-12 w-[4.5rem]' : 'h-40 w-full sm:h-36 sm:w-24',
+        compact ? 'h-12 w-16' : 'h-28 w-20 sm:h-32 sm:w-24',
         disabled && 'opacity-55 grayscale',
       )}
     >

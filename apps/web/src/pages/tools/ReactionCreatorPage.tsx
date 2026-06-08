@@ -85,6 +85,12 @@ export function ReactionCreatorPage() {
   }, [reaction.state.projectId, sessionId, setParams]);
 
   useEffect(() => {
+    if (sessionId && reaction.state.message && !reaction.state.isLoading) {
+      setParams({ session: undefined }, { replace: true });
+    }
+  }, [sessionId, reaction.state.message, reaction.state.isLoading, setParams]);
+
+  useEffect(() => {
     if (liveVideoRef.current) {
       liveVideoRef.current.srcObject = reaction.state.cameraStream;
     }

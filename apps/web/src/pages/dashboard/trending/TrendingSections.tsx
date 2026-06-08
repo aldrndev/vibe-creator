@@ -6,7 +6,12 @@ import { Skeleton } from '@/components/ui/SkeletonLoader';
 import { buildTrendingDirectorUrl } from '@/lib/ai-director-trending-context';
 import { cn } from '@/lib/utils';
 import type { TrendingItem } from './trending.types';
-import { formatIsoDuration, getFormatLabel, getMetricSummary, getSourceLabel } from './trending-utils';
+import {
+  formatIsoDuration,
+  getFormatLabel,
+  getMetricSummary,
+  getSourceLabel,
+} from './trending-utils';
 
 const THUMBNAIL_DEFAULT_SRC =
   'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 338"%3E%3Crect width="600" height="338" fill="%2318171d"/%3E%3Cpath d="M250 119h100v100H250z" rx="14" fill="%2327242d"/%3E%3Cpath d="M282 149v40l42-20-42-20z" fill="%23ff4b1f"/%3E%3Ctext x="300" y="265" text-anchor="middle" font-family="Arial" font-size="26" font-weight="700" fill="%239b97a3"%3EYouTube Trending%3C/text%3E%3C/svg%3E';
@@ -187,7 +192,9 @@ export function TrendingBento({ items }: Readonly<{ items: TrendingItem[] }>) {
         const rank = item.rank ?? index + 2;
         const isSilver = rank === 2;
         const isBronze = rank === 3;
-        const duration = item.metrics.duration ? formatIsoDuration(item.metrics.duration as string) : '';
+        const duration = item.metrics.duration
+          ? formatIsoDuration(item.metrics.duration as string)
+          : '';
 
         return (
           <article
@@ -256,7 +263,9 @@ export function TrendingBillboard({ items }: Readonly<{ items: TrendingItem[] }>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
         {items.map((item, index) => {
           const rank = item.rank ?? index + 6;
-          const duration = item.metrics.duration ? formatIsoDuration(item.metrics.duration as string) : '';
+          const duration = item.metrics.duration
+            ? formatIsoDuration(item.metrics.duration as string)
+            : '';
 
           return (
             <article

@@ -62,7 +62,7 @@ export function TrendingImportEntry({
       ) : null}
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(320px,0.95fr)] lg:items-stretch">
-        <section className="overflow-hidden rounded-3xl border border-primary/20 bg-primary/10 text-left">
+        <section className="overflow-hidden rounded-3xl border border-border/70 bg-card/45 text-left">
           <div className="relative aspect-video bg-muted">
             {context.thumbnailUrl ? (
               <img
@@ -77,7 +77,7 @@ export function TrendingImportEntry({
             )}
             <div className="absolute inset-0 bg-linear-to-t from-background/90 via-transparent to-transparent" />
             <div className="absolute top-4 left-4 flex flex-wrap items-center gap-2">
-              <Badge className="rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em]">
+              <Badge className="rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] bg-red-600 hover:bg-red-700 text-white border-transparent shadow-md">
                 YouTube Trending
               </Badge>
               {context.rank ? (
@@ -101,8 +101,8 @@ export function TrendingImportEntry({
 
           <div className="space-y-4 p-5 sm:p-6">
             <div className="space-y-2">
-              <p className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.2em] text-primary">
-                <Sparkles size={14} />
+              <p className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.2em] text-muted-foreground">
+                <Sparkles size={14} className="text-muted-foreground/60" />
                 Link video sudah siap diimpor
               </p>
               <h2 className="text-2xl font-black leading-tight text-foreground line-clamp-3">
@@ -137,6 +137,50 @@ export function TrendingImportEntry({
                 momen.
               </p>
             </div>
+
+            {/* Visual Guide / Feature Checklist */}
+            <div className="space-y-3 rounded-2xl border border-border/40 bg-card/40 p-4">
+              <h4 className="text-[10px] font-black uppercase tracking-wider text-foreground">
+                Proses Analisis AI meliputi:
+              </h4>
+              <ul className="space-y-2.5 text-[11px] text-muted-foreground">
+                <li className="flex items-start gap-2">
+                  <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-secondary text-[9px] font-bold text-secondary-foreground shadow-sm">
+                    1
+                  </span>
+                  <div className="space-y-0.5">
+                    <strong className="font-semibold text-foreground">Viral Moment Scoring</strong>
+                    <p className="text-[10px] text-muted-foreground/75 leading-relaxed">
+                      Mendeteksi momen dengan hook terkuat atau klimaks dari video.
+                    </p>
+                  </div>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-secondary text-[9px] font-bold text-secondary-foreground shadow-sm">
+                    2
+                  </span>
+                  <div className="space-y-0.5">
+                    <strong className="font-semibold text-foreground">Auto-Framing 9:16</strong>
+                    <p className="text-[10px] text-muted-foreground/75 leading-relaxed">
+                      Mengidentifikasi wajah/objek utama untuk dipusatkan secara otomatis.
+                    </p>
+                  </div>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-secondary text-[9px] font-bold text-secondary-foreground shadow-sm">
+                    3
+                  </span>
+                  <div className="space-y-0.5">
+                    <strong className="font-semibold text-foreground">
+                      Sentence Transcription
+                    </strong>
+                    <p className="text-[10px] text-muted-foreground/75 leading-relaxed">
+                      Mengekstrak ucapan suara untuk sinkronisasi subtitle instan.
+                    </p>
+                  </div>
+                </li>
+              </ul>
+            </div>
           </div>
 
           <div className="mt-6 space-y-3 border-border/50 border-t pt-5">
@@ -155,7 +199,7 @@ export function TrendingImportEntry({
               disabled={isBusy}
               onClick={onUseDefaultFlow}
             >
-              Gunakan Flow Biasa
+              Pilih Video Lain
             </Button>
           </div>
         </section>

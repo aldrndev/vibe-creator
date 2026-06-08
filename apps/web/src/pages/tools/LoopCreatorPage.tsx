@@ -34,6 +34,12 @@ export function LoopCreatorPage() {
     }
   }, [loop.projectId, sessionId, setParams]);
 
+  useEffect(() => {
+    if (sessionId && loop.message && !loop.isLoading) {
+      setParams({ session: undefined }, { replace: true });
+    }
+  }, [sessionId, loop.message, loop.isLoading, setParams]);
+
   return (
     <PageTransition className="min-h-full bg-background p-4 md:p-6">
       {!sessionId && showContinue ? (

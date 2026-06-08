@@ -212,7 +212,7 @@ export function WorkspaceHistoryPage() {
     useInfiniteQuery({
       queryKey,
       queryFn: ({ pageParam }) =>
-        listRecentWorkspaces({ tool, status, limit: 30, cursor: pageParam }),
+        listRecentWorkspaces({ tool, status, limit: 6, cursor: pageParam }),
       initialPageParam: undefined as string | undefined,
       getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
     });
@@ -339,37 +339,45 @@ function WorkspaceHistoryCard({
   const displayTitle = getHistoryWorkspaceDisplayTitle(item);
   const downloadInfo = getRelatedExportInfo(availableExport, expiredExportCount);
   const canManageWorkspace = isWorkspaceProject(item);
-
   return (
-    <Card className="border-border/70 bg-card/70 transition-colors hover:border-border">
-      <CardBody className="flex flex-col gap-4 p-4 sm:flex-row sm:gap-3 sm:p-3.5">
+    <Card className="w-full min-w-0 overflow-hidden border-border/70 bg-card/70 transition-colors hover:border-border">
+      <CardBody className="flex flex-row gap-3.5 p-3 sm:gap-4 sm:p-3.5 w-full min-w-0">
         <WorkspaceHistoryThumbnail item={item} />
-        <div className="min-w-0 flex-1 space-y-3">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div className="min-w-0">
-              <div className="mb-2 flex flex-wrap items-center gap-2">
-                <Badge variant={item.kind === 'export' ? 'outline' : 'default'}>
+        <div className="min-w-0 flex-1 space-y-2.5 w-full">
+          <div className="flex flex-col gap-1.5 sm:flex-row sm:items-start sm:justify-between min-w-0 w-full">
+            <div className="min-w-0 flex-1">
+              <div className="mb-1 flex flex-wrap items-center gap-1.5">
+                <Badge
+                  variant="secondary"
+                  className="font-bold text-[10px] tracking-wide uppercase px-2 py-0.5 rounded-md border-transparent bg-secondary/50 text-secondary-foreground"
+                >
                   {getToolLabel(item)}
                 </Badge>
-                <span className="text-xs font-black uppercase tracking-widest text-muted-foreground">
+                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/80">
                   {getStatusLabel(item)}
                 </span>
               </div>
-              <h2 className="truncate text-base font-black sm:text-lg">{displayTitle}</h2>
-              <p className="mt-1 text-xs font-bold text-muted-foreground">
+              <h2 className="truncate text-sm font-black text-foreground sm:text-base">
+                {displayTitle}
+              </h2>
+              <p className="mt-0.5 text-[10px] font-bold text-muted-foreground/70">
                 {getWorkspaceEditedLabel(item)}
               </p>
             </div>
-            <span className="w-fit shrink-0 rounded-full border border-border px-3 py-1 text-xs font-black text-muted-foreground">
+            <span className="w-fit shrink-0 rounded-full border border-border/50 px-2 py-0.5 text-[10px] font-bold text-muted-foreground/75 bg-muted/10">
               {getWorkspaceExpiryLabel(item)}
             </span>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+          <div className="flex flex-wrap gap-1.5 pt-0.5">
             {canManageWorkspace ? (
-              <Button size="sm" className="h-10 w-full rounded-xl sm:h-9 sm:w-auto" asChild>
+              <Button
+                size="sm"
+                className="h-8 rounded-lg text-xs font-black uppercase tracking-wider bg-primary/10 border border-primary/20 hover:bg-primary/20 text-primary shrink-0 shadow-none"
+                asChild
+              >
                 <Link to={getWorkspaceContinuePath(item)}>
-                  <RotateCcw size={15} />
+                  <RotateCcw size={13} />
                   Lanjutkan
                 </Link>
               </Button>
@@ -377,18 +385,18 @@ function WorkspaceHistoryCard({
             {canDownloadExport(item) ? (
               <Button
                 size="sm"
-                className="h-10 w-full rounded-xl sm:h-9 sm:w-auto"
+                className="h-8 rounded-lg text-xs font-black uppercase tracking-wider border-border/50 text-muted-foreground hover:text-foreground shrink-0"
                 variant="outline"
                 onClick={() => downloadExport(item)}
               >
-                <Download size={15} />
+                <Download size={13} />
                 Download
               </Button>
             ) : null}
             {canManageWorkspace ? (
               <Button
                 size="sm"
-                className="h-10 w-full rounded-xl sm:h-9 sm:w-auto"
+                className="h-8 rounded-lg text-xs font-black uppercase tracking-wider border-border/50 text-muted-foreground hover:text-foreground shrink-0"
                 variant="outline"
                 onClick={onDuplicate}
               >
@@ -398,29 +406,29 @@ function WorkspaceHistoryCard({
             {canManageWorkspace ? (
               <Button
                 size="sm"
-                className="h-10 w-full rounded-xl sm:h-9 sm:w-auto"
+                className="h-8 rounded-lg text-xs font-black uppercase tracking-wider text-muted-foreground/70 hover:text-destructive hover:bg-destructive/10 shrink-0"
                 variant="ghost"
                 onClick={onDelete}
               >
-                <Trash2 size={15} />
+                <Trash2 size={13} />
                 Hapus
               </Button>
             ) : null}
             {availableExport ? (
               <Button
                 size="sm"
-                className="h-10 w-full rounded-xl sm:h-9 sm:w-auto"
+                className="h-8 rounded-lg text-xs font-black uppercase tracking-wider border-border/50 text-muted-foreground hover:text-foreground shrink-0"
                 variant="outline"
                 onClick={() => downloadExport(availableExport)}
               >
-                <Download size={15} />
+                <Download size={13} />
                 Download
               </Button>
             ) : null}
           </div>
 
           {downloadInfo ? (
-            <p className="border-t border-border/50 pt-3 text-xs font-semibold text-muted-foreground sm:pt-2">
+            <p className="border-t border-border/50 pt-2 text-[10px] font-semibold text-muted-foreground/85">
               {downloadInfo}
             </p>
           ) : null}
@@ -438,30 +446,39 @@ function ExpiredWorkspaceRow({
   readonly onDelete: () => void;
 }) {
   return (
-    <Card className="border-border/50 bg-card/40">
-      <CardBody className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex min-w-0 items-start gap-3">
+    <Card className="w-full min-w-0 overflow-hidden border-border/50 bg-card/40">
+      <CardBody className="flex flex-row items-center justify-between gap-3 p-3 w-full min-w-0">
+        <div className="flex min-w-0 items-center gap-3 w-full">
           <WorkspaceHistoryThumbnail item={item} compact disabled />
-          <div className="min-w-0 flex-1 space-y-1">
-            <div className="flex min-w-0 flex-col items-start gap-1 sm:flex-row sm:items-center sm:gap-2">
-              <Badge variant="outline" className="shrink-0 text-muted-foreground">
+          <div className="min-w-0 flex-1 space-y-0.5">
+            <div className="flex min-w-0 items-center gap-2">
+              <Badge
+                variant="secondary"
+                className="shrink-0 font-bold text-[10px] tracking-wide uppercase px-2 py-0.5 rounded-md border-transparent bg-secondary/50 text-secondary-foreground"
+              >
                 {getToolLabel(item)}
               </Badge>
               <h3 className="min-w-0 flex-1 truncate text-sm font-bold text-foreground/90">
                 {getHistoryWorkspaceDisplayTitle(item)}
               </h3>
             </div>
-            <p className="text-xs font-semibold text-muted-foreground">
+            <p className="text-[10px] font-semibold text-muted-foreground/75">
               {getWorkspaceEditedLabel(item)} · {getStatusLabel(item)}
             </p>
           </div>
         </div>
-        <div className="flex shrink-0 items-center justify-between gap-2 border-t border-border/50 pt-3 sm:border-t-0 sm:pt-0">
-          <span className="rounded-full border border-border px-3 py-1 text-xs font-bold text-muted-foreground">
+        <div className="flex shrink-0 items-center gap-2.5">
+          <span className="rounded-full border border-border/50 px-2 py-0.5 text-[10px] font-bold text-muted-foreground/75 bg-muted/5">
             {getWorkspaceExpiryLabel(item)}
           </span>
-          <Button size="icon" variant="ghost" aria-label="Hapus dari riwayat" onClick={onDelete}>
-            <Trash2 size={15} />
+          <Button
+            size="icon"
+            className="h-8 w-8 hover:text-destructive hover:bg-destructive/10"
+            variant="ghost"
+            aria-label="Hapus dari riwayat"
+            onClick={onDelete}
+          >
+            <Trash2 size={14} />
           </Button>
         </div>
       </CardBody>

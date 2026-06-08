@@ -141,7 +141,7 @@ export const ExportStep = () => {
   }, [step, activeSession, isTerminalStatus, pollExportStatus]);
 
   const handleDownload = async () => {
-    if (!exportJob?.outputUrl) {
+    if (!exportJob?.outputUrl || !activeSession) {
       return;
     }
 
@@ -149,8 +149,13 @@ export const ExportStep = () => {
       setDownloadError(null);
       await downloadAuthenticatedFile(
         exportJob.outputUrl,
-        `director-export-${activeSession?.id ?? Date.now()}.mp4`,
+        `director-export-${activeSession.id}.mp4`,
       );
+      await authFetch(`/api/v1/workspaces/ai-director/${activeSession.id}/complete`, {
+        method: 'POST',
+      }).catch((err) => {
+        logger.warn('Failed to mark workspace as completed', err);
+      });
     } catch (error) {
       logger.error('Director export download failed', error);
       setDownloadError('File export sudah selesai dibuat, tetapi download gagal dibuka.');
