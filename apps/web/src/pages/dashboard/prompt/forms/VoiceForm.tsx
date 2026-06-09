@@ -2,6 +2,7 @@ import {
   Card,
   CardBody,
   Divider,
+  Input,
   Select,
   SelectContent,
   SelectItem,
@@ -9,8 +10,8 @@ import {
   SelectValue,
   Textarea,
 } from '@/components/ui';
-import { SelectionGrid } from '@/components/ui/SelectionGrid';
-import { TargetModelSelector } from '../components/TargetModelSelector';
+import { MultiSelectGrid, SelectionGrid } from '@/components/ui/SelectionGrid';
+import { cn } from '@/lib/utils';
 import {
   emotions,
   emphasisOptions,
@@ -25,9 +26,10 @@ import type { VoiceFormData } from '../types';
 interface VoiceFormProps {
   data: VoiceFormData;
   onChange: (data: VoiceFormData) => void;
+  errors?: Record<string, boolean>;
 }
 
-export function VoiceForm({ data, onChange }: VoiceFormProps) {
+export function VoiceForm({ data, onChange, errors }: VoiceFormProps) {
   const handleChange = (key: keyof VoiceFormData, value: VoiceFormData[keyof VoiceFormData]) => {
     onChange({ ...data, [key]: value });
   };
@@ -35,12 +37,6 @@ export function VoiceForm({ data, onChange }: VoiceFormProps) {
   return (
     <Card className="bg-card/60 backdrop-blur-xl border-border/50 shadow-2xl shadow-primary/5">
       <CardBody className="p-8 space-y-10">
-        <TargetModelSelector
-          promptType="VOICE"
-          value={data.targetModel}
-          onChange={(v) => handleChange('targetModel', v)}
-        />
-
         {/* Section: Script & Language */}
         <div className="space-y-6">
           <div className="flex items-center gap-3">
@@ -52,7 +48,7 @@ export function VoiceForm({ data, onChange }: VoiceFormProps) {
 
           <div className="space-y-3">
             <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
-              Script/Teks yang Dibacakan
+              Script/Teks yang Dibacakan <span className="text-rose-500 font-black">*</span>
             </div>
             <Textarea
               placeholder="Masukkan script yang akan dijadikan voice-over..."
@@ -60,8 +56,16 @@ export function VoiceForm({ data, onChange }: VoiceFormProps) {
               onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
                 handleChange('script', e.target.value)
               }
-              className="min-h-[140px] rounded-3xl bg-muted/10 border-border/50 font-bold p-6 focus:bg-muted/20 transition-all leading-relaxed"
+              className={cn(
+                'min-h-[140px] rounded-3xl bg-muted/10 border-border/50 font-bold p-6 focus:bg-muted/20 transition-all leading-relaxed',
+                errors?.script && 'border-rose-500/80 focus:border-rose-500',
+              )}
             />
+            {errors?.script && (
+              <div className="text-rose-500 text-[10px] font-bold mt-1.5 ml-1 animate-in fade-in slide-in-from-top-1 duration-200">
+                * Kolom ini wajib diisi
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -108,6 +112,20 @@ export function VoiceForm({ data, onChange }: VoiceFormProps) {
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          <div className="space-y-3">
+            <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+              Voice ID / Karakter Suara (ElevenLabs, Artis, Tokoh, Anime, dll)
+            </div>
+            <Input
+              placeholder="Contoh: Rachel, Budi, Jokowi, Doraemon, atau ID ElevenLabs..."
+              value={data.voiceId}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                handleChange('voiceId', e.target.value)
+              }
+              className="h-14 rounded-2xl bg-muted/10 border-border/50 font-bold px-6 focus:bg-muted/20 transition-all"
+            />
           </div>
         </div>
 
@@ -173,23 +191,25 @@ export function VoiceForm({ data, onChange }: VoiceFormProps) {
             options={emotions}
             value={data.emotion}
             onChange={(v) => handleChange('emotion', v)}
-            columns={3}
+            columns={5}
           />
 
-          <SelectionGrid
+          <MultiSelectGrid
             label="Penekanan Kalimat"
             options={emphasisOptions}
-            value={data.emphasis}
+            values={data.emphasis}
             onChange={(v) => handleChange('emphasis', v)}
-            columns={3}
+            columns={4}
+            maxSelections={5}
           />
 
-          <SelectionGrid
+          <MultiSelectGrid
             label="Jeda & Pause"
             options={pauseOptions}
-            value={data.pauses}
+            values={data.pauses}
             onChange={(v) => handleChange('pauses', v)}
-            columns={3}
+            columns={5}
+            maxSelections={5}
           />
         </div>
       </CardBody>

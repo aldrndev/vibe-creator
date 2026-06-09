@@ -5,8 +5,9 @@ export type PromptType =
   | 'IMAGE'
   | 'RELAXING'
   | 'CREATIVE_SCAN'
-  | 'TIMELAPSE'
-  | 'LOOP_SOURCE';
+  | 'LOOP_SOURCE'
+  | 'TALKING_HEAD'
+  | 'SOCIAL_COPY';
 
 export interface Prompt {
   id: string;
@@ -36,8 +37,9 @@ export type PromptInputData =
   | ImagePromptInput
   | RelaxingPromptInput
   | CreativeScanPromptInput
-  | TimelapsePromptInput
-  | LoopSourcePromptInput;
+  | LoopSourcePromptInput
+  | TalkingHeadPromptInput
+  | SocialCopyPromptInput;
 
 export interface ScriptPromptInput {
   type: 'SCRIPT';
@@ -54,6 +56,8 @@ export interface ScriptPromptInput {
   narrativeStyle: 'linear' | 'hook-problem-solution' | 'before-after' | 'story-arc' | 'listicle';
   emotionalJourney: string[];
   keyMessage: string;
+  language?: string;
+  hookStyle?: string;
 }
 
 export interface VoicePromptInput {
@@ -66,6 +70,7 @@ export interface VoicePromptInput {
   pace: 'slow' | 'normal' | 'fast' | 'dynamic';
   emphasis: string[];
   pausePoints: string[];
+  voiceId?: string;
 }
 
 export interface VideoGenPromptInput {
@@ -80,6 +85,9 @@ export interface VideoGenPromptInput {
   mood: string;
   colorPalette: string[];
   additionalDetails?: string;
+  motionStrength?: string;
+  fps?: string;
+  negativePrompt?: string;
 }
 
 export interface ImagePromptInput {
@@ -93,6 +101,8 @@ export interface ImagePromptInput {
   textOverlay?: string;
   brand?: string;
   additionalDetails?: string;
+  cameraLens?: string;
+  negativePrompt?: string;
 }
 
 export interface RelaxingPromptInput {
@@ -116,6 +126,30 @@ export interface RelaxingPromptInput {
   intensity: 'subtle' | 'moderate' | 'immersive';
   visualStyle?: string;
   loopSeamless: boolean;
+  bpm?: string;
+  instrumentation?: string;
+}
+
+export interface TalkingHeadPromptInput {
+  type: 'TALKING_HEAD';
+  avatar: string;
+  script: string;
+  voiceStyle: string;
+  voiceId?: string;
+  background: string;
+  framing: string;
+  additionalDetails?: string;
+}
+
+export interface SocialCopyPromptInput {
+  type: 'SOCIAL_COPY';
+  niche: string;
+  platform: 'instagram' | 'tiktok' | 'youtube_shorts' | 'twitter' | 'linkedin' | 'facebook';
+  tone: string;
+  keywords: string[];
+  hookType: string;
+  hashtagDensity: 'low' | 'medium' | 'high';
+  additionalContext?: string;
 }
 
 export interface CreativeScanPromptInput {
@@ -133,63 +167,6 @@ export interface ExtractedFrame {
   timestamp: number;
   r2Key: string;
   description?: string;
-}
-
-// Timelapse types for Sora AI
-export type TimelapseCategory =
-  | 'home-decor'
-  | 'road-repair'
-  | 'food'
-  | 'nature'
-  | 'industrial'
-  | 'construction'
-  | 'art'
-  | 'weather';
-
-export type TimelapseTransformation =
-  | 'before-after'
-  | 'growth'
-  | 'decay'
-  | 'construction'
-  | 'repair'
-  | 'cooking'
-  | 'blooming';
-
-export type TimelapseStyle = 'realistic' | 'cinematic' | 'aerial' | 'documentary' | 'artistic';
-
-export type TimelapseCameraMovement =
-  | 'static'
-  | 'slow-pan'
-  | 'zoom-out'
-  | 'orbit'
-  | 'drone-flyover';
-
-export type TimelapseLighting =
-  | 'natural-progression'
-  | 'golden-hour'
-  | 'day-to-night'
-  | 'night-to-day'
-  | 'consistent';
-
-export interface TimelapseScene {
-  description: string; // 1-300 chars
-  durationSeconds: number; // 3-8 range
-}
-
-export interface TimelapsePromptInput {
-  type: 'TIMELAPSE';
-  category: TimelapseCategory;
-  subject: string; // 1-200 chars
-  transformation: TimelapseTransformation;
-  mode: 'single' | 'storyboard';
-  totalDurationSeconds: 5 | 10 | 15 | 20 | 25;
-  scenes?: TimelapseScene[]; // required for storyboard mode
-  style: TimelapseStyle;
-  speedMultiplier: 10 | 50 | 100 | 500 | 1000;
-  camera: TimelapseCameraMovement;
-  aspectRatio: '16:9' | '9:16' | '1:1' | '4:3';
-  lighting: TimelapseLighting;
-  additionalDetails?: string; // 0-1000 chars
 }
 
 export type LoopMood =

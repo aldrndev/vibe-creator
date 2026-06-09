@@ -11,12 +11,14 @@ import {
   Textarea,
 } from '@/components/ui';
 import { SelectionGrid } from '@/components/ui/SelectionGrid';
-import { TargetModelSelector } from '../components/TargetModelSelector';
+import { cn } from '@/lib/utils';
 import {
   callToActions,
   contentGoals,
   durations,
+  hookStyles,
   keyMessages,
+  languages,
   narrativeStyles,
   niches,
   platforms,
@@ -28,9 +30,10 @@ import type { ScriptFormData } from '../types';
 interface ScriptFormProps {
   data: ScriptFormData;
   onChange: (data: ScriptFormData) => void;
+  errors?: Record<string, boolean>;
 }
 
-export function ScriptForm({ data, onChange }: ScriptFormProps) {
+export function ScriptForm({ data, onChange, errors }: ScriptFormProps) {
   const handleChange = (key: keyof ScriptFormData, value: ScriptFormData[keyof ScriptFormData]) => {
     onChange({ ...data, [key]: value });
   };
@@ -38,12 +41,6 @@ export function ScriptForm({ data, onChange }: ScriptFormProps) {
   return (
     <Card className="bg-card/60 backdrop-blur-xl border-border/50 shadow-2xl shadow-primary/5">
       <CardBody className="p-8 space-y-10">
-        <TargetModelSelector
-          promptType="SCRIPT"
-          value={data.targetModel}
-          onChange={(v) => handleChange('targetModel', v)}
-        />
-
         {/* Section: Core Identity */}
         <div className="space-y-6">
           <div className="flex items-center gap-3">
@@ -56,10 +53,15 @@ export function ScriptForm({ data, onChange }: ScriptFormProps) {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <div className="space-y-3">
               <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
-                Niche / Topik
+                Niche / Topik <span className="text-rose-500 font-black">*</span>
               </div>
               <Select value={data.niche} onValueChange={(v) => handleChange('niche', v)}>
-                <SelectTrigger className="h-14 rounded-2xl bg-muted/10 border-border/50 font-bold px-5 text-sm">
+                <SelectTrigger
+                  className={cn(
+                    'h-14 rounded-2xl bg-muted/10 border-border/50 font-bold px-5 text-sm',
+                    errors?.niche && 'border-rose-500/80 focus:border-rose-500',
+                  )}
+                >
                   <SelectValue placeholder="Pilih Niche" />
                 </SelectTrigger>
                 <SelectContent className="rounded-2xl border-border/50 max-h-[300px]">
@@ -74,17 +76,27 @@ export function ScriptForm({ data, onChange }: ScriptFormProps) {
                   ))}
                 </SelectContent>
               </Select>
+              {errors?.niche && (
+                <div className="text-rose-500 text-[10px] font-bold mt-1.5 ml-1 animate-in fade-in slide-in-from-top-1 duration-200">
+                  * Kolom ini wajib dipilih
+                </div>
+              )}
             </div>
 
             <div className="space-y-3">
               <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
-                Target Audiens
+                Target Audiens <span className="text-rose-500 font-black">*</span>
               </div>
               <Select
                 value={data.targetAudience}
                 onValueChange={(v) => handleChange('targetAudience', v)}
               >
-                <SelectTrigger className="h-14 rounded-2xl bg-muted/10 border-border/50 font-bold px-5 text-sm">
+                <SelectTrigger
+                  className={cn(
+                    'h-14 rounded-2xl bg-muted/10 border-border/50 font-bold px-5 text-sm',
+                    errors?.targetAudience && 'border-rose-500/80 focus:border-rose-500',
+                  )}
+                >
                   <SelectValue placeholder="Pilih Audiens" />
                 </SelectTrigger>
                 <SelectContent className="rounded-2xl border-border/50 max-h-[300px]">
@@ -99,6 +111,11 @@ export function ScriptForm({ data, onChange }: ScriptFormProps) {
                   ))}
                 </SelectContent>
               </Select>
+              {errors?.targetAudience && (
+                <div className="text-rose-500 text-[10px] font-bold mt-1.5 ml-1 animate-in fade-in slide-in-from-top-1 duration-200">
+                  * Kolom ini wajib dipilih
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -233,6 +250,52 @@ export function ScriptForm({ data, onChange }: ScriptFormProps) {
               </SelectContent>
             </Select>
           </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            <div className="space-y-3">
+              <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+                Bahasa Script
+              </div>
+              <Select value={data.language} onValueChange={(v) => handleChange('language', v)}>
+                <SelectTrigger className="h-14 rounded-2xl bg-muted/10 border-border/50 font-bold px-5 text-sm">
+                  <SelectValue placeholder="Pilih Bahasa" />
+                </SelectTrigger>
+                <SelectContent className="rounded-2xl border-border/50">
+                  {languages.map((l) => (
+                    <SelectItem
+                      key={l.key}
+                      value={l.key}
+                      className="font-bold text-xs uppercase tracking-widest"
+                    >
+                      {l.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-3">
+              <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+                Gaya Hook Awal
+              </div>
+              <Select value={data.hookStyle} onValueChange={(v) => handleChange('hookStyle', v)}>
+                <SelectTrigger className="h-14 rounded-2xl bg-muted/10 border-border/50 font-bold px-5 text-sm">
+                  <SelectValue placeholder="Pilih Gaya Hook" />
+                </SelectTrigger>
+                <SelectContent className="rounded-2xl border-border/50">
+                  {hookStyles.map((h) => (
+                    <SelectItem
+                      key={h.key}
+                      value={h.key}
+                      className="font-bold text-xs uppercase tracking-widest"
+                    >
+                      {h.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
         </div>
 
         <Divider className="opacity-30" />
@@ -251,7 +314,9 @@ export function ScriptForm({ data, onChange }: ScriptFormProps) {
             options={keyMessages}
             value={data.keyMessage}
             onChange={(v) => handleChange('keyMessage', v)}
-            columns={3}
+            columns={5}
+            required
+            error={errors?.keyMessage}
           />
 
           <SelectionGrid
@@ -259,7 +324,7 @@ export function ScriptForm({ data, onChange }: ScriptFormProps) {
             options={callToActions}
             value={data.callToAction}
             onChange={(v) => handleChange('callToAction', v)}
-            columns={3}
+            columns={5}
           />
 
           <div className="space-y-6 pt-4">

@@ -23,6 +23,8 @@ export interface ScriptFormData {
   emotionalJourney: string;
   keyMessage: string;
   additionalContext: string;
+  language: string;
+  hookStyle: string;
 }
 
 export interface VoiceFormData {
@@ -33,8 +35,9 @@ export interface VoiceFormData {
   gender: string;
   emotion: string;
   pace: string;
-  emphasis: string;
-  pauses: string;
+  emphasis: string[];
+  pauses: string[];
+  voiceId: string;
 }
 
 export interface VideoGenFormData {
@@ -47,6 +50,9 @@ export interface VideoGenFormData {
   lighting: string;
   mood: string;
   additionalDetails: string;
+  motionStrength: string;
+  fps: string;
+  negativePrompt: string;
 }
 
 export interface ImageFormData {
@@ -58,19 +64,25 @@ export interface ImageFormData {
   colors: string;
   textOverlay: string;
   additionalDetails: string;
-  // Added purpose here to fix runtime bug
   purpose: string;
+  cameraLens: string;
+  negativePrompt: string;
 }
 
 export interface RelaxingFormData {
   targetModel: AIModel;
   environment: string;
+  customEnvironment: string;
   primarySound: string;
   secondarySounds: string;
   ambientDetails: string;
   duration: string;
   mood: string;
   visualStyle: string;
+  intensity: string;
+  loopSeamless: boolean;
+  bpm: string;
+  instrumentation: string;
 }
 
 export interface CreativeScanFormData {
@@ -78,28 +90,29 @@ export interface CreativeScanFormData {
   sourceUrl: string;
   analysisType: string;
   niche: string;
-  focusAreas: string;
+  focusAreas: string[];
 }
 
-export interface TimelapseScene {
-  description: string;
-  durationSeconds: number;
-}
-
-export interface TimelapseFormData {
+export interface TalkingHeadFormData {
   targetModel: AIModel;
-  category: string;
-  subject: string;
-  transformation: string;
-  mode: 'single' | 'storyboard';
-  totalDurationSeconds: number;
-  scenes: TimelapseScene[];
-  style: string;
-  speedMultiplier: number;
-  camera: string;
-  aspectRatio: string;
-  lighting: string;
+  avatar: string;
+  script: string;
+  voiceStyle: string;
+  voiceId: string;
+  background: string;
+  framing: string;
   additionalDetails: string;
+}
+
+export interface SocialCopyFormData {
+  targetModel: AIModel;
+  niche: string;
+  platform: string;
+  tone: string;
+  keywords: string;
+  hookType: string;
+  hashtagDensity: string;
+  additionalContext: string;
 }
 
 // Default Values
@@ -117,6 +130,8 @@ export const defaultScriptForm: ScriptFormData = {
   emotionalJourney: '',
   keyMessage: '',
   additionalContext: '',
+  language: 'id',
+  hookStyle: 'question',
 };
 
 export const defaultVoiceForm: VoiceFormData = {
@@ -127,8 +142,9 @@ export const defaultVoiceForm: VoiceFormData = {
   gender: 'neutral',
   emotion: '',
   pace: 'normal',
-  emphasis: '',
-  pauses: '',
+  emphasis: [],
+  pauses: [],
+  voiceId: '',
 };
 
 export const defaultVideoGenForm: VideoGenFormData = {
@@ -141,6 +157,9 @@ export const defaultVideoGenForm: VideoGenFormData = {
   lighting: '',
   mood: '',
   additionalDetails: '',
+  motionStrength: 'balanced',
+  fps: '30fps',
+  negativePrompt: '',
 };
 
 export const defaultImageForm: ImageFormData = {
@@ -152,18 +171,25 @@ export const defaultImageForm: ImageFormData = {
   colors: '',
   textOverlay: '',
   additionalDetails: '',
-  purpose: 'thumbnail', // Default purpose
+  purpose: 'thumbnail',
+  cameraLens: 'default',
+  negativePrompt: '',
 };
 
 export const defaultRelaxingForm: RelaxingFormData = {
   targetModel: getDefaultModel('RELAXING'),
   environment: 'rain',
+  customEnvironment: '',
   primarySound: '',
   secondarySounds: '',
   ambientDetails: '',
   duration: '1hour',
   mood: 'peaceful',
   visualStyle: '',
+  intensity: 'moderate',
+  loopSeamless: true,
+  bpm: 'none',
+  instrumentation: '',
 };
 
 export const defaultCreativeScanForm: CreativeScanFormData = {
@@ -171,21 +197,27 @@ export const defaultCreativeScanForm: CreativeScanFormData = {
   sourceUrl: '',
   analysisType: 'full',
   niche: '',
-  focusAreas: '',
+  focusAreas: [],
 };
 
-export const defaultTimelapseForm: TimelapseFormData = {
-  targetModel: getDefaultModel('TIMELAPSE'),
-  category: '',
-  subject: '',
-  transformation: '',
-  mode: 'single',
-  totalDurationSeconds: 15,
-  scenes: [],
-  style: 'cinematic',
-  speedMultiplier: 100,
-  camera: 'static',
-  aspectRatio: '16:9',
-  lighting: 'natural-progression',
+export const defaultTalkingHeadForm: TalkingHeadFormData = {
+  targetModel: getDefaultModel('VIDEO_GEN'), // reuse same default
+  avatar: 'male-professional',
+  script: '',
+  voiceStyle: 'conversational',
+  voiceId: '',
+  background: 'office-modern',
+  framing: 'medium-close-up',
   additionalDetails: '',
+};
+
+export const defaultSocialCopyForm: SocialCopyFormData = {
+  targetModel: getDefaultModel('SCRIPT'), // reuse same default
+  niche: '',
+  platform: 'instagram',
+  tone: 'casual',
+  keywords: '',
+  hookType: 'question',
+  hashtagDensity: 'medium',
+  additionalContext: '',
 };

@@ -3,7 +3,7 @@ import type { PromptType } from '@vibe-creator/shared';
 import { api } from '@/services/api';
 import { useAuthStore } from '@/stores/auth-store';
 
-interface Prompt {
+export interface Prompt {
   id: string;
   type: PromptType;
   title: string;
@@ -13,7 +13,7 @@ interface Prompt {
   updatedAt: string;
 }
 
-interface PromptDetail {
+export interface PromptDetail {
   id: string;
   type: PromptType;
   title: string;
@@ -23,7 +23,7 @@ interface PromptDetail {
   versions: PromptVersion[];
 }
 
-interface PromptVersion {
+export interface PromptVersion {
   id: string;
   promptId: string;
   version: number;
@@ -114,21 +114,22 @@ export function useCreatePrompt() {
   });
 }
 
-export function useCreateVersion(promptId: string) {
+export function useCreateVersion() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (input: CreateVersionInput) => {
+    mutationFn: async (input: CreateVersionInput & { promptId: string }) => {
+      const { promptId, ...rest } = input;
       const response = await api.post<PromptVersion & { generatedPrompt: string }>(
         `/prompts/${promptId}/versions`,
-        input,
+        rest,
       );
       if (!response.success) throw new Error(response.error.message);
       return response.data;
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['prompts'] });
-      queryClient.invalidateQueries({ queryKey: ['prompt', promptId] });
+      queryClient.invalidateQueries({ queryKey: ['prompt', variables.promptId] });
     },
   });
 }

@@ -10,17 +10,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui';
-import { SelectionGrid } from '@/components/ui/SelectionGrid';
-import { TargetModelSelector } from '../components/TargetModelSelector';
+import { MultiSelectGrid } from '@/components/ui/SelectionGrid';
+import { cn } from '@/lib/utils';
 import { analysisTypes, focusAreas, niches } from '../constants';
 import type { CreativeScanFormData } from '../types';
 
 interface CreativeScanFormProps {
   data: CreativeScanFormData;
   onChange: (data: CreativeScanFormData) => void;
+  errors?: Record<string, boolean>;
 }
 
-export function CreativeScanForm({ data, onChange }: CreativeScanFormProps) {
+export function CreativeScanForm({ data, onChange, errors }: CreativeScanFormProps) {
   const handleChange = (
     key: keyof CreativeScanFormData,
     value: CreativeScanFormData[keyof CreativeScanFormData],
@@ -31,12 +32,6 @@ export function CreativeScanForm({ data, onChange }: CreativeScanFormProps) {
   return (
     <Card className="bg-card/60 backdrop-blur-xl border-border/50 shadow-2xl shadow-primary/5">
       <CardBody className="p-8 space-y-10">
-        <TargetModelSelector
-          promptType="CREATIVE_SCAN"
-          value={data.targetModel}
-          onChange={(v) => handleChange('targetModel', v)}
-        />
-
         <div className="space-y-6">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
@@ -56,7 +51,7 @@ export function CreativeScanForm({ data, onChange }: CreativeScanFormProps) {
           <div className="grid grid-cols-1 gap-6">
             <div className="space-y-3">
               <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
-                URL Video / Source
+                URL Video / Source <span className="text-rose-500 font-black">*</span>
               </div>
               <Input
                 placeholder="Masukkan URL YouTube/TikTok/Instagram"
@@ -64,17 +59,30 @@ export function CreativeScanForm({ data, onChange }: CreativeScanFormProps) {
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                   handleChange('sourceUrl', e.target.value)
                 }
-                className="h-14 rounded-2xl bg-muted/10 border-border/50 font-bold px-6 text-sm focus:bg-muted/20 transition-all"
+                className={cn(
+                  'h-14 rounded-2xl bg-muted/10 border-border/50 font-bold px-6 text-sm focus:bg-muted/20 transition-all',
+                  errors?.sourceUrl && 'border-rose-500/80 focus:border-rose-500',
+                )}
               />
+              {errors?.sourceUrl && (
+                <div className="text-rose-500 text-[10px] font-bold mt-1.5 ml-1 animate-in fade-in slide-in-from-top-1 duration-200">
+                  * Kolom ini wajib diisi
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div className="space-y-3">
                 <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
-                  Jenis Konten (Niche)
+                  Jenis Konten (Niche) <span className="text-rose-500 font-black">*</span>
                 </div>
                 <Select value={data.niche} onValueChange={(v) => handleChange('niche', v)}>
-                  <SelectTrigger className="h-14 rounded-2xl bg-muted/10 border-border/50 font-bold px-5 text-sm">
+                  <SelectTrigger
+                    className={cn(
+                      'h-14 rounded-2xl bg-muted/10 border-border/50 font-bold px-5 text-sm',
+                      errors?.niche && 'border-rose-500/80 focus:border-rose-500',
+                    )}
+                  >
                     <SelectValue placeholder="Pilih Niche" />
                   </SelectTrigger>
                   <SelectContent className="rounded-2xl border-border/50 max-h-[300px]">
@@ -89,6 +97,11 @@ export function CreativeScanForm({ data, onChange }: CreativeScanFormProps) {
                     ))}
                   </SelectContent>
                 </Select>
+                {errors?.niche && (
+                  <div className="text-rose-500 text-[10px] font-bold mt-1.5 ml-1 animate-in fade-in slide-in-from-top-1 duration-200">
+                    * Kolom ini wajib dipilih
+                  </div>
+                )}
               </div>
 
               <div className="space-y-3">
@@ -129,12 +142,13 @@ export function CreativeScanForm({ data, onChange }: CreativeScanFormProps) {
             </h3>
           </div>
 
-          <SelectionGrid
+          <MultiSelectGrid
             label="Fokus Analisis"
             options={focusAreas}
-            value={data.focusAreas}
+            values={data.focusAreas}
             onChange={(v) => handleChange('focusAreas', v)}
             columns={3}
+            maxSelections={5}
           />
         </div>
       </CardBody>

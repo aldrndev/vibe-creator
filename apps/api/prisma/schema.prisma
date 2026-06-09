@@ -780,6 +780,8 @@ enum PromptType {
   CREATIVE_SCAN
   TIMELAPSE
   LOOP_SOURCE
+  TALKING_HEAD
+  SOCIAL_COPY
 }
 
 enum ExportFormat {

@@ -1,7 +1,9 @@
+import type * as React from 'react';
 import {
   Card,
   CardBody,
   Divider,
+  Input,
   Select,
   SelectContent,
   SelectItem,
@@ -11,52 +13,61 @@ import {
 } from '@/components/ui';
 import { SelectionGrid } from '@/components/ui/SelectionGrid';
 import { cn } from '@/lib/utils';
-import {
-  aspectRatios,
-  cameraLenses,
-  colorOptions,
-  imagePurposes,
-  imageStyles,
-  imageSubjects,
-  moodOptions,
-  textOverlayOptions,
-} from '../constants';
-import type { ImageFormData } from '../types';
+import { hookStyles, niches, tones } from '../constants';
+import type { SocialCopyFormData } from '../types';
 
-interface ImageFormProps {
-  data: ImageFormData;
-  onChange: (data: ImageFormData) => void;
+interface SocialCopyFormProps {
+  data: SocialCopyFormData;
+  onChange: (data: SocialCopyFormData) => void;
   errors?: Record<string, boolean>;
 }
 
-export function ImageForm({ data, onChange, errors }: ImageFormProps) {
-  const handleChange = (key: keyof ImageFormData, value: ImageFormData[keyof ImageFormData]) => {
+const platformOptions = [
+  { key: 'instagram', label: 'Instagram Feed / Reels' },
+  { key: 'tiktok', label: 'TikTok Caption' },
+  { key: 'youtube_shorts', label: 'YouTube Shorts Description' },
+  { key: 'twitter', label: 'Twitter / X Thread & Post' },
+  { key: 'linkedin', label: 'LinkedIn Professional Post' },
+  { key: 'facebook', label: 'Facebook Page Post' },
+];
+
+const hashtagDensityOptions = [
+  { key: 'low', label: 'Low / 1-3 Hashtags Utama' },
+  { key: 'medium', label: 'Medium / 5-8 Hashtags Relevan' },
+  { key: 'high', label: 'High / Banyak Hashtags Pendukung' },
+];
+
+export function SocialCopyForm({ data, onChange, errors }: SocialCopyFormProps) {
+  const handleChange = (
+    key: keyof SocialCopyFormData,
+    value: SocialCopyFormData[keyof SocialCopyFormData],
+  ) => {
     onChange({ ...data, [key]: value });
   };
 
   return (
     <Card className="bg-card/60 backdrop-blur-xl border-border/50 shadow-2xl shadow-primary/5">
       <CardBody className="p-8 space-y-10">
-        {/* Section: Objective */}
+        {/* Section: Platform & Topic */}
         <div className="space-y-6">
           <div className="flex items-center gap-3">
             <div className="w-1.5 h-6 bg-primary rounded-full" />
             <h3 className="text-sm font-black uppercase tracking-[0.2em] text-foreground">
-              Objective & Subject
+              Platform & Topic
             </h3>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <div className="space-y-3">
               <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
-                Tujuan Gambar
+                Target Platform
               </div>
-              <Select value={data.purpose} onValueChange={(v) => handleChange('purpose', v)}>
+              <Select value={data.platform} onValueChange={(v) => handleChange('platform', v)}>
                 <SelectTrigger className="h-14 rounded-2xl bg-muted/10 border-border/50 font-bold px-5 text-sm">
-                  <SelectValue placeholder="Pilih Tujuan" />
+                  <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="rounded-2xl border-border/50">
-                  {imagePurposes.map((p) => (
+                  {platformOptions.map((p) => (
                     <SelectItem
                       key={p.key}
                       value={p.key}
@@ -71,30 +82,30 @@ export function ImageForm({ data, onChange, errors }: ImageFormProps) {
 
             <div className="space-y-3">
               <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
-                Subjek / Objek Utama <span className="text-rose-500 font-black">*</span>
+                Niche / Topik Konten <span className="text-rose-500 font-black">*</span>
               </div>
-              <Select value={data.subject} onValueChange={(v) => handleChange('subject', v)}>
+              <Select value={data.niche} onValueChange={(v) => handleChange('niche', v)}>
                 <SelectTrigger
                   className={cn(
                     'h-14 rounded-2xl bg-muted/10 border-border/50 font-bold px-5 text-sm',
-                    errors?.subject && 'border-rose-500/80 focus:border-rose-500',
+                    errors?.niche && 'border-rose-500/80 focus:border-rose-500',
                   )}
                 >
-                  <SelectValue placeholder="Pilih Subjek" />
+                  <SelectValue placeholder="Pilih Niche" />
                 </SelectTrigger>
-                <SelectContent className="rounded-2xl border-border/50">
-                  {imageSubjects.map((s) => (
+                <SelectContent className="rounded-2xl border-border/50 max-h-[300px]">
+                  {niches.map((n) => (
                     <SelectItem
-                      key={s.key}
-                      value={s.key}
+                      key={n.key}
+                      value={n.key}
                       className="font-bold text-xs uppercase tracking-widest py-3"
                     >
-                      {s.label}
+                      {n.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              {errors?.subject && (
+              {errors?.niche && (
                 <div className="text-rose-500 text-[10px] font-bold mt-1.5 ml-1 animate-in fade-in slide-in-from-top-1 duration-200">
                   * Kolom ini wajib dipilih
                 </div>
@@ -105,32 +116,32 @@ export function ImageForm({ data, onChange, errors }: ImageFormProps) {
 
         <Divider className="opacity-30" />
 
-        {/* Section: Artistic Direction */}
+        {/* Section: Copywriting Parameters */}
         <div className="space-y-8">
           <div className="flex items-center gap-3">
             <div className="w-1.5 h-6 bg-orange-500 rounded-full" />
             <h3 className="text-sm font-black uppercase tracking-[0.2em] text-foreground">
-              Artistic Direction
+              Style & Hook
             </h3>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <div className="space-y-3">
               <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
-                Gaya Visual (Style)
+                Tone of Voice / Suasana
               </div>
-              <Select value={data.style} onValueChange={(v) => handleChange('style', v)}>
+              <Select value={data.tone} onValueChange={(v) => handleChange('tone', v)}>
                 <SelectTrigger className="h-14 rounded-2xl bg-muted/10 border-border/50 font-bold px-5 text-sm">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="rounded-2xl border-border/50">
-                  {imageStyles.map((s) => (
+                  {tones.map((t) => (
                     <SelectItem
-                      key={s.key}
-                      value={s.key}
+                      key={t.key}
+                      value={t.key}
                       className="font-bold text-xs uppercase tracking-widest py-3"
                     >
-                      {s.label}
+                      {t.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -139,23 +150,20 @@ export function ImageForm({ data, onChange, errors }: ImageFormProps) {
 
             <div className="space-y-3">
               <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
-                Aspect Ratio
+                Gaya Hook Pembuka
               </div>
-              <Select
-                value={data.aspectRatio}
-                onValueChange={(v) => handleChange('aspectRatio', v)}
-              >
+              <Select value={data.hookType} onValueChange={(v) => handleChange('hookType', v)}>
                 <SelectTrigger className="h-14 rounded-2xl bg-muted/10 border-border/50 font-bold px-5 text-sm">
-                  <SelectValue />
+                  <SelectValue placeholder="Pilih Gaya Hook" />
                 </SelectTrigger>
                 <SelectContent className="rounded-2xl border-border/50">
-                  {aspectRatios.map((a) => (
+                  {hookStyles.map((h) => (
                     <SelectItem
-                      key={a.key}
-                      value={a.key}
+                      key={h.key}
+                      value={h.key}
                       className="font-bold text-xs uppercase tracking-widest py-3"
                     >
-                      {a.label}
+                      {h.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -164,63 +172,39 @@ export function ImageForm({ data, onChange, errors }: ImageFormProps) {
           </div>
 
           <SelectionGrid
-            label="Mood & Suasana"
-            options={moodOptions}
-            value={data.mood}
-            onChange={(v) => handleChange('mood', v)}
-            columns={5}
-          />
-
-          <SelectionGrid
-            label="Skema Warna"
-            options={colorOptions}
-            value={data.colors}
-            onChange={(v) => handleChange('colors', v)}
-            columns={5}
-          />
-
-          <SelectionGrid
-            label="Text Overlay"
-            options={textOverlayOptions}
-            value={data.textOverlay}
-            onChange={(v) => handleChange('textOverlay', v)}
-            columns={4}
-          />
-
-          <SelectionGrid
-            label="Spesifikasi Kamera & Lensa (Gaya Foto)"
-            options={cameraLenses}
-            value={data.cameraLens}
-            onChange={(v) => handleChange('cameraLens', v)}
-            columns={5}
+            label="Kerapatan Hashtag (Hashtag Density)"
+            options={hashtagDensityOptions}
+            value={data.hashtagDensity}
+            onChange={(v) => handleChange('hashtagDensity', v)}
+            columns={3}
           />
 
           <div className="space-y-6 pt-4">
             <div className="space-y-3">
               <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
-                Detail Tambahan (opsional)
+                Keywords Utama (pisahkan dengan koma)
               </div>
-              <Textarea
-                placeholder="Detail spesifik lainnya..."
-                value={data.additionalDetails}
-                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                  handleChange('additionalDetails', e.target.value)
+              <Input
+                placeholder="Contoh: giveaway, tips bisnis, finansial, pemula"
+                value={data.keywords}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                  handleChange('keywords', e.target.value)
                 }
-                className="min-h-[140px] rounded-3xl bg-muted/10 border-border/50 font-bold p-6 focus:bg-muted/20 transition-all leading-relaxed"
+                className="h-14 rounded-2xl bg-muted/10 border-border/50 font-bold px-6 text-sm focus:bg-muted/20 transition-all"
               />
             </div>
 
             <div className="space-y-3">
               <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
-                Negative Prompt (opsional)
+                Konteks / Detail Penawaran / Poin Penting
               </div>
               <Textarea
-                placeholder="Hal-hal yang ingin dihindari (contoh: blur, deformed, low quality, extra limbs)..."
-                value={data.negativePrompt}
+                placeholder="Informasi promosi, diskon, deskripsi konten, atau poin-poin yang ingin disertakan..."
+                value={data.additionalContext}
                 onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                  handleChange('negativePrompt', e.target.value)
+                  handleChange('additionalContext', e.target.value)
                 }
-                className="min-h-[100px] rounded-3xl bg-muted/10 border-border/50 font-bold p-6 focus:bg-muted/20 transition-all leading-relaxed"
+                className="min-h-[140px] rounded-3xl bg-muted/10 border-border/50 font-bold p-6 focus:bg-muted/20 transition-all leading-relaxed"
               />
             </div>
           </div>

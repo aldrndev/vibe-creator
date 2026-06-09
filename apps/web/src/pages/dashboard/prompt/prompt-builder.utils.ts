@@ -4,7 +4,8 @@ import type {
   ImageFormData,
   RelaxingFormData,
   ScriptFormData,
-  TimelapseFormData,
+  SocialCopyFormData,
+  TalkingHeadFormData,
   VideoGenFormData,
   VoiceFormData,
 } from '../prompt/types';
@@ -16,17 +17,30 @@ export interface PromptBuilderFormState {
   imageForm: ImageFormData;
   relaxingForm: RelaxingFormData;
   creativeScanForm: CreativeScanFormData;
-  timelapseForm: TimelapseFormData;
+  talkingHeadForm: TalkingHeadFormData;
+  socialCopyForm: SocialCopyFormData;
 }
 
-function splitCsv(input: string): string[] {
+function splitCsv(input: string | string[]): string[] {
+  if (Array.isArray(input)) {
+    return input;
+  }
+  if (typeof input !== 'string') {
+    return [];
+  }
   return input
     .split(',')
     .map((item) => item.trim())
     .filter(Boolean);
 }
 
-function splitJourney(input: string): string[] {
+function splitJourney(input: string | string[]): string[] {
+  if (Array.isArray(input)) {
+    return input;
+  }
+  if (typeof input !== 'string') {
+    return [];
+  }
   return input
     .split(/,|->/)
     .map((item) => item.trim())
@@ -48,11 +62,7 @@ export function buildPromptInputData(
         emotionalJourney: splitJourney(forms.scriptForm.emotionalJourney),
       };
     case 'VOICE':
-      return {
-        ...forms.voiceForm,
-        emphasis: splitCsv(forms.voiceForm.emphasis),
-        pauses: splitCsv(forms.voiceForm.pauses),
-      };
+      return { ...forms.voiceForm };
     case 'VIDEO_GEN':
       return { ...forms.videoGenForm };
     case 'IMAGE':
@@ -68,8 +78,14 @@ export function buildPromptInputData(
       };
     case 'CREATIVE_SCAN':
       return { ...forms.creativeScanForm };
-    case 'TIMELAPSE':
-      return { ...forms.timelapseForm };
+
+    case 'TALKING_HEAD':
+      return { ...forms.talkingHeadForm };
+    case 'SOCIAL_COPY':
+      return {
+        ...forms.socialCopyForm,
+        keywords: splitCsv(forms.socialCopyForm.keywords),
+      };
     case 'LOOP_SOURCE':
       throw new Error('Gunakan Loop Creator untuk membuat prompt loop source.');
   }

@@ -10,12 +10,15 @@ import {
   Textarea,
 } from '@/components/ui';
 import { SelectionGrid } from '@/components/ui/SelectionGrid';
-import { TargetModelSelector } from '../components/TargetModelSelector';
+import { cn } from '@/lib/utils';
 import {
   aspectRatios,
   cameraMovements,
+  fpsOptions,
   lightingOptions,
   moodOptions,
+  motionStrengths,
+  videoConcepts,
   videoDurations,
   videoStyles,
 } from '../constants';
@@ -24,9 +27,10 @@ import type { VideoGenFormData } from '../types';
 interface VideoGenFormProps {
   data: VideoGenFormData;
   onChange: (data: VideoGenFormData) => void;
+  errors?: Record<string, boolean>;
 }
 
-export function VideoGenForm({ data, onChange }: VideoGenFormProps) {
+export function VideoGenForm({ data, onChange, errors }: VideoGenFormProps) {
   const handleChange = (
     key: keyof VideoGenFormData,
     value: VideoGenFormData[keyof VideoGenFormData],
@@ -37,12 +41,6 @@ export function VideoGenForm({ data, onChange }: VideoGenFormProps) {
   return (
     <Card className="bg-card/60 backdrop-blur-xl border-border/50 shadow-2xl shadow-primary/5">
       <CardBody className="p-8 space-y-10">
-        <TargetModelSelector
-          promptType="VIDEO_GEN"
-          value={data.targetModel}
-          onChange={(v) => handleChange('targetModel', v)}
-        />
-
         {/* Section: Basic Config */}
         <div className="space-y-6">
           <div className="flex items-center gap-3">
@@ -54,14 +52,19 @@ export function VideoGenForm({ data, onChange }: VideoGenFormProps) {
 
           <div className="space-y-3">
             <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
-              Konsep Video
+              Konsep Video <span className="text-rose-500 font-black">*</span>
             </div>
             <Select value={data.concept} onValueChange={(v) => handleChange('concept', v)}>
-              <SelectTrigger className="h-14 rounded-2xl bg-muted/10 border-border/50 font-bold px-5 text-sm">
+              <SelectTrigger
+                className={cn(
+                  'h-14 rounded-2xl bg-muted/10 border-border/50 font-bold px-5 text-sm',
+                  errors?.concept && 'border-rose-500/80 focus:border-rose-500',
+                )}
+              >
                 <SelectValue placeholder="Pilih Konsep" />
               </SelectTrigger>
               <SelectContent className="rounded-2xl border-border/50">
-                {videoStyles.map((s) => (
+                {videoConcepts.map((s) => (
                   <SelectItem
                     key={s.key}
                     value={s.key}
@@ -72,6 +75,11 @@ export function VideoGenForm({ data, onChange }: VideoGenFormProps) {
                 ))}
               </SelectContent>
             </Select>
+            {errors?.concept && (
+              <div className="text-rose-500 text-[10px] font-bold mt-1.5 ml-1 animate-in fade-in slide-in-from-top-1 duration-200">
+                * Kolom ini wajib dipilih
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -162,7 +170,7 @@ export function VideoGenForm({ data, onChange }: VideoGenFormProps) {
             options={cameraMovements}
             value={data.movement}
             onChange={(v) => handleChange('movement', v)}
-            columns={3}
+            columns={5}
           />
 
           <SelectionGrid
@@ -170,7 +178,7 @@ export function VideoGenForm({ data, onChange }: VideoGenFormProps) {
             options={lightingOptions}
             value={data.lighting}
             onChange={(v) => handleChange('lighting', v)}
-            columns={3}
+            columns={5}
           />
 
           <SelectionGrid
@@ -178,21 +186,53 @@ export function VideoGenForm({ data, onChange }: VideoGenFormProps) {
             options={moodOptions}
             value={data.mood}
             onChange={(v) => handleChange('mood', v)}
+            columns={5}
+          />
+
+          <SelectionGrid
+            label="Kekuatan Gerakan (Motion Strength)"
+            options={motionStrengths}
+            value={data.motionStrength}
+            onChange={(v) => handleChange('motionStrength', v)}
+            columns={4}
+          />
+
+          <SelectionGrid
+            label="Frame Rate (FPS)"
+            options={fpsOptions}
+            value={data.fps}
+            onChange={(v) => handleChange('fps', v)}
             columns={3}
           />
 
-          <div className="space-y-3 pt-4">
-            <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
-              Detail Tambahan (opsional)
+          <div className="space-y-6 pt-4">
+            <div className="space-y-3">
+              <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+                Detail Tambahan (opsional)
+              </div>
+              <Textarea
+                placeholder="Detail spesifik lainnya..."
+                value={data.additionalDetails}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+                  handleChange('additionalDetails', e.target.value)
+                }
+                className="min-h-[140px] rounded-3xl bg-muted/10 border-border/50 font-bold p-6 focus:bg-muted/20 transition-all leading-relaxed"
+              />
             </div>
-            <Textarea
-              placeholder="Detail spesifik lainnya..."
-              value={data.additionalDetails}
-              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                handleChange('additionalDetails', e.target.value)
-              }
-              className="min-h-[140px] rounded-3xl bg-muted/10 border-border/50 font-bold p-6 focus:bg-muted/20 transition-all leading-relaxed"
-            />
+
+            <div className="space-y-3">
+              <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+                Negative Prompt (opsional)
+              </div>
+              <Textarea
+                placeholder="Hal-hal yang ingin dihindari (contoh: blur, teks distorsi, kecacatan tangan)..."
+                value={data.negativePrompt}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+                  handleChange('negativePrompt', e.target.value)
+                }
+                className="min-h-[100px] rounded-3xl bg-muted/10 border-border/50 font-bold p-6 focus:bg-muted/20 transition-all leading-relaxed"
+              />
+            </div>
           </div>
         </div>
       </CardBody>

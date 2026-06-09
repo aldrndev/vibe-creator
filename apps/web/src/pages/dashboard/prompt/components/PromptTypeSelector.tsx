@@ -1,4 +1,5 @@
 import type { PromptType } from '@vibe-creator/shared';
+import { Check } from 'lucide-react';
 import { Card, CardBody } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { promptTypes } from '../constants';
@@ -34,13 +35,15 @@ export function PromptTypeSelector({ selectedType, onSelect }: PromptTypeSelecto
                 className={cn(
                   'relative p-4 rounded-2xl border text-left transition-all duration-300 group overflow-hidden active:scale-95',
                   isActive
-                    ? 'bg-primary/10 border-primary'
+                    ? 'bg-primary/8 border-primary'
                     : 'bg-muted/10 border-border/50 hover:border-primary/30 hover:bg-muted/20',
                 )}
               >
                 {/* Active Indicator */}
                 {isActive && (
-                  <div className="absolute top-3 right-3 w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                  <div className="absolute top-3 right-3 text-primary animate-in fade-in zoom-in-50 duration-200">
+                    <Check size={12} strokeWidth={3} />
+                  </div>
                 )}
 
                 <div
