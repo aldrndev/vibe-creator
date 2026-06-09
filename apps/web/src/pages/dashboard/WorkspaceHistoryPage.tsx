@@ -335,7 +335,12 @@ export function WorkspaceHistoryPage() {
   const { duplicateMutation, deleteMutation } = useWorkspaceMutations(queryClient, navigate);
 
   const tool = filter === 'all' || filter === 'expired' ? undefined : filter;
-  const status = filter === 'expired' ? 'EXPIRED' : undefined;
+  let status: 'EXPIRED' | 'ACTIVE' | undefined;
+  if (filter === 'expired') {
+    status = 'EXPIRED';
+  } else if (filter === 'all') {
+    status = 'ACTIVE';
+  }
   const queryKey = ['workspace-history', tool, status];
 
   const { data, error, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } =
@@ -635,7 +640,7 @@ function HistoryAvailableList({
   if (items.length === 0) return null;
 
   return (
-    <div className="grid gap-3 md:grid-cols-2">
+    <div className="grid gap-3 md:grid-cols-2 items-start">
       {items.map((item) => (
         <WorkspaceHistoryCard
           key={`${item.kind}-${item.id}`}
