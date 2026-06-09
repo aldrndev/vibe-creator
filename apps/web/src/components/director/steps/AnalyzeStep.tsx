@@ -197,7 +197,7 @@ export const AnalyzeStep = ({ onStartNew }: AnalyzeStepProps) => {
 
   return (
     <div className="mx-auto w-full max-w-3xl animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <Card className="relative overflow-hidden border-border/50 bg-card/70 backdrop-blur-xl">
+      <Card className="relative overflow-hidden border-border/50 bg-card/70">
         <CardBody className="p-5 sm:p-7">
           <div className="flex flex-col gap-4 border-b border-border/45 pb-5 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3 text-left">

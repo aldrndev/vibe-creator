@@ -139,6 +139,10 @@ function QuotaCard({ summary }: QuotaCardProps) {
   const isNearLimit = !quota.isUnlimited && quota.usagePercent >= 80;
   const tierLabel =
     quota.tier === 'ADMIN' ? 'Admin' : quota.tier[0] + quota.tier.slice(1).toLowerCase();
+  const unlimitedLabel =
+    quota.tier === 'ADMIN'
+      ? '. Akses admin dengan export tanpa batas.'
+      : `. Akses ${tierLabel.toLowerCase()} dengan export tanpa batas.`;
 
   return (
     <Card className="h-full border-border/60 bg-card/75 backdrop-blur-md">
@@ -169,14 +173,14 @@ function QuotaCard({ summary }: QuotaCardProps) {
             </div>
             <p className="mt-3 max-w-xl text-sm text-muted-foreground">
               Paket aktif: <span className="font-semibold text-foreground">{tierLabel}</span>
-              {quota.isUnlimited
-                ? '. Akses admin dengan export tanpa batas.'
-                : `, sisa ${quota.remaining} export bulan ini.`}
+              {quota.isUnlimited ? unlimitedLabel : `, sisa ${quota.remaining} export bulan ini.`}
             </p>
             {quota.isUnlimited && (
               <div className="mt-5 grid gap-2 sm:grid-cols-3">
                 <div className="rounded-xl border border-primary/20 bg-linear-to-br from-primary/10 to-orange-500/5 px-3 py-2">
-                  <p className="text-xs font-bold text-primary">Admin</p>
+                  <p className="text-xs font-bold text-primary">
+                    {quota.tier === 'ADMIN' ? 'Admin' : tierLabel}
+                  </p>
                   <p className="mt-0.5 text-[11px] font-semibold text-muted-foreground">
                     Full access
                   </p>

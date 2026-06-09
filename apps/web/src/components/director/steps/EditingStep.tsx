@@ -900,7 +900,7 @@ export const EditingStep = () => {
 
   return (
     <div className="relative mx-auto w-full max-w-380 animate-in fade-in slide-in-from-bottom-4 duration-500 flex flex-col xl:flex-row gap-7 xl:gap-9 items-start">
-      <div className="min-w-0 flex-1 bg-card/70 rounded-4xl border border-border/50 backdrop-blur-xl p-5 sm:p-7 xl:p-8 flex flex-col gap-5 relative pb-0">
+      <div className="min-w-0 flex-1 bg-card/70 rounded-4xl border border-border/50 p-5 sm:p-7 xl:p-8 flex flex-col gap-5 relative pb-0">
         <EditingSubtitleConfig
           subtitleMode={subtitleMode}
           setSubtitleMode={setSubtitleMode}
@@ -935,7 +935,7 @@ export const EditingStep = () => {
         ) : null}
 
         <div className="pointer-events-none sticky bottom-3 z-20 mt-3 flex justify-center py-2 sm:bottom-5">
-          <div className="rounded-[1.35rem] border border-border/60 bg-background/85 p-2 shadow-2xl shadow-black/35 backdrop-blur-xl ring-1 ring-white/5">
+          <div className="rounded-[1.35rem] border border-border/60 bg-background/85 p-2 shadow-2xl shadow-black/35 ring-1 ring-white/5">
             <Button
               type="button"
               onClick={() => setStep('EXPORTING')}

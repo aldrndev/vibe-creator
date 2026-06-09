@@ -247,7 +247,7 @@ export function PromptTerminalView({ generatedPrompt }: PromptTerminalViewProps)
   }));
 
   return (
-    <div className="relative border border-border/30 bg-card/30 backdrop-blur-xl rounded-3xl overflow-hidden shadow-inner flex flex-col flex-1 min-h-[450px]">
+    <div className="relative border border-border/30 bg-card/30 rounded-3xl overflow-hidden shadow-inner flex flex-col flex-1 min-h-[450px]">
       {/* Editor Header */}
       <div className="flex items-center justify-between px-5 py-3.5 border-b border-border/20 bg-muted/5 select-none shrink-0">
         <div className="flex items-center gap-1.5">
@@ -328,7 +328,7 @@ export interface AIModelAdvisorProps {
 
 export function AIModelAdvisor({ advice }: AIModelAdvisorProps) {
   return (
-    <Card className="bg-card/40 backdrop-blur-xl border-border/50 rounded-3xl p-6 lg:p-8 space-y-6 h-full flex flex-col overflow-hidden relative">
+    <Card className="bg-card/40 border-border/50 rounded-3xl p-6 lg:p-8 space-y-6 h-full flex flex-col overflow-hidden relative">
       <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-3xl pointer-events-none" />
       <div className="space-y-2 relative z-10">
         <div className="flex items-center gap-2">

@@ -181,7 +181,7 @@ function PromptCard({
 
   return (
     <Card
-      className="group bg-card/60 backdrop-blur-xl border-border/50 hover:border-primary/50 transition-all duration-300 cursor-pointer relative overflow-hidden active:scale-[0.98] flex flex-col justify-between"
+      className="group bg-card/60 border-border/50 hover:border-primary/50 transition-all duration-300 cursor-pointer relative overflow-hidden active:scale-[0.98] flex flex-col justify-between"
       onClick={() => onClick(prompt.id)}
     >
       <CardBody className="p-6 flex flex-col h-full justify-between space-y-4">
@@ -375,7 +375,7 @@ export function PromptsPage() {
   } else {
     content = (
       <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}>
-        <Card className="bg-card/30 backdrop-blur-xl border-dashed border-2 border-border/50">
+        <Card className="bg-card/30 border-dashed border-2 border-border/50">
           <CardBody className="p-16 text-center">
             <EmptyState selectedType={selectedType} />
             <Button
@@ -480,7 +480,7 @@ export function PromptsPage() {
                   setPage(newPage);
                   window.scrollTo({ top: 0, behavior: 'auto' });
                 }}
-                className="bg-card/40 backdrop-blur-xl border border-border/50 p-1 rounded-full"
+                className="bg-card/40 border border-border/50 p-1 rounded-full"
               />
             </motion.div>
           )}

@@ -46,7 +46,7 @@ export function PromptTerminal({
   const activeSelectedId = selectedVersionId ?? versions?.[0]?.id ?? '';
 
   return (
-    <div className="relative border border-border/30 bg-card/30 backdrop-blur-xl rounded-3xl overflow-hidden shadow-inner flex flex-col flex-1 min-h-[600px]">
+    <div className="relative border border-border/30 bg-card/30 rounded-3xl overflow-hidden shadow-inner flex flex-col flex-1 min-h-[600px]">
       {/* Editor Header with integrated Tabs */}
       <div className="flex items-center justify-between px-5 py-3 border-b border-border/20 bg-muted/5 select-none shrink-0">
         <div className="flex items-center gap-6">

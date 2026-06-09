@@ -274,7 +274,7 @@ export function DashboardLayout() {
                     setSidebarOpen(false);
                     void handleLogout();
                   }}
-                  className="text-destructive focus:bg-destructive focus:text-white"
+                  className="text-rose-500 focus:bg-rose-500/10 focus:text-rose-500 [&>svg]:text-rose-500 focus:[&>svg]:text-rose-500 mt-1 mx-1 rounded-xl"
                 >
                   <LogOut size={16} />
                   <span className="font-bold">Logout</span>
@@ -357,7 +357,7 @@ export function DashboardLayout() {
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={handleLogout}
-                  className="text-destructive focus:text-white focus:bg-destructive mt-1 mx-1 rounded-xl"
+                  className="text-rose-500 focus:bg-rose-500/10 focus:text-rose-500 [&>svg]:text-rose-500 focus:[&>svg]:text-rose-500 mt-1 mx-1 rounded-xl"
                 >
                   <LogOut size={16} />
                   <span className="font-bold">Logout</span>

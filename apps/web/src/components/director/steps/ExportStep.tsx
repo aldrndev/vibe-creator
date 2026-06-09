@@ -194,7 +194,7 @@ export const ExportStep = () => {
 
   return (
     <div className="max-w-2xl mx-auto w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <Card className="bg-card/70 border-border/50 backdrop-blur-xl relative overflow-hidden group">
+      <Card className="bg-card/70 border-border/50 relative overflow-hidden group">
         <CardBody className="p-8 sm:p-12 flex flex-col items-center text-center gap-8">
           <ExportStatusPanel
             isCompleted={isCompleted}

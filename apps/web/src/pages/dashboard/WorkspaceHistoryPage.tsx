@@ -1,5 +1,5 @@
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Link, useNavigate } from '@tanstack/react-router';
+import { Link } from '@tanstack/react-router';
 import {
   Clock,
   Download,
@@ -29,7 +29,6 @@ import { useMutableSearchParams } from '@/lib/route-search';
 import { downloadAuthenticatedFile } from '@/services/api';
 import {
   deleteWorkspace,
-  duplicateWorkspace,
   getHistoryWorkspaceDisplayTitle,
   getWorkspaceContinuePath,
   getWorkspaceEditedLabel,
@@ -139,26 +138,6 @@ function isWorkspaceProject(item: WorkspaceItem): boolean {
     item.kind === 'reaction-video' ||
     item.kind === 'live-stream'
   );
-}
-
-function getDuplicatedWorkspacePath(item: WorkspaceItem, workspaceId: string): string {
-  if (item.kind === 'ai-director') {
-    return `/tools/ai-director?session=${workspaceId}`;
-  }
-
-  if (item.kind === 'loop-creator') {
-    return `/tools/loop-creator?session=${workspaceId}`;
-  }
-
-  if (item.kind === 'reaction-video') {
-    return `/tools/reaction?session=${workspaceId}`;
-  }
-
-  if (item.kind === 'live-stream') {
-    return `/tools/live-stream?session=${workspaceId}`;
-  }
-
-  return `/tools/video-studio?session=${workspaceId}`;
 }
 
 function getRelatedExportInfo(
@@ -307,26 +286,13 @@ function useAutoFetchNextPage({
   ]);
 }
 
-function useWorkspaceMutations(
-  queryClient: ReturnType<typeof useQueryClient>,
-  navigate: ReturnType<typeof useNavigate>,
-) {
-  const duplicateMutation = useMutation({
-    mutationFn: duplicateWorkspace,
-    onSuccess: async (result, item) => {
-      await queryClient.invalidateQueries({ queryKey: ['workspace-history'] });
-      if (result && typeof result === 'object' && 'id' in result && typeof result.id === 'string') {
-        navigate({ to: getDuplicatedWorkspacePath(item, result.id) });
-      }
-    },
-  });
-
+function useWorkspaceMutations(queryClient: ReturnType<typeof useQueryClient>) {
   const deleteMutation = useMutation({
     mutationFn: deleteWorkspace,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['workspace-history'] }),
   });
 
-  return { duplicateMutation, deleteMutation };
+  return { deleteMutation };
 }
 
 export function WorkspaceHistoryPage() {
@@ -345,9 +311,8 @@ export function WorkspaceHistoryPage() {
   };
 
   const queryClient = useQueryClient();
-  const navigate = useNavigate();
 
-  const { duplicateMutation, deleteMutation } = useWorkspaceMutations(queryClient, navigate);
+  const { deleteMutation } = useWorkspaceMutations(queryClient);
 
   const tool = filter === 'all' || filter === 'expired' ? undefined : filter;
   let status: 'EXPIRED' | 'ACTIVE' | undefined;
@@ -413,7 +378,6 @@ export function WorkspaceHistoryPage() {
         <HistoryAvailableList
           items={availableItems}
           groupedExports={groupedExports}
-          onDuplicate={(item) => duplicateMutation.mutate(item)}
           onDelete={(item) => deleteMutation.mutate(item)}
         />
 
@@ -446,12 +410,10 @@ export function WorkspaceHistoryPage() {
 function WorkspaceHistoryCard({
   item,
   relatedExports,
-  onDuplicate,
   onDelete,
 }: {
   readonly item: WorkspaceItem;
   readonly relatedExports: readonly WorkspaceItem[];
-  readonly onDuplicate: () => void;
   readonly onDelete: () => void;
 }) {
   const availableExport = relatedExports.find(canDownloadExport);
@@ -460,7 +422,7 @@ function WorkspaceHistoryCard({
   const downloadInfo = getRelatedExportInfo(availableExport, expiredExportCount);
   const canManageWorkspace = isWorkspaceProject(item);
   return (
-    <Card className="w-full min-w-0 overflow-hidden border-border/70 bg-card/70 transition-colors hover:border-border">
+    <Card className="group w-full min-w-0 overflow-hidden border-border/70 bg-card/70 transition-colors hover:border-border">
       <CardBody className="flex flex-row gap-3.5 p-3 sm:gap-4 sm:p-3.5 w-full min-w-0">
         <WorkspaceHistoryThumbnail item={item} />
         <div className="min-w-0 flex-1 space-y-2.5 w-full">
@@ -489,7 +451,7 @@ function WorkspaceHistoryCard({
             </span>
           </div>
 
-          <div className="flex flex-wrap gap-1.5 pt-0.5">
+          <div className="flex flex-wrap gap-1.5 pt-0.5 transition-opacity duration-200 md:opacity-0 md:group-hover:opacity-100 pointer-events-auto md:pointer-events-none md:group-hover:pointer-events-auto">
             {canManageWorkspace ? (
               <Button
                 size="sm"
@@ -515,23 +477,13 @@ function WorkspaceHistoryCard({
             ) : null}
             {canManageWorkspace ? (
               <Button
-                size="sm"
-                className="h-8 rounded-lg text-xs font-black uppercase tracking-wider border-border/50 text-muted-foreground hover:text-foreground shrink-0"
-                variant="outline"
-                onClick={onDuplicate}
-              >
-                Duplikat
-              </Button>
-            ) : null}
-            {canManageWorkspace ? (
-              <Button
-                size="sm"
-                className="h-8 rounded-lg text-xs font-black uppercase tracking-wider text-muted-foreground/70 hover:text-destructive hover:bg-destructive/10 shrink-0"
+                size="icon"
+                className="h-8 w-8 rounded-lg text-rose-500/80 hover:text-rose-500 hover:bg-rose-500/10 focus:text-rose-500 focus:bg-rose-500/10 shrink-0"
                 variant="ghost"
                 onClick={onDelete}
+                aria-label="Hapus"
               >
-                <Trash2 size={13} />
-                Hapus
+                <Trash2 size={14} />
               </Button>
             ) : null}
             {availableExport ? (
@@ -566,7 +518,7 @@ function ExpiredWorkspaceRow({
   readonly onDelete: () => void;
 }) {
   return (
-    <Card className="w-full min-w-0 overflow-hidden border-border/50 bg-card/40">
+    <Card className="group w-full min-w-0 overflow-hidden border-border/50 bg-card/40">
       <CardBody className="flex flex-row items-center justify-between gap-3 p-3 w-full min-w-0">
         <div className="flex min-w-0 items-center gap-3 w-full">
           <WorkspaceHistoryThumbnail item={item} compact disabled />
@@ -593,7 +545,7 @@ function ExpiredWorkspaceRow({
           </span>
           <Button
             size="icon"
-            className="h-8 w-8 hover:text-destructive hover:bg-destructive/10"
+            className="h-8 w-8 rounded-lg text-rose-500/80 hover:text-rose-500 hover:bg-rose-500/10 focus:text-rose-500 focus:bg-rose-500/10 transition-opacity duration-200 md:opacity-0 md:group-hover:opacity-100 pointer-events-auto md:pointer-events-none md:group-hover:pointer-events-auto"
             variant="ghost"
             aria-label="Hapus dari riwayat"
             onClick={onDelete}
@@ -661,12 +613,10 @@ function HistoryFilterSelect({
 function HistoryAvailableList({
   items,
   groupedExports,
-  onDuplicate,
   onDelete,
 }: {
   items: WorkspaceItem[];
   groupedExports: Map<string, WorkspaceItem[]>;
-  onDuplicate: (item: WorkspaceItem) => void;
   onDelete: (item: WorkspaceItem) => void;
 }) {
   if (items.length === 0) return null;
@@ -678,7 +628,6 @@ function HistoryAvailableList({
           key={`${item.kind}-${item.id}`}
           item={item}
           relatedExports={item.kind === 'export' ? [] : (groupedExports.get(item.id) ?? [])}
-          onDuplicate={() => onDuplicate(item)}
           onDelete={() => onDelete(item)}
         />
       ))}

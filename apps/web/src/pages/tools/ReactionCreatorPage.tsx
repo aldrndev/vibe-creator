@@ -168,7 +168,7 @@ export function ReactionCreatorPage() {
         </div>
 
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_390px]">
-          <Card className="overflow-hidden rounded-2xl border-border/55 bg-card shadow-sm">
+          <Card className="overflow-hidden rounded-2xl border-border/60 bg-card/70 shadow-sm">
             <div className="flex items-center gap-3 border-b border-border/45 p-5">
               <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-primary/25 bg-primary/10 text-primary">
                 <MonitorPlay size={20} />
@@ -1006,7 +1006,7 @@ function ReactionSettingsPanel({
   ];
 
   return (
-    <Card className="rounded-2xl border-border/55 bg-card p-5 lg:sticky lg:top-24">
+    <Card className="rounded-2xl border-border/60 bg-card/70 p-5 lg:sticky lg:top-24">
       <div className="mb-5 flex items-center gap-3">
         <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-primary/25 bg-primary/10 text-primary">
           <SlidersHorizontal size={18} />

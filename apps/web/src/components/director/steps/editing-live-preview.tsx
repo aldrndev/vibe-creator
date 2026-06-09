@@ -535,7 +535,7 @@ export function EditingLivePreview({
   }, [exportSettings.aspectRatio]);
 
   return (
-    <div className="mx-auto w-full max-w-2xl space-y-6 rounded-4xl border border-border/50 bg-card/70 p-5 shadow-sm backdrop-blur-xl sm:p-7 lg:p-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="mx-auto w-full max-w-2xl space-y-6 rounded-4xl border border-border/50 bg-card/70 p-5 shadow-sm sm:p-7 lg:p-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
           <div className="flex items-center justify-center h-12 w-12 shrink-0 rounded-xl border border-primary/20 bg-primary/10">

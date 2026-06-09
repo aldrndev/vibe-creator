@@ -20,9 +20,7 @@ export function LiveStreamPlatformSelector({
     <section
       className={cn(
         'overflow-hidden',
-        embedded
-          ? 'bg-transparent'
-          : 'rounded-3xl border border-border/50 bg-card/70 backdrop-blur-xl',
+        embedded ? 'bg-transparent' : 'rounded-3xl border border-border/50 bg-card/70',
       )}
     >
       <div
@@ -52,7 +50,7 @@ export function LiveStreamPlatformSelector({
                   'group relative flex h-28 w-full flex-col items-center justify-center gap-3 overflow-hidden rounded-2xl border p-3 transition-all duration-300 active:scale-95',
                   isActive
                     ? 'border-primary/35 bg-muted/25'
-                    : 'bg-card/20 backdrop-blur-xl border-border/50 hover:border-primary/30 hover:bg-muted/20',
+                    : 'bg-card/20 border-border/50 hover:border-primary/30 hover:bg-muted/20',
                   isStreaming && !isActive ? 'opacity-40 grayscale' : '',
                 )}
               >

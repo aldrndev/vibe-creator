@@ -35,7 +35,7 @@ export function ImageForm({ data, onChange, errors }: ImageFormProps) {
   };
 
   return (
-    <Card className="bg-card/60 backdrop-blur-xl border-border/50 shadow-2xl shadow-primary/5">
+    <Card className="bg-card/60 border-border/50">
       <CardBody className="p-8 space-y-10">
         {/* Section: Objective */}
         <div className="space-y-6">

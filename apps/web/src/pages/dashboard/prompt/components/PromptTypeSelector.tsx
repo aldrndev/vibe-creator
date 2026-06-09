@@ -11,7 +11,7 @@ interface PromptTypeSelectorProps {
 
 export function PromptTypeSelector({ selectedType, onSelect }: PromptTypeSelectorProps) {
   return (
-    <Card className="bg-card/70 backdrop-blur-xl border-border/50">
+    <Card className="bg-card/70 border-border/50">
       <CardBody className="p-6 space-y-4">
         <div className="flex flex-col gap-1">
           <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">

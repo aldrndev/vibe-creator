@@ -498,7 +498,7 @@ export function PromptBuilderPage() {
                 >
                   <ScrollToTop />
                   {/* Title Card Overlayed slightly */}
-                  <Card className="bg-card/70 backdrop-blur-xl border-border/50">
+                  <Card className="bg-card/70 border-border/50">
                     <CardBody className="p-8 space-y-6">
                       <div className="flex items-center justify-between">
                         <div className="space-y-1">

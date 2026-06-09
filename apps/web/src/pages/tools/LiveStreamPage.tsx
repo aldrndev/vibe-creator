@@ -77,7 +77,7 @@ export function LiveStreamPage() {
         <div className="grid grid-cols-12 gap-4 lg:gap-10">
           {/* Main Content Area */}
           <div className="col-span-12 lg:col-span-7 xl:col-span-8">
-            <section className="overflow-hidden rounded-xl border border-border/50 bg-card/70 backdrop-blur-xl">
+            <section className="overflow-hidden rounded-xl border border-border/50 bg-card/70">
               <LiveStreamPlatformSelector
                 platform={platform}
                 setPlatform={setPlatform}

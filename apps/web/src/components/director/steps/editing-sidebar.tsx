@@ -127,7 +127,7 @@ export function EditingSidebar({
 
   return (
     <div className="w-full lg:w-[24rem] xl:w-104 shrink-0 self-start pb-6 lg:pb-8">
-      <Card className="bg-card/70 border-border/50 backdrop-blur-xl rounded-4xl overflow-hidden">
+      <Card className="bg-card/70 border-border/50 rounded-4xl overflow-hidden">
         <CardBody className="p-4 sm:p-5">
           <Tabs defaultValue="subtitle" className="w-full">
             <TabsList className="h-11 w-full rounded-2xl bg-muted/30 border border-border/40 p-1">

@@ -1117,7 +1117,7 @@ export const ImportStep = (props: ImportStepProps) => {
 
   return (
     <div className="max-w-5xl mx-auto w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <Card className="bg-card/70 border-border/50 backdrop-blur-xl relative overflow-hidden group mb-10">
+      <Card className="bg-card/70 border-border/50 relative overflow-hidden group mb-10">
         <PreparingAnalysisOverlay
           isPreparingAnalysis={isPreparingAnalysis}
           hasTrendingContext={!!trendingImportContext}

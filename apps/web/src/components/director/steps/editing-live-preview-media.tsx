@@ -70,7 +70,7 @@ export function LivePreviewMedia({
             className={cn('absolute inset-0 h-full w-full object-contain opacity-40', mediaClass)}
           />
         ) : null}
-        <div className="relative rounded-3xl border border-white/10 bg-black/60 p-6 text-center backdrop-blur-xl max-w-xs w-full shadow-2xl flex flex-col items-center gap-3">
+        <div className="relative rounded-3xl border border-white/10 bg-black/60 p-6 text-center max-w-xs w-full shadow-2xl flex flex-col items-center gap-3">
           <div className="relative flex items-center justify-center h-14 w-14 rounded-2xl border border-primary/30 bg-primary/10 shadow-[0_0_20px_rgba(249,115,22,0.15)]">
             <Loader2 size={24} className="animate-spin text-primary" />
           </div>
@@ -108,7 +108,7 @@ export function LivePreviewMedia({
             className={cn('absolute inset-0 h-full w-full object-contain opacity-30', mediaClass)}
           />
         ) : null}
-        <div className="relative rounded-3xl border border-destructive/20 bg-black/65 p-6 backdrop-blur-xl shadow-2xl max-w-xs w-full flex flex-col items-center gap-3.5">
+        <div className="relative rounded-3xl border border-destructive/20 bg-black/65 p-6 shadow-2xl max-w-xs w-full flex flex-col items-center gap-3.5">
           <div className="relative flex items-center justify-center h-12 w-12 rounded-2xl border border-rose-500/25 bg-rose-500/10 text-rose-400">
             <X size={20} strokeWidth={2.5} />
           </div>
@@ -132,7 +132,7 @@ export function LivePreviewMedia({
           className={cn('absolute inset-0 h-full w-full object-contain opacity-40', mediaClass)}
         />
       ) : null}
-      <div className="relative rounded-3xl border border-white/10 bg-black/60 p-6 backdrop-blur-xl shadow-2xl max-w-xs w-full flex flex-col items-center gap-3">
+      <div className="relative rounded-3xl border border-white/10 bg-black/60 p-6 shadow-2xl max-w-xs w-full flex flex-col items-center gap-3">
         <div className="relative flex items-center justify-center h-12 w-12 rounded-2xl border border-white/10 bg-white/5">
           <Loader2 size={20} className="animate-spin text-white/40" />
         </div>

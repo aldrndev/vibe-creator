@@ -48,7 +48,7 @@ export function LiveStreamPreview({
       className={
         embedded
           ? 'overflow-hidden border-border/40 bg-black/30 group/container'
-          : 'bg-card/70 backdrop-blur-xl border-border/50 overflow-hidden group/container'
+          : 'bg-card/70 border-border/50 overflow-hidden group/container'
       }
     >
       <CardBody className="p-0">
@@ -76,7 +76,7 @@ export function LiveStreamPreview({
             </div>
 
             {sourceMetadata && (
-              <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+              <div className="mt-4 rounded-2xl border border-white/10 bg-white/3 p-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">
                     <div className="truncate text-sm font-black text-foreground">
