@@ -1,6 +1,18 @@
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from '@tanstack/react-router';
-import { Download, FolderClock, History, RotateCcw, Trash2 } from 'lucide-react';
+import {
+  Clock,
+  Download,
+  FolderClock,
+  History,
+  Radio,
+  Repeat2,
+  RotateCcw,
+  Sparkles,
+  Trash2,
+  Video,
+  Wand2,
+} from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import {
   Badge,
@@ -11,7 +23,6 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from '@/components/ui';
 import { WorkspaceHistoryThumbnail } from '@/components/workspace/workspace-history-thumbnail';
 import { useMutableSearchParams } from '@/lib/route-search';
@@ -31,17 +42,21 @@ import {
 
 type HistoryFilter = 'all' | WorkspaceTool | 'expired';
 
-const allHistoryFilter = { value: 'all', label: 'Semua' } as const;
+const allHistoryFilter = { value: 'all', label: 'Semua', icon: History } as const;
 
-const filters: Array<{ value: HistoryFilter; label: string }> = [
+const filters: Array<{
+  value: HistoryFilter;
+  label: string;
+  icon: React.ComponentType<{ size?: number; className?: string }>;
+}> = [
   allHistoryFilter,
-  { value: 'ai-director', label: 'AI Director' },
-  { value: 'video-studio', label: 'Video Studio' },
-  { value: 'loop-creator', label: 'Loop Creator' },
-  { value: 'reaction-video', label: 'Reaction' },
-  { value: 'live-stream', label: 'Live Stream' },
-  { value: 'exports', label: 'Export' },
-  { value: 'expired', label: 'Berakhir' },
+  { value: 'ai-director', label: 'AI Director', icon: Sparkles },
+  { value: 'video-studio', label: 'Video Studio', icon: Wand2 },
+  { value: 'loop-creator', label: 'Loop Creator', icon: Repeat2 },
+  { value: 'reaction-video', label: 'Reaction', icon: Video },
+  { value: 'live-stream', label: 'Live Stream', icon: Radio },
+  { value: 'exports', label: 'Export', icon: Download },
+  { value: 'expired', label: 'Berakhir', icon: Clock },
 ];
 
 function isHistoryFilter(value: string): value is HistoryFilter {
@@ -611,13 +626,30 @@ function HistoryFilterSelect({
           }
         }}
       >
-        <SelectTrigger className="h-11 rounded-xl border-border/70 bg-card/70 font-semibold">
-          <SelectValue placeholder={selectedFilter.label} />
+        <SelectTrigger className="h-11 rounded-xl border-border/70 bg-card/70 font-semibold px-4">
+          <div className="flex items-center gap-2">
+            {(() => {
+              const currentFilter = filters.find((f) => f.value === selectedFilter.value);
+              if (currentFilter) {
+                const Icon = currentFilter.icon;
+                return (
+                  <>
+                    <Icon size={14} className="text-primary" />
+                    <span>{currentFilter.label}</span>
+                  </>
+                );
+              }
+              return selectedFilter.label;
+            })()}
+          </div>
         </SelectTrigger>
         <SelectContent>
           {filters.map((item) => (
             <SelectItem key={item.value} value={item.value}>
-              {item.label}
+              <span className="flex items-center gap-2 font-medium">
+                <item.icon size={14} className="text-muted-foreground" />
+                {item.label}
+              </span>
             </SelectItem>
           ))}
         </SelectContent>

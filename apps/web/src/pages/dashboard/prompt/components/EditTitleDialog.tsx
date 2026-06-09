@@ -1,6 +1,14 @@
 import type React from 'react';
 import { useEffect, useState } from 'react';
-import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Input } from '@/components/ui';
+import {
+  Button,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Input,
+} from '@/components/ui';
 
 export interface EditTitleDialogProps {
   isOpen: boolean;

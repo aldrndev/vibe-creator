@@ -1,5 +1,5 @@
-import { useState } from 'react';
 import { Check, ChevronDown, Copy } from 'lucide-react';
+import { useState } from 'react';
 import { Button } from '@/components/ui';
 import type { PromptVersion } from '@/hooks/use-prompts';
 import { cn } from '@/lib/utils';
@@ -26,9 +26,7 @@ export function PromptTerminal({
 
   const handleCopy = async () => {
     const textToCopy =
-      activeTab === 'prompt'
-        ? generatedPrompt
-        : JSON.stringify(inputData, null, 2);
+      activeTab === 'prompt' ? generatedPrompt : JSON.stringify(inputData, null, 2);
 
     try {
       await navigator.clipboard.writeText(textToCopy);
@@ -62,7 +60,9 @@ export function PromptTerminal({
           {/* Version Dropdown Selector */}
           {versions && versions.length > 0 && onSelectVersion && (
             <div className="flex items-center gap-2 border-l border-border/20 pl-4">
-              <span className="text-[9px] font-black tracking-widest text-muted-foreground uppercase">Ver:</span>
+              <span className="text-[9px] font-black tracking-widest text-muted-foreground uppercase">
+                Ver:
+              </span>
               <div className="relative flex items-center">
                 <select
                   value={activeSelectedId}
@@ -70,12 +70,19 @@ export function PromptTerminal({
                   className="appearance-none bg-muted/10 border border-border/40 hover:border-border/60 rounded-xl text-[10px] font-black uppercase tracking-wider text-foreground pr-8 pl-3 py-1.5 focus:outline-none focus:border-primary/80 focus:ring-1 focus:ring-primary/20 cursor-pointer transition-all duration-200"
                 >
                   {versions.map((v) => (
-                    <option key={v.id} value={v.id} className="bg-card text-foreground py-2 font-medium">
+                    <option
+                      key={v.id}
+                      value={v.id}
+                      className="bg-card text-foreground py-2 font-medium"
+                    >
                       Versi {v.version} {v.id === currentVersionId ? '(Aktif)' : ''}
                     </option>
                   ))}
                 </select>
-                <ChevronDown size={12} className="absolute right-2.5 text-muted-foreground pointer-events-none stroke-[2.5]" />
+                <ChevronDown
+                  size={12}
+                  className="absolute right-2.5 text-muted-foreground pointer-events-none stroke-[2.5]"
+                />
               </div>
             </div>
           )}

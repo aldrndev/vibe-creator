@@ -125,10 +125,16 @@ export function PromptBuilderPage() {
             break;
           }
           case 'VOICE':
-            setVoiceForm((prev) => ({ ...prev, ...inputData as unknown as Partial<VoiceFormData> }));
+            setVoiceForm((prev) => ({
+              ...prev,
+              ...(inputData as unknown as Partial<VoiceFormData>),
+            }));
             break;
           case 'VIDEO_GEN':
-            setVideoGenForm((prev) => ({ ...prev, ...inputData as unknown as Partial<VideoGenFormData> }));
+            setVideoGenForm((prev) => ({
+              ...prev,
+              ...(inputData as unknown as Partial<VideoGenFormData>),
+            }));
             break;
           case 'IMAGE': {
             const imageData = inputData as unknown as Partial<ImageFormData>;
@@ -150,10 +156,16 @@ export function PromptBuilderPage() {
             break;
           }
           case 'CREATIVE_SCAN':
-            setCreativeScanForm((prev) => ({ ...prev, ...inputData as unknown as Partial<CreativeScanFormData> }));
+            setCreativeScanForm((prev) => ({
+              ...prev,
+              ...(inputData as unknown as Partial<CreativeScanFormData>),
+            }));
             break;
           case 'TALKING_HEAD':
-            setTalkingHeadForm((prev) => ({ ...prev, ...inputData as unknown as Partial<TalkingHeadFormData> }));
+            setTalkingHeadForm((prev) => ({
+              ...prev,
+              ...(inputData as unknown as Partial<TalkingHeadFormData>),
+            }));
             break;
           case 'SOCIAL_COPY': {
             const socialCopyData = inputData as unknown as Partial<SocialCopyFormData>;

@@ -1,5 +1,5 @@
 import type { DashboardTool } from '@vibe-creator/shared';
-import { Download, Film, Sparkles } from 'lucide-react';
+import { Download, Radio, Repeat, Sparkles, Video, Wand2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { authFetch } from '@/services/api';
@@ -12,8 +12,12 @@ interface DashboardThumbnailProps {
 
 function getFallbackIcon(tool: DashboardThumbnailProps['tool']) {
   if (tool === 'ai-director') return <Sparkles size={18} />;
+  if (tool === 'video-studio') return <Wand2 size={18} />;
+  if (tool === 'loop-creator') return <Repeat size={18} />;
+  if (tool === 'reaction-video') return <Video size={18} />;
+  if (tool === 'live-stream') return <Radio size={18} />;
   if (tool === 'export') return <Download size={18} />;
-  return <Film size={18} />;
+  return <Wand2 size={18} />;
 }
 
 export function DashboardThumbnail({ thumbnailUrl, tool, className }: DashboardThumbnailProps) {

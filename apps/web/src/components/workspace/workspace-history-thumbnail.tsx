@@ -1,4 +1,4 @@
-import { Download, Film, Repeat2, Sparkles } from 'lucide-react';
+import { Download, Radio, Repeat2, Sparkles, Video, Wand2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { authFetch } from '@/services/api';
@@ -16,9 +16,12 @@ interface ToolFallbackIconProps {
 
 function ToolFallbackIcon({ item }: ToolFallbackIconProps) {
   if (item.kind === 'ai-director') return <Sparkles size={22} />;
+  if (item.kind === 'video-studio') return <Wand2 size={22} />;
   if (item.kind === 'loop-creator') return <Repeat2 size={22} />;
+  if (item.kind === 'reaction-video') return <Video size={22} />;
+  if (item.kind === 'live-stream') return <Radio size={22} />;
   if (item.kind === 'export') return <Download size={22} />;
-  return <Film size={22} />;
+  return <Wand2 size={22} />;
 }
 
 /**

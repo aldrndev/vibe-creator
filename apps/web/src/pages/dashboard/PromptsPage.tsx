@@ -437,7 +437,7 @@ export function PromptsPage() {
                       const Icon = currentType.icon;
                       return (
                         <>
-                          <Icon size={14} className="text-primary animate-pulse" />
+                          <Icon size={14} className="text-primary" />
                           <span>{currentType.label}</span>
                         </>
                       );

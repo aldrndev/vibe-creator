@@ -1,6 +1,7 @@
 import {
   Camera,
   Check,
+  ChevronRight,
   Download,
   Loader2,
   MonitorPlay,
@@ -323,35 +324,45 @@ function ReactionStepGuide({
   ] as const;
 
   return (
-    <div className="mx-auto grid w-full max-w-3xl grid-cols-3 gap-1.5 rounded-2xl p-1.5 sm:flex sm:items-center sm:px-3 sm:py-2.5">
-      {steps.map((step, index) => {
+    <div className="flex items-center gap-2 bg-muted/10 p-1.5 rounded-2xl border border-border/50 backdrop-blur-md">
+      {steps.map((step, idx) => {
         const isActive = step.id === activeStep;
         const isDone = step.id < activeStep;
+
         return (
-          <div className="contents" key={step.id}>
+          <div key={step.id} className="flex items-center">
             <div
               className={cn(
-                'flex min-w-0 items-center justify-center gap-2 rounded-xl px-2 py-2 sm:shrink-0 sm:justify-start sm:px-2 sm:py-1.5',
-                isActive ? 'text-foreground' : 'text-muted-foreground',
-                isActive && 'bg-primary/10 sm:bg-transparent',
+                'flex items-center gap-2 px-4 py-2 rounded-xl transition-all duration-300',
+                isActive
+                  ? 'bg-primary text-white'
+                  : (() => {
+                      if (isDone) return 'text-primary';
+                      return 'text-muted-foreground opacity-50';
+                    })(),
               )}
             >
-              <span
+              <div
                 className={cn(
-                  'flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-black',
-                  isDone || isActive ? 'bg-primary text-primary-foreground' : 'bg-muted',
+                  'w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black border shrink-0',
+                  isActive
+                    ? 'bg-white text-primary border-white'
+                    : (() => {
+                        if (isDone) return 'bg-primary/10 border-primary';
+                        return 'bg-muted/20 border-border';
+                      })(),
                 )}
               >
-                {isDone ? <Check size={14} /> : step.id}
-              </span>
-              <span className="min-w-0 truncate text-xs font-black sm:text-sm">
+                {isDone ? <Check size={12} strokeWidth={3} /> : step.id}
+              </div>
+              <span className="text-[10px] font-black uppercase tracking-widest">
                 <span className="sm:hidden">{step.shortTitle}</span>
                 <span className="hidden sm:inline">{step.title}</span>
               </span>
             </div>
-            {index < steps.length - 1 ? (
-              <span className="mx-2 hidden h-px min-w-8 flex-1 bg-border/60 sm:block" />
-            ) : null}
+            {idx < steps.length - 1 && (
+              <ChevronRight size={14} className="mx-1 text-muted-foreground/30" />
+            )}
           </div>
         );
       })}

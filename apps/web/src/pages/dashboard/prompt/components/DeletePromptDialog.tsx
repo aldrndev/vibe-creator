@@ -29,7 +29,8 @@ export function DeletePromptDialog({
             Hapus Prompt?
           </h2>
           <p className="text-muted-foreground font-medium text-xs leading-relaxed max-w-[320px] mx-auto">
-            Apakah Anda yakin ingin menghapus prompt ini? Tindakan ini bersifat permanen, tidak dapat dibatalkan, dan seluruh riwayat versi akan terhapus selamanya.
+            Apakah Anda yakin ingin menghapus prompt ini? Tindakan ini bersifat permanen, tidak
+            dapat dibatalkan, dan seluruh riwayat versi akan terhapus selamanya.
           </p>
         </div>
 

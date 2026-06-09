@@ -1,19 +1,16 @@
 import { useNavigate, useParams } from '@tanstack/react-router';
 import { useState } from 'react';
 import { PageTransition } from '@/components/ui/PageTransition';
-import {
-  useDeletePrompt,
-  usePrompt,
-} from '@/hooks/use-prompts';
+import { useDeletePrompt, usePrompt } from '@/hooks/use-prompts';
+import { DeletePromptDialog } from './prompt/components/DeletePromptDialog';
+import { PromptDetailHeader } from './prompt/components/PromptDetailHeader';
+import { PromptErrorState } from './prompt/components/PromptErrorState';
+import { PromptLoadingState } from './prompt/components/PromptLoadingState';
 import {
   ADVICE_BY_TYPE,
   AIModelAdvisor,
   DEFAULT_ADVICE,
 } from './prompt/components/PromptResultDisplay';
-import { DeletePromptDialog } from './prompt/components/DeletePromptDialog';
-import { PromptDetailHeader } from './prompt/components/PromptDetailHeader';
-import { PromptErrorState } from './prompt/components/PromptErrorState';
-import { PromptLoadingState } from './prompt/components/PromptLoadingState';
 import { PromptTerminal } from './prompt/components/PromptTerminal';
 
 export function PromptDetailPage() {

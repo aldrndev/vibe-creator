@@ -2,7 +2,6 @@ import {
   FolderClock,
   LayoutDashboard,
   type LucideIcon,
-  MessageSquareReply,
   Radio,
   Repeat,
   Settings,
@@ -46,7 +45,7 @@ export const dashboardToolNavigation: ReadonlyArray<DashboardNavigationLink> = [
   {
     name: 'Reaction Video',
     href: '/tools/reaction',
-    icon: MessageSquareReply,
+    icon: Video,
   },
   { name: 'Live Streaming', href: '/tools/live-stream-history', icon: Radio },
 ];

@@ -1,6 +1,6 @@
+import { Clock } from 'lucide-react';
 import type { PromptVersion } from '@/hooks/use-prompts';
 import { cn } from '@/lib/utils';
-import { Clock } from 'lucide-react';
 
 export interface VersionTimelineProps {
   versions: PromptVersion[];
