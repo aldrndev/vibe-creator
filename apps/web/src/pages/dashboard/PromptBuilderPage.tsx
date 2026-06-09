@@ -51,6 +51,10 @@ const STEPS: Array<{ key: Step; label: string }> = [
 
 function ScrollToTop() {
   useEffect(() => {
+    const scrollRoot = document.querySelector('[data-scroll-root="true"]');
+    if (scrollRoot) {
+      scrollRoot.scrollTo({ top: 0, behavior: 'auto' });
+    }
     window.scrollTo({ top: 0, behavior: 'auto' });
   }, []);
   return null;
@@ -187,6 +191,13 @@ export function PromptBuilderPage() {
     setCurrentStep(step);
     setValidationErrors({});
     setGlobalError(null);
+
+    // Auto scroll to top instantly
+    const scrollRoot = document.querySelector('[data-scroll-root="true"]');
+    if (scrollRoot) {
+      scrollRoot.scrollTo({ top: 0, behavior: 'auto' });
+    }
+    window.scrollTo({ top: 0, behavior: 'auto' });
   }, []);
 
   // Auto-advance to form after category selection
@@ -303,7 +314,12 @@ export function PromptBuilderPage() {
     if (Object.keys(errors).length > 0) {
       setValidationErrors(errors);
       setGlobalError('Mohon lengkapi seluruh kolom wajib (bertanda *) sebelum membuat prompt.');
-      window.scrollTo({ top: 200, behavior: 'smooth' });
+      const scrollRoot = document.querySelector('[data-scroll-root="true"]');
+      if (scrollRoot) {
+        scrollRoot.scrollTo({ top: 0, behavior: 'smooth' });
+      } else {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
       return;
     }
 
