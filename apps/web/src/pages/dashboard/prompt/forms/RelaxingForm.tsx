@@ -8,12 +8,14 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Switch,
 } from '@/components/ui';
 import { SelectionGrid } from '@/components/ui/SelectionGrid';
-import { TargetModelSelector } from '../components/TargetModelSelector';
+import { cn } from '@/lib/utils';
 import {
   environments,
   primarySounds,
+  relaxingBpms,
   relaxingDurations,
   relaxingMoods,
   secondarySounds,
@@ -21,12 +23,19 @@ import {
 } from '../constants';
 import type { RelaxingFormData } from '../types';
 
+const intensityOptions = [
+  { key: 'subtle', label: 'Subtle / Lembut' },
+  { key: 'moderate', label: 'Moderate / Sedang' },
+  { key: 'immersive', label: 'Immersive / Mendalam' },
+];
+
 interface RelaxingFormProps {
   data: RelaxingFormData;
   onChange: (data: RelaxingFormData) => void;
+  errors?: Record<string, boolean>;
 }
 
-export function RelaxingForm({ data, onChange }: RelaxingFormProps) {
+export function RelaxingForm({ data, onChange, errors }: RelaxingFormProps) {
   const handleChange = (
     key: keyof RelaxingFormData,
     value: RelaxingFormData[keyof RelaxingFormData],
@@ -35,14 +44,8 @@ export function RelaxingForm({ data, onChange }: RelaxingFormProps) {
   };
 
   return (
-    <Card className="bg-card/60 backdrop-blur-xl border-border/50 shadow-2xl shadow-primary/5">
+    <Card className="bg-card/60 border-border/50">
       <CardBody className="p-8 space-y-10">
-        <TargetModelSelector
-          promptType="RELAXING"
-          value={data.targetModel}
-          onChange={(v) => handleChange('targetModel', v)}
-        />
-
         {/* Section: Audio Environment */}
         <div className="space-y-6">
           <div className="flex items-center gap-3">
@@ -74,12 +77,38 @@ export function RelaxingForm({ data, onChange }: RelaxingFormProps) {
             </Select>
           </div>
 
+          {data.environment === 'custom' && (
+            <div className="space-y-3 pt-2">
+              <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+                Nama Lingkungan Kustom <span className="text-rose-500 font-black">*</span>
+              </div>
+              <Input
+                placeholder="Contoh: Perpustakaan tua saat badai salju"
+                value={data.customEnvironment}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                  handleChange('customEnvironment', e.target.value)
+                }
+                className={cn(
+                  'h-14 rounded-2xl bg-muted/10 border-border/50 font-bold px-6 text-sm focus:bg-muted/20 transition-all',
+                  errors?.customEnvironment && 'border-rose-500/80 focus:border-rose-500',
+                )}
+              />
+              {errors?.customEnvironment && (
+                <div className="text-rose-500 text-[10px] font-bold mt-1.5 ml-1 animate-in fade-in slide-in-from-top-1 duration-200">
+                  * Kolom ini wajib diisi
+                </div>
+              )}
+            </div>
+          )}
+
           <SelectionGrid
             label="Suara Utama (Primary)"
             options={primarySounds}
             value={data.primarySound}
             onChange={(v) => handleChange('primarySound', v)}
-            columns={3}
+            columns={4}
+            required
+            error={errors?.primarySound}
           />
 
           <SelectionGrid
@@ -87,7 +116,7 @@ export function RelaxingForm({ data, onChange }: RelaxingFormProps) {
             options={secondarySounds}
             value={data.secondarySounds}
             onChange={(v) => handleChange('secondarySounds', v)}
-            columns={3}
+            columns={4}
           />
         </div>
 
@@ -155,6 +184,67 @@ export function RelaxingForm({ data, onChange }: RelaxingFormProps) {
             onChange={(v) => handleChange('visualStyle', v)}
             columns={3}
           />
+
+          <SelectionGrid
+            label="Intensitas Suara (Intensity)"
+            options={intensityOptions}
+            value={data.intensity}
+            onChange={(v) => handleChange('intensity', v)}
+            columns={3}
+          />
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-4">
+            <div className="space-y-3">
+              <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+                Tempo (BPM)
+              </div>
+              <Select value={data.bpm} onValueChange={(v) => handleChange('bpm', v)}>
+                <SelectTrigger className="h-14 rounded-2xl bg-muted/10 border-border/50 font-bold px-5 text-sm">
+                  <SelectValue placeholder="Pilih Tempo" />
+                </SelectTrigger>
+                <SelectContent className="rounded-2xl border-border/50">
+                  {relaxingBpms.map((b) => (
+                    <SelectItem
+                      key={b.key}
+                      value={b.key}
+                      className="font-bold text-xs uppercase tracking-widest py-3"
+                    >
+                      {b.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-3">
+              <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+                Instrumen Pendukung (opsional)
+              </div>
+              <Input
+                placeholder="Contoh: Piano Akustik, Gitar Klasik, Synth Pad..."
+                value={data.instrumentation}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                  handleChange('instrumentation', e.target.value)
+                }
+                className="h-14 rounded-2xl bg-muted/10 border-border/50 font-bold px-6 focus:bg-muted/20 transition-all"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between bg-muted/10 border border-border/50 rounded-2xl p-5">
+            <div className="space-y-1 flex-1 pr-4">
+              <div className="text-[11px] font-black uppercase tracking-wider text-foreground">
+                Seamless Loop
+              </div>
+              <div className="text-[10px] font-medium text-muted-foreground">
+                Pastikan audio dapat di-loop terus-menerus tanpa jeda terputus.
+              </div>
+            </div>
+            <Switch
+              checked={data.loopSeamless}
+              onCheckedChange={(v) => handleChange('loopSeamless', v)}
+            />
+          </div>
 
           <div className="space-y-3 pt-4">
             <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">

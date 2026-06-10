@@ -1,5 +1,5 @@
 import type { DashboardTool } from '@vibe-creator/shared';
-import { Download, Film, Sparkles } from 'lucide-react';
+import { Download, Radio, Repeat, Sparkles, Video, Wand2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { authFetch } from '@/services/api';
@@ -12,8 +12,12 @@ interface DashboardThumbnailProps {
 
 function getFallbackIcon(tool: DashboardThumbnailProps['tool']) {
   if (tool === 'ai-director') return <Sparkles size={18} />;
+  if (tool === 'video-studio') return <Wand2 size={18} />;
+  if (tool === 'loop-creator') return <Repeat size={18} />;
+  if (tool === 'reaction-video') return <Video size={18} />;
+  if (tool === 'live-stream') return <Radio size={18} />;
   if (tool === 'export') return <Download size={18} />;
-  return <Film size={18} />;
+  return <Wand2 size={18} />;
 }
 
 export function DashboardThumbnail({ thumbnailUrl, tool, className }: DashboardThumbnailProps) {
@@ -55,12 +59,25 @@ export function DashboardThumbnail({ thumbnailUrl, tool, className }: DashboardT
   return (
     <div
       className={cn(
-        'relative shrink-0 overflow-hidden rounded-lg border border-border/60 bg-muted/20',
+        'relative shrink-0 overflow-hidden rounded-lg border border-border/60 bg-black/40',
         className,
       )}
     >
       {objectUrl ? (
-        <img src={objectUrl} alt="" className="h-full w-full object-cover" aria-hidden="true" />
+        <>
+          <img
+            src={objectUrl}
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover blur-md opacity-40"
+            aria-hidden="true"
+          />
+          <img
+            src={objectUrl}
+            alt=""
+            className="relative h-full w-full object-contain"
+            aria-hidden="true"
+          />
+        </>
       ) : (
         <div className="flex h-full w-full items-center justify-center text-muted-foreground">
           {getFallbackIcon(tool)}

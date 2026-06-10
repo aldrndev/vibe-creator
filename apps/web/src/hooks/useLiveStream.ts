@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { z } from 'zod';
 import { logger } from '@/lib/logger';
+import { authFetch } from '@/services/api';
 import {
   createDefaultLiveStreamDocument,
   createLiveStreamProject,
@@ -264,12 +265,20 @@ export function useLiveStream(options: UseLiveStreamOptions = {}) {
         clearInterval(statusIntervalRef.current);
       }
       setQuota(await getStreamQuota().catch(() => null));
+
+      if (projectId) {
+        await authFetch(`/api/v1/workspaces/live-stream/${projectId}/complete`, {
+          method: 'POST',
+        }).catch((err) => {
+          logger.warn('Failed to mark live stream workspace as completed', err);
+        });
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Gagal menghentikan live stream.';
       setErrorMessage(message);
       logger.error('Stream stop failed', error);
     }
-  }, [streamId]);
+  }, [streamId, projectId]);
 
   const metadata = sourceInfo?.source ?? undefined;
   const durationSeconds = metadataNumberSchema.safeParse(metadata?.durationMs).success

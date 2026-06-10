@@ -105,7 +105,7 @@ export function AdminPage() {
     admin.deleteAnnouncementMutation.isPending;
 
   return (
-    <div className="mx-auto w-full max-w-375 space-y-8 px-2 pb-[calc(4.75rem+env(safe-area-inset-bottom))] pt-4 sm:px-4 lg:pb-0">
+    <div className="mx-auto w-full max-w-375 space-y-8 px-2 pb-6 pt-4 sm:px-4 lg:pb-0">
       <AdminHeader />
 
       <Tabs defaultValue="overview" className="space-y-6">

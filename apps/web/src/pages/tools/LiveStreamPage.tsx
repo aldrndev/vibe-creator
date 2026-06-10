@@ -11,7 +11,7 @@ import { useLiveStream } from '@/hooks/useLiveStream';
 import { useMutableSearchParams } from '@/lib/route-search';
 
 export function LiveStreamPage() {
-  const [searchParams] = useMutableSearchParams();
+  const [searchParams, setSearchParams] = useMutableSearchParams();
   const sessionId = searchParams.get('session');
   const [showContinueDialog, setShowContinueDialog] = useState(!sessionId);
   const {
@@ -39,6 +39,7 @@ export function LiveStreamPage() {
     showTopup,
     setShowTopup,
     errorMessage,
+    isHydrating,
 
     // Actions
     handleFileSelect,
@@ -60,6 +61,14 @@ export function LiveStreamPage() {
     }
   }, [sessionId]);
 
+  useEffect(() => {
+    if (sessionId && errorMessage && !isHydrating) {
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.delete('session');
+      setSearchParams(nextParams, { replace: true });
+    }
+  }, [sessionId, errorMessage, isHydrating, searchParams, setSearchParams]);
+
   return (
     <PageTransition className="min-h-screen bg-background px-4 pt-6 pb-8 md:px-8 lg:pb-0">
       <div className="max-w-[1400px] mx-auto space-y-6 lg:space-y-8">
@@ -68,7 +77,7 @@ export function LiveStreamPage() {
         <div className="grid grid-cols-12 gap-4 lg:gap-10">
           {/* Main Content Area */}
           <div className="col-span-12 lg:col-span-7 xl:col-span-8">
-            <section className="overflow-hidden rounded-xl border border-border/50 bg-card/70 backdrop-blur-xl">
+            <section className="overflow-hidden rounded-xl border border-border/50 bg-card/70">
               <LiveStreamPlatformSelector
                 platform={platform}
                 setPlatform={setPlatform}

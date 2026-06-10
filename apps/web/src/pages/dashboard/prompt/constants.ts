@@ -1,4 +1,4 @@
-import { Image, Mic, Music, Scan, Sparkles, Timer, Video } from 'lucide-react';
+import { FileText, Image, Mic, Music, Scan, Sparkles, User, Video } from 'lucide-react';
 
 export const promptTypes = [
   {
@@ -32,16 +32,22 @@ export const promptTypes = [
     icon: Music,
   },
   {
+    key: 'TALKING_HEAD',
+    label: 'Talking Head / Avatar',
+    description: 'Generate presenter virtual (HeyGen/Synthesia)',
+    icon: User,
+  },
+  {
+    key: 'SOCIAL_COPY',
+    label: 'Social Copy / Caption',
+    description: 'Generate caption medsos dan hashtag viral',
+    icon: FileText,
+  },
+  {
     key: 'CREATIVE_SCAN',
     label: 'Creative Scan',
     description: 'Analisis video kompetitor',
     icon: Scan,
-  },
-  {
-    key: 'TIMELAPSE',
-    label: 'Timelapse / Sora AI',
-    description: 'Generate prompt untuk video timelapse AI',
-    icon: Timer,
   },
 ];
 
@@ -204,6 +210,44 @@ export const pauseOptions = [
 export const languages = [
   { key: 'id', label: 'Bahasa Indonesia' },
   { key: 'en', label: 'English' },
+  { key: 'id-en', label: 'Indonesian-English Bilingual' },
+  { key: 'local', label: 'Bahasa Daerah' },
+];
+
+export const hookStyles = [
+  { key: 'question', label: 'Question Hook / Pertanyaan Penasaran' },
+  { key: 'shocking-fact', label: 'Shocking Fact / Fakta Mengejutkan' },
+  { key: 'visual-intro', label: 'Visual Intro / Deskripsi Visual Detik Pertama' },
+  { key: 'contradiction', label: 'Contradiction / Pernyataan Kontradiktif' },
+  { key: 'storytelling', label: 'Story Hook / Cerita Singkat Instan' },
+];
+
+export const motionStrengths = [
+  { key: 'subtle', label: 'Subtle / Gerakan Halus' },
+  { key: 'balanced', label: 'Balanced / Gerakan Seimbang' },
+  { key: 'dynamic', label: 'Dynamic / Gerakan Dinamis' },
+  { key: 'extreme', label: 'Extreme / Gerakan Ekstrim' },
+];
+
+export const fpsOptions = [
+  { key: '24fps', label: '24 FPS (Cinematic)' },
+  { key: '30fps', label: '30 FPS (Standard Vlog)' },
+  { key: '60fps', label: '60 FPS (Action/Smooth)' },
+];
+
+export const cameraLenses = [
+  { key: 'portrait-85mm', label: '85mm f/1.8 (Potret Bokeh)' },
+  { key: 'landscape-16mm', label: '16mm f/11 (Pemandangan Lebar)' },
+  { key: 'macro-100mm', label: '100mm f/2.8 (Detail Dekat/Makro)' },
+  { key: 'street-35mm', label: '35mm f/5.6 (Fotografi Jalanan)' },
+  { key: 'default', label: 'Default / Lensa Standar' },
+];
+
+export const relaxingBpms = [
+  { key: 'slow-60', label: '60 BPM (Sangat Tenang)' },
+  { key: 'lofi-90', label: '90 BPM (Irama Lo-Fi)' },
+  { key: 'chill-110', label: '110 BPM (Santai/Chill)' },
+  { key: 'none', label: 'Tanpa Tempo Spesifik' },
 ];
 
 export const genders = [
@@ -461,60 +505,6 @@ export const focusAreas = [
   { key: 'text-overlays', label: 'Text Overlays / Hamparan Teks' },
   { key: 'thumbnail', label: 'Thumbnail / Sampul' },
   { key: 'retention-points', label: 'Retention Points / Titik Retensi' },
-];
-
-// === TIMELAPSE OPTIONS ===
-export const timelapseCategories = [
-  { key: 'home-decor', label: 'Home Decor / Dekorasi Rumah' },
-  { key: 'road-repair', label: 'Road Repair / Perbaikan Jalan' },
-  { key: 'food', label: 'Food / Cooking / Makanan / Masak' },
-  { key: 'nature', label: 'Nature / Alam' },
-  { key: 'industrial', label: 'Industrial / Industri' },
-  { key: 'construction', label: 'Construction / Konstruksi' },
-  { key: 'art', label: 'Art Process / Proses Seni' },
-  { key: 'weather', label: 'Weather / Cuaca' },
-];
-
-export const timelapseTransformations = [
-  { key: 'before-after', label: 'Before → After / Sebelum → Sesudah' },
-  { key: 'growth', label: 'Growth / Pertumbuhan' },
-  { key: 'decay', label: 'Decay / Pembusukan' },
-  { key: 'construction', label: 'Construction / Konstruksi' },
-  { key: 'repair', label: 'Repair / Perbaikan' },
-  { key: 'cooking', label: 'Cooking / Memasak' },
-  { key: 'blooming', label: 'Blooming / Bunga Mekar' },
-];
-
-export const timelapseSpeeds = [
-  { key: 10, label: '10x' },
-  { key: 50, label: '50x' },
-  { key: 100, label: '100x' },
-  { key: 500, label: '500x' },
-  { key: 1000, label: '1000x' },
-];
-
-export const timelapseStyles = [
-  { key: 'realistic', label: 'Realistic / Realistis' },
-  { key: 'cinematic', label: 'Cinematic / Sinematik' },
-  { key: 'aerial', label: 'Aerial / Udara' },
-  { key: 'documentary', label: 'Documentary / Dokumenter' },
-  { key: 'artistic', label: 'Artistic / Artistik' },
-];
-
-export const timelapseCameras = [
-  { key: 'static', label: 'Static / Statis' },
-  { key: 'slow-pan', label: 'Slow Pan / Pan Lambat' },
-  { key: 'zoom-out', label: 'Zoom Out / Zoom Keluar' },
-  { key: 'orbit', label: 'Orbit / Mengorbit' },
-  { key: 'drone-flyover', label: 'Drone Flyover / Drone Lewat' },
-];
-
-export const timelapseLightings = [
-  { key: 'natural-progression', label: 'Natural Progression / Progresi Alami' },
-  { key: 'golden-hour', label: 'Golden Hour / Jam Emas' },
-  { key: 'day-to-night', label: 'Day to Night / Siang ke Malam' },
-  { key: 'night-to-day', label: 'Night to Day / Malam ke Siang' },
-  { key: 'consistent', label: 'Consistent / Konsisten' },
 ];
 
 export const imagePurposes = [

@@ -57,15 +57,15 @@ export function CommunityPage() {
   };
 
   return (
-    <PageTransition className="space-y-8 pb-[calc(4.75rem+env(safe-area-inset-bottom))] lg:pb-0">
+    <PageTransition className="space-y-8 pb-6 lg:pb-0">
       {/* Header Section */}
       <div className="flex flex-col justify-between gap-6 border-b border-border/30 pb-8 md:flex-row md:items-end">
         <div className="space-y-3">
           <div className="flex items-center gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-primary via-orange-500 to-rose-600">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-linear-to-br from-primary via-orange-500 to-rose-600">
               <Users className="h-7 w-7 text-white" />
             </div>
-            <h1 className="text-4xl font-black tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-primary via-orange-500 to-rose-600">
+            <h1 className="text-4xl font-black tracking-tighter bg-clip-text text-transparent bg-linear-to-r from-primary via-orange-500 to-rose-600">
               Komunitas
             </h1>
           </div>
@@ -92,7 +92,7 @@ export function CommunityPage() {
                   <CardBody className="p-6">
                     <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-start">
                       <div
-                        className={`flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl ${
+                        className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl ${
                           community.color === 'blue' ? 'bg-blue-500/10' : 'bg-green-500/10'
                         } transition-transform duration-500 group-hover:scale-105`}
                       >
@@ -192,7 +192,7 @@ export function CommunityPage() {
                   <CardBody className="p-6">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
                       <div className="flex items-start gap-4 flex-1">
-                        <div className="w-10 h-10 rounded-xl bg-orange-500/10 flex items-center justify-center flex-shrink-0">
+                        <div className="w-10 h-10 rounded-xl bg-orange-500/10 flex items-center justify-center shrink-0">
                           <Megaphone size={20} className="text-orange-500" />
                         </div>
                         <div className="space-y-1">

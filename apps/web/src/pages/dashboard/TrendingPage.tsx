@@ -171,7 +171,7 @@ export function TrendingPage() {
   };
 
   return (
-    <PageTransition className="pb-[calc(4.75rem+env(safe-area-inset-bottom))] lg:pb-0">
+    <PageTransition className="pb-6 lg:pb-0">
       <div className="mx-auto max-w-250 space-y-7 px-4 md:space-y-10 md:px-0 md:pb-6">
         <div className="flex flex-col items-start justify-between gap-3 lg:flex-row lg:items-center">
           <div className="space-y-1">

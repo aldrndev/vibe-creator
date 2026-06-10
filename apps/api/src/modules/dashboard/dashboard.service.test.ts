@@ -9,6 +9,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const prismaMock = vi.hoisted(() => ({
   directorExportJob: { count: vi.fn() },
+  directorSession: { count: vi.fn() },
   downloadJob: { count: vi.fn() },
   exportHistory: { count: vi.fn() },
   project: { count: vi.fn() },
@@ -56,6 +57,7 @@ describe('dashboardService.getSummary', () => {
       exportsLimit: 50,
     });
     prismaMock.project.count.mockResolvedValue(2);
+    prismaMock.directorSession.count.mockResolvedValue(0);
     prismaMock.prompt.count.mockResolvedValue(3);
     prismaMock.exportHistory.count.mockResolvedValueOnce(4).mockResolvedValueOnce(2);
     prismaMock.directorExportJob.count.mockResolvedValueOnce(1).mockResolvedValueOnce(1);
@@ -132,6 +134,13 @@ describe('dashboardService.getSummary', () => {
       },
     });
     expect(prismaMock.project.count).toHaveBeenCalledWith({
+      where: expect.objectContaining({
+        userId: 'user-1',
+        deletedAt: null,
+        lifecycleStatus: LifecycleStatus.ACTIVE,
+      }),
+    });
+    expect(prismaMock.directorSession.count).toHaveBeenCalledWith({
       where: expect.objectContaining({
         userId: 'user-1',
         deletedAt: null,

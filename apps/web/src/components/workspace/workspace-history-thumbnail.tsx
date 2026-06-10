@@ -1,4 +1,4 @@
-import { Download, Film, Repeat2, Sparkles } from 'lucide-react';
+import { Download, Radio, Repeat2, Sparkles, Video, Wand2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { authFetch } from '@/services/api';
@@ -16,9 +16,12 @@ interface ToolFallbackIconProps {
 
 function ToolFallbackIcon({ item }: ToolFallbackIconProps) {
   if (item.kind === 'ai-director') return <Sparkles size={22} />;
+  if (item.kind === 'video-studio') return <Wand2 size={22} />;
   if (item.kind === 'loop-creator') return <Repeat2 size={22} />;
+  if (item.kind === 'reaction-video') return <Video size={22} />;
+  if (item.kind === 'live-stream') return <Radio size={22} />;
   if (item.kind === 'export') return <Download size={22} />;
-  return <Film size={22} />;
+  return <Wand2 size={22} />;
 }
 
 /**
@@ -93,7 +96,7 @@ export function WorkspaceHistoryThumbnail({
       ref={elementRef}
       className={cn(
         'relative shrink-0 overflow-hidden rounded-lg border border-border/60 bg-muted/20',
-        compact ? 'h-12 w-[4.5rem]' : 'h-40 w-full sm:h-36 sm:w-24',
+        compact ? 'h-12 w-16' : 'h-28 w-20 sm:h-32 sm:w-24',
         disabled && 'opacity-55 grayscale',
       )}
     >

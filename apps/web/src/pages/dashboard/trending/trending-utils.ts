@@ -159,3 +159,29 @@ export function getFreshnessLabel(timestamp: string): string {
   const diffDays = Math.round(diffHours / 24);
   return `${diffDays}h lalu`;
 }
+
+export function formatIsoDuration(isoDuration?: string | null): string {
+  if (!isoDuration) {
+    return '';
+  }
+
+  const match = isoDuration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+  if (!match) {
+    return '';
+  }
+
+  const hours = match[1] ? Number.parseInt(match[1], 10) : 0;
+  const minutes = match[2] ? Number.parseInt(match[2], 10) : 0;
+  const seconds = match[3] ? Number.parseInt(match[3], 10) : 0;
+
+  const parts: string[] = [];
+  if (hours > 0) {
+    parts.push(hours.toString());
+    parts.push(minutes.toString().padStart(2, '0'));
+  } else {
+    parts.push(minutes.toString());
+  }
+  parts.push(seconds.toString().padStart(2, '0'));
+
+  return parts.join(':');
+}

@@ -79,7 +79,7 @@ export function LiveStreamSettings({
   } = getQuotaDetails(quota, hasVideoFile, streamKey);
 
   return (
-    <Card className="bg-card/70 backdrop-blur-xl border-border/50 h-full">
+    <Card className="bg-card/70 border-border/50 h-full">
       <CardHeader className="flex flex-row items-center gap-3 border-b border-border/50 pb-4">
         <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center border border-primary/20">
           <Settings size={20} className="text-primary" />
@@ -466,7 +466,7 @@ function getQuotaDescription(
   quotaTotal: number | null,
 ) {
   if (!quota) return 'Quota streaming akan muncul di sini.';
-  if (isQuotaUnlimited) return 'Akses admin tanpa batas streaming.';
+  if (isQuotaUnlimited) return 'Akses unlimited tanpa batas streaming.';
   return `${quotaUsed} dari ${quotaTotal ?? 0} menit terpakai bulan ini`;
 }
 

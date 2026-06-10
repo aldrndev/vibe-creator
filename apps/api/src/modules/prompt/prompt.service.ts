@@ -6,7 +6,8 @@ import type {
   PromptType,
   RelaxingPromptInput,
   ScriptPromptInput,
-  TimelapsePromptInput,
+  SocialCopyPromptInput,
+  TalkingHeadPromptInput,
   VideoGenPromptInput,
   VoicePromptInput,
 } from '@vibe-creator/shared';
@@ -16,7 +17,8 @@ import {
   generateLoopSourcePrompt,
   generateRelaxingPrompt,
   generateScriptPrompt,
-  generateTimelapsePrompt,
+  generateSocialCopyPrompt,
+  generateTalkingHeadPrompt,
   generateVideoGenPrompt,
   generateVoicePrompt,
 } from '@vibe-creator/shared';
@@ -337,12 +339,14 @@ export const promptService = {
           return generateRelaxingPrompt(inputData as unknown as RelaxingPromptInput);
         case 'CREATIVE_SCAN':
           return generateCreativeScanPrompt(inputData as unknown as CreativeScanPromptInput);
-        case 'TIMELAPSE':
-          return generateTimelapsePrompt(inputData as unknown as TimelapsePromptInput);
         case 'LOOP_SOURCE':
           return generateLoopSourcePrompt(
             loopSourcePromptInputSchema.parse(inputData) as LoopSourcePromptInput,
           );
+        case 'TALKING_HEAD':
+          return generateTalkingHeadPrompt(inputData as unknown as TalkingHeadPromptInput);
+        case 'SOCIAL_COPY':
+          return generateSocialCopyPrompt(inputData as unknown as SocialCopyPromptInput);
         default:
           return '// Prompt type tidak dikenali';
       }

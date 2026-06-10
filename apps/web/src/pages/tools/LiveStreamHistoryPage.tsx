@@ -208,7 +208,7 @@ export function LiveStreamHistoryPage() {
 
           if (streams.length === 0) {
             return (
-              <Card className="bg-card/70 backdrop-blur-xl border-border/50 overflow-hidden">
+              <Card className="bg-card/70 border-border/50 overflow-hidden">
                 <CardBody className="py-24 px-6 text-center">
                   <div className="relative inline-flex mb-8">
                     <div className="absolute inset-0 bg-primary/5 rounded-full" />
@@ -253,7 +253,7 @@ export function LiveStreamHistoryPage() {
                       return (
                         <Card
                           key={stream.id}
-                          className="overflow-hidden border-rose-500/25 bg-rose-500/[0.035] backdrop-blur-xl"
+                          className="overflow-hidden border-rose-500/25 bg-rose-500/[0.035]"
                         >
                           <CardBody className="p-5 sm:p-6">
                             <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">

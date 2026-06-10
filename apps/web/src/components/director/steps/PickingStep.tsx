@@ -919,7 +919,7 @@ export const PickingStep = () => {
       </Modal>
 
       <div className="sticky bottom-0 z-50 mt-3 animate-in fade-in slide-in-from-bottom-8 duration-500">
-        <div className="mx-auto flex w-full max-w-lg flex-col items-stretch justify-between gap-3 rounded-2xl border border-border/50 bg-card/90 p-3 shadow-lg shadow-black/10 backdrop-blur-xl sm:flex-row sm:items-center">
+        <div className="mx-auto flex w-full max-w-lg flex-col items-stretch justify-between gap-3 rounded-2xl border border-border/50 bg-card/90 p-3 shadow-lg shadow-black/10 sm:flex-row sm:items-center">
           <div className="flex flex-1 flex-col gap-2">
             <div className="flex flex-col">
               <span className="text-sm font-black tracking-tight text-foreground">

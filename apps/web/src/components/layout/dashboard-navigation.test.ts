@@ -9,7 +9,7 @@ describe('dashboardNavigation', () => {
 
     expect(visibleLinks).toContain('/tools/ai-director');
     expect(visibleLinks).toContain('/tools/video-studio');
-    expect(visibleLinks).not.toContain('/dashboard/prompts');
+    expect(visibleLinks).toContain('/dashboard/prompts');
     expect(visibleLinks).not.toContain('/tools/editor');
   });
 });

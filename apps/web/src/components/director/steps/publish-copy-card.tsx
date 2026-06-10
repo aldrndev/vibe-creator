@@ -57,7 +57,7 @@ export function PublishCopyCard({ activeSession, selectedClips }: Readonly<Publi
   const hasRetryError = hasTimeoutError(publishPack.notice.lastError);
 
   return (
-    <Card className="bg-card/70 border-border/50 backdrop-blur-xl rounded-4xl">
+    <Card className="bg-card/70 border-border/50 rounded-4xl">
       <CardBody className="p-6 sm:p-8 space-y-5">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center border border-primary/20">

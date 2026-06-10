@@ -39,19 +39,19 @@ export const MODEL_REGISTRY: Record<AIModel, ModelConfig> = {
     id: AIModel.SORA,
     label: 'OpenAI Sora',
     description: 'Terbaik untuk durasi panjang, fisika kompleks, dan penceritaan hiper-realistis.',
-    supports: ['VIDEO_GEN', 'TIMELAPSE', 'LOOP_SOURCE'],
+    supports: ['VIDEO_GEN', 'LOOP_SOURCE', 'TALKING_HEAD'],
   },
   [AIModel.GEN3]: {
     id: AIModel.GEN3,
     label: 'Runway',
     description: 'Sangat baik untuk bidikan sinematik realistis dan kontrol kamera presisi.',
-    supports: ['VIDEO_GEN'],
+    supports: ['VIDEO_GEN', 'TALKING_HEAD'],
   },
   [AIModel.VEO]: {
     id: AIModel.VEO,
     label: 'Google Veo',
     description: 'Generasi 1080p+ definisi tinggi dengan pemahaman mendalam istilah sinematik.',
-    supports: ['VIDEO_GEN', 'TIMELAPSE', 'LOOP_SOURCE'],
+    supports: ['VIDEO_GEN', 'LOOP_SOURCE'],
   },
   [AIModel.LUMA]: {
     id: AIModel.LUMA,
@@ -124,13 +124,13 @@ export const MODEL_REGISTRY: Record<AIModel, ModelConfig> = {
     id: AIModel.GPT4,
     label: 'OpenAI GPT',
     description: 'Terbaik untuk penalaran dan penulisan naskah kompleks.',
-    supports: ['SCRIPT', 'CREATIVE_SCAN'],
+    supports: ['SCRIPT', 'CREATIVE_SCAN', 'SOCIAL_COPY'],
   },
   [AIModel.CLAUDE_3_OPUS]: {
     id: AIModel.CLAUDE_3_OPUS,
     label: 'Claude (Sonnet)',
     description: 'Gaya penulisan yang lebih alami dan mirip manusia.',
-    supports: ['SCRIPT', 'CREATIVE_SCAN'],
+    supports: ['SCRIPT', 'CREATIVE_SCAN', 'SOCIAL_COPY'],
   },
 };
 
@@ -141,8 +141,9 @@ export const DEFAULT_MODELS: Record<PromptType, AIModel> = {
   SCRIPT: AIModel.GPT4,
   RELAXING: AIModel.MIDJOURNEY, // Defaults to visual asset prompt
   CREATIVE_SCAN: AIModel.GPT4,
-  TIMELAPSE: AIModel.SORA,
   LOOP_SOURCE: AIModel.VEO,
+  TALKING_HEAD: AIModel.SORA,
+  SOCIAL_COPY: AIModel.GPT4,
 };
 
 export function getModelsForType(type: PromptType): ModelConfig[] {

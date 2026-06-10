@@ -1,6 +1,7 @@
 import {
   Camera,
   Check,
+  ChevronRight,
   Download,
   Loader2,
   MonitorPlay,
@@ -85,6 +86,12 @@ export function ReactionCreatorPage() {
   }, [reaction.state.projectId, sessionId, setParams]);
 
   useEffect(() => {
+    if (sessionId && reaction.state.message && !reaction.state.isLoading) {
+      setParams({ session: undefined }, { replace: true });
+    }
+  }, [sessionId, reaction.state.message, reaction.state.isLoading, setParams]);
+
+  useEffect(() => {
     if (liveVideoRef.current) {
       liveVideoRef.current.srcObject = reaction.state.cameraStream;
     }
@@ -161,7 +168,7 @@ export function ReactionCreatorPage() {
         </div>
 
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_390px]">
-          <Card className="overflow-hidden rounded-2xl border-border/55 bg-card shadow-sm">
+          <Card className="overflow-hidden rounded-2xl border-border/60 bg-card/70 shadow-sm">
             <div className="flex items-center gap-3 border-b border-border/45 p-5">
               <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-primary/25 bg-primary/10 text-primary">
                 <MonitorPlay size={20} />
@@ -279,7 +286,7 @@ function ReactionPageHeader({
   return (
     <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex items-center gap-4">
-        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-linear-to-br from-orange-500 to-primary text-white shadow-lg shadow-primary/20">
+        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-linear-to-br from-orange-500 to-primary text-white">
           <Video size={24} />
         </div>
         <div>
@@ -317,35 +324,45 @@ function ReactionStepGuide({
   ] as const;
 
   return (
-    <div className="mx-auto grid w-full max-w-3xl grid-cols-3 gap-1.5 rounded-2xl p-1.5 sm:flex sm:items-center sm:px-3 sm:py-2.5">
-      {steps.map((step, index) => {
+    <div className="flex items-center gap-2 bg-muted/10 p-1.5 rounded-2xl border border-border/50 backdrop-blur-md">
+      {steps.map((step, idx) => {
         const isActive = step.id === activeStep;
         const isDone = step.id < activeStep;
+
         return (
-          <div className="contents" key={step.id}>
+          <div key={step.id} className="flex items-center">
             <div
               className={cn(
-                'flex min-w-0 items-center justify-center gap-2 rounded-xl px-2 py-2 sm:shrink-0 sm:justify-start sm:px-2 sm:py-1.5',
-                isActive ? 'text-foreground' : 'text-muted-foreground',
-                isActive && 'bg-primary/10 sm:bg-transparent',
+                'flex items-center gap-2 px-4 py-2 rounded-xl transition-all duration-300',
+                isActive
+                  ? 'bg-primary text-white'
+                  : (() => {
+                      if (isDone) return 'text-primary';
+                      return 'text-muted-foreground opacity-50';
+                    })(),
               )}
             >
-              <span
+              <div
                 className={cn(
-                  'flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-black',
-                  isDone || isActive ? 'bg-primary text-primary-foreground' : 'bg-muted',
+                  'w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black border shrink-0',
+                  isActive
+                    ? 'bg-white text-primary border-white'
+                    : (() => {
+                        if (isDone) return 'bg-primary/10 border-primary';
+                        return 'bg-muted/20 border-border';
+                      })(),
                 )}
               >
-                {isDone ? <Check size={14} /> : step.id}
-              </span>
-              <span className="min-w-0 truncate text-xs font-black sm:text-sm">
+                {isDone ? <Check size={12} strokeWidth={3} /> : step.id}
+              </div>
+              <span className="text-[10px] font-black uppercase tracking-widest">
                 <span className="sm:hidden">{step.shortTitle}</span>
                 <span className="hidden sm:inline">{step.title}</span>
               </span>
             </div>
-            {index < steps.length - 1 ? (
-              <span className="mx-2 hidden h-px min-w-8 flex-1 bg-border/60 sm:block" />
-            ) : null}
+            {idx < steps.length - 1 && (
+              <ChevronRight size={14} className="mx-1 text-muted-foreground/30" />
+            )}
           </div>
         );
       })}
@@ -989,7 +1006,7 @@ function ReactionSettingsPanel({
   ];
 
   return (
-    <Card className="rounded-2xl border-border/55 bg-card p-5 lg:sticky lg:top-24">
+    <Card className="rounded-2xl border-border/60 bg-card/70 p-5 lg:sticky lg:top-24">
       <div className="mb-5 flex items-center gap-3">
         <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-primary/25 bg-primary/10 text-primary">
           <SlidersHorizontal size={18} />

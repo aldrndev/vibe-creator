@@ -7,8 +7,9 @@ export const promptTypeSchema = z.enum([
   'IMAGE',
   'RELAXING',
   'CREATIVE_SCAN',
-  'TIMELAPSE',
   'LOOP_SOURCE',
+  'TALKING_HEAD',
+  'SOCIAL_COPY',
 ]);
 
 const existingPromptTypeSchema = z.enum([
@@ -18,7 +19,8 @@ const existingPromptTypeSchema = z.enum([
   'IMAGE',
   'RELAXING',
   'CREATIVE_SCAN',
-  'TIMELAPSE',
+  'TALKING_HEAD',
+  'SOCIAL_COPY',
 ]);
 
 export const loopSourcePromptInputSchema = z

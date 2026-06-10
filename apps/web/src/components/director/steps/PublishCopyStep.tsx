@@ -61,7 +61,7 @@ export function PublishCopyStep() {
   return (
     <div className="mx-auto w-full max-w-[1280px] animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr),24rem]">
-        <Card className="bg-card/70 border-border/50 backdrop-blur-xl rounded-[2.5rem] overflow-hidden">
+        <Card className="bg-card/70 border-border/50 rounded-[2.5rem] overflow-hidden">
           <CardBody className="p-6 sm:p-10 xl:p-12 space-y-8">
             <div className="space-y-3">
               <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-4 py-1.5">
@@ -83,7 +83,7 @@ export function PublishCopyStep() {
           </CardBody>
         </Card>
 
-        <Card className="bg-card/70 border-border/50 backdrop-blur-xl rounded-4xl h-fit xl:sticky xl:top-24">
+        <Card className="bg-card/70 border-border/50 rounded-4xl h-fit xl:sticky xl:top-24">
           <CardBody className="p-6 sm:p-8 space-y-5">
             <h4 className="font-black tracking-tight text-lg">Lanjutkan Flow</h4>
             <p className="text-sm leading-6 text-muted-foreground">

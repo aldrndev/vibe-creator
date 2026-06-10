@@ -596,11 +596,11 @@ export const workspaceService = {
       items.push(...(await fetchRecentExports(userId, cursor, limit, query.status, now)));
     }
 
-    const sorted = items.sort(sortRecentItems).slice(0, limit);
+    const sorted = items.sort(sortRecentItems);
+    const sliced = sorted.slice(0, limit);
     return {
-      items: sorted,
-      nextCursor:
-        sorted.length === limit ? sorted[sorted.length - 1]?.updatedAt.toISOString() : null,
+      items: sliced,
+      nextCursor: sorted.length > limit ? sliced[sliced.length - 1]?.updatedAt.toISOString() : null,
     };
   },
 

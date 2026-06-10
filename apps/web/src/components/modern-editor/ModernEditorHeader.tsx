@@ -41,6 +41,7 @@ import {
   type ModernEditorDraft,
   saveModernEditorDraft,
 } from '@/lib/modern-editor-drafts';
+import { cn } from '@/lib/utils';
 import { useModernEditorStore } from '@/stores/modern-editor-store';
 import { DEFAULT_PROJECT_TITLE } from '@/stores/modern-editor-store-helpers';
 import { ExportPresetControl } from './ExportPresetControl';
@@ -226,7 +227,12 @@ export function ModernEditorHeader({
 
   return (
     <>
-      <header className="h-16 border-b border-border/60 flex items-center justify-between px-4 md:px-6 bg-card/80 backdrop-blur-xl flex-shrink-0 z-30">
+      <header
+        className={cn(
+          'h-16 border-b border-border/60 flex items-center justify-between px-4 md:px-6 bg-card/80 backdrop-blur-xl shrink-0 z-30 transition-all duration-300',
+          'group-data-[sidebar-collapsed=true]/layout:lg:pl-12',
+        )}
+      >
         <div className="flex min-w-0 items-center gap-3 md:gap-4">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10">
             <Wand2 size={22} className="text-primary" />

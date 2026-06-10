@@ -46,7 +46,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
               'flex h-14 w-full rounded-2xl border bg-background px-4 py-3 text-base transition-all duration-200',
               'border-border/50 shadow-sm',
               'placeholder:text-muted-foreground/50 placeholder:font-medium',
-              'focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/10 focus-visible:border-primary',
+              'outline-none focus:outline-none focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/10 focus-visible:border-primary',
               'disabled:cursor-not-allowed disabled:opacity-50',
               leftIcon && 'pl-12',
               rightIcon && 'pr-12',

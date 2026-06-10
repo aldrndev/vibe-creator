@@ -1,5 +1,14 @@
 import { Link, Outlet, useLocation, useNavigate } from '@tanstack/react-router';
-import { ChevronDown, ChevronRight, LogOut, Menu, Shield, Sparkles, X } from 'lucide-react';
+import {
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  LogOut,
+  Menu,
+  Shield,
+  Sparkles,
+  X,
+} from 'lucide-react';
 import { useState } from 'react';
 import { dashboardNavigation } from '@/components/layout/dashboard-navigation';
 import {
@@ -11,10 +20,12 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
 } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/auth-store';
-import { MobileBottomNav } from './MobileBottomNav';
 
 const adminNav = { name: 'Admin', href: '/dashboard/admin', icon: Shield };
 
@@ -33,9 +44,23 @@ function isNavigationActive(pathname: string, href: string): boolean {
 export function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [toolsExpanded, setToolsExpanded] = useState(true);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('sidebar-collapsed') === 'true';
+    }
+    return false;
+  });
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
   const location = useLocation();
+
+  const toggleSidebar = () => {
+    setSidebarCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem('sidebar-collapsed', String(next));
+      return next;
+    });
+  };
 
   const handleLogout = async () => {
     await logout();
@@ -43,7 +68,10 @@ export function DashboardLayout() {
   };
 
   return (
-    <div className="flex h-screen bg-background text-foreground">
+    <div
+      className="flex h-screen bg-background text-foreground group/layout"
+      data-sidebar-collapsed={sidebarCollapsed}
+    >
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
         <button
@@ -54,14 +82,23 @@ export function DashboardLayout() {
         />
       )}
 
-      {/* Sidebar */}
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-50 w-64 transform bg-background border-r border-border transition-transform duration-300 lg:static lg:translate-x-0 lg:bg-card/60 lg:backdrop-blur-xl',
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full',
+          'fixed inset-y-0 left-0 z-50 transform bg-background border-border transition-all duration-300 lg:bg-card/60 lg:backdrop-blur-xl lg:relative',
+          sidebarOpen ? 'translate-x-0 w-64 border-r' : '-translate-x-full w-64 border-r',
+          sidebarCollapsed
+            ? 'lg:translate-x-0 lg:w-0 lg:border-r-0 lg:pointer-events-none'
+            : 'lg:translate-x-0 lg:w-64 lg:border-r lg:pointer-events-auto',
         )}
       >
-        <div className="flex h-full flex-col">
+        <div
+          className={cn(
+            'flex h-full flex-col transition-all duration-300',
+            sidebarCollapsed
+              ? 'lg:opacity-0 lg:w-0 lg:overflow-hidden lg:pointer-events-none'
+              : 'lg:opacity-100 lg:w-64 lg:pointer-events-auto',
+          )}
+        >
           {/* Logo */}
           <div className="flex h-16 items-center justify-between px-6 border-b border-border shadow-sm">
             <Link
@@ -237,7 +274,7 @@ export function DashboardLayout() {
                     setSidebarOpen(false);
                     void handleLogout();
                   }}
-                  className="text-destructive focus:bg-destructive focus:text-white"
+                  className="text-rose-500 focus:bg-rose-500/10 focus:text-rose-500 [&>svg]:text-rose-500 focus:[&>svg]:text-rose-500 mt-1 mx-1 rounded-xl"
                 >
                   <LogOut size={16} />
                   <span className="font-bold">Logout</span>
@@ -246,6 +283,28 @@ export function DashboardLayout() {
             </DropdownMenu>
           </div>
         </div>
+
+        {/* Floating Toggle Button positioned near the top on the border line */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onClick={toggleSidebar}
+              className={cn(
+                'hidden lg:flex absolute z-50 items-center justify-center transition-all duration-200 active:scale-95 cursor-pointer lg:pointer-events-auto',
+                sidebarCollapsed
+                  ? 'left-0 top-4 h-8 w-6 rounded-r-full rounded-l-none border border-l-0 border-primary/30 bg-linear-to-br from-primary via-orange-500 to-rose-600 text-white shadow-lg shadow-primary/20 pl-1 hover:w-7 hover:opacity-90'
+                  : 'right-4 top-4 h-8 w-8 rounded-full border border-border bg-background text-muted-foreground shadow-md hover:scale-110 hover:text-foreground',
+              )}
+              aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            >
+              {sidebarCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={16} />}
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="right" align="center">
+            {sidebarCollapsed ? 'Show Menu' : 'Hide Menu'}
+          </TooltipContent>
+        </Tooltip>
       </aside>
 
       {/* Main content */}
@@ -253,7 +312,7 @@ export function DashboardLayout() {
         {/* Header */}
         <header
           className={cn(
-            'flex h-16 items-center justify-between border-b border-border px-6 sticky top-0 z-30 transition-all duration-300',
+            'flex h-16 items-center justify-between border-b border-border px-6 sticky top-0 z-30 transition-all duration-300 lg:hidden',
             location.pathname.includes('/video-studio')
               ? 'bg-background border-b-0' // More solid background for editor to avoid ghosting
               : 'bg-card/80 backdrop-blur-md',
@@ -298,7 +357,7 @@ export function DashboardLayout() {
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={handleLogout}
-                  className="text-destructive focus:text-white focus:bg-destructive mt-1 mx-1 rounded-xl"
+                  className="text-rose-500 focus:bg-rose-500/10 focus:text-rose-500 [&>svg]:text-rose-500 focus:[&>svg]:text-rose-500 mt-1 mx-1 rounded-xl"
                 >
                   <LogOut size={16} />
                   <span className="font-bold">Logout</span>
@@ -313,18 +372,18 @@ export function DashboardLayout() {
           key={location.pathname}
           data-scroll-root="true"
           className={cn(
-            'flex-1 flex flex-col min-h-0 min-w-0', // base styles
+            'flex-1 flex flex-col min-h-0 min-w-0 transition-all duration-300', // base styles
             // For Modern Editor (Full Screen Tool), remove padding/overflow to let tool handle it
             location.pathname.includes('/video-studio')
               ? 'overflow-hidden p-0'
-              : 'overflow-y-auto overflow-x-hidden p-4 pb-4 md:p-6 md:pb-6 lg:pb-0',
+              : cn(
+                  'overflow-y-auto overflow-x-hidden p-4 pb-4 md:p-6 md:pb-6 lg:pb-0',
+                  sidebarCollapsed && 'lg:pl-12',
+                ),
           )}
         >
           <Outlet />
         </main>
-
-        {/* Mobile bottom navigation */}
-        <MobileBottomNav />
       </div>
     </div>
   );

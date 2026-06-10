@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { logger } from '@/lib/logger';
 import { compileModernProject } from '@/lib/modern-compiler';
 import { buildModernExportTimelineData } from '@/lib/modern-export-payload';
+import { authFetch } from '@/services/api';
 import {
   type ExportCacheState,
   type ExportEvent,
@@ -183,7 +184,7 @@ export function useModernExport() {
     setExportPhase('idle');
   }, [isExporting, revokeExportPreviewUrl]);
 
-  const downloadExportResult = useCallback(() => {
+  const downloadExportResult = useCallback(async () => {
     if (!exportResult) {
       return;
     }
@@ -194,6 +195,15 @@ export function useModernExport() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+
+    const store = useModernEditorStore.getState();
+    if (store.projectId) {
+      await authFetch(`/api/v1/workspaces/video-studio/${store.projectId}/complete`, {
+        method: 'POST',
+      }).catch((err) => {
+        logger.warn('Failed to mark workspace as completed', err);
+      });
+    }
   }, [exportResult]);
 
   const exportProject = useCallback(

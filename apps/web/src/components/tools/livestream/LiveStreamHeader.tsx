@@ -1,6 +1,6 @@
 import { Link } from '@tanstack/react-router';
 import { ArrowLeft, Radio } from 'lucide-react';
-import { Badge, Button } from '@/components/ui';
+import { Badge } from '@/components/ui';
 
 interface LiveStreamHeaderProps {
   isStreaming: boolean;
@@ -8,17 +8,14 @@ interface LiveStreamHeaderProps {
 
 export function LiveStreamHeader({ isStreaming }: Readonly<LiveStreamHeaderProps>) {
   return (
-    <div className="mb-8 flex flex-col gap-3">
-      <Button
-        asChild
-        variant="ghost"
-        className="h-9 w-fit gap-2 rounded-full border border-border/50 bg-muted/20 px-3 text-xs font-bold text-muted-foreground hover:text-foreground"
+    <div className="mb-8 flex flex-col gap-4">
+      <Link
+        to="/tools/live-stream-history"
+        className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-muted-foreground hover:text-foreground transition-colors cursor-pointer outline-none group w-fit"
       >
-        <Link to="/tools/live-stream-history">
-          <ArrowLeft size={15} />
-          Riwayat Stream
-        </Link>
-      </Button>
+        <ArrowLeft size={12} className="transition-transform group-hover:-translate-x-1" />
+        <span>Riwayat Stream</span>
+      </Link>
 
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">

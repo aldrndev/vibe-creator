@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { logger } from '@/lib/logger';
 import { authFetch, downloadAuthenticatedFile } from '@/services/api';
 import { type ExportEvent, exportApi } from '@/services/export-api';
 import {
@@ -606,13 +607,22 @@ export function useReactionCreator(sessionId?: string) {
     }
   }, [document, loadPreviewBlob, projectId, resetRender, title]);
 
-  const downloadResult = useCallback(() => {
-    if (!renderResult) return;
-    void downloadAuthenticatedFile(
-      exportApi.getDownloadUrl(renderResult.jobId),
-      renderResult.filename,
-    );
-  }, [renderResult]);
+  const downloadResult = useCallback(async () => {
+    if (!renderResult || !projectId) return;
+    try {
+      await downloadAuthenticatedFile(
+        exportApi.getDownloadUrl(renderResult.jobId),
+        renderResult.filename,
+      );
+      await authFetch(`/api/v1/workspaces/reaction-video/${projectId}/complete`, {
+        method: 'POST',
+      }).catch((err) => {
+        logger.warn('Failed to mark reaction workspace as completed', err);
+      });
+    } catch (error) {
+      logger.error('Reaction export download failed', error);
+    }
+  }, [renderResult, projectId]);
 
   return {
     state: {
