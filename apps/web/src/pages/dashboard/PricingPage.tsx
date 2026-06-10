@@ -4,6 +4,7 @@ import { ArrowLeft, Check, Crown, Download, Sparkles, Video, Zap } from 'lucide-
 import { useState } from 'react';
 import { z } from 'zod';
 import { Badge, Button, Card, CardBody, Progress } from '@/components/ui';
+import { useDocumentMetadata } from '@/hooks/use-document-metadata';
 import { logger } from '@/lib/logger';
 import { useMutableSearchParams } from '@/lib/route-search';
 import { cn } from '@/lib/utils';
@@ -181,6 +182,12 @@ function TierActionButton({
 }
 
 export function PricingPage() {
+  useDocumentMetadata({
+    title: 'Paket Harga - Vibe Creator',
+    description:
+      'Pilih paket langganan terbaik untuk mengakses fitur AI video builder, loop creator, dan rendering berkualitas tinggi.',
+  });
+
   const [searchParams] = useMutableSearchParams();
   const { subscription, user } = useAuthStore();
   const [isLoading, setIsLoading] = useState<string | null>(null);

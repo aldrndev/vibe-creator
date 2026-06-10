@@ -2,11 +2,17 @@ import { useParams } from '@tanstack/react-router';
 import { LayoutTemplate, Sparkles } from 'lucide-react';
 import { useEffect } from 'react';
 import { Button } from '@/components/ui';
+import { useDocumentMetadata } from '@/hooks/use-document-metadata';
 import { useStoryStore } from '@/stores/story-store';
 import { DirectorPanel } from './story-director/DirectorPanel';
 import { StoryBoard } from './story-director/StoryBoard';
 
 export function StoryDirectorPage() {
+  useDocumentMetadata({
+    title: 'Story Director - Vibe Creator',
+    description: 'Tentukan alur cerita video Anda dengan storyboard generator bertenaga AI.',
+  });
+
   const { initStory, loadStory, currentStory } = useStoryStore();
   const { projectId } = useParams({ strict: false });
 

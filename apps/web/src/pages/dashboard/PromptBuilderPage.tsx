@@ -5,6 +5,7 @@ import { ArrowLeft, Check, ChevronRight, RefreshCw, Sparkles } from 'lucide-reac
 import { type ReactNode, useCallback, useEffect, useState } from 'react';
 import { Button, Card, CardBody, Input } from '@/components/ui';
 import { PageTransition } from '@/components/ui/PageTransition';
+import { useDocumentMetadata } from '@/hooks/use-document-metadata';
 import { useCreatePrompt, useCreateVersion, usePrompt } from '@/hooks/use-prompts';
 import { cn } from '@/lib/utils';
 import { PromptResultDisplay } from './prompt/components/PromptResultDisplay';
@@ -61,6 +62,12 @@ function ScrollToTop() {
 }
 
 export function PromptBuilderPage() {
+  useDocumentMetadata({
+    title: 'Buat Prompt Baru - Vibe Creator',
+    description:
+      'Rancang prompt AI khusus untuk video script, voice generation, visual image, copywriting, dan lainnya.',
+  });
+
   const navigate = useNavigate();
   const createPrompt = useCreatePrompt();
 

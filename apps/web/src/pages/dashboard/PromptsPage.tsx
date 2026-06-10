@@ -32,6 +32,7 @@ import {
 } from '@/components/ui';
 import { PageTransition } from '@/components/ui/PageTransition';
 import { Skeleton } from '@/components/ui/SkeletonLoader';
+import { useDocumentMetadata } from '@/hooks/use-document-metadata';
 import { type Prompt, useDeletePrompt, usePrompts } from '@/hooks/use-prompts';
 import { cn } from '@/lib/utils';
 
@@ -274,6 +275,11 @@ function PromptCard({
 }
 
 export function PromptsPage() {
+  useDocumentMetadata({
+    title: 'Prompt Builder - Vibe Creator',
+    description: 'Arsip prompt kreatif dan hasil optimasi model AI favorit Anda.',
+  });
+
   const navigate = useNavigate();
   const [selectedType, setSelectedType] = useState<PromptType | 'all'>('all');
   const [page, setPage] = useState(1);

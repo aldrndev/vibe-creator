@@ -7,11 +7,18 @@ import { LoopVideoPreview } from '@/components/tools/loop/LoopVideoPreview';
 import { parseLoopSourcePromptInput } from '@/components/tools/loop/loop-source-prompt.schema';
 import { PageTransition } from '@/components/ui/PageTransition';
 import { ContinueWorkspaceDialog } from '@/components/workspace/ContinueWorkspaceDialog';
+import { useDocumentMetadata } from '@/hooks/use-document-metadata';
 import { usePrompt } from '@/hooks/use-prompts';
 import { useLoopCreator } from '@/hooks/useLoopCreator';
 import { useMutableSearchParams } from '@/lib/route-search';
 
 export function LoopCreatorPage() {
+  useDocumentMetadata({
+    title: 'Loop Creator - Vibe Creator',
+    description:
+      'Buat audio ambience seamless loop yang memikat secara otomatis dengan generator pintar.',
+  });
+
   const [params, setParams] = useMutableSearchParams();
   const sessionId = params.get('session') ?? undefined;
   const promptId = params.get('prompt') ?? undefined;

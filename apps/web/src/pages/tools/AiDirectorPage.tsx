@@ -7,6 +7,7 @@ import { EditingLivePreview } from '@/components/director/steps/editing-live-pre
 import { ImportStep } from '@/components/director/steps/ImportStep';
 import { PickingStep } from '@/components/director/steps/PickingStep';
 import { ContinueWorkspaceDialog } from '@/components/workspace/ContinueWorkspaceDialog';
+import { useDocumentMetadata } from '@/hooks/use-document-metadata';
 import { useScrollToTopOnChange } from '@/hooks/use-scroll-to-top-on-change';
 import {
   clearDirectorInitialContextSearchParams,
@@ -379,6 +380,12 @@ function DirectorStepContent({
 }
 
 export function AiDirectorPage() {
+  useDocumentMetadata({
+    title: 'AI Director - Vibe Creator',
+    description:
+      'Analisis momen terbaik video Anda secara otomatis dan buat klip shorts/reels bertenaga AI.',
+  });
+
   const { user, subscription } = useAuthStore();
   const [searchParams, setSearchParams] = useMutableSearchParams();
   const [isHydrating, setIsHydrating] = useState(Boolean(searchParams.get('session')));

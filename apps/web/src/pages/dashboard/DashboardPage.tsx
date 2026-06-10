@@ -17,6 +17,7 @@ import { Badge, Button, Card, CardBody, Progress } from '@/components/ui';
 import { PageTransition } from '@/components/ui/PageTransition';
 import { Skeleton } from '@/components/ui/SkeletonLoader';
 import { useDashboardSummary } from '@/hooks/use-dashboard-summary';
+import { useDocumentMetadata } from '@/hooks/use-document-metadata';
 import {
   dashboardQuickActions,
   getDashboardToolIcon,
@@ -389,6 +390,12 @@ const quickActionTextStyles: Record<string, string> = {
 };
 
 export function DashboardPage() {
+  useDocumentMetadata({
+    title: 'Dashboard - Vibe Creator',
+    description:
+      'Monitor daily content workflows, manage rendering limits, and access AI-assisted content tools.',
+  });
+
   const navigate = useNavigate();
   const { user } = useAuthStore();
   const { data: summary, error, isLoading, refetch } = useDashboardSummary();

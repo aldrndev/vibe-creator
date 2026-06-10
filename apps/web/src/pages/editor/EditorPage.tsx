@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { EditorHeader } from '@/components/editor/layout/EditorHeader';
 import { EditorMainArea } from '@/components/editor/layout/EditorMainArea';
 import { EditorModals } from '@/components/editor/modals/EditorModals';
+import { useDocumentMetadata } from '@/hooks/use-document-metadata';
 import { useExport } from '@/hooks/use-export';
 import { useFFmpeg } from '@/hooks/use-ffmpeg';
 import { useHistory } from '@/hooks/use-history';
@@ -20,6 +21,11 @@ import {
 } from './editor-import.utils';
 
 export function EditorPage() {
+  useDocumentMetadata({
+    title: 'Timeline Editor - Vibe Creator',
+    description: 'Studio edit video multi-track profesional dengan rendering bertenaga cloud.',
+  });
+
   const { projectId } = useParams({ strict: false }) as { projectId?: string };
   const fileInputRef = useRef<HTMLInputElement>(null);
 

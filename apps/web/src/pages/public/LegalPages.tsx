@@ -1,5 +1,6 @@
 import { Mail } from 'lucide-react';
 import { Button } from '@/components/ui';
+import { useDocumentMetadata } from '@/hooks/use-document-metadata';
 import { PublicPageLayout } from './PublicPageLayout';
 
 const termsSections = [
@@ -66,6 +67,12 @@ function LegalSectionList({
 }
 
 export function TermsPage() {
+  useDocumentMetadata({
+    title: 'Syarat & Ketentuan - Vibe Creator',
+    description:
+      'Ringkasan pre-launch tentang cara memakai workspace Vibe Creator secara aman dan bertanggung jawab.',
+  });
+
   return (
     <PublicPageLayout
       eyebrow="Terms"
@@ -78,6 +85,12 @@ export function TermsPage() {
 }
 
 export function PrivacyPage() {
+  useDocumentMetadata({
+    title: 'Kebijakan Privasi - Vibe Creator',
+    description:
+      'Penjelasan ringkas tentang data yang diproses untuk menjalankan akun, project, export, dan proteksi keamanan Vibe Creator.',
+  });
+
   return (
     <PublicPageLayout
       eyebrow="Privacy"
@@ -90,6 +103,12 @@ export function PrivacyPage() {
 }
 
 export function ContactPage() {
+  useDocumentMetadata({
+    title: 'Hubungi Kami - Vibe Creator',
+    description:
+      'Untuk pertanyaan pre-launch, support akun, atau kerja sama, gunakan kanal kontak berikut.',
+  });
+
   return (
     <PublicPageLayout
       eyebrow="Contact"

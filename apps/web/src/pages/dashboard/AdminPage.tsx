@@ -14,6 +14,7 @@ import { SystemStats } from '@/components/dashboard/admin/SystemStats';
 import { UserDetailModal } from '@/components/dashboard/admin/UserDetailModal';
 import { UsersTable } from '@/components/dashboard/admin/UsersTable';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui';
+import { useDocumentMetadata } from '@/hooks/use-document-metadata';
 import {
   type AdminUserFilters,
   type AdminUserStatus,
@@ -34,6 +35,12 @@ const defaultFilters: AdminUserFilters = {
 };
 
 export function AdminPage() {
+  useDocumentMetadata({
+    title: 'Admin Panel - Vibe Creator',
+    description:
+      'Kelola pengguna, pantau performa sistem, dan atur batasan rendering Vibe Creator.',
+  });
+
   const navigate = useNavigate();
   const { user, isLoading: authLoading } = useAuthStore();
   const [filters, setFilters] = useState<AdminUserFilters>(defaultFilters);

@@ -2,9 +2,16 @@ import { Link } from '@tanstack/react-router';
 import { ArrowRight, Check, Download } from 'lucide-react';
 import { Button } from '@/components/ui';
 import { aboutHighlights, landingProductFeatures, landingWorkflows } from '@/data/landing-content';
+import { useDocumentMetadata } from '@/hooks/use-document-metadata';
 import { PublicPageLayout } from './PublicPageLayout';
 
 export function AboutPage() {
+  useDocumentMetadata({
+    title: 'Tentang Kami - Vibe Creator',
+    description:
+      'Pelajari lebih lanjut tentang Vibe Creator, platform workspace all-in-one bertenaga AI untuk memudahkan alur kerja kreator konten harian.',
+  });
+
   return (
     <PublicPageLayout
       eyebrow="About"

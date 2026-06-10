@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/PageTransition';
 import { SkeletonCard } from '@/components/ui/SkeletonLoader';
 import { useAnnouncements } from '@/hooks/use-announcements';
+import { useDocumentMetadata } from '@/hooks/use-document-metadata';
 import { type ResolvedCommunityLink, resolveCommunityLink } from '@/lib/community-links';
 
 const TELEGRAM_LINK = resolveCommunityLink(
@@ -46,6 +47,12 @@ const communities = [
 ];
 
 export function CommunityPage() {
+  useDocumentMetadata({
+    title: 'Komunitas - Vibe Creator',
+    description:
+      'Bergabung dengan kreator lainnya, bagikan template, dan temukan inspirasi konten kreatif.',
+  });
+
   const { data: announcements = [], isError, isFetching, isLoading, refetch } = useAnnouncements();
 
   const isNew = (dateStr: string) => {

@@ -7,6 +7,7 @@ import {
 import { resolveFocusPanelVisibility } from '@/components/modern-editor/focus-panel-utils';
 import { TooltipProvider } from '@/components/ui';
 import { ContinueWorkspaceDialog } from '@/components/workspace/ContinueWorkspaceDialog';
+import { useDocumentMetadata } from '@/hooks/use-document-metadata';
 import { useModernEditorAutosave } from '@/hooks/use-modern-editor-autosave';
 import { useModernEditorShortcuts } from '@/hooks/use-modern-editor-shortcuts';
 import {
@@ -137,6 +138,12 @@ function syncEditorUrlParams(
 }
 
 export function ModernEditorPage() {
+  useDocumentMetadata({
+    title: 'Video Studio - Vibe Creator',
+    description:
+      'Edit video Anda secara detail menggunakan timeline multi-track modern yang canggih.',
+  });
+
   const [searchParams, setSearchParams] = useMutableSearchParams();
   const { initProject, isPlaying, layerOrder, loadProject, selectedLayerId } =
     useModernEditorStore();

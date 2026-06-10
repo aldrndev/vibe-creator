@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from '@/components/ui';
 import { PageTransition } from '@/components/ui/PageTransition';
+import { useDocumentMetadata } from '@/hooks/use-document-metadata';
 import { useMutableSearchParams } from '@/lib/route-search';
 import { cn } from '@/lib/utils';
 import { api } from '@/services/api';
@@ -99,6 +100,12 @@ async function fetchTrendingData(region: TrendingRegionCode): Promise<TrendingRe
 }
 
 export function TrendingPage() {
+  useDocumentMetadata({
+    title: 'Analisis Tren - Vibe Creator',
+    description:
+      'Pantau topik hangat, hashtag trending, dan analisis pasar konten video secara real-time.',
+  });
+
   const queryClient = useQueryClient();
   const user = useAuthStore((state) => state.user);
   const isAdmin = user?.role === 'ADMIN';

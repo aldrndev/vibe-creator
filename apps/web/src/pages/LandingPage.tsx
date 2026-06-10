@@ -10,6 +10,7 @@ import {
   landingProductFeatures,
   landingWorkflows,
 } from '@/data/landing-content';
+import { useDocumentMetadata } from '@/hooks/use-document-metadata';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/auth-store';
 
@@ -28,6 +29,12 @@ function scrollToSection(sectionId: LandingSectionId) {
 }
 
 export function LandingPage() {
+  useDocumentMetadata({
+    title: 'Vibe Creator - All-in-One AI Video & Content Workspace',
+    description:
+      'Bikin konten video lebih cepat dari satu workspace. Mulai dari trending, buat short, edit timeline, loop ambience, record reaction, export, dan live stream.',
+  });
+
   const { isAuthenticated } = useAuthStore();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [hasScrolled, setHasScrolled] = useState(false);

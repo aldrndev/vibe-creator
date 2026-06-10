@@ -17,6 +17,7 @@ import { ReactionRenderDialog } from '@/components/tools/reaction/ReactionRender
 import { Button, Card, Slider } from '@/components/ui';
 import { PageTransition } from '@/components/ui/PageTransition';
 import { ContinueWorkspaceDialog } from '@/components/workspace/ContinueWorkspaceDialog';
+import { useDocumentMetadata } from '@/hooks/use-document-metadata';
 import { useScrollToTopOnChange } from '@/hooks/use-scroll-to-top-on-change';
 import { useReactionCreator } from '@/hooks/useReactionCreator';
 import { useMutableSearchParams } from '@/lib/route-search';
@@ -63,6 +64,12 @@ type ReactionSourceSummary = {
 type ReactionVideoFraming = ReactionCreatorProjectDocument['layout']['mainFraming'];
 
 export function ReactionCreatorPage() {
+  useDocumentMetadata({
+    title: 'Reaction Creator - Vibe Creator',
+    description:
+      'Rekam video reaksi Anda sembari menonton video utama dalam satu workspace interaktif.',
+  });
+
   const [params, setParams] = useMutableSearchParams();
   const sessionId = params.get('session') ?? undefined;
   const [showContinue, setShowContinue] = useState(!sessionId);

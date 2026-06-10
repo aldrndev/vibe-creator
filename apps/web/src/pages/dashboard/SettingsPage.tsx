@@ -43,6 +43,7 @@ import {
   TabsList,
   TabsTrigger,
 } from '@/components/ui';
+import { useDocumentMetadata } from '@/hooks/use-document-metadata';
 import {
   type NotificationPreferences,
   useChangePassword,
@@ -271,6 +272,12 @@ function PaymentStatusBanner({
 }
 
 export function SettingsPage() {
+  useDocumentMetadata({
+    title: 'Pengaturan Akun - Vibe Creator',
+    description:
+      'Atur profil, preferensi notifikasi, integrasi API, dan kelola keamanan akun Anda.',
+  });
+
   const navigate = useNavigate();
   const [searchParams] = useMutableSearchParams();
   const { user, subscription } = useAuthStore();

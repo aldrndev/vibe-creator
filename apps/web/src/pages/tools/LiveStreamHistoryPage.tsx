@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { TopupModal } from '@/components/tools/TopupModal';
 import { Badge, Button, Card, CardBody, Spinner } from '@/components/ui';
 import { PageTransition } from '@/components/ui/PageTransition';
+import { useDocumentMetadata } from '@/hooks/use-document-metadata';
 import {
   formatLiveStreamElapsed,
   getStreamQuotaUsageLabel,
@@ -41,6 +42,12 @@ function getPlatformLabel(platform: string): string {
 }
 
 export function LiveStreamHistoryPage() {
+  useDocumentMetadata({
+    title: 'Riwayat Live Stream - Vibe Creator',
+    description:
+      'Pantau riwayat siaran langsung, log destinasi streaming, dan metrik performa siaran Anda.',
+  });
+
   const user = useAuthStore((state) => state.user);
   const [streams, setStreams] = useState<StreamSession[]>([]);
   const [isLoading, setIsLoading] = useState(true);

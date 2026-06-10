@@ -6,11 +6,18 @@ import { LiveStreamSettings } from '@/components/tools/livestream/LiveStreamSett
 import { TopupModal } from '@/components/tools/TopupModal';
 import { PageTransition } from '@/components/ui/PageTransition';
 import { ContinueWorkspaceDialog } from '@/components/workspace/ContinueWorkspaceDialog';
+import { useDocumentMetadata } from '@/hooks/use-document-metadata';
 import { useScrollToTopOnChange } from '@/hooks/use-scroll-to-top-on-change';
 import { useLiveStream } from '@/hooks/useLiveStream';
 import { useMutableSearchParams } from '@/lib/route-search';
 
 export function LiveStreamPage() {
+  useDocumentMetadata({
+    title: 'Live Streamer - Vibe Creator',
+    description:
+      'Siarkan video Anda secara langsung ke berbagai platform tujuan dari satu workspace.',
+  });
+
   const [searchParams, setSearchParams] = useMutableSearchParams();
   const sessionId = searchParams.get('session');
   const [showContinueDialog, setShowContinueDialog] = useState(!sessionId);

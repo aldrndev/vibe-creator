@@ -25,6 +25,7 @@ import {
   SelectTrigger,
 } from '@/components/ui';
 import { WorkspaceHistoryThumbnail } from '@/components/workspace/workspace-history-thumbnail';
+import { useDocumentMetadata } from '@/hooks/use-document-metadata';
 import { useMutableSearchParams } from '@/lib/route-search';
 import { downloadAuthenticatedFile } from '@/services/api';
 import {
@@ -296,6 +297,12 @@ function useWorkspaceMutations(queryClient: ReturnType<typeof useQueryClient>) {
 }
 
 export function WorkspaceHistoryPage() {
+  useDocumentMetadata({
+    title: 'Riwayat Proyek - Vibe Creator',
+    description:
+      'Pantau riwayat proyek video studio, AI director, loop creator, reaction, dan live stream Anda.',
+  });
+
   const [searchParams, setSearchParams] = useMutableSearchParams();
   const filterParam = searchParams.get('filter');
   const filter = isHistoryFilter(filterParam ?? '') ? (filterParam as HistoryFilter) : 'all';

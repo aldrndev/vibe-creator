@@ -1,6 +1,7 @@
 import { useNavigate, useParams } from '@tanstack/react-router';
 import { useState } from 'react';
 import { PageTransition } from '@/components/ui/PageTransition';
+import { useDocumentMetadata } from '@/hooks/use-document-metadata';
 import { useDeletePrompt, usePrompt } from '@/hooks/use-prompts';
 import { DeletePromptDialog } from './prompt/components/DeletePromptDialog';
 import { PromptDetailHeader } from './prompt/components/PromptDetailHeader';
@@ -18,6 +19,14 @@ export function PromptDetailPage() {
   const promptId = id ?? '';
   const navigate = useNavigate();
   const { data: prompt, isLoading, error } = usePrompt(promptId);
+
+  useDocumentMetadata({
+    title: prompt?.title ? `${prompt.title} - Vibe Creator` : 'Detail Prompt - Vibe Creator',
+    description: prompt?.title
+      ? `Detail, riwayat versi, dan model advisor untuk prompt "${prompt.title}".`
+      : 'Detail riwayat versi dan rekomendasi eksekusi model AI.',
+  });
+
   const deletePrompt = useDeletePrompt();
 
   const [selectedVersion, setSelectedVersion] = useState<string | null>(null);

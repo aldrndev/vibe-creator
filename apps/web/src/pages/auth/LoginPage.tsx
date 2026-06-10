@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form';
 import type { z } from 'zod';
 import { Button, Input } from '@/components/ui';
 import { TurnstileWidget, type TurnstileWidgetRef } from '@/components/ui/turnstile-widget';
+import { useDocumentMetadata } from '@/hooks/use-document-metadata';
 import { type LoginForm, loginFormSchema } from '@/lib/auth-form-schemas';
 import { api } from '@/services/api';
 import { useAuthStore } from '@/stores/auth-store';
@@ -29,6 +30,12 @@ interface AuthApiResponse {
 }
 
 export function LoginPage() {
+  useDocumentMetadata({
+    title: 'Masuk Ke Akun - Vibe Creator',
+    description:
+      'Masuk ke akun Vibe Creator Anda untuk melanjutkan pembuatan video dan manajemen konten.',
+  });
+
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState<string>();
