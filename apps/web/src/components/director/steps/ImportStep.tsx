@@ -15,6 +15,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Card, CardBody, Input } from '@/components/ui';
 import type { TrendingImportContext } from '@/lib/ai-director-trending-context';
+import { useMutableSearchParams } from '@/lib/route-search';
 import { cn } from '@/lib/utils';
 import { authFetch, getApiUrl } from '@/services/api';
 import { useAuthStore } from '@/stores/auth-store';
@@ -584,6 +585,7 @@ function useImportStepLogic({
     reset,
   } = useDirectorStore();
   const { user, subscription } = useAuthStore();
+  const [searchParams, setSearchParams] = useMutableSearchParams();
 
   const [isSourcesModalOpen, setIsSourcesModalOpen] = useState(false);
   const [isSubmittingImport, setIsSubmittingImport] = useState(false);
@@ -670,11 +672,17 @@ function useImportStepLogic({
         // Best-effort cleanup only; user-facing recovery continues below.
       }
       reset();
+
+      // Clear session parameter from URL search params to prevent automatic re-hydration of deleted session
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.delete('session');
+      setSearchParams(nextParams, { replace: true });
+
       if (preserveError) {
         setError(preserveError);
       }
     },
-    [reset, setError],
+    [reset, setError, searchParams, setSearchParams],
   );
 
   const startAnalysis = useCallback(

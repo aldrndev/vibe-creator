@@ -1,4 +1,12 @@
 services:
+  init-permissions:
+    image: alpine:3.19
+    container_name: vibe-creator-init-permissions-prod
+    user: "0:0"
+    volumes:
+      - api_uploads_prod:/app/uploads
+    command: chown -R 1000:1000 /app/uploads
+
   postgres:
     image: postgres:16-alpine@sha256:23e88eb049fd5d54894d70100df61d38a49ed97909263f79d4ff4c30a5d5fca2
     container_name: vibe-creator-db-prod
@@ -109,6 +117,8 @@ services:
         condition: service_healthy
       transcribe:
         condition: service_healthy
+      init-permissions:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/health"]
     restart: always
@@ -151,6 +161,8 @@ services:
         condition: service_healthy
       transcribe:
         condition: service_healthy
+      init-permissions:
+        condition: service_completed_successfully
     restart: always
     deploy:
       resources:
