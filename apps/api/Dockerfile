@@ -119,7 +119,20 @@ COPY --from=builder /app/apps/api/src/modules/director/processing/face_tracking_
 
 
 # Create upload directories & permissions
-RUN mkdir -p /app/uploads/temp /app/uploads/exports /app/uploads/downloads /app/uploads/cache/huggingface /app/uploads/director /app/uploads/director/previews /app/uploads/director/clip-previews /app/uploads/director/live-previews /app/uploads/director/exports \
+RUN mkdir -p /app/uploads/temp \
+             /app/uploads/exports \
+             /app/uploads/downloads \
+             /app/uploads/loops \
+             /app/uploads/projects \
+             /app/uploads/cache/huggingface \
+             /app/uploads/director \
+             /app/uploads/director/previews \
+             /app/uploads/director/clip-previews \
+             /app/uploads/director/live-previews \
+             /app/uploads/director/exports \
+             /app/uploads/temp/workspace-thumbnails \
+             /app/uploads/temp/loop-previews \
+             /app/uploads/temp/director/audio-proxies \
     && chown -R node:node /app /app/uploads
 
 USER node
